@@ -173,6 +173,41 @@ mod tests {
         assert_eq!(shape.fill_color, [0.85, 0.2, 0.35, 1.0]);
     }
 
+    /// 3D content (internally tagged enums in JSON) and the newer UI /
+    /// layout components must survive the binary format — postcard can't
+    /// decode serde's internal tagging, so those enums switch to external
+    /// tagging in binary (`space3d.rs`'s `binary_safe_tagged`).
+    #[test]
+    fn round_trips_3d_nodes_and_ui_layouts() {
+        use an1mbyt3_core::{Camera3D, Light3D, Mesh3D, Node3D, Node3DContent, NodeBehavior, NodeBehaviorEntry, Primitive3D, Transform3D, UiLayout, UiSize};
+        let mut document = Document::new();
+        let artboard_id = document.add_artboard(Artboard::new("3D", 400.0, 400.0));
+        let artboard = document.artboard_mut(artboard_id).unwrap();
+        let contents = [
+            Node3DContent::Empty,
+            Node3DContent::Mesh(Mesh3D::new(Primitive3D::Torus { radius: 1.0, tube: 0.3, segments: 24, sides: 12 }, [1.0, 0.5, 0.2, 1.0])),
+            Node3DContent::Camera(Camera3D::default()),
+            Node3DContent::Light(Light3D::default()),
+        ];
+        for content in contents {
+            artboard.add_node(Node::new("n", None, NodeKind::Node3D(Node3D::new(Transform3D::default(), content))));
+        }
+        let mut ui = Node::new("layout", None, NodeKind::Group(Default::default()));
+        ui.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::UiLayout(UiLayout { width: UiSize::Fixed(120.0), height: UiSize::Fill, ..Default::default() }), enabled: true });
+        artboard.add_node(ui);
+
+        let loaded = load_teab(&save_teab(&document).unwrap()).unwrap();
+        let (_, artboard) = loaded.artboards().next().unwrap();
+        let loaded_contents: Vec<Node3DContent> = artboard.node_ids().filter_map(|id| match &artboard.node(id)?.kind {
+            NodeKind::Node3D(n) => Some(n.content),
+            _ => None,
+        }).collect();
+        assert_eq!(loaded_contents, contents.to_vec());
+        // JSON keeps its internally tagged shape.
+        let json = serde_json::to_string(&contents[1]).unwrap();
+        assert!(json.contains("\"type\":\"Mesh\"") && json.contains("\"shape\":\"Torus\""), "{json}");
+    }
+
     /// `Artboard::animations` is a new, previously-absent field, and
     /// `Node`'s translation is now keyframed via a named `Animation`
     /// (Phase 4's multi-property/multi-animation timeline) rather than a

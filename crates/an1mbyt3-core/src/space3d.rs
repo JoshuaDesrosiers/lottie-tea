@@ -53,8 +53,12 @@ impl Transform3D {
 
 /// A built-in mesh shape. Sizes are in world units; every primitive is
 /// centred on its origin. Appended-last-only (`.teab`).
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "shape")]
+///
+/// Serialized internally tagged (`{"shape": "Cube", ...}`) in JSON
+/// (`.tea`, project folders, the editor's DTOs) but externally tagged in
+/// binary formats (`.teab` / postcard), which can't decode internal tags
+/// (they need `deserialize_any`) — see [`binary_safe_tagged`].
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Primitive3D {
     Cube { size: Vec3 },
     Sphere { radius: f32, segments: u32, rings: u32 },
@@ -221,9 +225,9 @@ impl Default for Light3D {
     }
 }
 
-/// What a [`Node3D`] holds.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
+/// What a [`Node3D`] holds. Internally tagged (`{"type": "Mesh", ...}`)
+/// in JSON, externally tagged in binary — same reason as [`Primitive3D`].
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Node3DContent {
     /// A pivot / group for other Node3Ds.
     Empty,
@@ -231,6 +235,82 @@ pub enum Node3DContent {
     Camera(Camera3D),
     Light(Light3D),
 }
+
+/// Implements `Serialize` / `Deserialize` for an enum that is internally
+/// tagged in human-readable formats (JSON) and externally tagged in binary
+/// ones. Internal tagging makes serde buffer the input and call
+/// `deserialize_any`, which non-self-describing formats like postcard
+/// (`.teab`) refuse ("a feature that PostCard will never implement"), so
+/// binary uses serde's default enum encoding instead. `$tagged` / `$plain`
+/// are `#[serde(remote)]` mirrors of `$ty` with and without the tag.
+macro_rules! binary_safe_tagged {
+    ($ty:ty, $tagged:ident, $plain:ident) => {
+        impl Serialize for $ty {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                if s.is_human_readable() {
+                    $tagged::serialize(self, s)
+                } else {
+                    $plain::serialize(self, s)
+                }
+            }
+        }
+        impl<'de> Deserialize<'de> for $ty {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                if d.is_human_readable() {
+                    $tagged::deserialize(d)
+                } else {
+                    $plain::deserialize(d)
+                }
+            }
+        }
+    };
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "Primitive3D", tag = "shape")]
+enum Primitive3DTagged {
+    Cube { size: Vec3 },
+    Sphere { radius: f32, segments: u32, rings: u32 },
+    Plane { size: f32, subdivisions: u32 },
+    Cylinder { radius: f32, height: f32, segments: u32 },
+    Cone { radius: f32, height: f32, segments: u32 },
+    Torus { radius: f32, tube: f32, segments: u32, sides: u32 },
+    Model { model: crate::ModelId },
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "Primitive3D")]
+enum Primitive3DPlain {
+    Cube { size: Vec3 },
+    Sphere { radius: f32, segments: u32, rings: u32 },
+    Plane { size: f32, subdivisions: u32 },
+    Cylinder { radius: f32, height: f32, segments: u32 },
+    Cone { radius: f32, height: f32, segments: u32 },
+    Torus { radius: f32, tube: f32, segments: u32, sides: u32 },
+    Model { model: crate::ModelId },
+}
+
+binary_safe_tagged!(Primitive3D, Primitive3DTagged, Primitive3DPlain);
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "Node3DContent", tag = "type")]
+enum Node3DContentTagged {
+    Empty,
+    Mesh(Mesh3D),
+    Camera(Camera3D),
+    Light(Light3D),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "Node3DContent")]
+enum Node3DContentPlain {
+    Empty,
+    Mesh(Mesh3D),
+    Camera(Camera3D),
+    Light(Light3D),
+}
+
+binary_safe_tagged!(Node3DContent, Node3DContentTagged, Node3DContentPlain);
 
 /// Payload for `NodeKind::Node3D`.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
