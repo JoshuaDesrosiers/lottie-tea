@@ -1120,11 +1120,17 @@ impl Renderer {
             .await
             .expect("an1mbyt3-renderer: no suitable GPU adapter found for this surface");
 
+        // WebGL2 (the fallback where a browser has no WebGPU) can't meet
+        // WebGPU's default limits (e.g. 16 KB uniform bindings vs 64 KB,
+        // fewer bind groups) — ask for exactly what the adapter offers
+        // there instead of failing device creation.
+        let is_gl = adapter.get_info().backend == wgpu::Backend::Gl;
+        let required_limits = if is_gl { adapter.limits() } else { wgpu::Limits::default() };
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("an1mbyt3-renderer device"),
                 required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
+                required_limits,
                 ..Default::default()
             })
             .await
@@ -1180,9 +1186,18 @@ impl Renderer {
                 // preferred canvas format, `bgra8unorm`, has no sRGB
                 // encoding): shaders output linear light and the view
                 // encodes it on write, so images show their true colors.
-                let srgb = config.format.add_srgb_suffix();
-                if srgb != config.format && !config.view_formats.contains(&srgb) {
-                    config.view_formats.push(srgb);
+                // WebGL2 can't reinterpret a surface through a different
+                // view format; it offers an sRGB surface format directly,
+                // so use that (same result: linear in, sRGB on screen).
+                if is_gl {
+                    if let Some(format) = surface.get_capabilities(&adapter).formats.iter().copied().find(|f| f.is_srgb()) {
+                        config.format = format;
+                    }
+                } else {
+                    let srgb = config.format.add_srgb_suffix();
+                    if srgb != config.format && !config.view_formats.contains(&srgb) {
+                        config.view_formats.push(srgb);
+                    }
                 }
                 surface.configure(&device, &config);
                 (config, transparent)

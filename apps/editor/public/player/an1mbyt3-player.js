@@ -1683,6 +1683,10 @@ function r() {
 			__wbg_depthRange_e2d0a59942d33efd: function(e, t, n) {
 				e.depthRange(t, n);
 			},
+			__wbg_description_02485704e69b1e7f: function(e, t) {
+				let n = t.description, r = K(n, Y.__wbindgen_malloc, Y.__wbindgen_realloc), i = J;
+				L().setInt32(e + 4, i, !0), L().setInt32(e + 0, r, !0);
+			},
 			__wbg_destroy_fe937f756bf8df37: function(e) {
 				e.destroy();
 			},
@@ -1959,6 +1963,9 @@ function r() {
 			__wbg_includes_a4b83ade703cb80b: function(e, t, n) {
 				return e.includes(t, n);
 			},
+			__wbg_info_cf0d9a286850cd24: function(e) {
+				return e.info;
+			},
 			__wbg_instanceof_ArrayBuffer_993d02d2d254cad1: function(e) {
 				let t;
 				try {
@@ -2021,6 +2028,9 @@ function r() {
 			__wbg_isArray_6339f732981044bf: function(e) {
 				return Array.isArray(e);
 			},
+			__wbg_isFallbackAdapter_8ccb967428491dcb: function(e) {
+				return e.isFallbackAdapter;
+			},
 			__wbg_isSafeInteger_f3d6cd19ccfe4512: function(e) {
 				return Number.isSafeInteger(e);
 			},
@@ -2042,6 +2052,9 @@ function r() {
 			},
 			__wbg_length_ecfa2c63d3d0d82c: function(e) {
 				return e.length;
+			},
+			__wbg_limits_20c6f56636df7d38: function(e) {
+				return e.limits;
 			},
 			__wbg_limits_328c61cd41512420: function(e) {
 				return e.limits;
@@ -2309,6 +2322,9 @@ function r() {
 			},
 			__wbg_requestAdapter_2e6718811c735a57: function(e, t) {
 				return e.requestAdapter(t);
+			},
+			__wbg_requestAdapter_fedd76261c649e55: function(e) {
+				return e.requestAdapter();
 			},
 			__wbg_requestDevice_ab46d0519ea1cc34: function(e, t) {
 				return e.requestDevice(t);
@@ -2942,6 +2958,12 @@ function r() {
 			},
 			__wbg_stencilOpSeparate_33a6764dd0ce6e24: function(e, t, n, r, i) {
 				e.stencilOpSeparate(t >>> 0, n >>> 0, r >>> 0, i >>> 0);
+			},
+			__wbg_subgroupMaxSize_1527c5f7a8fe91bb: function(e) {
+				return e.subgroupMaxSize;
+			},
+			__wbg_subgroupMinSize_d6c5ad4bddc828e9: function(e) {
+				return e.subgroupMinSize;
 			},
 			__wbg_submit_ce44115121cd166c: function(e, t, n) {
 				e.submit(N(t, n));
@@ -5125,11 +5147,7 @@ function Dn(e) {
 }
 async function On() {
 	let e = JSON.parse(Tn("an1-config"));
-	if (document.title = e.title, !("gpu" in navigator)) {
-		Dn("This game needs WebGPU — open it in a recent Chrome, Edge or Safari.");
-		return;
-	}
-	Ue(En(Tn("an1-wasm")));
+	document.title = e.title, Ue(En(Tn("an1-wasm")));
 	let t = document.getElementById("an1-canvas"), n = {
 		width: 1,
 		height: 1

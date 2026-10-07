@@ -64,6 +64,10 @@ use crate::dto::{
 struct TextMeshCache {
     key: (String, f32),
     glyphs: Vec<(GpuMesh, DrawBinding, Vec2)>,
+    /// The run's real local bounds (glyph outlines, horizontally centred,
+    /// baseline at 0) — what UI layouts measure text by, instead of
+    /// `dto::local_bounds`' per-character estimate.
+    bounds: (Vec2, Vec2),
 }
 
 /// Same demo content `apps/editor/src-tauri`'s (now-removed) `document_state::build_demo_document`
@@ -2272,7 +2276,9 @@ impl WasmEditor {
         // `WasmPlayer::create`'s own `canvas_for_listener` doc comment gives.
         let canvas_for_listener = canvas.clone();
 
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        // WebGPU when the browser has it, else WebGL2 (decided before the
+        // canvas gets a context — a canvas can only ever have one kind).
+        let instance = wgpu::util::new_instance_with_webgpu_detection(wgpu::InstanceDescriptor::new_without_display_handle_from_env()).await;
         let surface = instance
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
             .map_err(|err| JsValue::from_str(&format!("failed to create wgpu surface: {err}")))?;
@@ -2939,13 +2945,24 @@ impl WasmEditor {
                 // slice can not be empty." Skipping an empty mesh here is
                 // correct either way: it has nothing to draw regardless of
                 // whether the GPU upload would have survived.
+                let mut min = Vec2::splat(f32::INFINITY);
+                let mut max = Vec2::splat(f32::NEG_INFINITY);
+                for g in &shaped.glyphs {
+                    for p in &g.mesh.positions {
+                        let p = Vec2::from(*p) + g.offset + recenter;
+                        min = min.min(p);
+                        max = max.max(p);
+                    }
+                }
+                // A blank run still occupies its advance.
+                let bounds = if min.x <= max.x { (min, max) } else { (Vec2::new(-shaped.advance.x / 2.0, 0.0), Vec2::new(shaped.advance.x / 2.0, text.size_px)) };
                 let glyphs = shaped
                     .glyphs
                     .into_iter()
                     .filter(|g| !g.mesh.indices.is_empty())
                     .map(|g| (self.renderer.upload_mesh(&g.mesh), self.renderer.create_draw_binding(), g.offset + recenter))
                     .collect();
-                self.text_mesh_cache.insert(node_id, TextMeshCache { key, glyphs });
+                self.text_mesh_cache.insert(node_id, TextMeshCache { key, glyphs, bounds });
             }
         }
 
@@ -6349,7 +6366,13 @@ impl WasmEditor {
             }
         }
         // Flex layouts (after anchors, so an anchored root is placed first).
-        let layout_writes = an1mbyt3_core::solve_layouts(artboard, &screen, &|id| crate::dto::local_bounds(artboard, id));
+        // Text measured by its shaped glyphs (once it's been drawn), not the
+        // rough per-character estimate.
+        let text_cache = &self.text_mesh_cache;
+        let layout_writes = an1mbyt3_core::solve_layouts(artboard, &screen, &|id| match (artboard.node(id).map(|n| &n.kind), text_cache.get(&id)) {
+            (Some(NodeKind::Text(text)), Some(cached)) if cached.key.0 == text.content && cached.key.1 == text.size_px => cached.bounds,
+            _ => crate::dto::local_bounds(artboard, id),
+        });
         let Some(artboard) = self.document.artboard_mut(artboard_id) else { return };
         for (id, at) in moves {
             if let Some(node) = artboard.node_mut(id) {

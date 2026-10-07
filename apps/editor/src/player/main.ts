@@ -57,10 +57,9 @@ function showMessage(text: string) {
 async function boot() {
   const config = JSON.parse(payload('an1-config')) as PlayerConfig
   document.title = config.title
-  if (!('gpu' in navigator)) {
-    showMessage('This game needs WebGPU — open it in a recent Chrome, Edge or Safari.')
-    return
-  }
+  // No WebGPU check: the engine falls back to WebGL2 by itself (see
+  // `new_instance_with_webgpu_detection` in the wasm crate), so older
+  // Safari / Firefox / Android browsers run the game too.
   setWasmBytes(base64Bytes(payload('an1-wasm')))
   const canvas = document.getElementById('an1-canvas') as HTMLCanvasElement
 

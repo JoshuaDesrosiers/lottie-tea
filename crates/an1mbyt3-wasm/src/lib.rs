@@ -416,7 +416,9 @@ impl WasmPlayer {
         // (cheap), not a copy of the actual DOM element.
         let canvas_for_listener = canvas.clone();
 
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        // WebGPU when the browser has it, else WebGL2 (decided before the
+        // canvas gets a context — a canvas can only ever have one kind).
+        let instance = wgpu::util::new_instance_with_webgpu_detection(wgpu::InstanceDescriptor::new_without_display_handle_from_env()).await;
         let surface = instance
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
             .map_err(|err| JsValue::from_str(&format!("failed to create wgpu surface: {err}")))?;
