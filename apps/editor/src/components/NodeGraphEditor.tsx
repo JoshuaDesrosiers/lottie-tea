@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { GraphEdgeDef, GraphNodeDef, GraphNodeKind, GraphProperty, NodeGraphDef, NodeSummary, OpaqueId } from '../ipc/document'
+import type { GraphEdgeDef, GraphNodeDef, GraphNodeKind, GraphProperty, NodeGraphDef, NodeSummary } from '../ipc/document'
 import { Dropdown } from './InspectorPanel'
 
 /**
@@ -167,10 +167,6 @@ function layoutFor(node: GraphNodeDef) {
   const height = HEADER_HEIGHT + extraRows * EXTRA_ROW_HEIGHT + socketRows * SOCKET_ROW_HEIGHT + PADDING_BOTTOM
   const socketRowY = (row: number) => HEADER_HEIGHT + extraRows * EXTRA_ROW_HEIGHT + row * SOCKET_ROW_HEIGHT + SOCKET_ROW_HEIGHT / 2
   return { width: NODE_WIDTH, height, inputs, outputs, socketRowY }
-}
-
-function sameNode(a: OpaqueId, b: OpaqueId): boolean {
-  return a.idx === b.idx && a.version === b.version
 }
 
 export function NodeGraphEditor({ graph, nodes, onChange }: { graph: NodeGraphDef; nodes: NodeSummary[]; onChange: (graph: NodeGraphDef) => void }) {
@@ -366,11 +362,10 @@ export function NodeGraphEditor({ graph, nodes, onChange }: { graph: NodeGraphDe
         </svg>
 
         {graph.nodes.map((node) => {
-          const { width, height, inputs, outputs } = layoutFor(node)
+          const { width, inputs, outputs } = layoutFor(node)
           const pos = screenPositionOf(node)
           const offset = liveOffsetFor(node.id, dragCurrent)
           const socketRows = Math.max(inputs.length, outputs.length)
-          const extraRows = extraRowCount(node.kind)
 
           return (
             <div

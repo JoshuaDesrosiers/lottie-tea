@@ -72,6 +72,12 @@ const CTX_SUGGESTIONS: monacoEditor.languages.CompletionItem[] = [
  * good enough since a `ComponentRef` only ever has this one fixed shape. */
 const COMPONENT_REF_PROPERTIES = ['id', 'name', 'classes', 'x', 'y', 'rotation', 'scaleX', 'scaleY', 'anchorX', 'anchorY']
 
+/** Monaco's completion-provider callback argument types (the editor's own
+ * `monaco-editor` typings, reached through `@monaco-editor/react`'s `Monaco`). */
+type CompletionProvider = Parameters<Monaco['languages']['registerCompletionItemProvider']>[1]
+type CompletionModel = Parameters<CompletionProvider['provideCompletionItems']>[0]
+type CompletionPosition = Parameters<CompletionProvider['provideCompletionItems']>[1]
+
 export function CodeEditor({ value, onChange, nodes }: { value: string; onChange: (value: string) => void; nodes: NodeSummary[] }) {
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
@@ -79,7 +85,7 @@ export function CodeEditor({ value, onChange, nodes }: { value: string; onChange
   function handleMount(_editor: unknown, monaco: Monaco) {
     monaco.languages.registerCompletionItemProvider('javascript', {
       triggerCharacters: ['.', "'", '"'],
-      provideCompletionItems(model, position) {
+      provideCompletionItems(model: CompletionModel, position: CompletionPosition) {
         const word = model.getWordUntilPosition(position)
         const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn }
         const linePrefix = model.getLineContent(position.lineNumber).slice(0, position.column - 1)

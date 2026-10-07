@@ -19,7 +19,11 @@ import { snapAngleDegrees } from '../snapping'
  * scaling one would teleport it by the parent's translation on release.
  * `parent: null` (a root node — nothing to convert through) returns `world`
  * unchanged, matching `local_for`'s own identity-parent behavior. */
-function localFor(parent: Transform2D | null, world: Transform2D): Transform2D {
+/** The parts of a transform `localFor` converts (the anchor isn't affected
+ * by re-parenting, so callers don't need to supply one). */
+type Trs = Pick<Transform2D, 'translation' | 'rotation' | 'scale'>
+
+function localFor(parent: Trs | null, world: Trs): Trs {
   if (!parent) return world
   const cos = Math.cos(parent.rotation)
   const sin = Math.sin(parent.rotation)
@@ -607,6 +611,7 @@ export function TransformHandles({
   function handleAnchorMouseDown(event: ReactMouseEvent) {
     event.preventDefault()
     event.stopPropagation()
+    if (!selectedNode) return
     const local = selectedNode.transform
     anchorDragRef.current = {
       rotationRad: local.rotation,

@@ -275,10 +275,15 @@ class Parser {
   private vars = new Map<string, { node: number; socket: number }>()
   private sourceNodes = new Map<string, number>()
 
-  constructor(
-    private tokens: Token[],
-    private sceneNodes: NodeSummary[],
-  ) {}
+  // (Plain fields, not constructor parameter properties — those aren't
+  // erasable syntax, which this project's tsconfig requires.)
+  private tokens: Token[]
+  private sceneNodes: NodeSummary[]
+
+  constructor(tokens: Token[], sceneNodes: NodeSummary[]) {
+    this.tokens = tokens
+    this.sceneNodes = sceneNodes
+  }
 
   private peek(offset = 0): Token | undefined {
     return this.tokens[this.pos + offset]
