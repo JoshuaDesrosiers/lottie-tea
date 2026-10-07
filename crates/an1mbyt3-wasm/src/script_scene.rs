@@ -42,6 +42,10 @@ pub struct ScriptNodeDto {
     pub body_type: Option<RigidbodyType2D>,
     /// The node's Audio Source (scripts' `ref.playAudio()` and play-on-start).
     pub audio_source: Option<an1mbyt3_core::AudioSource>,
+    /// The node's UI Button (hover / press / click, handled by the host).
+    pub button: Option<an1mbyt3_core::UiButton>,
+    /// Local-space bounds `[min x, min y, max x, max y]` (button hit tests).
+    pub bounds: [f32; 4],
 }
 
 #[derive(Serialize)]
@@ -129,6 +133,14 @@ pub fn scene(document: &Document, artboard: &Artboard) -> ScriptSceneDto {
                 },
                 body_type: node.rigidbody().map(|rb| rb.body_type),
                 audio_source: node.audio_source().copied(),
+                button: node.behaviors.iter().find_map(|e| match &e.behavior {
+                    an1mbyt3_core::NodeBehavior::UiButton(b) if e.enabled => Some(*b),
+                    _ => None,
+                }),
+                bounds: {
+                    let (min, max) = crate::dto::local_bounds(artboard, id);
+                    [min.x, min.y, max.x, max.y]
+                },
             })
         })
         .collect();

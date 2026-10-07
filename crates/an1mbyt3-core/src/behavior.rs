@@ -72,8 +72,15 @@ pub enum NodeBehavior {
     SpriteSkin2D(crate::SpriteSkin2D),
     /// A particle fluid — see [`crate::Liquid2D`].
     Liquid2D(crate::Liquid2D),
-    /// Unity's `AudioSource` — see [`crate::AudioSource`]. (Appended last.)
+    /// Unity's `AudioSource` — see [`crate::AudioSource`].
     AudioSource(crate::AudioSource),
+    /// Pins the node to a point of the screen — see [`crate::UiAnchor`].
+    UiAnchor(crate::UiAnchor),
+    /// Row / column layout of the children — see [`crate::UiStack`].
+    UiStack(crate::UiStack),
+    /// Hover / press feedback and clicks — see [`crate::UiButton`].
+    /// (Appended last.)
+    UiButton(crate::UiButton),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

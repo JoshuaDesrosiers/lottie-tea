@@ -184,6 +184,70 @@ export class ScriptHost {
    * Returns the scene name a script asked to `loadScene`, if any — the
    * caller switches scenes *after* the frame, so no script ever sees half
    * of one scene and half of another. */
+  /** Per UI Button node: pointer state, and the look it had before feedback. */
+  private buttons = new Map<string, { hovered: boolean; pressed: boolean; clicked: boolean; baseColor: [number, number, number, number] | null; baseScale: { x: number; y: number } | null; look: string }>()
+  private buttonSession: unknown = null
+  private mouseWasDown = false
+
+  /** Hover / press / click for every UI Button, with its visual feedback. */
+  private updateButtons(frame: ScriptFrame, nodes: ScriptNode[]): void {
+    const { editor, scene } = frame
+    if (frame.globals !== this.buttonSession) {
+      this.buttons.clear()
+      this.buttonSession = frame.globals
+    }
+    const down = frame.keysDown.has('mouse')
+    const pressedNow = down && !this.mouseWasDown
+    const releasedNow = !down && this.mouseWasDown
+    this.mouseWasDown = down
+    const m = frame.mouseWorld
+    for (const n of nodes) {
+      const cfg = n.button
+      if (!cfg || !n.visible) continue
+      const key = `${n.id.idx}:${n.id.version}`
+      let state = this.buttons.get(key)
+      if (!state) {
+        state = { hovered: false, pressed: false, clicked: false, baseColor: n.fillColor, baseScale: { x: n.transform.scale.x, y: n.transform.scale.y }, look: '' }
+        this.buttons.set(key, state)
+      }
+      // The pointer in the node's own space (inverse of its world transform).
+      const t = n.worldTransform
+      const dx = m.x - t.translation.x, dy = m.y - t.translation.y
+      const c = Math.cos(-t.rotation), s = Math.sin(-t.rotation)
+      const lx = (dx * c - dy * s) / (t.scale.x || 1) + t.anchor.x
+      const ly = (dx * s + dy * c) / (t.scale.y || 1) + t.anchor.y
+      const [x0, y0, x1, y1] = n.bounds
+      const over = cfg.interactable && lx >= x0 && lx <= x1 && ly >= y0 && ly <= y1
+      state.clicked = false
+      if (cfg.interactable) {
+        if (pressedNow && over) state.pressed = true
+        if (releasedNow) {
+          state.clicked = state.pressed && over
+          state.pressed = false
+        }
+      } else {
+        state.pressed = false
+      }
+      state.hovered = over
+      // Feedback: tint the fill, "press in" the scale (only on change).
+      const look = !cfg.interactable ? 'off' : state.pressed ? 'pressed' : over ? 'hover' : 'idle'
+      if (look !== state.look) {
+        state.look = look
+        const base = state.baseColor
+        if (base) {
+          const tint = look === 'pressed' ? cfg.pressedTint : look === 'hover' ? cfg.hoverTint : look === 'off' ? [0.55, 0.55, 0.55, 0.7] : [1, 1, 1, 1]
+          this.writes.push(6, n.id, Math.min(1, base[0] * tint[0]), Math.min(1, base[1] * tint[1]), Math.min(1, base[2] * tint[2]), base[3] * tint[3])
+        }
+        const bs = state.baseScale
+        if (bs) {
+          const k = look === 'pressed' ? cfg.pressedScale : 1
+          this.writes.flush()
+          previewNodeScale(editor, scene.id, n.id, n.transform.translation.x, n.transform.translation.y, bs.x * k, bs.y * k)
+        }
+      }
+    }
+  }
+
   /** Which Playground session / scene sound was last started for. */
   private audioSession: unknown = null
   private audioScene = ''
@@ -263,9 +327,14 @@ export class ScriptHost {
     }
     const artboardId = scene.id
     const nodes = this.mirror.update(editor, artboardId)
-    // Sound runs even in scenes without scripts (play-on-start sources).
+    // Sound and buttons run even in scenes without scripts.
+    this.writes.target(editor, artboardId)
     this.updateAudio(frame, nodes)
-    if (programs.length === 0) return null
+    this.updateButtons(frame, nodes)
+    if (programs.length === 0) {
+      this.writes.flush()
+      return null
+    }
 
     let pendingScene: string | null = null
     // One batch for the host's lifetime, not per frame: scripts keep refs
@@ -348,6 +417,10 @@ export class ScriptHost {
         stopAllSounds: () => audio.stopAll(),
         setMasterVolume: (volume) => audio.setMasterVolume(volume),
         playAudioSource: (node, options) => this.playSource(editor, nodes, node, options),
+        buttonState: (node) => {
+          const b = this.buttons.get(`${node.idx}:${node.version}`)
+          return { hovered: !!b?.hovered, pressed: !!b?.pressed, clicked: !!b?.clicked }
+        },
         stopAudioSource: (node) => audio.stopNodeSounds(`${node.idx}:${node.version}`),
         setLight: (node, intensity, radius) => flushed(() => previewLight(editor, artboardId, node, intensity, radius)),
         emitParticles: (node, count) => flushed(() => emitParticles(editor, artboardId, node, count)),

@@ -2697,6 +2697,8 @@ impl WasmEditor {
         self.renderer.set_shader_time(self.shader_clock);
         // 3D: gather this frame's Node3Ds for the renderer's 3D pass.
         self.collect_scene_3d(artboard_id);
+        // UI: anchors and stacks position their nodes for this frame.
+        self.apply_ui_layout(artboard_id);
 
         let artboard = self.document.artboard(artboard_id).unwrap();
         // Deliberately *not* `artboard.shapes()` — that iterator excludes
@@ -5592,6 +5594,9 @@ impl WasmEditor {
             "SpriteSkin2D" => B::SpriteSkin2D(an1mbyt3_core::SpriteSkin2D::default()),
             "Liquid2D" => B::Liquid2D(an1mbyt3_core::Liquid2D::default()),
             // The first imported sound, if there is one.
+            "UiAnchor" => B::UiAnchor(an1mbyt3_core::UiAnchor::default()),
+            "UiStack" => B::UiStack(an1mbyt3_core::UiStack::default()),
+            "UiButton" => B::UiButton(an1mbyt3_core::UiButton::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -6224,6 +6229,62 @@ impl WasmEditor {
         out
     }
 
+    /// Positions UI nodes for this frame (untracked, every mode — layout is
+    /// derived, so Design shows exactly what Playground will):
+    /// - **UI Anchor**: the node goes to its point of the view rectangle (the
+    ///   game camera's visible area in Playground, the canvas size over the
+    ///   camera's zoom otherwise), centred on the parent's origin — i.e. the
+    ///   camera, for HUD nodes.
+    /// - **UI Stack**: its visible children are laid out in a row / column
+    ///   by their bounds (`an1mbyt3_core::stack_positions`).
+    fn apply_ui_layout(&mut self, artboard_id: ArtboardId) {
+        use an1mbyt3_core::NodeBehavior as B;
+        let view = self.active_camera_frame(artboard_id).map(|f| Vec2::new(self.canvas_width as f32, self.canvas_height as f32) / f.zoom.max(1e-3));
+        let Some(artboard) = self.document.artboard(artboard_id) else { return };
+        let camera_zoom = artboard.active_camera().and_then(|c| artboard.node(c)).and_then(|n| n.camera()).map_or(1.0, |c| c.zoom.max(0.01));
+        let view = view.unwrap_or(Vec2::new(artboard.width, artboard.height) / camera_zoom);
+        let mut moves: Vec<(NodeId, Vec2)> = Vec::new();
+        for id in artboard.node_ids() {
+            if artboard.is_effectively_deleted(id) {
+                continue;
+            }
+            let Some(node) = artboard.node(id) else { continue };
+            for entry in node.behaviors.iter().filter(|e| e.enabled) {
+                match &entry.behavior {
+                    B::UiAnchor(anchor) => moves.push((id, (anchor.anchor - Vec2::splat(0.5)) * view + anchor.offset)),
+                    B::UiStack(stack) => {
+                        let children: Vec<NodeId> = artboard.children_of(id).filter(|(_, c)| c.visible && !c.deleted).map(|(cid, _)| cid).collect();
+                        let boxes: Vec<(Vec2, Vec2)> = children
+                            .iter()
+                            .map(|cid| {
+                                let (min, max) = crate::dto::local_bounds(artboard, *cid);
+                                let scale = artboard.node(*cid).map_or(Vec2::ONE, |c| c.transform.scale.abs());
+                                (min * scale, max * scale)
+                            })
+                            .collect();
+                        let sizes: Vec<Vec2> = boxes.iter().map(|(min, max)| *max - *min).collect();
+                        for ((cid, pos), (min, max)) in children.iter().zip(an1mbyt3_core::stack_positions(stack, &sizes)).zip(boxes) {
+                            // The child's bounds needn't be centred on its origin.
+                            moves.push((*cid, pos - (min + max) * 0.5));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if moves.is_empty() {
+            return;
+        }
+        let Some(artboard) = self.document.artboard_mut(artboard_id) else { return };
+        for (id, at) in moves {
+            if let Some(node) = artboard.node_mut(id) {
+                if node.transform.translation.distance_squared(at) > 1e-8 {
+                    node.transform.translation = at;
+                }
+            }
+        }
+    }
+
     /// Builds this frame's [`an1mbyt3_renderer::Scene3D`] from the scene's
     /// Node3Ds — meshes, lights and the camera — or clears it when there's
     /// nothing 3D to show. The camera is the scene view's orbit camera in
@@ -6534,6 +6595,51 @@ impl WasmEditor {
         let inverse = self.document.apply(Command::AddNode { artboard: artboard_id, node });
         let Command::SetDeleted { node: new_node, .. } = inverse else { unreachable!("Command::AddNode's inverse is always a SetDeleted") };
         to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node })
+    }
+
+    /// The + menu's UI items, added under the scene's active Camera (the HUD
+    /// layer) when it has one: `"Button"` (a rounded panel + label with a
+    /// UI Button), `"Panel"`, `"Label"` (text), `"Stack"` (a group that
+    /// lays out its children). Undoable as one step. Returns
+    /// `{ document, newNode }`.
+    pub fn add_ui_node(&mut self, artboard: JsValue, what: &str) -> Result<JsValue, JsValue> {
+        use an1mbyt3_core::NodeBehavior as B;
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let parent = self.document.artboard(artboard_id).and_then(|a| a.active_camera());
+        let font = default_text_font(&mut self.document);
+        let shape = |name: &str, w: f32, h: f32, color: [f32; 4]| Node::new(name, parent, NodeKind::Shape(ShapeNode { path: an1mbyt3_core::Path::rect(w, h), fill_color: color, blend_mode: Default::default(), gradient: None, image: None, stroke: None }));
+        let label = |text: &str, size: f32, parent: Option<NodeId>| Node::new(text, parent, NodeKind::Text(TextNode { content: text.into(), font, size_px: size, fill_color: [1.0; 4], gradient: None }));
+        let mut inverses = Vec::new();
+        let root = match what {
+            "Button" => {
+                let mut button = shape("Button", 180.0, 48.0, [0.28, 0.39, 0.84, 1.0]);
+                button.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiButton(an1mbyt3_core::UiButton::default()), enabled: true });
+                let inverse = Command::AddNode { artboard: artboard_id, node: button }.apply(&mut self.document);
+                let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                inverses.push(Command::AddNode { artboard: artboard_id, node: label("Button", 20.0, Some(id)) }.apply(&mut self.document));
+                id
+            }
+            "Panel" | "Label" | "Stack" => {
+                let mut node = match what {
+                    "Panel" => shape("Panel", 320.0, 220.0, [0.08, 0.08, 0.11, 0.85]),
+                    "Label" => label("Label", 24.0, parent),
+                    _ => Node::new("Stack", parent, NodeKind::Group(an1mbyt3_core::GroupNode::default())),
+                };
+                if what == "Stack" {
+                    node.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiStack(an1mbyt3_core::UiStack::default()), enabled: true });
+                }
+                let inverse = Command::AddNode { artboard: artboard_id, node }.apply(&mut self.document);
+                let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                id
+            }
+            other => return Err(JsValue::from_str(&format!("add_ui_node: unknown UI item {other:?}"))),
+        };
+        // One undo step for the whole item (button + its label).
+        inverses.reverse();
+        self.document.commit_batch(inverses);
+        to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node: root })
     }
 
     /// The Inspector's 3D section: replaces a Node3D's transform + content.
@@ -7932,6 +8038,14 @@ impl WasmEditor {
     /// crates, a honey faucet, click to drop crates and stones.
     pub async fn load_liquid_demo(&mut self) -> Result<JsValue, JsValue> {
         let demo = crate::demo_liquid::build_demo_liquid(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
+    /// The + menu's Demos → "UI & Sound Lab" — anchored HUD text, a stack
+    /// of UI Buttons, and synthesized sounds on click.
+    pub async fn load_ui_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_ui::build_demo_ui(&mut self.document);
         migrate_document(&mut self.document);
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }

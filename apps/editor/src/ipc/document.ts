@@ -1020,6 +1020,30 @@ export interface AudioSourceConfig {
   range: number
 }
 
+/** Pins a node to a point of the screen (`an1mbyt3_core::UiAnchor`). */
+export interface UiAnchorConfig {
+  /** `[x, y]` in 0..1 of the view (`[0, 1]` = top-left). */
+  anchor: [number, number]
+  /** World units from that point (+y up). */
+  offset: [number, number]
+}
+
+/** Row / column layout of the children (`an1mbyt3_core::UiStack`). */
+export interface UiStackConfig {
+  direction: 'Vertical' | 'Horizontal'
+  spacing: number
+  padding: number
+  align: 'Start' | 'Center' | 'End'
+}
+
+/** Hover / press feedback and clicks (`an1mbyt3_core::UiButton`). */
+export interface UiButtonConfig {
+  hoverTint: [number, number, number, number]
+  pressedTint: [number, number, number, number]
+  pressedScale: number
+  interactable: boolean
+}
+
 /** One imported sound. */
 export interface AudioSummary {
   id: OpaqueId
@@ -1163,6 +1187,9 @@ export type NodeBehavior =
   | ({ kind: 'SpriteSkin2D' } & SpriteSkin2DConfig)
   | ({ kind: 'Liquid2D' } & Liquid2DConfig)
   | ({ kind: 'AudioSource' } & AudioSourceConfig)
+  | ({ kind: 'UiAnchor' } & UiAnchorConfig)
+  | ({ kind: 'UiStack' } & UiStackConfig)
+  | ({ kind: 'UiButton' } & UiButtonConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

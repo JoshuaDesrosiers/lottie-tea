@@ -154,6 +154,8 @@ export interface ScriptContext {
   stopAllSounds(): void
   /** The game's overall volume (0..1). */
   setMasterVolume(volume: number): void
+  /** Host primitive behind `ref.clicked` / `ref.hovered` / `ref.pressed`. */
+  buttonState(node: OpaqueId): { hovered: boolean; pressed: boolean; clicked: boolean }
   /** Host primitives behind `ref.playAudio()` / `ref.stopAudio()`. */
   playAudioSource(node: OpaqueId, options?: { volume?: number; pitch?: number }): SoundHandle | null
   stopAudioSource(node: OpaqueId): void
@@ -392,6 +394,12 @@ export interface ComponentRef {
    * stop what it's playing. */
   playAudio(options?: { volume?: number; pitch?: number }): SoundHandle | null
   stopAudio(): void
+  /** Nodes with a **UI Button**: `true` on the frame it was clicked
+   * (pressed and released over it); while the pointer is over it; while
+   * it's held down. */
+  readonly clicked: boolean
+  readonly hovered: boolean
+  readonly pressed: boolean
   /** Tilemap nodes: replaces the whole grid — row-major, `mapWidth *
    * mapHeight` tile indices (`-1` = empty). Procedural levels. */
   setTiles(tiles: number[]): void
@@ -691,6 +699,9 @@ function makeComponentRefFromState(
       get: () => vec3(current3d()?.scale),
       set: (v: { x: number; y: number; z: number } | null) => v && write3d({ scale: [v.x, v.y, v.z] }),
     },
+    clicked: { enumerable: true, get: () => ctx.buttonState(node.id).clicked },
+    hovered: { enumerable: true, get: () => ctx.buttonState(node.id).hovered },
+    pressed: { enumerable: true, get: () => ctx.buttonState(node.id).pressed },
     playAudio: {
       enumerable: false,
       value: (options?: { volume?: number; pitch?: number }) => ctx.playAudioSource(node.id, options),

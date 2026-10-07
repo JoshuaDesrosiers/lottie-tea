@@ -10,7 +10,7 @@
  * so `ctx.nodes` and refs always see this frame's values without anything
  * being rebuilt.
  */
-import type { AudioSourceConfig, ImageAssetSummary, NodeSummary, OpaqueId, Path, Transform2D } from '../ipc/document'
+import type { AudioSourceConfig, UiButtonConfig, ImageAssetSummary, NodeSummary, OpaqueId, Path, Transform2D } from '../ipc/document'
 import type { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm'
 
 /** Floats per node — must match `script_scene::STRIDE`. */
@@ -23,6 +23,8 @@ export type ScriptNode = Pick<
 > & {
   /** The node's Audio Source component, if it has one. */
   audioSource: AudioSourceConfig | null
+  button: UiButtonConfig | null
+  bounds: [number, number, number, number]
   /** A Node3D's transform this frame (`null` for 2D nodes). */
   transform3d: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null
 }
@@ -40,6 +42,9 @@ interface StaticNode {
   path: Path | null
   bodyType: 'Dynamic' | 'Kinematic' | 'Static' | null
   audioSource: AudioSourceConfig | null
+  button: UiButtonConfig | null
+  /** Local bounds `[minX, minY, maxX, maxY]`. */
+  bounds: [number, number, number, number]
 }
 
 interface StaticScene {
@@ -60,6 +65,10 @@ class LiveNode {
   readonly behaviors: NodeSummary['behaviors']
   /** The node's Audio Source component, if it has one. */
   readonly audioSource: AudioSourceConfig | null
+  /** The node's UI Button component, if it has one. */
+  readonly button: UiButtonConfig | null
+  /** Local-space bounds `[minX, minY, maxX, maxY]`. */
+  readonly bounds: [number, number, number, number]
 
   private readonly mirror: SceneMirror
   private readonly index: number
@@ -76,6 +85,8 @@ class LiveNode {
     this.textContent = s.textContent
     this.path = s.path
     this.audioSource = s.audioSource ?? null
+    this.button = s.button ?? null
+    this.bounds = s.bounds ?? [0, 0, 0, 0]
     // Only what scripts read (`ref.bodyType`): the Rigidbody 2D's type.
     this.behaviors = s.bodyType ? ([{ enabled: true, behavior: { kind: 'Rigidbody2D', bodyType: s.bodyType } }] as unknown as NodeSummary['behaviors']) : []
   }

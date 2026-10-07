@@ -57,6 +57,9 @@ import {
   Rigidbody2DFields,
   ShadowCaster2DFields,
   AudioSourceFields,
+  UiAnchorFields,
+  UiButtonFields,
+  UiStackFields,
 } from './ComponentFields'
 import { defaultComponent } from '../ipc/wasmEditor'
 import { ImageAssetPicker } from './ImageAssetPicker'
@@ -720,6 +723,18 @@ function BehaviorsFields({
       case 'Liquid2D': {
         const { kind: _k, ...config } = behavior
         return <Liquid2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Liquid2D', ...c })} />
+      }
+      case 'UiAnchor': {
+        const { kind: _k, ...config } = behavior
+        return <UiAnchorFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiAnchor', ...c })} />
+      }
+      case 'UiStack': {
+        const { kind: _k, ...config } = behavior
+        return <UiStackFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiStack', ...c })} />
+      }
+      case 'UiButton': {
+        const { kind: _k, ...config } = behavior
+        return <UiButtonFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiButton', ...c })} />
       }
       case 'AudioSource': {
         const { kind: _k, ...config } = behavior

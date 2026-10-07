@@ -4,6 +4,9 @@ import type { WasmEditor } from '../ipc/wasmEditor'
 import type {
   AudioSourceConfig,
   AudioSummary,
+  UiAnchorConfig,
+  UiButtonConfig,
+  UiStackConfig,
   BoxCollider2DConfig,
   CapsuleCollider2DConfig,
   CircleCollider2DConfig,
@@ -52,12 +55,12 @@ function Check({ checked, onChange, children }: { checked: boolean; onChange: (v
   )
 }
 
-function VecFields({ value, onChange, min }: { value: Vec2Tuple; onChange: (value: Vec2Tuple) => void; min?: number }) {
-  const fix = (v: number) => (min === undefined ? v : Math.max(min, v))
+function VecFields({ value, onChange, min, max, step }: { value: Vec2Tuple; onChange: (value: Vec2Tuple) => void; min?: number; max?: number; step?: number }) {
+  const fix = (v: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, v))
   return (
     <>
-      <NumberField label="X" value={value[0]} onCommit={(x) => onChange([fix(x), value[1]])} />
-      <NumberField label="Y" value={value[1]} onCommit={(y) => onChange([value[0], fix(y)])} />
+      <NumberField label="X" value={value[0]} step={step} onCommit={(x) => onChange([fix(x), value[1]])} />
+      <NumberField label="Y" value={value[1]} step={step} onCommit={(y) => onChange([value[0], fix(y)])} />
     </>
   )
 }
@@ -442,6 +445,85 @@ export function AudioSourceFields({
   )
 }
 
+/** The nine screen points a UI Anchor snaps to (x, y in 0..1, +y up). */
+const ANCHOR_PRESETS: [number, number][] = [
+  [0, 1], [0.5, 1], [1, 1],
+  [0, 0.5], [0.5, 0.5], [1, 0.5],
+  [0, 0], [0.5, 0], [1, 0],
+]
+
+/** UI Anchor: a 3×3 picker for the screen point, plus the exact values. */
+export function UiAnchorFields({ config, onChange }: { config: UiAnchorConfig; onChange: (value: UiAnchorConfig) => void }) {
+  const [ax, ay] = config.anchor
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Pin to" title="Which point of the screen this node sticks to. Put HUD nodes under the Camera.">
+        <div className="grid grid-cols-3 gap-0.5">
+          {ANCHOR_PRESETS.map(([x, y]) => (
+            <button
+              key={`${x},${y}`}
+              onClick={() => onChange({ ...config, anchor: [x, y] })}
+              title={`${y === 1 ? 'Top' : y === 0 ? 'Bottom' : 'Middle'} ${x === 0 ? 'left' : x === 1 ? 'right' : 'centre'}`}
+              className={`h-4 w-4 rounded-sm border ${ax === x && ay === y ? 'border-accent bg-accent' : 'border-overlay/20 bg-overlay/10 hover:bg-overlay/20'}`}
+            />
+          ))}
+        </div>
+      </Row>
+      <Row label="Point" title="Exact screen point, 0..1 each axis.">
+        <VecFields value={config.anchor} min={0} max={1} step={0.05} onChange={(anchor) => onChange({ ...config, anchor })} />
+      </Row>
+      <Row label="Offset" title="Distance from that point, world units (+y up). E.g. (16, -16) from the top-left corner.">
+        <VecFields value={config.offset} onChange={(offset) => onChange({ ...config, offset })} />
+      </Row>
+    </div>
+  )
+}
+
+/** UI Stack: lays the children out in a row or column. */
+export function UiStackFields({ config, onChange }: { config: UiStackConfig; onChange: (value: UiStackConfig) => void }) {
+  const update = (patch: Partial<UiStackConfig>) => onChange({ ...config, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Direction" title="Children run down a column or across a row.">
+        <Dropdown value={config.direction} options={['Vertical', 'Horizontal'] as ('Vertical' | 'Horizontal')[]} onChange={(direction) => update({ direction })} />
+      </Row>
+      <Row label="Align" title={config.direction === 'Vertical' ? 'Left / centre / right edges line up.' : 'Top / middle / bottom edges line up.'}>
+        <Dropdown value={config.align} options={['Start', 'Center', 'End'] as ('Start' | 'Center' | 'End')[]} onChange={(align) => update({ align })} />
+      </Row>
+      <Row label="Spacing" title="Gap between children (world units).">
+        <NumberField label="" value={config.spacing} step={1} onCommit={(v) => update({ spacing: v })} />
+      </Row>
+      <Row label="Padding" title="Space before the first child.">
+        <NumberField label="" value={config.padding} step={1} onCommit={(v) => update({ padding: v })} />
+      </Row>
+    </div>
+  )
+}
+
+/** UI Button: feedback strength; clicks are read in scripts (`ref.clicked`). */
+export function UiButtonFields({ config, onChange }: { config: UiButtonConfig; onChange: (value: UiButtonConfig) => void }) {
+  const update = (patch: Partial<UiButtonConfig>) => onChange({ ...config, ...patch })
+  const grey = (b: number): [number, number, number, number] => [b, b, b, 1]
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Hover" title="Brightness while the pointer is over it (1 = unchanged).">
+        <NumberField label="×" value={config.hoverTint[0]} step={0.05} onCommit={(v) => update({ hoverTint: grey(clamp(v, 0, 3)) })} />
+      </Row>
+      <Row label="Pressed" title="Brightness while it's held down.">
+        <NumberField label="×" value={config.pressedTint[0]} step={0.05} onCommit={(v) => update({ pressedTint: grey(clamp(v, 0, 3)) })} />
+      </Row>
+      <Row label="Press scale" title="Scale while held — a small 'press in' (1 = none).">
+        <NumberField label="×" value={config.pressedScale} step={0.01} onCommit={(v) => update({ pressedScale: clamp(v, 0.5, 1.5) })} />
+      </Row>
+      <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Off = greyed out, no clicks.">
+        <input type="checkbox" checked={config.interactable} onChange={(e) => update({ interactable: e.target.checked })} />
+        Interactable
+      </label>
+      <p className="text-[10px] leading-snug text-ink-dim">In a script: <code className="text-ink">if (getCompByID('play').clicked) …</code> (also <code>hovered</code>, <code>pressed</code>).</p>
+    </div>
+  )
+}
+
 export function Liquid2DFields({ config, onChange }: { config: Liquid2DConfig; onChange: (value: Liquid2DConfig) => void }) {
   const update = (patch: Partial<Liquid2DConfig>) => onChange({ ...config, ...patch })
   const count = Math.max(1, Math.floor(config.size[0] / config.particleSpacing)) * Math.max(1, Math.floor(config.size[1] / config.particleSpacing))
@@ -503,16 +585,20 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   SpriteSkin2D: 'Sprite Skin',
   Liquid2D: 'Liquid 2D',
   AudioSource: 'Audio Source',
+  UiAnchor: 'UI Anchor',
+  UiStack: 'UI Stack',
+  UiButton: 'UI Button',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
   { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
   { title: 'Audio', kinds: ['AudioSource'] },
+  { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton'] },
 ]
 
 /**

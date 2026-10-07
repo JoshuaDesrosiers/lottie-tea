@@ -148,11 +148,13 @@ import {
   loadLiquidDemo,
   loadTortureDemo,
   load3DDemo,
+  loadUiDemo,
   addNode3D,
   setNode3D,
   importModel,
   gltfExternalUris,
   deleteAudio,
+  addUiNode,
   loadTacticsDemo,
   loadPhysicsDemo,
   pickNodeAt,
@@ -2232,6 +2234,20 @@ function App() {
       })
   }
 
+  const handleLoadUiDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadUiDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
   const handleLoadMatch3Demo = () => {
     const editor = editorRef.current
     if (!editor) return
@@ -2358,6 +2374,15 @@ function App() {
     if (item !== 'Sun' && item !== 'PointLight' && !has('Light')) result = addNode3D(editor, artboard.id, null, 'Sun')
     setDoc(result.document)
     setSelection({ artboardId: artboard.id, nodeId: selected })
+  }
+
+  /** + menu's UI items: added under the scene's camera (the HUD) and selected. */
+  const handleAddUi = (item: 'Button' | 'Panel' | 'Label' | 'Stack') => {
+    const artboard = artboards[0]
+    if (!editorRef.current || !artboard) return
+    const result = addUiNode(editorRef.current, artboard.id, item)
+    setDoc(result.document)
+    setSelection({ artboardId: artboard.id, nodeId: result.newNode })
   }
 
   const handleSetNode3D = (value: Node3D) => {
@@ -3947,6 +3972,7 @@ function App() {
             onLoadLiquidDemo={handleLoadLiquidDemo}
             onLoadTortureDemo={handleLoadTortureDemo}
             onLoad3DDemo={handleLoad3DDemo}
+            onLoadUiDemo={handleLoadUiDemo}
             onLoadTacticsDemo={handleLoadTacticsDemo}
             onLoadPhysicsDemo={handleLoadPhysicsDemo}
         onAddText={handleAddText}
@@ -3954,6 +3980,7 @@ function App() {
         onAddCamera={handleAddCamera}
         onAddLight2D={handleAddLight2D}
         onAddNode3D={handleAddNode3D}
+        onAddUi={handleAddUi}
         onImportModel={handleImportModel}
         onImportAudio={handleImportAudio}
         onAddTrail={handleAddTrail}

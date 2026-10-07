@@ -93,11 +93,13 @@ function ShapesMenu({
   onLoadLiquidDemo,
   onLoadTortureDemo,
   onLoad3DDemo,
+  onLoadUiDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddTilemap,
   onAddCamera,
   onAddNode3D,
+  onAddUi,
   onAddLight2D,
   onAddTrail,
   onAddBone,
@@ -120,6 +122,8 @@ function ShapesMenu({
   onAddCamera: () => void
   /** "3D" items — a Node3D mesh / camera / light / pivot. */
   onAddNode3D: (item: Node3DItem) => void
+  /** "UI" items — Button / Panel / Label / Stack, under the Camera (HUD). */
+  onAddUi: (item: 'Button' | 'Panel' | 'Label' | 'Stack') => void
   /** "Light 2D" items — a Unity-style Light 2D node of the given type. */
   onAddLight2D: (lightType: Light2DType) => void
   /** "Trail Renderer" — attaches to the selected node (so it follows it). */
@@ -138,6 +142,7 @@ function ShapesMenu({
   onLoadLiquidDemo: () => void
   onLoadTortureDemo: () => void
   onLoad3DDemo: () => void
+  onLoadUiDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
 }) {
@@ -186,6 +191,12 @@ function ShapesMenu({
     { kind: 'item', label: 'Camera', icon: <CameraKindIcon />, onSelect: onAddCamera },
     {
       kind: 'submenu',
+      label: 'UI',
+      icon: <SparkleIcon />,
+      children: (['Button', 'Panel', 'Label', 'Stack'] as const).map((item): AddMenuEntry => ({ kind: 'item', label: item, icon: <SparkleIcon />, onSelect: () => onAddUi(item) })),
+    },
+    {
+      kind: 'submenu',
       label: '3D',
       icon: <CameraKindIcon />,
       children: (
@@ -228,6 +239,7 @@ function ShapesMenu({
         { kind: 'item', label: 'Liquid Lab', icon: <SparkleIcon />, onSelect: onLoadLiquidDemo },
         { kind: 'item', label: 'Ragdoll Torture', icon: <SparkleIcon />, onSelect: onLoadTortureDemo },
         { kind: 'item', label: '3D Showroom', icon: <SparkleIcon />, onSelect: onLoad3DDemo },
+        { kind: 'item', label: 'UI & Sound Lab', icon: <SparkleIcon />, onSelect: onLoadUiDemo },
         { kind: 'item', label: 'Sunset Tactics (5v5)', icon: <SparkleIcon />, onSelect: onLoadTacticsDemo },
         { kind: 'item', label: 'Raycaster FPS', icon: <SparkleIcon />, onSelect: onLoadFpsDemo },
         { kind: 'item', label: 'Ragdoll Arena', icon: <SparkleIcon />, onSelect: onLoadRigDemo },
@@ -408,6 +420,7 @@ export function TopToolbar({
   onAddTilemap,
   onAddCamera,
   onAddNode3D,
+  onAddUi,
   onAddLight2D,
   onAddTrail,
   onAddText,
@@ -419,6 +432,7 @@ export function TopToolbar({
   onLoadLiquidDemo,
   onLoadTortureDemo,
   onLoad3DDemo,
+  onLoadUiDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddBone,
@@ -450,6 +464,8 @@ export function TopToolbar({
   onAddCamera: () => void
   /** "3D" items — a Node3D mesh / camera / light / pivot. */
   onAddNode3D: (item: Node3DItem) => void
+  /** "UI" items — Button / Panel / Label / Stack, under the Camera (HUD). */
+  onAddUi: (item: 'Button' | 'Panel' | 'Label' | 'Stack') => void
   /** "Light 2D" items — a Unity-style Light 2D node of the given type. */
   onAddLight2D: (lightType: Light2DType) => void
   /** "Trail Renderer" — attaches to the selected node (so it follows it). */
@@ -463,6 +479,7 @@ export function TopToolbar({
   onLoadLiquidDemo: () => void
   onLoadTortureDemo: () => void
   onLoad3DDemo: () => void
+  onLoadUiDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
   onAddBone: () => void
@@ -542,6 +559,7 @@ export function TopToolbar({
               onAddTilemap={onAddTilemap}
               onAddCamera={onAddCamera}
               onAddNode3D={onAddNode3D}
+              onAddUi={onAddUi}
               onAddLight2D={onAddLight2D}
               onAddTrail={onAddTrail}
               onAddText={onAddText}
@@ -553,6 +571,7 @@ export function TopToolbar({
               onLoadLiquidDemo={onLoadLiquidDemo}
               onLoadTortureDemo={onLoadTortureDemo}
               onLoad3DDemo={onLoad3DDemo}
+              onLoadUiDemo={onLoadUiDemo}
               onLoadTacticsDemo={onLoadTacticsDemo}
               onLoadPhysicsDemo={onLoadPhysicsDemo}
               onAddBone={onAddBone}

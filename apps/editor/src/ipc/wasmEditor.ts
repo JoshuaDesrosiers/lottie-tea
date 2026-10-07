@@ -184,6 +184,11 @@ export async function loadLiquidDemo(editor: WasmEditor): Promise<AddArtboardRes
   return (await editor.load_liquid_demo()) as AddArtboardResult
 }
 
+/** Demos → "UI & Sound Lab": UI anchors, a button stack, synthesized sounds. */
+export async function loadUiDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_ui_demo()) as AddArtboardResult
+}
+
 /** Demos → "3D Showroom": the first 3D scene (orbit camera, lit primitives). */
 export async function load3DDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_3d_demo()) as AddArtboardResult
@@ -929,6 +934,13 @@ export function bindSpriteSkin(editor: WasmEditor, artboard: OpaqueId, node: Opa
 }
 
 /** Script API: untracked Rigidbody 2D body type switch (`deep` = whole subtree). */
+// ---- UI ----
+
+/** The + menu's UI items, under the active camera (HUD). One undo step. */
+export function addUiNode(editor: WasmEditor, artboard: OpaqueId, item: 'Button' | 'Panel' | 'Label' | 'Stack'): AddNodeResult {
+  return editor.add_ui_node(artboard, item) as AddNodeResult
+}
+
 // ---- Audio ----
 
 /** Import → Audio: adds a sound to the document. */

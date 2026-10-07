@@ -2047,6 +2047,9 @@ pub enum NodeBehaviorDto {
     SpriteSkin2D(an1mbyt3_core::SpriteSkin2D),
     Liquid2D(an1mbyt3_core::Liquid2D),
     AudioSource(an1mbyt3_core::AudioSource),
+    UiAnchor(an1mbyt3_core::UiAnchor),
+    UiStack(an1mbyt3_core::UiStack),
+    UiButton(an1mbyt3_core::UiButton),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2072,6 +2075,9 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::SpriteSkin2D(c) => NodeBehaviorDto::SpriteSkin2D(c.clone()),
             an1mbyt3_core::NodeBehavior::Liquid2D(c) => NodeBehaviorDto::Liquid2D(*c),
             an1mbyt3_core::NodeBehavior::AudioSource(c) => NodeBehaviorDto::AudioSource(*c),
+            an1mbyt3_core::NodeBehavior::UiAnchor(c) => NodeBehaviorDto::UiAnchor(*c),
+            an1mbyt3_core::NodeBehavior::UiStack(c) => NodeBehaviorDto::UiStack(*c),
+            an1mbyt3_core::NodeBehavior::UiButton(c) => NodeBehaviorDto::UiButton(*c),
         }
     }
 }
@@ -2099,6 +2105,9 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::SpriteSkin2D(c) => an1mbyt3_core::NodeBehavior::SpriteSkin2D(c),
             NodeBehaviorDto::Liquid2D(c) => an1mbyt3_core::NodeBehavior::Liquid2D(c),
             NodeBehaviorDto::AudioSource(c) => an1mbyt3_core::NodeBehavior::AudioSource(c),
+            NodeBehaviorDto::UiAnchor(c) => an1mbyt3_core::NodeBehavior::UiAnchor(c),
+            NodeBehaviorDto::UiStack(c) => an1mbyt3_core::NodeBehavior::UiStack(c),
+            NodeBehaviorDto::UiButton(c) => an1mbyt3_core::NodeBehavior::UiButton(c),
         }
     }
 }
