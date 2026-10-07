@@ -3,7 +3,8 @@ import { UI_MENU_ITEMS, UI_MENU_LABEL, type ShapePreset, type UiMenuItem } from 
 import type { Light2DType, Node3DItem } from '../ipc/document'
 import { useLayoutMetrics } from '../layoutMetrics'
 import { FloatingPanel } from './FloatingPanel'
-import { BoneIcon, CameraKindIcon, EffectsIcon, EllipsePresetIcon, GameExportIcon, GifExportIcon, ImageIcon, LightKindIcon, OpenIcon, PlusIcon, RedoIcon, SaveIcon, ShapeKindIcon, SparkleIcon, StarPresetIcon, TextKindIcon, TileGridIcon, TrailKindIcon, TrianglePresetIcon, UndoIcon } from './icons'
+import { BoneIcon, CameraKindIcon, EffectsIcon, EllipsePresetIcon, GameExportIcon,
+  DesktopExportIcon, GifExportIcon, ImageIcon, LightKindIcon, OpenIcon, PlusIcon, RedoIcon, SaveIcon, ShapeKindIcon, SparkleIcon, StarPresetIcon, TextKindIcon, TileGridIcon, TrailKindIcon, TrianglePresetIcon, UndoIcon } from './icons'
 
 
 
@@ -411,6 +412,7 @@ export function TopToolbar({
   onSave,
   onExportGif,
   onExportGame,
+  onExportDesktopGame,
   onAddShape,
   onAddParticleSystem,
   onImportSvg,
@@ -453,6 +455,7 @@ export function TopToolbar({
   onExportGif: () => void
   /** Exports the document as one self-contained, playable `.html`. */
   onExportGame: () => void
+  onExportDesktopGame: () => void
   onAddShape: (kind: ShapePreset) => void
   onAddParticleSystem: () => void
   onImportSvg: () => void
@@ -612,6 +615,13 @@ export function TopToolbar({
               className="flex h-6 w-6 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
             >
               <GameExportIcon />
+            </button>
+            <button
+              onClick={onExportDesktopGame}
+              title="Export Game as a desktop app (.exe) — one file, double-click to play, F11 for fullscreen"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
+            >
+              <DesktopExportIcon />
             </button>
             <div className="mx-1 h-4 w-px bg-overlay/10" />
             <button

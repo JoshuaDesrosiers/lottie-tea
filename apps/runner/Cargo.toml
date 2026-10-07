@@ -1,0 +1,18 @@
+[package]
+name = "an1mbyt3-runner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "The desktop game runner \"Export Game → Desktop app\" ships: a native window + system webview that plays a game appended to its own executable."
+
+[[bin]]
+name = "an1mbyt3-runner"
+path = "src/main.rs"
+
+# Same versions Tauri already pulls in for the editor, so nothing new is
+# downloaded or built twice.
+[dependencies]
+wry = "0.55"
+tao = "0.35"
+

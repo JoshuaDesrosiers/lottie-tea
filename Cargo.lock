@@ -173,6 +173,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "an1mbyt3-runner"
+version = "0.1.0"
+dependencies = [
+ "tao",
+ "wry",
+]
+
+[[package]]
 name = "an1mbyt3-runtime"
 version = "0.1.0"
 dependencies = [

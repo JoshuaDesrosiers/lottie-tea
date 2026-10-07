@@ -258,3 +258,54 @@ pub fn recovery_dir(app: tauri::AppHandle) -> Result<String, String> {
     std::fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
     Ok(dir.to_string_lossy().replace('\\', "/"))
 }
+
+/// Opens a native "Save As" dialog for **Export Game → Desktop app** (an
+/// `.exe` on Windows; a plain executable elsewhere).
+#[tauri::command]
+pub async fn pick_save_exe_path(app: tauri::AppHandle, suggested_name: String) -> Option<String> {
+    let dialog = app.dialog().file().set_file_name(&suggested_name);
+    #[cfg(target_os = "windows")]
+    let dialog = dialog.add_filter("Desktop game (.exe)", &["exe"]);
+    dialog.blocking_save_file().map(|path| path.to_string())
+}
+
+/// The prebuilt desktop game runner (`apps/runner`): bundled next to the
+/// editor as a resource in releases; in development, the workspace's own
+/// `cargo build -p an1mbyt3-runner --release` output.
+fn runner_executable(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    use tauri::Manager;
+    let name = if cfg!(target_os = "windows") { "an1mbyt3-runner.exe" } else { "an1mbyt3-runner" };
+    let mut candidates = Vec::new();
+    if let Ok(dir) = app.path().resource_dir() {
+        candidates.push(dir.join("runner").join(name));
+        candidates.push(dir.join(name));
+    }
+    if let Some(dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) {
+        candidates.push(dir.join(name));
+    }
+    // apps/editor/src-tauri -> workspace target/release.
+    candidates.push(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../target/release").join(name));
+    candidates.into_iter().find(|p| p.is_file())
+}
+
+/// **Export Game → Desktop app**: writes one executable = the runner +
+/// the exported game page + a trailer (page length as `u64` LE, then
+/// `AN1GAME\x01`) — see `apps/runner/src/main.rs`.
+#[tauri::command]
+pub fn export_desktop_game(app: tauri::AppHandle, path: String, html: String) -> Result<(), String> {
+    let runner = runner_executable(&app).ok_or("the desktop runner isn't built — run `cargo build -p an1mbyt3-runner --release`")?;
+    let mut bytes = std::fs::read(&runner).map_err(|err| format!("couldn't read the runner: {err}"))?;
+    let page = html.into_bytes();
+    let len = page.len() as u64;
+    bytes.extend_from_slice(&page);
+    bytes.extend_from_slice(&len.to_le_bytes());
+    bytes.extend_from_slice(b"AN1GAME\x01");
+    std::fs::write(&path, bytes).map_err(|err| err.to_string())?;
+    // Unix: make it runnable.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
+    }
+    Ok(())
+}

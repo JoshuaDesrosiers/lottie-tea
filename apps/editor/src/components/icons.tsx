@@ -218,6 +218,18 @@ export function GameExportIcon() {
   )
 }
 
+/** Export Game → Desktop app: a monitor with a gamepad dot. */
+export function DesktopExportIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="1.5" y="2.5" width="13" height="8.5" rx="1.5" stroke="currentColor" strokeWidth={STROKE} />
+      <path d="M6 14h4M8 11v3" stroke="currentColor" strokeWidth={STROKE} strokeLinecap="round" />
+      <path d="M5.5 6.75h2M6.5 5.75v2" stroke="currentColor" strokeWidth={STROKE} strokeLinecap="round" />
+      <circle cx="10.25" cy="6.75" r="0.6" fill="currentColor" />
+    </svg>
+  )
+}
+
 export function OpenIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">

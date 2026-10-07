@@ -14,6 +14,7 @@ members = [
     "crates/an1mbyt3-wasm",
     "crates/an1mbyt3-cli",
     "apps/editor/src-tauri",
+    "apps/runner",
 ]
 
 # Shared package metadata — individual crates inherit via `version.workspace = true` etc.

@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && npm run build:player && vite build",
     "build:player": "vite build --config vite.player.config.ts",
+    "build:runner": "cargo build -p an1mbyt3-runner --release",
     "preview": "vite preview",
     "tauri": "tauri"
   },

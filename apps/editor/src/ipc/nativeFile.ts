@@ -55,6 +55,16 @@ export function pickSaveHtmlPath(suggestedName: string): Promise<string | null> 
   return invoke('pick_save_html_path', { suggestedName })
 }
 
+/** "Save As" for Export Game → Desktop app (`.exe` on Windows). */
+export function pickSaveExePath(suggestedName: string): Promise<string | null> {
+  return invoke('pick_save_exe_path', { suggestedName })
+}
+
+/** Writes a desktop game: the prebuilt runner with `html` appended. */
+export function exportDesktopGame(path: string, html: string): Promise<void> {
+  return invoke('export_desktop_game', { path, html })
+}
+
 export function writeTextFile(path: string, contents: string): Promise<void> {
   return invoke('write_text_file', { path, contents })
 }

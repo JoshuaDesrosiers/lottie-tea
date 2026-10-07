@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "../../../target/release/an1mbyt3-runner.exe": "runner/an1mbyt3-runner.exe"
+    }
+  }
+}

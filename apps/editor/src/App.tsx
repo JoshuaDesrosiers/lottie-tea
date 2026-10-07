@@ -75,7 +75,7 @@ import type {
   Stroke,
   Transform2D,
 } from './ipc/document'
-import { pickOpenAudioPath, pickOpenImagePath, pickOpenModelPath, pickOpenSvgPath, pickSaveHtmlPath, pickSaveGifPath, readBinaryFile, readTextFile, writeTextFile } from './ipc/nativeFile'
+import { pickOpenAudioPath, pickOpenImagePath, pickOpenModelPath, pickOpenSvgPath, pickSaveHtmlPath, pickSaveExePath, exportDesktopGame, pickSaveGifPath, readBinaryFile, readTextFile, writeTextFile } from './ipc/nativeFile'
 import { exportActiveAnimationAsGif, GifExportError } from './exportGif'
 import {
   addAnimation,
@@ -3131,12 +3131,15 @@ function App() {
    * (`game/exportGame.ts`), opening on the scene currently shown. Saved
    * from the *designed* state — leaving Playground first restores every
    * pose a running game changed. */
-  const handleExportGame = async () => {
+  /** `target`: a web page (`.html`), or a desktop app — the same page
+   * appended to the prebuilt runner (`apps/runner`), one double-clickable
+   * executable. */
+  const handleExportGame = async (target: 'web' | 'desktop' = 'web') => {
     const editor = editorRef.current
     if (!editor || !activeArtboard) return
     const title = activeArtboard.name || 'Game'
-    const fileName = `${title.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'game'}.html`
-    const path = await pickSaveHtmlPath(fileName)
+    const stem = title.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'game'
+    const path = target === 'web' ? await pickSaveHtmlPath(`${stem}.html`) : await pickSaveExePath(`${stem}.exe`)
     if (!path) return
     if (mode === 'Playground') {
       setMode('Design')
@@ -3145,7 +3148,8 @@ function App() {
     }
     try {
       const html = await buildGameHtml(editor, { title, startScene: activeArtboard.name })
-      await writeTextFile(path, html)
+      if (target === 'web') await writeTextFile(path, html)
+      else await exportDesktopGame(path, html)
     } catch (err) {
       console.error('Export Game failed', err)
       window.alert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -4020,6 +4024,7 @@ function App() {
         onSave={handleSave}
         onExportGif={handleExportGif}
         onExportGame={() => void handleExportGame()}
+        onExportDesktopGame={() => void handleExportGame('desktop')}
         onAddShape={handleAddShape}
         onAddParticleSystem={handleAddParticleSystem}
         onImportSvg={handleImportSvg}
