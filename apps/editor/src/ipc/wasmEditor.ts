@@ -929,6 +929,31 @@ export function bindSpriteSkin(editor: WasmEditor, artboard: OpaqueId, node: Opa
 }
 
 /** Script API: untracked Rigidbody 2D body type switch (`deep` = whole subtree). */
+// ---- Audio ----
+
+/** Import → Audio: adds a sound to the document. */
+export function importAudio(editor: WasmEditor, fileName: string, bytes: Uint8Array): { document: DocumentSummary; audio: OpaqueId } {
+  return editor.import_audio(fileName, bytes) as { document: DocumentSummary; audio: OpaqueId }
+}
+
+/** Every sound's id and name. */
+export function audioList(editor: WasmEditor): { id: OpaqueId; name: string }[] {
+  return editor.audio_list() as { id: OpaqueId; name: string }[]
+}
+
+/** Links a sound to its file in the project folder. */
+export function setAudioFile(editor: WasmEditor, audio: OpaqueId, path: string | null): void {
+  editor.set_audio_file(audio, path ?? undefined)
+}
+
+export function renameAudio(editor: WasmEditor, audio: OpaqueId, name: string): DocumentSummary {
+  return editor.rename_audio(audio, name) as DocumentSummary
+}
+
+export function deleteAudio(editor: WasmEditor, audio: OpaqueId): DocumentSummary {
+  return editor.delete_audio(audio) as DocumentSummary
+}
+
 // ---- 3D ----
 
 /** The + menu's 3D items: a primitive mesh, a camera, a light or a pivot. Undoable. */

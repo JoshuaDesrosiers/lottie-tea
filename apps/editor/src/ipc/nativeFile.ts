@@ -33,6 +33,11 @@ export function pickOpenImagePath(): Promise<string | null> {
   return invoke('pick_open_image_path')
 }
 
+/** + menu → Import → Audio: a sound file. `null` = cancelled. */
+export function pickOpenAudioPath(): Promise<string | null> {
+  return invoke('pick_open_audio_path')
+}
+
 /** + menu → Import → 3D Model: a `.glb` / `.gltf` file. `null` = cancelled. */
 export function pickOpenModelPath(): Promise<string | null> {
   return invoke('pick_open_model_path')

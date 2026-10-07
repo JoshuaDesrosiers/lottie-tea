@@ -15,8 +15,9 @@
  * fresh summaries, input state, and the camera hooks — everything that
  * differs between "inside the editor" and "standalone".
  */
+import { audio, type SoundHandle } from './audio'
 import type { ArtboardSummary, OpaqueId, StateMachineDefSummary, StateMachineSummary } from '../ipc/document'
-import { SceneMirror } from './sceneMirror'
+import { SceneMirror, type ScriptNode } from './sceneMirror'
 import { gameStorage } from './storage'
 import {
   deleteNode,
@@ -33,6 +34,7 @@ import {
   physicsSetVelocity,
   physicsVelocity,
   playgroundView,
+  audioList,
   previewLight,
   previewNodeAnchor,
   previewNodePath,
@@ -182,6 +184,73 @@ export class ScriptHost {
    * Returns the scene name a script asked to `loadScene`, if any — the
    * caller switches scenes *after* the frame, so no script ever sees half
    * of one scene and half of another. */
+  /** Which Playground session / scene sound was last started for. */
+  private audioSession: unknown = null
+  private audioScene = ''
+  private soundNames: Map<string, OpaqueId> | null = null
+
+  /** A sound's id by name (with or without its extension). */
+  private soundId(editor: WasmEditor, name: string): OpaqueId | null {
+    const find = () => {
+      const want = name.toLowerCase()
+      return this.soundNames?.get(want) ?? this.soundNames?.get(want.replace(/\.[a-z0-9]+$/, '')) ?? null
+    }
+    let hit = find()
+    if (!hit) {
+      // New imports since last time: refresh the name table once.
+      this.soundNames = new Map()
+      for (const s of audioList(editor)) {
+        const lower = s.name.toLowerCase()
+        this.soundNames.set(lower, s.id)
+        this.soundNames.set(lower.replace(/\.[a-z0-9]+$/, ''), s.id)
+      }
+      hit = find()
+    }
+    return hit
+  }
+
+  /** Plays a node's Audio Source (its clip and settings). */
+  private playSource(editor: WasmEditor, nodes: ScriptNode[], node: OpaqueId, options?: { volume?: number; pitch?: number }): SoundHandle | null {
+    const target = nodes.find((n) => n.id.idx === node.idx && n.id.version === node.version)
+    const source = target?.audioSource
+    if (!source?.clip) return null
+    return audio.play(editor, source.clip, {
+      volume: options?.volume ?? source.volume,
+      pitch: options?.pitch ?? source.pitch,
+      loop: source.loop,
+      node: `${node.idx}:${node.version}`,
+      spatial: source.spatial,
+      range: source.range,
+    })
+  }
+
+  /** Per frame: a new Playground session or scene stops the old sounds and
+   * starts the play-on-start Audio Sources; spatial sounds follow their
+   * nodes relative to the camera. */
+  private updateAudio(frame: ScriptFrame, nodes: ScriptNode[]): void {
+    const { editor, scene } = frame
+    const sceneKey = `${scene.id.idx}:${scene.id.version}`
+    if (frame.globals !== this.audioSession || sceneKey !== this.audioScene) {
+      const newSession = frame.globals !== this.audioSession
+      if (newSession) audio.stopAll()
+      else audio.stopNodeSounds()
+      this.audioSession = frame.globals
+      this.audioScene = sceneKey
+      this.soundNames = null
+      for (const n of nodes) if (n.audioSource?.playOnStart && n.audioSource.clip) this.playSource(editor, nodes, n.id)
+    }
+    // The listener: the game camera's centre (else the editor view's).
+    const view = playgroundView(editor, scene.id)
+    const lx = view ? view[0] : frame.camera.panX
+    const ly = view ? view[1] : frame.camera.panY
+    let byKey: Map<string, ScriptNode> | null = null
+    audio.update(lx, ly, (key) => {
+      if (!byKey) byKey = new Map(nodes.map((n) => [`${n.id.idx}:${n.id.version}`, n]))
+      const t = byKey.get(key)?.worldTransform
+      return t ? { x: t.translation.x, y: t.translation.y } : null
+    })
+  }
+
   run(summary: StateMachineSummary, frame: ScriptFrame): string | null {
     const { editor, machine, scene } = frame
     const programs: { layer: string | null; state: string; source: string; time: number }[] = []
@@ -192,10 +261,12 @@ export class ScriptHost {
       const state = layer.states.find((s) => s.name === stateName)
       if (state?.program?.kind === 'Code') programs.push({ layer: layer.name, state: state.name, source: state.program.value, time: this.layerClocks[layer.name]?.elapsed ?? 0 })
     }
-    if (programs.length === 0) return null
-
     const artboardId = scene.id
     const nodes = this.mirror.update(editor, artboardId)
+    // Sound runs even in scenes without scripts (play-on-start sources).
+    this.updateAudio(frame, nodes)
+    if (programs.length === 0) return null
+
     let pendingScene: string | null = null
     // One batch for the host's lifetime, not per frame: scripts keep refs
     // across frames (in `ctx.globals`), and a ref's setters belong to the
@@ -265,6 +336,19 @@ export class ScriptHost {
         breakJoint: (node) => flushed(() => previewBreakJoint(editor, artboardId, node)),
         setTransform3D: (node, values) => flushed(() => previewNode3DTransform(editor, artboardId, node, values)),
         setAnimation3D: (node, clip, loop, overlay) => flushed(() => previewNode3DAnimation(editor, artboardId, node, clip, loop, overlay)),
+        playSound: (name, options) => {
+          const id = this.soundId(editor, name)
+          if (!id) {
+            console.warn(`ctx.playSound: no sound named "${name}"`)
+            return null
+          }
+          return audio.play(editor, id, options)
+        },
+        playTone: (options) => audio.tone(options),
+        stopAllSounds: () => audio.stopAll(),
+        setMasterVolume: (volume) => audio.setMasterVolume(volume),
+        playAudioSource: (node, options) => this.playSource(editor, nodes, node, options),
+        stopAudioSource: (node) => audio.stopNodeSounds(`${node.idx}:${node.version}`),
         setLight: (node, intensity, radius) => flushed(() => previewLight(editor, artboardId, node, intensity, radius)),
         emitParticles: (node, count) => flushed(() => emitParticles(editor, artboardId, node, count)),
         physics: {

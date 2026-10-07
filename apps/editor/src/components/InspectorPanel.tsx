@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 import { createPortal } from 'react-dom'
 import { Node3DFields } from './Node3DFields'
 import type {
+  AudioSummary,
   Node3D,
   MaterialSummary,
   ArtboardSummary,
@@ -55,6 +56,7 @@ import {
   PolygonCollider2DFields,
   Rigidbody2DFields,
   ShadowCaster2DFields,
+  AudioSourceFields,
 } from './ComponentFields'
 import { defaultComponent } from '../ipc/wasmEditor'
 import { ImageAssetPicker } from './ImageAssetPicker'
@@ -606,6 +608,7 @@ function BehaviorsFields({
   onBindSkin,
   materials,
   onEditMaterial,
+  sounds,
 }: {
   behaviors: NodeBehaviorEntry[]
   scripts: ScriptDefinitionSummary[]
@@ -622,6 +625,8 @@ function BehaviorsFields({
   onBindSkin: (rootBone: OpaqueId) => void
   materials: MaterialSummary[]
   onEditMaterial: (material: OpaqueId) => void
+  /** Imported sounds (the Audio Source clip picker). */
+  sounds: AudioSummary[]
 }) {
   const [editingFieldsFor, setEditingFieldsFor] = useState<number | null>(null)
   // The "+ New Script..." inline create row — a real in-panel text field
@@ -715,6 +720,10 @@ function BehaviorsFields({
       case 'Liquid2D': {
         const { kind: _k, ...config } = behavior
         return <Liquid2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Liquid2D', ...c })} />
+      }
+      case 'AudioSource': {
+        const { kind: _k, ...config } = behavior
+        return <AudioSourceFields config={config} sounds={sounds} editor={editor} onChange={(c) => replaceAt(index, { kind: 'AudioSource', ...c })} />
       }
       case 'SpriteRenderer': {
         // The Material component: which shader-graph material this sprite /
@@ -1769,6 +1778,7 @@ export function InspectorPanel({
   onEditMaterial,
   onSetNode3D,
   models,
+  sounds,
   onDelete,
   artboard,
   onSetArtboardSize,
@@ -1909,6 +1919,8 @@ export function InspectorPanel({
   onSetNode3D: (value: Node3D) => void
   /** Imported 3D models (Mesh → Imported Model). */
   models: { id: OpaqueId; name: string }[]
+  /** Imported sounds (Audio Source clips). */
+  sounds: AudioSummary[]
   onDelete: () => void
   /** The active artboard, for the always-visible "Canvas" section below —
    * `null` only in the brief window before the wasm module/document has
@@ -2153,6 +2165,7 @@ export function InspectorPanel({
         onBindSkin={onBindSkin}
         materials={materials}
         onEditMaterial={onEditMaterial}
+        sounds={sounds}
       />
 
       <button

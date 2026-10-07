@@ -48,6 +48,9 @@ pub struct Document {
     /// Imported 3D models (glTF / GLB) — see `crate::model_asset`.
     #[serde(default)]
     models: SlotMap<crate::ModelId, crate::ModelAsset>,
+    /// Imported sounds — see `crate::audio_asset`.
+    #[serde(default)]
+    audio: SlotMap<crate::AudioId, crate::AudioAsset>,
     #[serde(skip)]
     undo_stack: Vec<Command>,
     #[serde(skip)]
@@ -196,6 +199,29 @@ impl Document {
     /// Every sprite group, for the Resources panel's listing.
     pub fn sprite_groups(&self) -> impl Iterator<Item = (SpriteGroupId, &SpriteGroup)> {
         self.sprite_groups.iter()
+    }
+
+    pub fn add_audio(&mut self, audio: crate::AudioAsset) -> crate::AudioId {
+        self.audio.insert(audio)
+    }
+
+    pub fn audio(&self, id: crate::AudioId) -> Option<&crate::AudioAsset> {
+        self.audio.get(id).filter(|a| !a.deleted)
+    }
+
+    pub fn audio_mut(&mut self, id: crate::AudioId) -> Option<&mut crate::AudioAsset> {
+        self.audio.get_mut(id)
+    }
+
+    /// Every (non-deleted) imported sound.
+    pub fn audio_assets(&self) -> impl Iterator<Item = (crate::AudioId, &crate::AudioAsset)> {
+        self.audio.iter().filter(|(_, a)| !a.deleted)
+    }
+
+    /// Every sound slot, deleted or not, in slot order (project saving
+    /// walks the same order the serialized slot map has).
+    pub fn audio_slots(&self) -> impl Iterator<Item = (crate::AudioId, &crate::AudioAsset)> {
+        self.audio.iter()
     }
 
     pub fn add_model(&mut self, model: crate::ModelAsset) -> crate::ModelId {

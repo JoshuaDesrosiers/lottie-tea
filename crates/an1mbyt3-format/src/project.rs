@@ -81,6 +81,7 @@ pub enum ProjectAssetKind {
     Scene,
     Prefab,
     Image,
+    Audio,
 }
 
 impl ProjectAssetKind {
@@ -89,6 +90,7 @@ impl ProjectAssetKind {
             Self::Scene => "scene",
             Self::Prefab => "prefab",
             Self::Image => "image",
+            Self::Audio => "audio",
         }
     }
 }
@@ -204,6 +206,14 @@ pub fn save_project(document: &Document, project_name: &str) -> serde_json::Resu
         let asset = stripped.image_mut(id).expect("listed above");
         image_bytes.push((asset.name.clone(), asset.file.clone(), std::mem::take(&mut asset.source)));
     }
+    // Sounds the same way (deleted ones stay inline — their bytes are
+    // already cleared).
+    let audio_ids: Vec<_> = stripped.audio_slots().map(|(id, a)| (id, a.deleted)).collect();
+    let mut audio_bytes = Vec::new();
+    for (id, deleted) in audio_ids {
+        let asset = stripped.audio_mut(id).expect("listed above");
+        audio_bytes.push((deleted, asset.name.clone(), asset.file.clone(), if deleted { Vec::new() } else { std::mem::take(&mut asset.source) }));
+    }
     let mut root = serde_json::to_value(VersionedDocument::wrap(&stripped))?;
     let doc = root.get_mut("document").expect("VersionedDocument has a document");
 
@@ -213,6 +223,11 @@ pub fn save_project(document: &Document, project_name: &str) -> serde_json::Resu
     // Linked image files keep their exact paths — reserve them before any
     // generated name could collide with one.
     for (_, file, _) in &image_bytes {
+        if let Some(file) = file {
+            taken.insert(file.to_lowercase());
+        }
+    }
+    for (_, _, file, _) in &audio_bytes {
         if let Some(file) = file {
             taken.insert(file.to_lowercase());
         }
@@ -243,6 +258,22 @@ pub fn save_project(document: &Document, project_name: &str) -> serde_json::Resu
             let value = slot.get_mut("value").and_then(Value::as_object_mut).expect("occupied image slot");
             let linked = file.is_some();
             let path = file.unwrap_or_else(|| unique_path("Assets/Images", &safe_name(image_stem(&name)), image_extension(&bytes), &mut taken));
+            value.insert("$source".into(), Value::String(path.clone()));
+            asset_paths.push(path.clone());
+            files.push(ProjectFile { path, contents: ProjectContents::Bytes(bytes), asset, linked });
+        }
+    }
+
+    if let Some(slots) = doc.get_mut("audio") {
+        for ((idx, slot), (deleted, name, file, bytes)) in indexed_slots(slots).zip(audio_bytes) {
+            if deleted {
+                continue;
+            }
+            let asset = Some(ProjectAsset { kind: ProjectAssetKind::Audio, idx, version: slot_version(slot) });
+            let value = slot.get_mut("value").and_then(Value::as_object_mut).expect("occupied audio slot");
+            let linked = file.is_some();
+            let stem = name.rsplit_once('.').map_or(name.as_str(), |(stem, _)| stem);
+            let path = file.unwrap_or_else(|| unique_path("Assets/Sounds", &safe_name(stem), an1mbyt3_core::audio_extension(&bytes), &mut taken));
             value.insert("$source".into(), Value::String(path.clone()));
             asset_paths.push(path.clone());
             files.push(ProjectFile { path, contents: ProjectContents::Bytes(bytes), asset, linked });
@@ -312,6 +343,18 @@ pub fn load_project(manifest: &str, mut read: impl FnMut(&str) -> Option<Vec<u8>
         }
     }
 
+    let mut audio_files = Vec::new();
+    if let Some(slots) = doc.get_mut("audio") {
+        for slot in occupied_slots(slots) {
+            let value = slot.get_mut("value").and_then(Value::as_object_mut).expect("occupied audio slot");
+            let path = value.remove("$source").and_then(|v| v.as_str().map(String::from));
+            if path.is_some() {
+                value.insert("source".into(), Value::Array(Vec::new()));
+            }
+            audio_files.push(path);
+        }
+    }
+
     let versioned: VersionedDocument = serde_json::from_value(json!({ "schema_version": schema_version, "document": doc })).map_err(ProjectLoadError::Json)?;
     check_schema_version(versioned.schema_version).map_err(ProjectLoadError::UnsupportedSchemaVersion)?;
     let mut document = versioned.document;
@@ -323,6 +366,12 @@ pub fn load_project(manifest: &str, mut read: impl FnMut(&str) -> Option<Vec<u8>
         let Some(path) = path else { continue };
         let bytes = read(&path).ok_or_else(|| ProjectLoadError::MissingFile(path.clone()))?;
         document.image_mut(id).expect("listed above").source = bytes;
+    }
+    let ids: Vec<_> = document.audio_slots().map(|(id, _)| id).collect();
+    for (id, path) in ids.into_iter().zip(audio_files) {
+        let Some(path) = path else { continue };
+        let bytes = read(&path).ok_or_else(|| ProjectLoadError::MissingFile(path.clone()))?;
+        document.audio_mut(id).expect("listed above").source = bytes;
     }
     Ok(document)
 }
@@ -369,6 +418,28 @@ mod tests {
         assert_eq!(loaded.artboards().count(), 2);
         assert_eq!(loaded.artboard(a).unwrap().node_ids().count(), 1);
         assert_eq!(loaded.images().next().unwrap().1.source, png);
+    }
+
+    #[test]
+    fn sounds_are_saved_as_files_and_restored() {
+        let mut document = Document::new();
+        document.add_artboard(Artboard::new("Level 1", 100.0, 100.0));
+        let wav = b"RIFF\0\0\0\0WAVEfmt data".to_vec();
+        document.add_audio(an1mbyt3_core::AudioAsset { name: "jump.wav".into(), source: wav.clone(), file: None, deleted: false });
+        let gone = document.add_audio(an1mbyt3_core::AudioAsset { name: "old.wav".into(), source: Vec::new(), file: None, deleted: true });
+        let files = save_project(&document, "Game").unwrap();
+        assert!(files.iter().any(|f| f.path == "Assets/Sounds/jump.wav" && f.contents == ProjectContents::Bytes(wav.clone())));
+        let store: HashMap<String, Vec<u8>> = files
+            .iter()
+            .map(|f| (f.path.clone(), match &f.contents { ProjectContents::Text(t) => t.clone().into_bytes(), ProjectContents::Bytes(b) => b.clone() }))
+            .collect();
+        let manifest = String::from_utf8(store["Game.an1proj"].clone()).unwrap();
+        assert!(!manifest.contains("82,73,70,70"), "sound bytes aren't inlined in the manifest");
+        let loaded = load_project(&manifest, |p| store.get(p).cloned()).unwrap();
+        let (_, jump) = loaded.audio_assets().next().unwrap();
+        assert_eq!(jump.source, wav);
+        assert_eq!(loaded.audio_assets().count(), 1);
+        assert!(loaded.audio(gone).is_none(), "the deleted sound stays deleted");
     }
 
     #[test]

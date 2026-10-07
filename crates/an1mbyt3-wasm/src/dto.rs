@@ -2046,6 +2046,7 @@ pub enum NodeBehaviorDto {
     IkConstraint2D(an1mbyt3_core::IkConstraint2D),
     SpriteSkin2D(an1mbyt3_core::SpriteSkin2D),
     Liquid2D(an1mbyt3_core::Liquid2D),
+    AudioSource(an1mbyt3_core::AudioSource),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2070,6 +2071,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::IkConstraint2D(c) => NodeBehaviorDto::IkConstraint2D(*c),
             an1mbyt3_core::NodeBehavior::SpriteSkin2D(c) => NodeBehaviorDto::SpriteSkin2D(c.clone()),
             an1mbyt3_core::NodeBehavior::Liquid2D(c) => NodeBehaviorDto::Liquid2D(*c),
+            an1mbyt3_core::NodeBehavior::AudioSource(c) => NodeBehaviorDto::AudioSource(*c),
         }
     }
 }
@@ -2096,6 +2098,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::IkConstraint2D(c) => an1mbyt3_core::NodeBehavior::IkConstraint2D(c),
             NodeBehaviorDto::SpriteSkin2D(c) => an1mbyt3_core::NodeBehavior::SpriteSkin2D(c),
             NodeBehaviorDto::Liquid2D(c) => an1mbyt3_core::NodeBehavior::Liquid2D(c),
+            NodeBehaviorDto::AudioSource(c) => an1mbyt3_core::NodeBehavior::AudioSource(c),
         }
     }
 }
@@ -2280,6 +2283,19 @@ pub struct DocumentSummary {
     pub materials: Vec<MaterialSummary>,
     /// Every imported 3D model (the Mesh section's Shape → Model picker).
     pub models: Vec<ModelSummary>,
+    /// Every imported sound (Resources → Sounds, the Audio Source picker).
+    pub audio: Vec<AudioSummary>,
+}
+
+/// One imported sound.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioSummary {
+    pub id: an1mbyt3_core::AudioId,
+    pub name: String,
+    pub byte_length: u32,
+    /// Its file in the project folder, if it's linked to one.
+    pub file: Option<String>,
 }
 
 /// One imported 3D model.
@@ -2371,6 +2387,7 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
         scripts: document.scripts().map(|(id, def)| summarize_script(id, def)).collect(),
         prefabs: document.prefabs().map(|(id, def)| PrefabSummary { id, name: def.name.clone(), node_count: def.nodes.len() as u32 }).collect(),
         models: document.models().map(|(id, m)| ModelSummary { id, name: m.name.clone() }).collect(),
+        audio: document.audio_assets().map(|(id, a)| AudioSummary { id, name: a.name.clone(), byte_length: a.source.len() as u32, file: a.file.clone() }).collect(),
         materials: document
             .materials()
             .map(|(id, m)| MaterialSummary {

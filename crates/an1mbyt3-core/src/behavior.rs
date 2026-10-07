@@ -70,8 +70,10 @@ pub enum NodeBehavior {
     IkConstraint2D(crate::IkConstraint2D),
     /// Unity's `Sprite Skin`: bone-deformed image.
     SpriteSkin2D(crate::SpriteSkin2D),
-    /// A particle fluid — see [`crate::Liquid2D`]. (Appended last.)
+    /// A particle fluid — see [`crate::Liquid2D`].
     Liquid2D(crate::Liquid2D),
+    /// Unity's `AudioSource` — see [`crate::AudioSource`]. (Appended last.)
+    AudioSource(crate::AudioSource),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

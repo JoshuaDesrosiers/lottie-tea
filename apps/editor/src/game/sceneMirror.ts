@@ -10,7 +10,7 @@
  * so `ctx.nodes` and refs always see this frame's values without anything
  * being rebuilt.
  */
-import type { ImageAssetSummary, NodeSummary, OpaqueId, Path, Transform2D } from '../ipc/document'
+import type { AudioSourceConfig, ImageAssetSummary, NodeSummary, OpaqueId, Path, Transform2D } from '../ipc/document'
 import type { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm'
 
 /** Floats per node — must match `script_scene::STRIDE`. */
@@ -21,6 +21,8 @@ export type ScriptNode = Pick<
   NodeSummary,
   'id' | 'elementId' | 'name' | 'classes' | 'kind' | 'parent' | 'transform' | 'worldTransform' | 'visible' | 'fillColor' | 'textContent' | 'image' | 'path' | 'zIndex' | 'behaviors'
 > & {
+  /** The node's Audio Source component, if it has one. */
+  audioSource: AudioSourceConfig | null
   /** A Node3D's transform this frame (`null` for 2D nodes). */
   transform3d: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] } | null
 }
@@ -37,6 +39,7 @@ interface StaticNode {
   textContent: string | null
   path: Path | null
   bodyType: 'Dynamic' | 'Kinematic' | 'Static' | null
+  audioSource: AudioSourceConfig | null
 }
 
 interface StaticScene {
@@ -55,6 +58,8 @@ class LiveNode {
   readonly textContent: string | null
   readonly path: Path | null
   readonly behaviors: NodeSummary['behaviors']
+  /** The node's Audio Source component, if it has one. */
+  readonly audioSource: AudioSourceConfig | null
 
   private readonly mirror: SceneMirror
   private readonly index: number
@@ -70,6 +75,7 @@ class LiveNode {
     this.parent = s.parent
     this.textContent = s.textContent
     this.path = s.path
+    this.audioSource = s.audioSource ?? null
     // Only what scripts read (`ref.bodyType`): the Rigidbody 2D's type.
     this.behaviors = s.bodyType ? ([{ enabled: true, behavior: { kind: 'Rigidbody2D', bodyType: s.bodyType } }] as unknown as NodeSummary['behaviors']) : []
   }

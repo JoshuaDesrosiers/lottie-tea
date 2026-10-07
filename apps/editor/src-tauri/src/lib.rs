@@ -41,6 +41,7 @@ pub fn run() {
             commands::pick_open_svg_path,
             commands::pick_open_image_path,
             commands::pick_open_model_path,
+            commands::pick_open_audio_path,
             commands::pick_save_gif_path,
             commands::pick_save_html_path,
             commands::write_text_file,

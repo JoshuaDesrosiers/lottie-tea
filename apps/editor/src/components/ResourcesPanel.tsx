@@ -1,5 +1,6 @@
+import { audio, type SoundHandle } from '../game/audio'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { ComponentDefinitionSummary, ImageAssetSummary, OpaqueId, PrefabSummary, SpriteGroupSummary } from '../ipc/document'
+import type { AudioSummary, ComponentDefinitionSummary, ImageAssetSummary, OpaqueId, PrefabSummary, SpriteGroupSummary } from '../ipc/document'
 import type { WasmEditor } from '../ipc/wasmEditor'
 import { getImageSource } from '../ipc/wasmEditor'
 import { ChevronDownIcon, ImageIcon } from './icons'
@@ -283,6 +284,39 @@ function Folder({ name, count, open, onToggle, action, children }: { name: strin
  * Inspector, the same way Unity's Project and Hierarchy windows both feed
  * one Inspector.
  */
+/** One sound in the Sounds folder: name, size, preview, delete. */
+function SoundRow({ editor, sound, onDelete }: { editor: WasmEditor | null; sound: AudioSummary; onDelete: () => void }) {
+  const handle = useRef<SoundHandle | null>(null)
+  const [playing, setPlaying] = useState(false)
+  useEffect(() => () => handle.current?.stop(), [])
+  const toggle = () => {
+    if (handle.current?.playing) {
+      handle.current.stop()
+      setPlaying(false)
+      return
+    }
+    if (!editor) return
+    handle.current = audio.play(editor, sound.id)
+    setPlaying(true)
+    const tick = () => (handle.current?.playing ? window.setTimeout(tick, 200) : setPlaying(false))
+    window.setTimeout(tick, 200)
+  }
+  return (
+    <div className="group flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-ink hover:bg-overlay/5">
+      <button onClick={toggle} title={playing ? 'Stop' : 'Play'} className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-overlay/10 text-[10px] hover:bg-accent/20 hover:text-accent">
+        {playing ? '■' : '▶'}
+      </button>
+      <span className="min-w-0 flex-1 truncate" title={sound.file ?? sound.name}>
+        {sound.name}
+      </span>
+      <span className="shrink-0 tabular-nums text-ink-dim">{Math.max(1, Math.round(sound.byteLength / 1024))} KB</span>
+      <button onClick={onDelete} title="Delete sound" className="shrink-0 rounded px-1 text-ink-dim opacity-0 hover:text-red-400 group-hover:opacity-100">
+        ✕
+      </button>
+    </div>
+  )
+}
+
 export function ResourcesPanel({
   editor,
   images,
@@ -301,8 +335,15 @@ export function ResourcesPanel({
   onDeletePrefab,
   onOpenScene,
   onShowInExplorer,
+  sounds,
+  onImportAudio,
+  onDeleteAudio,
 }: {
   editor: WasmEditor | null
+  /** Imported sounds. */
+  sounds: AudioSummary[]
+  onImportAudio: () => void
+  onDeleteAudio: (id: OpaqueId) => void
   images: ImageAssetSummary[]
   spriteGroups: SpriteGroupSummary[]
   /** Vector drawings saved from Paint mode ("Save as Resource") and anything
@@ -397,6 +438,23 @@ export function ResourcesPanel({
           ))}
         </div>
       )}
+
+      <Folder
+        name="Sounds"
+        count={sounds.length}
+        {...folder('Sounds')}
+        action={
+          <button onClick={onImportAudio} title="Import a sound (MP3, WAV, OGG…)" className="flex h-5 w-5 items-center justify-center rounded text-ink-dim hover:bg-overlay/5 hover:text-ink">
+            +
+          </button>
+        }
+      >
+        {sounds.length === 0 ? (
+          <p className="px-2 py-2 text-[11px] text-ink-dim">No sounds yet. Import one, then give a node an Audio Source or play it from a script: ctx.playSound('name').</p>
+        ) : (
+          sounds.map((sound) => <SoundRow key={idKey(sound.id)} editor={editor} sound={sound} onDelete={() => onDeleteAudio(sound.id)} />)
+        )}
+      </Folder>
 
       <Folder
         name="Images"

@@ -1,5 +1,9 @@
+import { audio, type SoundHandle } from '../game/audio'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { WasmEditor } from '../ipc/wasmEditor'
 import type {
+  AudioSourceConfig,
+  AudioSummary,
   BoxCollider2DConfig,
   CapsuleCollider2DConfig,
   CircleCollider2DConfig,
@@ -352,6 +356,92 @@ export function SpriteSkin2DFields({
 
 /** Liquid 2D: a particle fluid that pours, splashes, settles in
  * containers made of colliders, and floats bodies. */
+/** Unity's Audio Source: which sound, how loud / fast, and when it plays.
+ * ▶ previews the clip right here (also in Design mode). */
+export function AudioSourceFields({
+  config,
+  sounds,
+  editor,
+  onChange,
+}: {
+  config: AudioSourceConfig
+  sounds: AudioSummary[]
+  editor: WasmEditor | null
+  onChange: (value: AudioSourceConfig) => void
+}) {
+  const update = (patch: Partial<AudioSourceConfig>) => onChange({ ...config, ...patch })
+  const keyOf = (id: OpaqueId) => `${id.idx}:${id.version}`
+  const preview = useRef<SoundHandle | null>(null)
+  const [playing, setPlaying] = useState(false)
+  useEffect(() => () => preview.current?.stop(), [])
+  const toggle = () => {
+    if (preview.current?.playing) {
+      preview.current.stop()
+      setPlaying(false)
+      return
+    }
+    if (!editor || !config.clip) return
+    preview.current = audio.play(editor, config.clip, { volume: config.volume, pitch: config.pitch })
+    setPlaying(true)
+    const tick = () => {
+      if (preview.current?.playing) window.setTimeout(tick, 200)
+      else setPlaying(false)
+    }
+    window.setTimeout(tick, 200)
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Clip" title="The sound this source plays (import sounds with + → Import → Audio).">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <select
+            value={config.clip ? keyOf(config.clip) : ''}
+            onChange={(e) => update({ clip: sounds.find((s) => keyOf(s.id) === e.target.value)?.id ?? null })}
+            className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none"
+          >
+            <option value="">{sounds.length ? 'None' : 'No sounds imported'}</option>
+            {sounds.map((s) => (
+              <option key={keyOf(s.id)} value={keyOf(s.id)}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={toggle}
+            disabled={!config.clip}
+            title={playing ? 'Stop preview' : 'Preview'}
+            className="shrink-0 rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20 hover:text-accent disabled:opacity-35"
+          >
+            {playing ? '■' : '▶'}
+          </button>
+        </div>
+      </Row>
+      <Row label="Volume" title="0 = silent, 1 = full.">
+        <NumberField label="" value={config.volume} step={0.05} onCommit={(v) => update({ volume: clamp(v, 0, 4) })} />
+      </Row>
+      <Row label="Pitch" title="Playback rate: 1 = normal, 2 = an octave up (and twice as fast).">
+        <NumberField label="" value={config.pitch} step={0.05} onCommit={(v) => update({ pitch: clamp(v, 0.1, 4) })} />
+      </Row>
+      <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+        <input type="checkbox" checked={config.loop} onChange={(e) => update({ loop: e.target.checked })} />
+        Loop
+      </label>
+      <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Starts by itself when Playground (or the exported game) enters this scene. Scripts can also call ref.playAudio().">
+        <input type="checkbox" checked={config.playOnStart} onChange={(e) => update({ playOnStart: e.target.checked })} />
+        Play on start
+      </label>
+      <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Pans left / right by where this node is relative to the camera, and fades out with distance.">
+        <input type="checkbox" checked={config.spatial} onChange={(e) => update({ spatial: e.target.checked })} />
+        Spatial (2D)
+      </label>
+      {config.spatial && (
+        <Row label="Range" title="Silent beyond this distance from the camera (world units).">
+          <NumberField label="" value={config.range} step={10} onCommit={(v) => update({ range: clamp(v, 1, 100000) })} />
+        </Row>
+      )}
+    </div>
+  )
+}
+
 export function Liquid2DFields({ config, onChange }: { config: Liquid2DConfig; onChange: (value: Liquid2DConfig) => void }) {
   const update = (patch: Partial<Liquid2DConfig>) => onChange({ ...config, ...patch })
   const count = Math.max(1, Math.floor(config.size[0] / config.particleSpacing)) * Math.max(1, Math.floor(config.size[1] / config.particleSpacing))
@@ -412,6 +502,7 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   IkConstraint2D: 'IK Constraint 2D',
   SpriteSkin2D: 'Sprite Skin',
   Liquid2D: 'Liquid 2D',
+  AudioSource: 'Audio Source',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
@@ -421,6 +512,7 @@ const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
   { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
+  { title: 'Audio', kinds: ['AudioSource'] },
 ]
 
 /**

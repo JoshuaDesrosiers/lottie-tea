@@ -24,7 +24,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObjec
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { DocumentSummary } from '../ipc/document'
 import { listProjectFiles, pathExists, pickOpenPath, type ProjectEntry, pickSavePath, readBinaryFile, readFileRaw, readTextFile, recoveryDir, removeFile, revealInExplorer, writeBinaryFile, writeFileRaw, writeTextFile } from '../ipc/nativeFile'
-import { documentInstance, documentRevision, importImage, loadTea, loadTeab, saveTea, saveTeab } from '../ipc/wasmEditor'
+import { documentInstance, documentRevision, importAudio, importImage, loadTea, loadTeab, saveTea, saveTeab } from '../ipc/wasmEditor'
 import type { ImportImageResult, OpaqueId } from '../ipc/document'
 import type { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm'
 import type { FileMenuActions } from '../components/TopToolbar'
@@ -32,6 +32,7 @@ import {
   createProjectInteractive,
   forgetProject,
   importImageIntoProject,
+  importAudioIntoProject,
   importNewAssets,
   joinPath,
   openProject,
@@ -75,6 +76,8 @@ export interface UseProjectResult {
    * `Assets/Images/` first and the asset linked to it. `artboard` also
    * places it on the canvas. */
   importImage: (fileName: string, bytes: Uint8Array, artboard: OpaqueId | null) => Promise<ImportImageResult>
+  /** Import → Audio: into `Assets/Sounds/` when a project is open. */
+  importAudio: (fileName: string, bytes: Uint8Array) => Promise<{ document: DocumentSummary; audio: OpaqueId }>
   /** Ctrl+S / Save button. */
   save: () => void
   /** Prompts / banners to render on top of the editor. */
@@ -503,5 +506,15 @@ export function useProject({ editorRef, ready, playing, onReplaced, onChanged }:
     return result
   }
 
-  return { fileMenu, projectFolder, projectFiles, refreshFiles, importImage: importImageFile, save, overlay }
+  const importAudioFile = async (fileName: string, bytes: Uint8Array) => {
+    const editor = editorRef.current
+    if (!editor) throw new Error('editor not ready')
+    const session = sessionRef.current
+    if (!session) return importAudio(editor, fileName, bytes)
+    const result = await importAudioIntoProject(editor, session, fileName, bytes)
+    void listFiles()
+    return result
+  }
+
+  return { fileMenu, projectFolder, projectFiles, refreshFiles, importImage: importImageFile, importAudio: importAudioFile, save, overlay }
 }

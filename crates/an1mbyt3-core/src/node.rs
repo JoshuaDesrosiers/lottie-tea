@@ -262,6 +262,14 @@ impl Node {
         })
     }
 
+    /// The node's enabled Audio Source, if any.
+    pub fn audio_source(&self) -> Option<&crate::AudioSource> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::AudioSource(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// The node's enabled Sprite Skin, if any.
     pub fn sprite_skin(&self) -> Option<&crate::SpriteSkin2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

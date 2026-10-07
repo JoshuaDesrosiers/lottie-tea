@@ -81,6 +81,7 @@ function ShapesMenu({
   onImportSvg,
   onImportImage,
   onImportModel,
+  onImportAudio,
   onLoadDemo,
   onLoadGeometryDashDemo,
   onLoadNinjaDemo,
@@ -110,6 +111,8 @@ function ShapesMenu({
   onImportImage: () => void
   /** Import → 3D Model: a glTF / GLB file as a new 3D node. */
   onImportModel: () => void
+  /** Import → Audio: a sound file. */
+  onImportAudio: () => void
   /** "Tilemap…" — picks a tileset image and builds an empty `Tilemap` node
    * from it. Select it, then paint with `TilemapPaintOverlay`. */
   onAddTilemap: () => void
@@ -209,6 +212,7 @@ function ShapesMenu({
         { kind: 'item', label: 'SVG…', icon: <OpenIcon />, onSelect: onImportSvg },
         { kind: 'item', label: 'Image…', icon: <ImageIcon />, onSelect: onImportImage },
         { kind: 'item', label: '3D Model (glTF / GLB)…', icon: <CameraKindIcon />, onSelect: onImportModel },
+        { kind: 'item', label: 'Audio…', icon: <SparkleIcon />, onSelect: onImportAudio },
       ],
     },
     {
@@ -397,6 +401,7 @@ export function TopToolbar({
   onImportSvg,
   onImportImage,
   onImportModel,
+  onImportAudio,
   onLoadDemo,
   onLoadGeometryDashDemo,
   onLoadNinjaDemo,
@@ -436,6 +441,8 @@ export function TopToolbar({
   onImportImage: () => void
   /** Import → 3D Model: a glTF / GLB file as a new 3D node. */
   onImportModel: () => void
+  /** Import → Audio: a sound file. */
+  onImportAudio: () => void
   onLoadDemo: () => void
   onLoadGeometryDashDemo: () => void
   onLoadNinjaDemo: () => void
@@ -528,6 +535,7 @@ export function TopToolbar({
               onImportSvg={onImportSvg}
               onImportImage={onImportImage}
               onImportModel={onImportModel}
+              onImportAudio={onImportAudio}
               onLoadDemo={onLoadDemo}
               onLoadGeometryDashDemo={onLoadGeometryDashDemo}
               onLoadNinjaDemo={onLoadNinjaDemo}

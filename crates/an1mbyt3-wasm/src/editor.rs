@@ -5591,6 +5591,8 @@ impl WasmEditor {
             "IkConstraint2D" => B::IkConstraint2D(an1mbyt3_core::IkConstraint2D::default()),
             "SpriteSkin2D" => B::SpriteSkin2D(an1mbyt3_core::SpriteSkin2D::default()),
             "Liquid2D" => B::Liquid2D(an1mbyt3_core::Liquid2D::default()),
+            // The first imported sound, if there is one.
+            "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
         to_js_value(&crate::dto::NodeBehaviorDto::from(&behavior))
@@ -8564,6 +8566,73 @@ impl WasmEditor {
     /// (`ImageAsset::file`) — set right after the file was copied into
     /// `Assets/`, so saves treat that file as the source and never write a
     /// duplicate. `null` unlinks.
+    // ------------------------------------------------------------ audio --
+
+    /// Import → Audio: adds a sound (MP3 / WAV / OGG / … bytes) to the
+    /// document. Returns `{ document, audio }`. (Decoding / playback happen
+    /// in the host's Web Audio — see `apps/editor/src/game/audio.ts`.)
+    pub fn import_audio(&mut self, filename: String, bytes: Vec<u8>) -> Result<JsValue, JsValue> {
+        if bytes.is_empty() {
+            return Err(JsValue::from_str("import_audio: the file is empty"));
+        }
+        let name = filename.rsplit(['/', '\\']).next().unwrap_or(&filename).to_string();
+        let audio = self.document.add_audio(an1mbyt3_core::AudioAsset { name, source: bytes, file: None, deleted: false });
+        self.document.touch();
+        #[derive(serde::Serialize)]
+        struct Out {
+            document: crate::dto::DocumentSummary,
+            audio: an1mbyt3_core::AudioId,
+        }
+        to_js_value(&Out { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), audio })
+    }
+
+    /// A sound's encoded bytes (for the host to decode and play).
+    pub fn audio_bytes(&self, audio: JsValue) -> Result<Vec<u8>, JsValue> {
+        let id: an1mbyt3_core::AudioId = parse_id(audio)?;
+        Ok(self.document.audio(id).map(|a| a.source.clone()).unwrap_or_default())
+    }
+
+    /// Every sound's id and name (scripts' `ctx.playSound(name)` lookup).
+    pub fn audio_list(&self) -> Result<JsValue, JsValue> {
+        #[derive(serde::Serialize)]
+        struct Entry<'a> {
+            id: an1mbyt3_core::AudioId,
+            name: &'a str,
+        }
+        let list: Vec<Entry> = self.document.audio_assets().map(|(id, a)| Entry { id, name: &a.name }).collect();
+        to_js_value(&list)
+    }
+
+    /// Links a sound to its file in the project folder (like `set_image_file`).
+    pub fn set_audio_file(&mut self, audio: JsValue, path: Option<String>) -> Result<(), JsValue> {
+        let id: an1mbyt3_core::AudioId = parse_id(audio)?;
+        let asset = self.document.audio_mut(id).ok_or_else(|| JsValue::from_str("set_audio_file: unknown sound"))?;
+        asset.file = path;
+        self.document.touch();
+        Ok(())
+    }
+
+    /// Renames a sound (scripts play it by name).
+    pub fn rename_audio(&mut self, audio: JsValue, name: String) -> Result<JsValue, JsValue> {
+        let id: an1mbyt3_core::AudioId = parse_id(audio)?;
+        if let Some(asset) = self.document.audio_mut(id) {
+            asset.name = name;
+        }
+        self.document.touch();
+        self.document_summary()
+    }
+
+    /// Removes a sound from the document (Audio Sources using it go quiet).
+    pub fn delete_audio(&mut self, audio: JsValue) -> Result<JsValue, JsValue> {
+        let id: an1mbyt3_core::AudioId = parse_id(audio)?;
+        if let Some(asset) = self.document.audio_mut(id) {
+            asset.deleted = true;
+            asset.source.clear();
+        }
+        self.document.touch();
+        self.document_summary()
+    }
+
     pub fn set_image_file(&mut self, image: JsValue, path: Option<String>) -> Result<(), JsValue> {
         let image_id: an1mbyt3_core::ImageId = parse_id(image)?;
         let asset = self.document.image_mut(image_id).ok_or_else(|| JsValue::from_str("set_image_file: unknown image"))?;

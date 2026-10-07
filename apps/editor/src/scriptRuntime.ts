@@ -35,6 +35,7 @@
  * tracked and resolved.
  */
 
+import type { SoundHandle, ToneOptions } from './game/audio'
 import type { ContactEvent, RayHit, SpawnedPart } from './ipc/wasmEditor'
 import type { OpaqueId, Path } from './ipc/document'
 import type { ScriptImage, ScriptNode } from './game/sceneMirror'
@@ -139,6 +140,23 @@ export interface ScriptContext {
   setTransform3D(node: OpaqueId, values: number[]): void
   /** Untracked model-mesh animation write — see `ref.playAnimation3`. */
   setAnimation3D(node: OpaqueId, clip: string, loop: boolean, overlay: string): void
+  /** **Sound.** Plays an imported sound by name (`'jump'` or `'jump.wav'`):
+   * `{ volume, pitch, loop, pan }`. Returns a handle (`stop()`,
+   * `setVolume(v)`, `setPitch(p)`, `playing`) or `null` if there's no
+   * such sound. */
+  playSound(name: string, options?: { volume?: number; pitch?: number; loop?: boolean; pan?: number }): SoundHandle | null
+  /** A synthesized sound effect, no asset needed: `{ freq, to (slide),
+   * type: 'square' | 'sine' | 'sawtooth' | 'triangle' | 'noise', duration,
+   * volume, attack, release, pan }` — `ctx.playTone({ freq: 880, to: 220,
+   * duration: 0.2 })` is a laser zap. */
+  playTone(options?: ToneOptions): SoundHandle | null
+  /** Stops every sound playing. */
+  stopAllSounds(): void
+  /** The game's overall volume (0..1). */
+  setMasterVolume(volume: number): void
+  /** Host primitives behind `ref.playAudio()` / `ref.stopAudio()`. */
+  playAudioSource(node: OpaqueId, options?: { volume?: number; pitch?: number }): SoundHandle | null
+  stopAudioSource(node: OpaqueId): void
   /** Untracked Tilemap rewrite — see `ref.setTiles`. */
   setTiles(node: OpaqueId, tiles: number[]): void
   /** Untracked Light 2D intensity / outer radius (negative = keep). See
@@ -369,6 +387,11 @@ export interface ComponentRef {
    * (`'holding-right-shoot'` while walking). Re-sending the same clips
    * doesn't restart them. */
   playAnimation3(name: string, options?: { loop?: boolean; overlay?: string }): void
+  /** Nodes with an **Audio Source**: play its clip (with its volume / pitch
+   * / loop / spatial settings; `options` override volume and pitch), or
+   * stop what it's playing. */
+  playAudio(options?: { volume?: number; pitch?: number }): SoundHandle | null
+  stopAudio(): void
   /** Tilemap nodes: replaces the whole grid — row-major, `mapWidth *
    * mapHeight` tile indices (`-1` = empty). Procedural levels. */
   setTiles(tiles: number[]): void
@@ -667,6 +690,14 @@ function makeComponentRefFromState(
       enumerable: true,
       get: () => vec3(current3d()?.scale),
       set: (v: { x: number; y: number; z: number } | null) => v && write3d({ scale: [v.x, v.y, v.z] }),
+    },
+    playAudio: {
+      enumerable: false,
+      value: (options?: { volume?: number; pitch?: number }) => ctx.playAudioSource(node.id, options),
+    },
+    stopAudio: {
+      enumerable: false,
+      value: () => ctx.stopAudioSource(node.id),
     },
     playAnimation3: {
       enumerable: false,

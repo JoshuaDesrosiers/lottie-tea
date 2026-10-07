@@ -40,6 +40,8 @@ pub struct ScriptNodeDto {
     pub text_content: Option<String>,
     pub path: Option<PathDto>,
     pub body_type: Option<RigidbodyType2D>,
+    /// The node's Audio Source (scripts' `ref.playAudio()` and play-on-start).
+    pub audio_source: Option<an1mbyt3_core::AudioSource>,
 }
 
 #[derive(Serialize)]
@@ -126,6 +128,7 @@ pub fn scene(document: &Document, artboard: &Artboard) -> ScriptSceneDto {
                     _ => None,
                 },
                 body_type: node.rigidbody().map(|rb| rb.body_type),
+                audio_source: node.audio_source().copied(),
             })
         })
         .collect();

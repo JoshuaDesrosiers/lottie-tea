@@ -34,7 +34,7 @@ import {
   type ProjectEntry,
 } from '../ipc/nativeFile'
 import type { DocumentSummary } from '../ipc/document'
-import { importImage, importImageAsset, loadProjectFiles, projectAssetPaths, saveProjectFiles, setImageFile, takeProjectFileBytes } from '../ipc/wasmEditor'
+import { importImage, importImageAsset, loadProjectFiles, projectAssetPaths, saveProjectFiles, setImageFile, takeProjectFileBytes, importAudio, setAudioFile } from '../ipc/wasmEditor'
 import type { ImportImageResult, OpaqueId } from '../ipc/document'
 import type { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm'
 
@@ -189,8 +189,22 @@ export async function importNewAssets(editor: WasmEditor, session: ProjectSessio
   const entries = await listProjectFiles(session.folder)
   let doc: DocumentSummary | null = null
   for (const entry of entries) {
-    if (!entry.path.startsWith('Assets/') || !IMAGE_FILE.test(entry.path)) continue
+    if (!entry.path.startsWith('Assets/')) continue
     if (session.files.has(entry.path) || session.importedSources.has(entry.path)) continue
+    if (AUDIO_FILE.test(entry.path)) {
+      // A sound dropped into the project folder: import + link it.
+      try {
+        const bytes = await readFileRaw(joinPath(session.folder, entry.path))
+        const result = importAudio(editor, entry.path.slice(entry.path.lastIndexOf('/') + 1), bytes)
+        setAudioFile(editor, result.audio, entry.path)
+        doc = result.document
+      } catch (err) {
+        console.warn(`couldn't import ${entry.path}`, err)
+      }
+      session.importedSources.add(entry.path)
+      continue
+    }
+    if (!IMAGE_FILE.test(entry.path)) continue
     try {
       const bytes = await readFileRaw(joinPath(session.folder, entry.path))
       const fileName = entry.path.slice(entry.path.lastIndexOf('/') + 1)
@@ -234,6 +248,30 @@ export async function importImageIntoProject(editor: WasmEditor, session: Projec
   session.importedSources.add(path)
   const result = artboard ? await importImage(editor, artboard, fileName, bytes) : await importImageAsset(editor, fileName, bytes)
   linkImported(editor, result, path)
+  return result
+}
+
+/** A sound file's path under `Assets/` (drop-in import). */
+const AUDIO_FILE = /\.(mp3|wav|ogg|m4a|aac|flac|webm)$/i
+
+/**
+ * Imports a sound *into the project*: copied into `Assets/Sounds/` (a
+ * numbered name if that file name is taken by different content), then
+ * added to the document and linked to that copy — like images.
+ */
+export async function importAudioIntoProject(editor: WasmEditor, session: ProjectSession, fileName: string, bytes: Uint8Array): Promise<{ document: DocumentSummary; audio: OpaqueId }> {
+  const dot = fileName.lastIndexOf('.')
+  const stem = dot > 0 ? fileName.slice(0, dot) : fileName
+  const ext = dot > 0 ? fileName.slice(dot) : ''
+  let path = `Assets/Sounds/${fileName}`
+  for (let n = 2; session.sizes.has(path) && session.sizes.get(path) !== bytes.length; n++) path = `Assets/Sounds/${stem} ${n}${ext}`
+  if (!session.sizes.has(path)) {
+    await writeFileRaw(joinPath(session.folder, path), bytes)
+    session.sizes.set(path, bytes.length)
+  }
+  session.importedSources.add(path)
+  const result = importAudio(editor, fileName, bytes)
+  setAudioFile(editor, result.audio, path)
   return result
 }
 

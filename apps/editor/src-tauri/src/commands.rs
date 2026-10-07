@@ -53,6 +53,12 @@ pub async fn pick_open_image_path(app: tauri::AppHandle) -> Option<String> {
     app.dialog().file().add_filter("Image files", &["png", "jpg", "jpeg", "gif"]).blocking_pick_file().map(|path| path.to_string())
 }
 
+/// + menu → Import → Audio: a sound file.
+#[tauri::command]
+pub async fn pick_open_audio_path(app: tauri::AppHandle) -> Option<String> {
+    app.dialog().file().add_filter("Sound files", &["mp3", "wav", "ogg", "m4a", "aac", "flac", "webm"]).blocking_pick_file().map(|path| path.to_string())
+}
+
 /// + menu → Import → 3D Model: a glTF / GLB file. (The frontend then reads
 /// the textures / buffers it references from beside it.)
 #[tauri::command]

@@ -955,6 +955,8 @@ export interface DocumentSummary {
   materials: MaterialSummary[]
   /** Every imported 3D model (glTF / GLB). */
   models: { id: OpaqueId; name: string }[]
+  /** Every imported sound. */
+  audio: AudioSummary[]
 }
 
 // ---- 3D (mirrors `an1mbyt3_core::space3d`) ----
@@ -1001,6 +1003,31 @@ export interface Node3D {
 
 /** The + menu's 3D items (`add_node3d`). */
 export type Node3DItem = 'Cube' | 'Sphere' | 'Plane' | 'Cylinder' | 'Cone' | 'Torus' | 'Camera' | 'Sun' | 'PointLight' | 'Empty'
+
+/** Unity's AudioSource component (`an1mbyt3_core::AudioSource`). */
+export interface AudioSourceConfig {
+  clip: OpaqueId | null
+  /** 0..1 (above 1 amplifies). */
+  volume: number
+  /** Playback rate (1 = normal). */
+  pitch: number
+  loop: boolean
+  /** Starts by itself when Playground / the game enters the scene. */
+  playOnStart: boolean
+  /** Pans / fades by the node's position relative to the camera. */
+  spatial: boolean
+  /** Spatial falloff distance (world units). */
+  range: number
+}
+
+/** One imported sound. */
+export interface AudioSummary {
+  id: OpaqueId
+  name: string
+  byteLength: number
+  /** Its file in the project folder, if linked. */
+  file: string | null
+}
 
 /** One material asset (`an1mbyt3_core::Material`). */
 export interface MaterialSummary {
@@ -1135,6 +1162,7 @@ export type NodeBehavior =
   | ({ kind: 'IkConstraint2D' } & IkConstraint2DConfig)
   | ({ kind: 'SpriteSkin2D' } & SpriteSkin2DConfig)
   | ({ kind: 'Liquid2D' } & Liquid2DConfig)
+  | ({ kind: 'AudioSource' } & AudioSourceConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

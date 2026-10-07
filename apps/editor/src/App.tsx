@@ -31,6 +31,7 @@ import { PrefabBar } from './components/PrefabBar'
 import { ASSET_DRAG_MIME, ProjectBrowser, type DraggedAsset } from './components/ProjectBrowser'
 import { ShaderDock } from './components/ShaderDock'
 import { useView3D } from './game/useView3D'
+import { audio } from './game/audio'
 import {
   applyPrefabInstance,
   createPrefab,
@@ -74,7 +75,7 @@ import type {
   Stroke,
   Transform2D,
 } from './ipc/document'
-import { pickOpenImagePath, pickOpenModelPath, pickOpenSvgPath, pickSaveHtmlPath, pickSaveGifPath, readBinaryFile, readTextFile, writeTextFile } from './ipc/nativeFile'
+import { pickOpenAudioPath, pickOpenImagePath, pickOpenModelPath, pickOpenSvgPath, pickSaveHtmlPath, pickSaveGifPath, readBinaryFile, readTextFile, writeTextFile } from './ipc/nativeFile'
 import { exportActiveAnimationAsGif, GifExportError } from './exportGif'
 import {
   addAnimation,
@@ -151,6 +152,7 @@ import {
   setNode3D,
   importModel,
   gltfExternalUris,
+  deleteAudio,
   loadTacticsDemo,
   loadPhysicsDemo,
   pickNodeAt,
@@ -635,6 +637,8 @@ function App() {
     if (mode !== 'Playground') {
       pointerLockArmedRef.current = false
       if (document.pointerLockElement) document.exitPointerLock()
+      // Leaving Playground silences the game.
+      audio.stopAll()
     }
   }, [mode])
   useEffect(() => {
@@ -1979,6 +1983,28 @@ function App() {
       setDoc(result.document)
       if (result.newNode) setSelection({ artboardId: artboard.id, nodeId: result.newNode })
     })().catch((err) => console.error('Image import failed', err))
+  }
+
+  /** Import → Audio: a sound file into the document (and the project's
+   * `Assets/Sounds/` when one is open). */
+  const handleImportAudio = () => {
+    ;(async () => {
+      const path = await pickOpenAudioPath()
+      if (!path) return
+      const bytes = await readBinaryFile(path)
+      const result = await project.importAudio(path.split(/[\\/]/).pop() ?? path, bytes)
+      setDoc(result.document)
+    })().catch((err) => {
+      console.error('Audio import failed', err)
+      window.alert(`Couldn't import that sound: ${err}`)
+    })
+  }
+
+  const handleDeleteAudio = (id: OpaqueId) => {
+    if (!editorRef.current) return
+    audio.stopAll()
+    audio.invalidate()
+    setDoc(deleteAudio(editorRef.current, id))
   }
 
   /** Import → 3D Model: a glTF / GLB file, plus every texture / buffer it
@@ -3929,6 +3955,7 @@ function App() {
         onAddLight2D={handleAddLight2D}
         onAddNode3D={handleAddNode3D}
         onImportModel={handleImportModel}
+        onImportAudio={handleImportAudio}
         onAddTrail={handleAddTrail}
         sceneSwitcher={
           <SceneSwitcher
@@ -4015,6 +4042,7 @@ function App() {
                 materials={doc?.materials ?? []}
                 onSetNode3D={handleSetNode3D}
                 models={doc?.models ?? []}
+                sounds={doc?.audio ?? []}
                 onEditMaterial={(id) => {
                   setShaderMaterialId(id)
                   setBottomDockTab('Shader')
@@ -4052,6 +4080,9 @@ function App() {
             content: (
               <ResourcesPanel
                 editor={editorRef.current}
+                sounds={doc?.audio ?? []}
+                onImportAudio={handleImportAudio}
+                onDeleteAudio={handleDeleteAudio}
                 images={doc?.images ?? []}
                 spriteGroups={doc?.spriteGroups ?? []}
                 components={doc?.components ?? []}

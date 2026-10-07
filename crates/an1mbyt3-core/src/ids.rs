@@ -71,6 +71,10 @@ new_key_type! {
     /// [`crate::Document`] — document-level like `ImageId`.
     pub struct ModelId;
 
+    /// Identifies one imported sound ([`crate::AudioAsset`]) within a
+    /// [`crate::Document`] — document-level like `ImageId`.
+    pub struct AudioId;
+
     /// Identifies one reusable [`crate::ScriptDefinition`] within a
     /// [`crate::Document`] — same document-level-asset shape as
     /// `ComponentId`: a script type is authored once and attached (as a
