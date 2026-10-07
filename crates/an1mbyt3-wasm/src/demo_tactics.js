@@ -347,6 +347,10 @@ function startRound() {
   g.time = ROUND_TIME
   for (const e of g.ents) despawnEnt(e)
   g.ents = []
+  // Physics pools back to their parking spots.
+  for (let k = 0; k < 10; k++) park3('drop' + k, k, 2)
+  for (let k = 0; k < NADES; k++) park3('nade' + k, k, 0)
+  g.lobProj = {}
   g.dyn = new Int16Array(N)
   g.reveal = new Float32Array(10)
   g.known = [[], []]
@@ -479,6 +483,7 @@ function kill(t, src, label) {
   t.alive = false
   t.hp = 0
   t.deadAt = { x: t.x, y: t.y }
+  dropRifle(t)
   t.ult = Math.min(t.kit.ultCost, t.ult + 1)
   if (g.spike.state === 'carried' && g.spike.carrier === t) { g.spike.state = 'dropped'; g.spike.x = t.x; g.spike.y = t.y; g.spike.carrier = null }
   if (src && src !== t) {
@@ -575,6 +580,9 @@ function fire(a) {
     if (r.device.hp <= 0) despawnEnt(r.device, true)
   } else if (r.wallCell >= 0) {
     hitWall(r.wallCell, 38)
+  } else if (r.t < 410) {
+    // Hit a wall / crate / the floor: knock some chips off it.
+    chips(a, r.x, r.y, r.h)
   }
   if (!knife && a.ammo <= 0) reload(a)
 }
@@ -664,6 +672,95 @@ function throwTo(a, tx, ty, range) {
   return { x: a.x + Math.cos(ang) * d, y: a.y + Math.sin(ang) * d, ang }
 }
 
+// ---- 3D physics (Rigidbody 3D): thrown utility, wall chips, dropped guns ----
+// Pooled bodies wait on a slab far below the map (PARK_Y in
+// demo_tactics_3d.rs); "using" one teleports it in and sets its velocity.
+const PARK_Y = -500
+const NADES = 8, CHIPS = 24
+/** A 3D position (m) -> 2D world px. */
+const from3 = (p) => ({ x: p.x / M, y: -p.z / M })
+
+/** Sends pooled body `id` back to its parking spot, at rest. */
+function park3(id, slot, row) {
+  const r = ref(id)
+  if (!r) return
+  r.position3 = { x: -150 + slot * (row === 2 ? 2 : row === 1 ? 0.5 : 1.5), y: PARK_Y + 0.75, z: row * 10 }
+  r.velocity3 = { x: 0, y: 0, z: 0 }
+  r.angularVelocity3 = { x: 0, y: 0, z: 0 }
+}
+
+/**
+ * Throws a real projectile (a pooled Rigidbody 3D ball) from `a` toward
+ * (tx, ty), at most `range` px away: it arcs, banks off walls and crates,
+ * and `onLand(x, y)` fires where it actually comes down —
+ * `landOn: 'ground'` (first touch of the floor), `'settle'` (once it stops
+ * rolling) or `'fuse'` (after `fuse` seconds, wherever it is).
+ */
+function lob(a, tx, ty, range, color, opts, onLand) {
+  g.nadeNext = ((g.nadeNext || 0) + 1) % NADES
+  const k = g.nadeNext
+  const ball = ref('nade' + k)
+  if (!ball) return false
+  const ang = angleTo(a.x, a.y, tx, ty)
+  const want = Math.max(16, Math.min(range, dist(a.x, a.y, tx, ty)))
+  const c = Math.cos(ang), sn = Math.sin(ang)
+  const start = at3(a.x + c * 5, a.y + sn * 5, 1.45)
+  const end = at3(a.x + c * want, a.y + sn * want, 0.1)
+  // Flight time from the throw speed (m/s, along the ground), then the
+  // launch velocity that lands on `end` under gravity.
+  const flight = Math.max(0.3, (want * M) / opts.speed)
+  const G = 9.81
+  ball.position3 = start
+  ball.velocity3 = { x: (end.x - start.x) / flight, y: (end.y - start.y) / flight + 0.5 * G * flight, z: (end.z - start.z) / flight }
+  ball.angularVelocity3 = { x: rand(-500, 500), y: rand(-200, 200), z: rand(-500, 500) }
+  ball.fillColor = color
+  // A 2D marker for the top-down view (its 3D twin is hidden: the ball is the 3D).
+  const s = take('proj')
+  if (s) { s.r.fillColor = color; s.r.x = a.x; s.r.y = a.y; g.lobProj = g.lobProj || {}; g.lobProj[s.k] = true }
+  // Where the old instant throw would have landed: the fallback if the
+  // 3D ball isn't there (no 3D twin / physics).
+  const fallback = throwTo(a, tx, ty, range)
+  spawnEnt({ kind: 'lob', team: a.team, owner: a, x: a.x, y: a.y, nade: k, age: 0, life: opts.fuse, landOn: opts.landOn, onLand, fallback, slots: s ? [['proj', s.k]] : [] })
+  return true
+}
+
+/** Bullet impact debris: a few physics chips off the surface at (x, y, h). */
+function chips(shooter, x, y, h) {
+  const v = g.viewer
+  if (!v || dist(v.x, v.y, x, y) > 400) return   // only near where you're looking
+  const back = angleTo(x, y, shooter.x, shooter.y)
+  for (let n = 0; n < 2; n++) {
+    g.chipNext = ((g.chipNext || 0) + 1) % CHIPS
+    const k = g.chipNext
+    const chip = ref('chip' + k)
+    if (!chip) continue
+    const p = at3(x + Math.cos(back) * 1.5, y + Math.sin(back) * 1.5, Math.max(0.1, h))
+    chip.position3 = p
+    const spread = back + rand(-0.9, 0.9)
+    chip.velocity3 = { x: Math.cos(spread) * rand(1.5, 3.5), y: rand(1.5, 3.5), z: -Math.sin(spread) * rand(1.5, 3.5) }
+    chip.angularVelocity3 = { x: rand(-720, 720), y: rand(-720, 720), z: rand(-720, 720) }
+    g.chipT = g.chipT || {}
+    g.chipT[k] = T + 1.6
+  }
+}
+
+/** Parks chips whose time is up. */
+function stepChips() {
+  if (!g.chipT) return
+  for (const k in g.chipT) if (T > g.chipT[k]) { park3('chip' + k, Number(k), 1); delete g.chipT[k] }
+}
+
+/** A dead agent's rifle tumbles out of their hands. */
+function dropRifle(t) {
+  const r = ref('drop' + t.i)
+  if (!r) return
+  const c = Math.cos(t.angle), sn = Math.sin(t.angle)
+  r.position3 = at3(t.x + c * 3, t.y + sn * 3, 1.15)
+  r.rotation3 = { x: 0, y: yaw3(t.angle), z: 0 }
+  r.velocity3 = { x: c * 1.2 + rand(-0.6, 0.6), y: rand(1.2, 2.2), z: -sn * 1.2 + rand(-0.6, 0.6) }
+  r.angularVelocity3 = { x: rand(-240, 240), y: rand(-120, 120), z: rand(-360, 360) }
+}
+
 /** Uses ability `slot` (C/Q/E/X) aimed at (tx, ty). Returns true if used. */
 function cast(a, slot, tx, ty) {
   if (!a.alive || a.detainT > 0 || g.phase === 'over') return false
@@ -703,12 +800,14 @@ const CAST = {
       return true
     },
     Q(a, tx, ty) {
-      const p = throwTo(a, tx, ty, 150)
-      const s = take('slow')
-      if (!s) return false
-      s.r.x = p.x; s.r.y = p.y
-      spawnEnt({ kind: 'slow', team: a.team, x: p.x, y: p.y, r: 30, life: 6, age: 0, slots: [['slow', s.k]] })
-      return true
+      // Slow Orb: a real throw — it shatters where it first hits the floor
+      // (bank it off a wall to reach around a corner).
+      return lob(a, tx, ty, 150, [0.45, 0.8, 1, 1], { speed: 15, landOn: 'ground', fuse: 3 }, (x, y) => {
+        const s = take('slow')
+        if (!s) return
+        s.r.x = x; s.r.y = y
+        spawnEnt({ kind: 'slow', team: a.team, x, y, r: 30, life: 6, age: 0, slots: [['slow', s.k]] })
+      })
     },
     E(a, tx, ty) {
       // Heal the most hurt ally near the aim (or yourself).
@@ -761,12 +860,12 @@ const CAST = {
       return true
     },
     Q(a, tx, ty) {
-      const s = take('proj')
-      if (!s) return false
-      s.r.fillColor = [0.5, 0.85, 1, 1]
-      const ang = angleTo(a.x, a.y, tx, ty)
-      spawnEnt({ kind: 'shock', team: a.team, owner: a, x: a.x, y: a.y, vx: Math.cos(ang) * 230, vy: Math.sin(ang) * 230, bounces: 1, life: 0.9, age: 0, slots: [['proj', s.k]] })
-      return true
+      // Shock Dart: a fast, flat throw that bounces off walls for real and
+      // goes off after a short fuse, wherever it ended up.
+      return lob(a, tx, ty, 200, [0.5, 0.85, 1, 1], { speed: 26, landOn: 'fuse', fuse: 1.0 }, (x, y) => {
+        ringFx(x, y, 26, [0.5, 0.85, 1])
+        for (const o of g.agents) if (o.alive && o.team !== a.team && dist(o.x, o.y, x, y) < 26 && !blocked(x, y, o.x, o.y, false)) damage(o, 75, a, '(SHOCK)')
+      })
     },
     E(a, tx, ty) {
       const s = take('proj')
@@ -780,14 +879,15 @@ const CAST = {
   },
   kj: {
     C(a, tx, ty) {
-      const p = throwTo(a, tx, ty, 110)
-      const s = take('device')
-      if (!s) return false
-      s.r.x = p.x; s.r.y = p.y
-      s.r.fillColor = [1, 0.75, 0.1, 1]
-      s.r.scaleX = 0.6; s.r.scaleY = 0.6
-      spawnEnt({ kind: 'nanoswarm', team: a.team, x: p.x, y: p.y, life: 999, age: 0, armed: true, slots: [['device', s.k]] })
-      return true
+      // Nanoswarm: a grenade that rolls to a stop, then hides and waits.
+      return lob(a, tx, ty, 110, [1, 0.75, 0.1, 1], { speed: 11, landOn: 'settle', fuse: 2.5 }, (x, y) => {
+        const s = take('device')
+        if (!s) return
+        s.r.x = x; s.r.y = y
+        s.r.fillColor = [1, 0.75, 0.1, 1]
+        s.r.scaleX = 0.6; s.r.scaleY = 0.6
+        spawnEnt({ kind: 'nanoswarm', team: a.team, x, y, life: 999, age: 0, armed: true, slots: [['device', s.k]] })
+      })
     },
     Q(a, tx, ty) {
       const p = throwTo(a, tx, ty, 40)
@@ -855,6 +955,29 @@ function stepEnts() {
     const s = e.slots && e.slots[0] ? ref(e.slots[0][0] + e.slots[0][1]) : null
     switch (e.kind) {
       case 'tracer': if (e.age >= e.life) despawnEnt(e); break
+      case 'lob': {
+        // Follow the physics ball; land when its rule says so.
+        const ball = ref('nade' + e.nade)
+        const p = ball && ball.position3
+        if (!p) { despawnEnt(e); if (g.phase !== 'over') e.onLand(e.fallback.x, e.fallback.y); break }
+        const q = from3(p)
+        e.x = q.x; e.y = q.y
+        if (s) { s.x = q.x; s.y = q.y }
+        const v = ball.velocity3 || { x: 0, y: 0, z: 0 }
+        const speed = Math.hypot(v.x, v.y, v.z)
+        const landed =
+          p.y < -5 ||
+          e.age >= e.life ||
+          (e.landOn === 'ground' && e.age > 0.12 && p.y < 0.3) ||
+          (e.landOn === 'settle' && e.age > 0.4 && speed < 0.7)
+        if (landed) {
+          park3('nade' + e.nade, e.nade, 0)
+          if (e.slots[0] && g.lobProj) delete g.lobProj[e.slots[0][1]]
+          despawnEnt(e)
+          if (g.phase !== 'over') e.onLand(q.x, q.y)
+        }
+        break
+      }
       case 'ringfx': {
         const k = e.age / e.life
         const r = ref('ring' + e.slots[0][1])
@@ -1044,7 +1167,7 @@ function stepAgent(a) {
   }
   if (a.resT > 0) {
     a.resT -= dt
-    if (a.resT <= 0 && !a.alive && a.deadAt) { a.alive = true; a.hp = 100; a.armor = 0; a.x = a.deadAt.x; a.y = a.deadAt.y; feed(a.kit.name + ' RESURRECTED', a.team === MY) }
+    if (a.resT <= 0 && !a.alive && a.deadAt) { a.alive = true; a.hp = 100; a.armor = 0; a.x = a.deadAt.x; a.y = a.deadAt.y; park3('drop' + a.i, a.i, 2); feed(a.kit.name + ' RESURRECTED', a.team === MY) }
   }
 }
 
@@ -1558,7 +1681,8 @@ function drawWorld3D() {
       b.scale3 = { x: r, y: 1, z: r }
     })
   }
-  mirrorPool('proj', 8, (a, b) => { b.position3 = at3(a.x, a.y, 1.2) })
+  // (A lob's marker has no 3D twin: the physics ball is its 3D.)
+  mirrorPool('proj', 8, (a, b, k) => { b.position3 = g.lobProj && g.lobProj[k] ? at3(0, 0, -60) : at3(a.x, a.y, 1.2) })
   mirrorPool('device', 4, (a, b) => { b.position3 = at3(a.x, a.y, 0.25); b.rotation3 = { x: 0, y: T * 90, z: 0 } })
   mirrorPool('tracer', 30, (a, b, k) => {
     // A thin bar from muzzle to impact (tilted when the shot climbs / drops).
@@ -1775,6 +1899,7 @@ if (g.phase === 'matchover') {
     else botControl(a)
   }
   stepEnts()
+  stepChips()
   stepSpike()
   checkRoundEnd()
 }

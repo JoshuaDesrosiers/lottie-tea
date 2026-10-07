@@ -19,7 +19,7 @@
 
 use an1mbyt3_core::{
     AnimationName, ArtboardId, Camera3D, ModelAsset, ModelFile, ModelId, Command, Document, Light3D, Light3DKind, Material, MaterialId, MaterialKind, Mesh3D, Node, Node3D, Node3DContent, NodeId, NodeKind, Primitive3D,
-    ShaderDomain, ShaderEdgeDef, ShaderGraphDef, ShaderNodeDef, ShaderNodeKind, Transform3D,
+    ShaderDomain, ShaderEdgeDef, ShaderGraphDef, ShaderNodeDef, ShaderNodeKind, Transform3D, Collider3D, Collider3DShape, NodeBehavior, NodeBehaviorEntry, Rigidbody3D,
 };
 use glam::{Vec2, Vec3};
 
@@ -137,6 +137,24 @@ fn mesh(primitive: Primitive3D, color: [f32; 4], material: Option<MaterialId>) -
     Node3DContent::Mesh(Mesh3D { primitive, color, shininess: 0.12, unlit: false, material, animation: None, animation_loop: true, animation_overlay: None })
 }
 
+/// Static scenery: a collider (fitted to the mesh) and no body.
+fn solid(mut node: Node) -> Node {
+    node.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::Collider3D(Collider3D { friction: 0.7, restitution: 0.15, ..Default::default() }), enabled: true });
+    node
+}
+
+/// A dynamic physics body (`Rigidbody3D` + `collider`).
+fn physical(mut node: Node, body: Rigidbody3D, collider: Collider3D) -> Node {
+    node.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::Rigidbody3D(body), enabled: true });
+    node.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::Collider3D(collider), enabled: true });
+    node
+}
+
+/// Where pooled physics objects wait: on a slab far below the map, still
+/// "visible" so they stay in the simulation (showing / hiding a body would
+/// rebuild the physics world on every shot).
+pub(crate) const PARK_Y: f32 = -500.0;
+
 fn hidden(mut node: Node) -> Node {
     node.visible = false;
     node
@@ -163,7 +181,7 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
     // ---- The map ----
     let map = add_node(document, inverses, scene, node3d("Map 3D", None, Transform3D::default(), Node3DContent::Empty));
     let half = GW as f32 * CELL / 2.0;
-    add_node(document, inverses, scene, node3d("Ground", Some(map), Transform3D::at(Vec3::new(0.0, -0.12, 0.0)), mesh(Primitive3D::Plane { size: 160.0, subdivisions: 1 }, [0.36, 0.3, 0.27, 1.0], Some(mat_paving))));
+    add_node(document, inverses, scene, solid(node3d("Ground", Some(map), Transform3D::at(Vec3::new(0.0, -0.12, 0.0)), mesh(Primitive3D::Plane { size: 160.0, subdivisions: 1 }, [0.36, 0.3, 0.27, 1.0], Some(mat_paving)))));
     for f in FLOORS {
         let (a, b) = (to_world(f.0, f.1), to_world(f.2, f.3));
         let (tint, material) = match f.4 {
@@ -174,7 +192,7 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
         };
         let size = ((b - a).abs() / CELL).extend(0.0);
         let at = ground((a + b) * 0.5, -0.05);
-        add_node(document, inverses, scene, node3d("Floor", Some(map), Transform3D::at(at), mesh(Primitive3D::Cube { size: Vec3::new(size.x, 0.1, size.y) }, tint, Some(material))));
+        add_node(document, inverses, scene, solid(node3d("Floor", Some(map), Transform3D::at(at), mesh(Primitive3D::Cube { size: Vec3::new(size.x, 0.1, size.y) }, tint, Some(material)))));
     }
     let cell_center = |cx: usize, cy: usize, w: usize, h: usize| Vec2::new(-half + (cx as f32 + w as f32 / 2.0) * CELL, half - (cy as f32 + h as f32 / 2.0) * CELL);
     for (cx, cy, w, h) in merge_rects(grid, |c| c == b'#') {
@@ -185,11 +203,11 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
         let at = ground(cell_center(cx, cy, w, h), WALL_H / 2.0);
         // Slight warm variation so long runs don't read as one flat colour.
         let v = ((cx * 7 + cy * 13) % 5) as f32 * 0.02;
-        add_node(document, inverses, scene, node3d("Wall", Some(map), Transform3D::at(at), mesh(Primitive3D::Cube { size: Vec3::new(w as f32, WALL_H, h as f32) }, [0.86 - v, 0.68 - v, 0.52 - v, 1.0], Some(mat_plaster))));
+        add_node(document, inverses, scene, solid(node3d("Wall", Some(map), Transform3D::at(at), mesh(Primitive3D::Cube { size: Vec3::new(w as f32, WALL_H, h as f32) }, [0.86 - v, 0.68 - v, 0.52 - v, 1.0], Some(mat_plaster)))));
     }
     for (cx, cy, w, h) in merge_rects(grid, |c| c == b'c') {
         let at = ground(cell_center(cx, cy, w, h), CRATE_H / 2.0);
-        add_node(document, inverses, scene, node3d("Crate", Some(map), Transform3D::at(at), mesh(Primitive3D::Cube { size: Vec3::new(w as f32 - 0.06, CRATE_H, h as f32 - 0.06) }, [0.62, 0.42, 0.24, 1.0], Some(mat_wood))));
+        add_node(document, inverses, scene, solid(node3d("Crate", Some(map), Transform3D::at(at), mesh(Primitive3D::Cube { size: Vec3::new(w as f32 - 0.06, CRATE_H, h as f32 - 0.06) }, [0.62, 0.42, 0.24, 1.0], Some(mat_wood)))));
     }
     // Plant zones: a glowing outline on the ground.
     for (x, y, w, h) in [(1357.0, 620.0, 92.0, 104.0), (205.0, 710.0, 130.0, 90.0)] {
@@ -224,6 +242,33 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
         pool(document, inverses, format!("tracer3d{i}"), Primitive3D::cube(), [1.0, 0.92, 0.6, 0.9], true);
     }
     pool(document, inverses, "spike3d".into(), Primitive3D::Cylinder { radius: 0.22, height: 0.5, segments: 6 }, [1.0, 0.35, 0.2, 1.0], true);
+
+    // ---- Physics pools (Rigidbody 3D), parked below the map until used ----
+    let park = node3d("Parking", None, Transform3D::at(Vec3::new(0.0, PARK_Y, 0.0)), Node3DContent::Empty);
+    let mut park = park;
+    park.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::Collider3D(Collider3D { shape: Collider3DShape::Box { size: Vec3::new(400.0, 1.0, 80.0) }, ..Default::default() }), enabled: true });
+    add_node(document, inverses, scene, park);
+    let rest = PARK_Y + 0.5;
+    // Thrown utility: real projectiles that arc and bank off walls.
+    for i in 0..8 {
+        let ball = Mesh3D { primitive: Primitive3D::Sphere { radius: 0.13, segments: 12, rings: 6 }, color: [1.0; 4], shininess: 0.6, unlit: false, material: None, animation: None, animation_loop: true, animation_overlay: None };
+        let node = physical(
+            with_id(node3d(&format!("Nade {i}"), None, Transform3D::at(Vec3::new(-150.0 + i as f32 * 1.5, rest + 0.13, 0.0)), Node3DContent::Mesh(ball)), &format!("nade{i}")),
+            Rigidbody3D { mass: 0.4, angular_damping: 0.6, continuous: true, ..Default::default() },
+            Collider3D { shape: Collider3DShape::Sphere { radius: 0.13 }, friction: 0.7, restitution: 0.4, ..Default::default() },
+        );
+        add_node(document, inverses, scene, node);
+    }
+    // Wall chips knocked off by bullet impacts.
+    for i in 0..24 {
+        let chip = Mesh3D { primitive: Primitive3D::Cube { size: Vec3::splat(0.08) }, color: [0.82, 0.66, 0.5, 1.0], shininess: 0.0, unlit: false, material: None, animation: None, animation_loop: true, animation_overlay: None };
+        let node = physical(
+            with_id(node3d("Chip", None, Transform3D::at(Vec3::new(-150.0 + i as f32 * 0.5, rest + 0.04, 10.0)), Node3DContent::Mesh(chip)), &format!("chip{i}")),
+            Rigidbody3D { mass: 0.03, ..Default::default() },
+            Collider3D { restitution: 0.25, ..Default::default() },
+        );
+        add_node(document, inverses, scene, node);
+    }
 
     // ---- Agents: Kenney "Blocky Characters" (CC0) holding a Kenney blaster ----
     let rifle = add_model(document, "blaster-f.glb", RIFLE_GLB, &[("Textures/colormap.png", RIFLE_TEXTURE)]);
@@ -261,6 +306,16 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
         let mark = Mesh3D { primitive: Primitive3D::Cone { radius: 0.12, height: 0.2, segments: 4 }, color: team, shininess: 0.0, unlit: true, material: None, animation: None, animation_loop: true, animation_overlay: None };
         let mark_at = Transform3D { position: Vec3::new(0.0, 2.05, 0.0), rotation_degrees: Vec3::new(180.0, 0.0, 0.0), scale: Vec3::ONE };
         add_node(document, inverses, scene, with_id(node3d("Team Marker", Some(pivot), mark_at, Node3DContent::Mesh(mark)), &format!("ag3d{i}Mark")));
+    }
+
+    // A dropped rifle per agent: tumbles out of a dead agent's hands.
+    for i in 0..10 {
+        let node = physical(
+            with_id(node3d("Dropped Rifle", None, Transform3D { position: Vec3::new(-150.0 + i as f32 * 2.0, rest + 0.2, 20.0), rotation_degrees: Vec3::ZERO, scale: Vec3::splat(0.55) }, model_mesh(rifle, None, None)), &format!("drop{i}")),
+            Rigidbody3D { mass: 3.0, angular_damping: 0.3, ..Default::default() },
+            Collider3D { friction: 0.8, restitution: 0.1, ..Default::default() },
+        );
+        add_node(document, inverses, scene, node);
     }
 
     // ---- First person: your rifle and its muzzle flash, on the camera ----
