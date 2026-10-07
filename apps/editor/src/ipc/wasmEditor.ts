@@ -16,7 +16,7 @@
  * byte-for-byte the same shape on purpose.
  */
 import init, { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm.js'
-import type {
+import type { ScreenSettings,
   AddAnimationResult,
   PrefabResult,
   Transform2D,
@@ -185,6 +185,11 @@ export async function loadLiquidDemo(editor: WasmEditor): Promise<AddArtboardRes
 }
 
 /** Demos → "UI & Sound Lab": UI anchors, a button stack, synthesized sounds. */
+/** Demos → "Responsive Layout". */
+export async function loadResponsiveDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_responsive_demo()) as AddArtboardResult
+}
+
 export async function loadUiDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_ui_demo()) as AddArtboardResult
 }
@@ -937,9 +942,27 @@ export function bindSpriteSkin(editor: WasmEditor, artboard: OpaqueId, node: Opa
 // ---- UI ----
 
 /** Everything the + → UI menu can add (`WasmEditor::add_ui_node`). */
-export type UiMenuItem = 'Button' | 'Toggle' | 'Slider' | 'Scrollbar' | 'ScrollView' | 'Panel' | 'Label' | 'Stack'
-/** Menu order, with display names. */
-export const UI_MENU_ITEMS: UiMenuItem[] = ['Button', 'Toggle', 'Slider', 'Scrollbar', 'ScrollView', 'Panel', 'Label', 'Stack']
+export type UiMenuItem = 'Button' | 'Toggle' | 'Slider' | 'Scrollbar' | 'ScrollView' | 'Panel' | 'Label' | 'Stack' | 'Row' | 'Column' | 'Page'
+/** Menu order. */
+export const UI_MENU_ITEMS: UiMenuItem[] = ['Page', 'Row', 'Column', 'Button', 'Toggle', 'Slider', 'Scrollbar', 'ScrollView', 'Panel', 'Label', 'Stack']
+/** Menu labels where the id isn't presentable. */
+export const UI_MENU_LABEL: Partial<Record<UiMenuItem, string>> = { ScrollView: 'Scroll View', Page: 'Responsive Page', Row: 'Row Layout', Column: 'Column Layout' }
+
+/** Sets the scene's screen behaviour (Fixed / Responsive). Undoable. */
+export function setArtboardScreen(editor: WasmEditor, artboard: OpaqueId, value: ScreenSettings): DocumentSummary {
+  return editor.set_artboard_screen(artboard, value) as DocumentSummary
+}
+
+/** Design mode's "preview on" screen size (CSS px; `null` = the design size). */
+export function setPreviewScreen(editor: WasmEditor, size: { width: number; height: number } | null): void {
+  editor.set_preview_screen(size?.width ?? 0, size?.height ?? 0)
+}
+
+/** The screen the last frame laid out for (`ctx.screen`). */
+export function screenInfoNow(editor: WasmEditor): { width: number; height: number; screenWidth: number; screenHeight: number; compact: boolean; portrait: boolean } {
+  const s = editor.screen_info_now()
+  return { width: s[0] ?? 0, height: s[1] ?? 0, screenWidth: s[2] ?? 0, screenHeight: s[3] ?? 0, compact: s[4] === 1, portrait: s[5] === 1 }
+}
 
 /** The + menu's UI items, under the active camera (HUD). One undo step. */
 export function addUiNode(editor: WasmEditor, artboard: OpaqueId, item: UiMenuItem): AddNodeResult {

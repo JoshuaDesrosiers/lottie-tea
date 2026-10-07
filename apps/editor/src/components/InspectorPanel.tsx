@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Node3DFields } from './Node3DFields'
-import type {
+import type { ScreenSettings,
   AudioSummary,
   Node3D,
   MaterialSummary,
@@ -64,6 +64,10 @@ import {
   UiSliderFields,
   UiStackFields,
   UiToggleFields,
+  UiLayoutFields,
+  UiLayoutItemFields,
+  UiShowWhenFields,
+  ScreenFields,
 } from './ComponentFields'
 import { defaultComponent } from '../ipc/wasmEditor'
 import { ImageAssetPicker } from './ImageAssetPicker'
@@ -751,6 +755,18 @@ function BehaviorsFields({
       case 'UiScrollbar': {
         const { kind: _k, ...config } = behavior
         return <UiScrollbarFields config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'UiScrollbar', ...c })} />
+      }
+      case 'UiLayout': {
+        const { kind: _k, ...config } = behavior
+        return <UiLayoutFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiLayout', ...c })} />
+      }
+      case 'UiLayoutItem': {
+        const { kind: _k, ...config } = behavior
+        return <UiLayoutItemFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiLayoutItem', ...c })} />
+      }
+      case 'UiShowWhen': {
+        const { kind: _k, ...config } = behavior
+        return <UiShowWhenFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiShowWhen', ...c })} />
       }
       case 'UiScrollView': {
         const { kind: _k, ...config } = behavior
@@ -1819,6 +1835,7 @@ export function InspectorPanel({
   onSetArtboardSize,
   onSetArtboardGravity,
   onSetArtboardResolutionScale,
+  onSetArtboardScreen,
   onSetMainCamera,
   motionPathGuideOptions,
   onSetMotionPathGuide,
@@ -1965,6 +1982,8 @@ export function InspectorPanel({
   /** Physics 2D gravity (world units / s²; Unity's Physics2D.gravity). */
   onSetArtboardGravity: (x: number, y: number) => void
   onSetArtboardResolutionScale: (value: number) => void
+  /** Fixed / Responsive screen settings. */
+  onSetArtboardScreen: (value: ScreenSettings) => void
   /** The Canvas section's "Main Camera" picker — which Camera node
    * Playground views this scene through (`null` = none, free-roam view).
    * `WasmEditor::set_active_camera`. */
@@ -2001,6 +2020,7 @@ export function InspectorPanel({
           <NumberField label="Y" value={artboard.gravity.y} onCommit={(y) => onSetArtboardGravity(artboard.gravity.x, y)} />
         </div>
       </div>
+      <ScreenFields screen={artboard.screen} onChange={onSetArtboardScreen} />
       <MainCameraField artboard={artboard} onChange={onSetMainCamera} />
     </div>
   )

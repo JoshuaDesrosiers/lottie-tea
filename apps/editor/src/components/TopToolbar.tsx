@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
-import { UI_MENU_ITEMS, type ShapePreset, type UiMenuItem } from '../ipc/wasmEditor'
+import { UI_MENU_ITEMS, UI_MENU_LABEL, type ShapePreset, type UiMenuItem } from '../ipc/wasmEditor'
 import type { Light2DType, Node3DItem } from '../ipc/document'
 import { useLayoutMetrics } from '../layoutMetrics'
 import { FloatingPanel } from './FloatingPanel'
@@ -94,6 +94,7 @@ function ShapesMenu({
   onLoadTortureDemo,
   onLoad3DDemo,
   onLoadUiDemo,
+  onLoadResponsiveDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddTilemap,
@@ -143,6 +144,7 @@ function ShapesMenu({
   onLoadTortureDemo: () => void
   onLoad3DDemo: () => void
   onLoadUiDemo: () => void
+  onLoadResponsiveDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
 }) {
@@ -193,7 +195,7 @@ function ShapesMenu({
       kind: 'submenu',
       label: 'UI',
       icon: <SparkleIcon />,
-      children: UI_MENU_ITEMS.map((item): AddMenuEntry => ({ kind: 'item', label: item === 'ScrollView' ? 'Scroll View' : item, icon: <SparkleIcon />, onSelect: () => onAddUi(item) })),
+      children: UI_MENU_ITEMS.map((item): AddMenuEntry => ({ kind: 'item', label: UI_MENU_LABEL[item] ?? item, icon: <SparkleIcon />, onSelect: () => onAddUi(item) })),
     },
     {
       kind: 'submenu',
@@ -240,6 +242,7 @@ function ShapesMenu({
         { kind: 'item', label: 'Ragdoll Torture', icon: <SparkleIcon />, onSelect: onLoadTortureDemo },
         { kind: 'item', label: '3D Showroom', icon: <SparkleIcon />, onSelect: onLoad3DDemo },
         { kind: 'item', label: 'UI & Sound Lab', icon: <SparkleIcon />, onSelect: onLoadUiDemo },
+        { kind: 'item', label: 'Responsive Layout', icon: <SparkleIcon />, onSelect: onLoadResponsiveDemo },
         { kind: 'item', label: 'Sunset Tactics (5v5)', icon: <SparkleIcon />, onSelect: onLoadTacticsDemo },
         { kind: 'item', label: 'Raycaster FPS', icon: <SparkleIcon />, onSelect: onLoadFpsDemo },
         { kind: 'item', label: 'Ragdoll Arena', icon: <SparkleIcon />, onSelect: onLoadRigDemo },
@@ -433,6 +436,7 @@ export function TopToolbar({
   onLoadTortureDemo,
   onLoad3DDemo,
   onLoadUiDemo,
+  onLoadResponsiveDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddBone,
@@ -480,6 +484,7 @@ export function TopToolbar({
   onLoadTortureDemo: () => void
   onLoad3DDemo: () => void
   onLoadUiDemo: () => void
+  onLoadResponsiveDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
   onAddBone: () => void
@@ -572,6 +577,7 @@ export function TopToolbar({
               onLoadTortureDemo={onLoadTortureDemo}
               onLoad3DDemo={onLoad3DDemo}
               onLoadUiDemo={onLoadUiDemo}
+              onLoadResponsiveDemo={onLoadResponsiveDemo}
               onLoadTacticsDemo={onLoadTacticsDemo}
               onLoadPhysicsDemo={onLoadPhysicsDemo}
               onAddBone={onAddBone}

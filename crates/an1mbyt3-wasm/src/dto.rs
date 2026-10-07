@@ -2054,6 +2054,9 @@ pub enum NodeBehaviorDto {
     UiScrollbar(an1mbyt3_core::UiScrollbar),
     UiScrollView(an1mbyt3_core::UiScrollView),
     UiToggle(an1mbyt3_core::UiToggle),
+    UiLayout(an1mbyt3_core::UiLayout),
+    UiLayoutItem(an1mbyt3_core::UiLayoutItem),
+    UiShowWhen(an1mbyt3_core::UiShowWhen),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2086,6 +2089,9 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::UiScrollbar(c) => NodeBehaviorDto::UiScrollbar(*c),
             an1mbyt3_core::NodeBehavior::UiScrollView(c) => NodeBehaviorDto::UiScrollView(*c),
             an1mbyt3_core::NodeBehavior::UiToggle(c) => NodeBehaviorDto::UiToggle(*c),
+            an1mbyt3_core::NodeBehavior::UiLayout(c) => NodeBehaviorDto::UiLayout(*c),
+            an1mbyt3_core::NodeBehavior::UiLayoutItem(c) => NodeBehaviorDto::UiLayoutItem(*c),
+            an1mbyt3_core::NodeBehavior::UiShowWhen(c) => NodeBehaviorDto::UiShowWhen(*c),
         }
     }
 }
@@ -2120,6 +2126,9 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::UiScrollbar(c) => an1mbyt3_core::NodeBehavior::UiScrollbar(c),
             NodeBehaviorDto::UiScrollView(c) => an1mbyt3_core::NodeBehavior::UiScrollView(c),
             NodeBehaviorDto::UiToggle(c) => an1mbyt3_core::NodeBehavior::UiToggle(c),
+            NodeBehaviorDto::UiLayout(c) => an1mbyt3_core::NodeBehavior::UiLayout(c),
+            NodeBehaviorDto::UiLayoutItem(c) => an1mbyt3_core::NodeBehavior::UiLayoutItem(c),
+            NodeBehaviorDto::UiShowWhen(c) => an1mbyt3_core::NodeBehavior::UiShowWhen(c),
         }
     }
 }
@@ -2249,6 +2258,8 @@ pub struct ArtboardSummary {
     /// `Artboard::resolution_scale`'s own doc comment. The Inspector's
     /// "Canvas" section's resolution field.
     pub resolution_scale: f32,
+    /// Fixed / Responsive screen settings (`an1mbyt3_core::ScreenSettings`).
+    pub screen: an1mbyt3_core::ScreenSettings,
     /// Every non-deleted node, depth-first parent-then-children order (see
     /// `ordered_node_ids`'s doc comment for why this isn't root-only).
     pub nodes: Vec<NodeSummary>,
@@ -2429,6 +2440,7 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
                 width: artboard.width,
                 height: artboard.height,
                 resolution_scale: artboard.resolution_scale,
+                screen: artboard.screen,
                 // Depth-first, parent-then-children order (`ordered_node_ids`)
                 // rather than `root_nodes()` alone — a bone chain's second
                 // bone is `Node::parent`-nested, not a second root, so a

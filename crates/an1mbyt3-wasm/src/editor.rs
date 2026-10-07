@@ -1982,6 +1982,13 @@ pub struct WasmEditor {
     view3d_hot: Option<crate::view3d::GizmoHandle>,
     /// The last `render` call's device pixel ratio (CSS px -> canvas px).
     last_device_pixel_ratio: f32,
+    /// Design-mode "preview on" screen size (CSS px) — how UI Layouts,
+    /// UI Anchors and Show When react to a phone / tablet / desktop
+    /// without leaving the editor. `None` = the artboard's own size.
+    preview_screen: Option<Vec2>,
+    /// The screen facts the last frame's UI layout used (`ctx.screen`, and
+    /// the state machine's `screenWidth` / `isCompact` / … inputs).
+    last_screen: Option<an1mbyt3_core::ScreenInfo>,
     /// Imported models, parsed and uploaded on first use: the model data
     /// (node tree, clips) and each primitive's mesh + texture.
     model_gpu: HashMap<an1mbyt3_core::ModelId, std::rc::Rc<GpuModel>>,
@@ -2334,6 +2341,8 @@ impl WasmEditor {
             view3d_selected: None,
             view3d_hot: None,
             last_device_pixel_ratio: 1.0,
+            preview_screen: None,
+            last_screen: None,
             model_gpu: HashMap::new(),
             anim_clocks: HashMap::new(),
             textured_material_3d: None,
@@ -2644,6 +2653,16 @@ impl WasmEditor {
             // runs them if its own toggle is on — see `playground_active`/
             // `state_machine_programs_enabled`'s field doc comments.
             self.state_machine.set_programs_enabled(self.playground_active || self.state_machine_programs_enabled);
+
+            // Layout-driven conditions: any state machine can read these
+            // (declare inputs with these names to use them in transitions).
+            if let Some(screen) = self.last_screen {
+                let inputs = &mut self.state_machine.inputs;
+                inputs.set_number("screenWidth", screen.screen.x);
+                inputs.set_number("screenHeight", screen.screen.y);
+                inputs.set_bool("isCompact", screen.compact);
+                inputs.set_bool("isPortrait", screen.portrait);
+            }
 
             let artboard_ref = self.document.artboard(artboard_id).unwrap();
             self.state_machine.advance(delta_seconds, artboard_ref);
@@ -3671,8 +3690,15 @@ impl WasmEditor {
         let camera_node = artboard.node(camera_id).filter(|n| !n.deleted)?;
         let camera = *camera_node.camera()?;
         let mut pan = artboard.try_world_transform(camera_id)?.translation;
-        let frame_w = artboard.width.max(1.0) / camera.zoom.max(0.01);
-        let frame_h = artboard.height.max(1.0) / camera.zoom.max(0.01);
+        let mut frame_w = artboard.width.max(1.0) / camera.zoom.max(0.01);
+        let mut frame_h = artboard.height.max(1.0) / camera.zoom.max(0.01);
+        if artboard.screen.mode == an1mbyt3_core::ScreenMode::Responsive {
+            // Fill the canvas: the view's world size follows the screen.
+            let css = Vec2::new(self.canvas_width as f32, self.canvas_height as f32) / self.last_device_pixel_ratio.max(0.01);
+            let view = an1mbyt3_core::responsive_view(Vec2::new(frame_w, frame_h), css, &artboard.screen);
+            frame_w = view.x;
+            frame_h = view.y;
+        }
         let fit = (self.canvas_width as f32 / frame_w).min(self.canvas_height as f32 / frame_h);
         let pp = camera.pixel_perfect;
         if !pp.enabled {
@@ -5601,6 +5627,9 @@ impl WasmEditor {
             "UiScrollbar" => B::UiScrollbar(an1mbyt3_core::UiScrollbar::default()),
             "UiScrollView" => B::UiScrollView(an1mbyt3_core::UiScrollView::default()),
             "UiToggle" => B::UiToggle(an1mbyt3_core::UiToggle::default()),
+            "UiLayout" => B::UiLayout(an1mbyt3_core::UiLayout::default()),
+            "UiLayoutItem" => B::UiLayoutItem(an1mbyt3_core::UiLayoutItem::default()),
+            "UiShowWhen" => B::UiShowWhen(an1mbyt3_core::UiShowWhen::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -6241,12 +6270,55 @@ impl WasmEditor {
     ///   camera, for HUD nodes.
     /// - **UI Stack**: its visible children are laid out in a row / column
     ///   by their bounds (`an1mbyt3_core::stack_positions`).
+    /// This frame's screen facts for `artboard_id`: the visible world area
+    /// (what anchors / root layouts fill), the screen in CSS px, and the
+    /// compact / portrait classification. Playground uses the real canvas;
+    /// Design uses the "preview on" size (or the artboard's own).
+    fn screen_info(&self, artboard_id: ArtboardId) -> Option<an1mbyt3_core::ScreenInfo> {
+        let artboard = self.document.artboard(artboard_id)?;
+        let camera_zoom = artboard.active_camera().and_then(|c| artboard.node(c)).and_then(|n| n.camera()).map_or(1.0, |c| c.zoom.max(0.01));
+        let reference = Vec2::new(artboard.width.max(1.0), artboard.height.max(1.0)) / camera_zoom;
+        let settings = artboard.screen;
+        let live = self.active_camera_frame(artboard_id);
+        let screen = match live {
+            Some(_) => Vec2::new(self.canvas_width as f32, self.canvas_height as f32) / self.last_device_pixel_ratio.max(0.01),
+            None => self.preview_screen.unwrap_or(Vec2::new(artboard.width, artboard.height)),
+        };
+        let view = match (live, settings.mode) {
+            // Playground: exactly what the camera shows.
+            (Some(f), _) => Vec2::new(self.canvas_width as f32, self.canvas_height as f32) / f.zoom.max(1e-3),
+            (None, an1mbyt3_core::ScreenMode::Responsive) => an1mbyt3_core::responsive_view(reference, screen, &settings),
+            (None, an1mbyt3_core::ScreenMode::Fixed) => reference,
+        };
+        Some(an1mbyt3_core::ScreenInfo::new(view, screen, &settings))
+    }
+
     fn apply_ui_layout(&mut self, artboard_id: ArtboardId) {
         use an1mbyt3_core::NodeBehavior as B;
-        let view = self.active_camera_frame(artboard_id).map(|f| Vec2::new(self.canvas_width as f32, self.canvas_height as f32) / f.zoom.max(1e-3));
+        let Some(screen) = self.screen_info(artboard_id) else { return };
+        self.last_screen = Some(screen);
+        let view = screen.view;
+
+        // Show When: decided first, so hidden nodes take no layout space.
+        if let Some(artboard) = self.document.artboard_mut(artboard_id) {
+            let rules: Vec<(NodeId, bool)> = artboard
+                .node_ids()
+                .filter_map(|id| {
+                    let node = artboard.node(id)?;
+                    node.behaviors.iter().find_map(|e| match &e.behavior {
+                        B::UiShowWhen(rule) if e.enabled => Some((id, rule.passes(&screen))),
+                        _ => None,
+                    })
+                })
+                .collect();
+            for (id, show) in rules {
+                if let Some(node) = artboard.node_mut(id) {
+                    node.visible = show;
+                }
+            }
+        }
+
         let Some(artboard) = self.document.artboard(artboard_id) else { return };
-        let camera_zoom = artboard.active_camera().and_then(|c| artboard.node(c)).and_then(|n| n.camera()).map_or(1.0, |c| c.zoom.max(0.01));
-        let view = view.unwrap_or(Vec2::new(artboard.width, artboard.height) / camera_zoom);
         let mut moves: Vec<(NodeId, Vec2)> = Vec::new();
         for id in artboard.node_ids() {
             if artboard.is_effectively_deleted(id) {
@@ -6256,7 +6328,7 @@ impl WasmEditor {
             for entry in node.behaviors.iter().filter(|e| e.enabled) {
                 match &entry.behavior {
                     B::UiAnchor(anchor) => moves.push((id, (anchor.anchor - Vec2::splat(0.5)) * view + anchor.offset)),
-                    B::UiStack(stack) => {
+                    B::UiStack(stack) if !node.behaviors.iter().any(|e| e.enabled && matches!(e.behavior, B::UiLayout(_))) => {
                         let children: Vec<NodeId> = artboard.children_of(id).filter(|(_, c)| c.visible && !c.deleted).map(|(cid, _)| cid).collect();
                         let boxes: Vec<(Vec2, Vec2)> = children
                             .iter()
@@ -6276,15 +6348,26 @@ impl WasmEditor {
                 }
             }
         }
-        if moves.is_empty() {
-            return;
-        }
+        // Flex layouts (after anchors, so an anchored root is placed first).
+        let layout_writes = an1mbyt3_core::solve_layouts(artboard, &screen, &|id| crate::dto::local_bounds(artboard, id));
         let Some(artboard) = self.document.artboard_mut(artboard_id) else { return };
         for (id, at) in moves {
             if let Some(node) = artboard.node_mut(id) {
                 if node.transform.translation.distance_squared(at) > 1e-8 {
                     node.transform.translation = at;
                 }
+            }
+        }
+        for write in layout_writes {
+            let Some(node) = artboard.node_mut(write.node) else { continue };
+            if let Some(at) = write.translation {
+                if node.transform.translation.distance_squared(at) > 1e-8 {
+                    node.transform.translation = at;
+                }
+            }
+            if let (Some(size), NodeKind::Shape(shape)) = (write.rect_size, &mut node.kind) {
+                // A rectangle takes its slot's size (re-centred on its origin).
+                shape.path = an1mbyt3_core::Path::rect(size.x.max(0.0), size.y.max(0.0));
             }
         }
     }
@@ -6657,6 +6740,77 @@ impl WasmEditor {
                 inverses.push(Command::AddNode { artboard: artboard_id, node: text }.apply(&mut self.document));
                 id
             }
+            // Flex containers: a row / column that hugs its children, and a
+            // full-screen responsive page (header, then a row of cards
+            // that stacks into a column on phones).
+            "Row" | "Column" => {
+                let mut node = Node::new(what, parent, NodeKind::Group(an1mbyt3_core::GroupNode::default()));
+                let direction = if what == "Row" { an1mbyt3_core::UiFlexDirection::Row } else { an1mbyt3_core::UiFlexDirection::Column };
+                node.behaviors.push(an1mbyt3_core::NodeBehaviorEntry {
+                    behavior: B::UiLayout(an1mbyt3_core::UiLayout { style: an1mbyt3_core::UiFlexStyle { direction, gap: 12.0, align: an1mbyt3_core::UiAlign::Center, ..Default::default() }, ..Default::default() }),
+                    enabled: true,
+                });
+                let inverse = Command::AddNode { artboard: artboard_id, node }.apply(&mut self.document);
+                let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                for i in 1..=3 {
+                    let mut item = shape(&format!("Item {i}"), 120.0, 60.0, [0.18, 0.2, 0.27, 1.0]);
+                    item.parent = Some(id);
+                    let inverse = Command::AddNode { artboard: artboard_id, node: item }.apply(&mut self.document);
+                    let Command::SetDeleted { node: item_id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                    inverses.push(inverse);
+                    inverses.push(Command::AddNode { artboard: artboard_id, node: label(&format!("Item {i}"), 14.0, Some(item_id)) }.apply(&mut self.document));
+                }
+                id
+            }
+            "Page" => {
+                use an1mbyt3_core::{UiAlign, UiEdges, UiFlexDirection, UiFlexStyle, UiLayout, UiLayoutItem, UiSize};
+                let item = |w: UiSize, h: UiSize| an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiLayoutItem(UiLayoutItem { width: w, height: h, ..Default::default() }), enabled: true };
+                let mut page = Node::new("Page", parent, NodeKind::Group(an1mbyt3_core::GroupNode::default()));
+                page.behaviors.push(an1mbyt3_core::NodeBehaviorEntry {
+                    behavior: B::UiLayout(UiLayout {
+                        style: UiFlexStyle { direction: UiFlexDirection::Column, gap: 16.0, align: UiAlign::Stretch, padding: UiEdges::all(24.0), ..Default::default() },
+                        compact: Some(UiFlexStyle { direction: UiFlexDirection::Column, gap: 10.0, align: UiAlign::Stretch, padding: UiEdges::all(12.0), ..Default::default() }),
+                        width: UiSize::Fill,
+                        height: UiSize::Fill,
+                    }),
+                    enabled: true,
+                });
+                let inverse = Command::AddNode { artboard: artboard_id, node: page }.apply(&mut self.document);
+                let Command::SetDeleted { node: page_id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                let mut header = shape("Header", 100.0, 56.0, [0.16, 0.18, 0.26, 1.0]);
+                header.parent = Some(page_id);
+                header.behaviors.push(item(UiSize::Fill, UiSize::Fixed(56.0)));
+                let inverse = Command::AddNode { artboard: artboard_id, node: header }.apply(&mut self.document);
+                let Command::SetDeleted { node: header_id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                inverses.push(Command::AddNode { artboard: artboard_id, node: label("Header", 20.0, Some(header_id)) }.apply(&mut self.document));
+                let mut cards = Node::new("Cards", Some(page_id), NodeKind::Group(an1mbyt3_core::GroupNode::default()));
+                cards.behaviors.push(an1mbyt3_core::NodeBehaviorEntry {
+                    behavior: B::UiLayout(UiLayout {
+                        style: UiFlexStyle { direction: UiFlexDirection::Row, gap: 16.0, align: UiAlign::Stretch, ..Default::default() },
+                        compact: Some(UiFlexStyle { direction: UiFlexDirection::Column, gap: 10.0, align: UiAlign::Stretch, ..Default::default() }),
+                        width: UiSize::Fill,
+                        height: UiSize::Fill,
+                    }),
+                    enabled: true,
+                });
+                cards.behaviors.push(item(UiSize::Fill, UiSize::Fill));
+                let inverse = Command::AddNode { artboard: artboard_id, node: cards }.apply(&mut self.document);
+                let Command::SetDeleted { node: cards_id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                for i in 1..=3 {
+                    let mut card = shape(&format!("Card {i}"), 100.0, 100.0, [0.12, 0.13, 0.19, 1.0]);
+                    card.parent = Some(cards_id);
+                    card.behaviors.push(item(UiSize::Fill, UiSize::Fill));
+                    let inverse = Command::AddNode { artboard: artboard_id, node: card }.apply(&mut self.document);
+                    let Command::SetDeleted { node: card_id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                    inverses.push(inverse);
+                    inverses.push(Command::AddNode { artboard: artboard_id, node: label(&format!("Card {i}"), 16.0, Some(card_id)) }.apply(&mut self.document));
+                }
+                page_id
+            }
             // A track with a Handle child.
             "Scrollbar" => {
                 let mut track = shape("Scrollbar", 12.0, 180.0, [0.16, 0.17, 0.22, 1.0]);
@@ -6722,6 +6876,30 @@ impl WasmEditor {
         inverses.reverse();
         self.document.commit_batch(inverses);
         to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node: root })
+    }
+
+    /// Sets the artboard's screen behaviour (Fixed / Responsive, scale
+    /// match, compact breakpoint). Undoable.
+    pub fn set_artboard_screen(&mut self, artboard: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let value: an1mbyt3_core::ScreenSettings = serde_wasm_bindgen::from_value(value).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        self.document.apply(Command::SetArtboardScreen { artboard: artboard_id, value });
+        self.document_summary()
+    }
+
+    /// Design mode's "preview on" screen size in CSS px (`0, 0` = the
+    /// artboard's own size): UI Layouts / Anchors / Show When react to it.
+    pub fn set_preview_screen(&mut self, width: f32, height: f32) {
+        self.preview_screen = (width > 0.0 && height > 0.0).then_some(Vec2::new(width, height));
+    }
+
+    /// The last frame's screen: `[view width, view height (world units),
+    /// screen width, screen height (CSS px), compact (0/1), portrait (0/1)]`.
+    pub fn screen_info_now(&self) -> Vec<f32> {
+        match self.last_screen {
+            Some(s) => vec![s.view.x, s.view.y, s.screen.x, s.screen.y, s.compact as u8 as f32, s.portrait as u8 as f32],
+            None => vec![0.0; 6],
+        }
     }
 
     /// A node's *current* local bounds `[min x, min y, max x, max y]` — for
@@ -8139,6 +8317,14 @@ impl WasmEditor {
     /// of UI Buttons, and synthesized sounds on click.
     pub async fn load_ui_demo(&mut self) -> Result<JsValue, JsValue> {
         let demo = crate::demo_ui::build_demo_ui(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
+    /// The + menu's Demos → "Responsive Layout" — a page that reflows for
+    /// phones and desktops (UI Layout / Show When / Responsive screen).
+    pub async fn load_responsive_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_responsive::build_demo_responsive(&mut self.document);
         migrate_document(&mut self.document);
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }

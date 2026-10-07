@@ -41,6 +41,7 @@ import {
   previewNodePath,
   previewNodeScale,
   nodeLocalBounds,
+  screenInfoNow,
   previewTextContent,
   previewTilemapTiles,
   previewBodyType,
@@ -327,9 +328,11 @@ export class ScriptHost {
         if (value) fireTrigger(editor, name)
       } else console.warn(`ctx.setInput: state machine has no input "${name}"`)
     }
+    const screen = screenInfoNow(editor)
     for (const program of programs) {
       runScript(program.source, {
         time: program.time,
+        screen,
         layer: program.layer,
         state: program.state,
         setInput,

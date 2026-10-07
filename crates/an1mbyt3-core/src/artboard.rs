@@ -70,6 +70,10 @@ pub struct Artboard {
     /// already rendered at native resolution.
     #[serde(default = "default_resolution_scale")]
     pub resolution_scale: f32,
+    /// Fixed (letterboxed design size) or Responsive (fills the screen) —
+    /// see [`crate::ScreenSettings`].
+    #[serde(default)]
+    pub screen: crate::ScreenSettings,
     nodes: SlotMap<NodeId, Node>,
     /// Node IDs with `parent == None`, in draw order (later entries draw on
     /// top). This is the artboard's actual scene-graph root list — a node's
@@ -185,6 +189,7 @@ impl Artboard {
             width,
             height,
             gravity: default_gravity(),
+            screen: crate::ScreenSettings::default(),
             resolution_scale: default_resolution_scale(),
             nodes: SlotMap::with_key(),
             root_nodes: Vec::new(),

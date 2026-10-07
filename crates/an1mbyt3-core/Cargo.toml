@@ -12,6 +12,8 @@ publish.workspace = true
 glam = { workspace = true }
 serde = { workspace = true }
 slotmap = { workspace = true }
+# Flexbox solver for the UI Layout component (`layout.rs`).
+taffy = "0.14"
 
 [dev-dependencies]
 serde_json = { workspace = true }

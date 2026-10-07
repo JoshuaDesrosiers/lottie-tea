@@ -149,6 +149,7 @@ import {
   loadTortureDemo,
   load3DDemo,
   loadUiDemo,
+  loadResponsiveDemo,
   addNode3D,
   setNode3D,
   importModel,
@@ -180,6 +181,8 @@ import {
   setArtboardSize,
   setArtboardGravity,
   setArtboardResolutionScale,
+  setArtboardScreen,
+  setPreviewScreen,
   setBoneLength,
   setImageProcessing,
   setComponentDefaultFillColor,
@@ -232,6 +235,8 @@ import {
   type WasmEditor,
 } from './ipc/wasmEditor'
 import type { ShapePreset, UiMenuItem } from './ipc/wasmEditor'
+import type { ScreenSettings } from './ipc/document'
+import { responsiveView, SCREEN_PRESETS } from './game/screen'
 import { useDockLayout, groupMemberKeys, type PanelKey } from './hooks/useDockLayout'
 import { isBoolean, isNumber, usePersistedState } from './hooks/persisted'
 import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_HEIGHT, TIMELINE_HEIGHT, TOP_CLEARANCE } from './layoutConstants'
@@ -626,6 +631,12 @@ function App() {
   // on every camera/canvas-size change (camera changes on every pan/zoom
   // event, which would be constant churn).
   const modeRef = useRef<Mode>(mode)
+  // Design mode's "preview on" screen size (`null` = the design size) —
+  // pushed into the engine, which lays UI out for it.
+  const [previewScreen, setPreviewScreenState] = useState<{ width: number; height: number } | null>(null)
+  useEffect(() => {
+    if (editorRef.current) setPreviewScreen(editorRef.current, previewScreen)
+  }, [previewScreen])
   modeRef.current = mode
   // `ctx.globals` for Code-mode scripts (`scriptRuntime.ts`) — one plain
   // object per Playground run, shared by every scene's script so game state
@@ -1544,8 +1555,14 @@ function App() {
       : activeArtboard.nodes
           .filter((n) => n.camera !== null)
           .map((n) => {
-            const halfW = activeArtboard.width / Math.max(0.01, n.camera!.zoom) / 2
-            const halfH = activeArtboard.height / Math.max(0.01, n.camera!.zoom) / 2
+            const reference = { width: activeArtboard.width / Math.max(0.01, n.camera!.zoom), height: activeArtboard.height / Math.max(0.01, n.camera!.zoom) }
+            // A responsive scene's frame is what the "preview on" device shows.
+            const view =
+              activeArtboard.screen.mode === 'Responsive'
+                ? responsiveView(reference, previewScreen ?? { width: activeArtboard.width, height: activeArtboard.height }, activeArtboard.screen)
+                : reference
+            const halfW = view.width / 2
+            const halfH = view.height / 2
             const { x, y } = n.worldTransform.translation
             const topLeft = worldToScreen(x - halfW, y + halfH, camera, canvasSize)
             const bottomRight = worldToScreen(x + halfW, y - halfH, camera, canvasSize)
@@ -2248,6 +2265,20 @@ function App() {
       })
   }
 
+  const handleLoadResponsiveDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadResponsiveDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
   const handleLoadUiDemo = () => {
     const editor = editorRef.current
     if (!editor) return
@@ -2838,6 +2869,11 @@ function App() {
   const handleSetArtboardGravity = (x: number, y: number) => {
     if (!editorRef.current || !activeArtboard) return
     setDoc(setArtboardGravity(editorRef.current, activeArtboard.id, x, y))
+  }
+
+  const handleSetArtboardScreen = (value: ScreenSettings) => {
+    if (!editorRef.current || !activeArtboard) return
+    setDoc(setArtboardScreen(editorRef.current, activeArtboard.id, value))
   }
 
   const handleSetArtboardResolutionScale = (value: number) => {
@@ -3762,6 +3798,23 @@ function App() {
         <button onClick={handleZoomIn} title="Zoom in" className="rounded-md p-1 hover:bg-overlay/5 hover:text-ink">
           <ZoomInIcon />
         </button>
+        <span className="mx-1 h-4 w-px bg-overlay/15" />
+        <select
+          value={previewScreen ? `${previewScreen.width}x${previewScreen.height}` : ''}
+          onChange={(e) => {
+            const preset = SCREEN_PRESETS.find((p) => `${p.width}x${p.height}` === e.target.value) ?? null
+            setPreviewScreenState(preset ? { width: preset.width, height: preset.height } : null)
+          }}
+          title="Preview the layout on another screen size: UI Layouts, Anchors and Show When react (and a Responsive scene's camera frame resizes). Playground uses the real window."
+          className="rounded-md bg-transparent px-1 py-1 text-[11px] text-ink-dim hover:bg-overlay/5 hover:text-ink"
+        >
+          <option value="">Design size</option>
+          {SCREEN_PRESETS.map((p) => (
+            <option key={p.label} value={`${p.width}x${p.height}`}>
+              {p.label} · {p.width}×{p.height}
+            </option>
+          ))}
+        </select>
       </FloatingPanel>
       )}
       {cameraFrames.map((frame) => (
@@ -3983,6 +4036,7 @@ function App() {
             onLoadTortureDemo={handleLoadTortureDemo}
             onLoad3DDemo={handleLoad3DDemo}
             onLoadUiDemo={handleLoadUiDemo}
+            onLoadResponsiveDemo={handleLoadResponsiveDemo}
             onLoadTacticsDemo={handleLoadTacticsDemo}
             onLoadPhysicsDemo={handleLoadPhysicsDemo}
         onAddText={handleAddText}
@@ -4090,6 +4144,7 @@ function App() {
                 onSetArtboardSize={handleSetArtboardSize}
                 onSetArtboardGravity={handleSetArtboardGravity}
                 onSetArtboardResolutionScale={handleSetArtboardResolutionScale}
+                onSetArtboardScreen={handleSetArtboardScreen}
                 onSetMainCamera={handleSetMainCamera}
                 motionPathGuideOptions={motionPathGuideOptions}
                 onSetMotionPathGuide={handleSetMotionPathGuide}

@@ -27,6 +27,7 @@ import {
 import type { ArtboardSummary, DocumentSummary, OpaqueId } from '../ipc/document'
 import { normalizeKeyName, PointerGestures, ScriptHost } from '../game/scriptHost'
 import { PerfMeter } from '../game/perf'
+import { responsiveView } from '../game/screen'
 
 interface PlayerConfig {
   title: string
@@ -85,8 +86,15 @@ async function boot() {
     const scene = currentScene()
     const camera = scene?.nodes.find((n) => scene.activeCamera && sameId(n.id, scene.activeCamera))?.camera ?? null
     const zoom = Math.max(0.01, camera?.zoom ?? 1)
-    const frameW = (scene?.width ?? availW) / zoom
-    const frameH = (scene?.height ?? availH) / zoom
+    let frameW = (scene?.width ?? availW) / zoom
+    let frameH = (scene?.height ?? availH) / zoom
+    // Responsive scenes fill the whole page: the view grows / shrinks with
+    // it (the engine does the same maths for the camera).
+    if (scene?.screen.mode === 'Responsive') {
+      const view = responsiveView({ width: frameW, height: frameH }, { width: availW, height: availH }, scene.screen)
+      frameW = view.width
+      frameH = view.height
+    }
     frameSize = { width: frameW, height: frameH }
     // CSS px per game unit: fill the screen (contain).
     const fit = Math.min(availW / frameW, availH / frameH)

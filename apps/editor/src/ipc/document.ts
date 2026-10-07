@@ -869,6 +869,8 @@ export interface ArtboardSummary {
    * native) — see `an1mbyt3_core::Artboard::resolution_scale`'s own doc
    * comment. The Inspector's "Canvas" section's resolution field. */
   resolutionScale: number
+  /** Fixed (letterboxed) or Responsive (fills the screen) — see `ScreenSettings`. */
+  screen: ScreenSettings
   nodes: NodeSummary[]
   /** Every non-deleted animation on this artboard, for the Timeline's
    * animation dropdown. */
@@ -1109,6 +1111,60 @@ export interface UiToggleConfig {
   style: UiStateStyle
 }
 
+/** How a scene meets the screen (`an1mbyt3_core::ScreenSettings`). */
+export interface ScreenSettings {
+  /** Fixed = the design size letterboxed; Responsive = fill the screen. */
+  mode: 'Fixed' | 'Responsive'
+  /** Responsive: 0 = keep the design's width scale, 1 = its height. */
+  matchWidthOrHeight: number
+  /** Screens narrower than this (CSS px) are "compact" (phones). */
+  compactWidth: number
+}
+
+/** A layout box size along one axis (`an1mbyt3_core::UiSize`). */
+export type UiSize = 'Hug' | 'Fill' | { Fixed: number } | { Percent: number }
+export type UiFlexDirection = 'Row' | 'Column' | 'RowReverse' | 'ColumnReverse'
+export type UiJustify = 'Start' | 'Center' | 'End' | 'SpaceBetween' | 'SpaceAround' | 'SpaceEvenly'
+export type UiAlign = 'Start' | 'Center' | 'End' | 'Stretch'
+export interface UiEdges {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+/** The swappable part of a UI Layout (`an1mbyt3_core::UiFlexStyle`). */
+export interface UiFlexStyle {
+  direction: UiFlexDirection
+  wrap: boolean
+  justify: UiJustify
+  align: UiAlign
+  gap: number
+  padding: UiEdges
+}
+/** A flexbox container (`an1mbyt3_core::UiLayout`). */
+export interface UiLayoutConfig {
+  style: UiFlexStyle
+  /** Used instead on compact (phone-width) screens. */
+  compact: UiFlexStyle | null
+  width: UiSize
+  height: UiSize
+}
+/** Per-child flexbox settings (`an1mbyt3_core::UiLayoutItem`). */
+export interface UiLayoutItemConfig {
+  width: UiSize
+  height: UiSize
+  grow: number
+  shrink: number
+  alignSelf: UiAlign | null
+  margin: UiEdges
+  ignore: boolean
+}
+export type UiScreenCondition = 'Compact' | 'Regular' | 'Portrait' | 'Landscape'
+/** Show only on matching screens (`an1mbyt3_core::UiShowWhen`). */
+export interface UiShowWhenConfig {
+  when: UiScreenCondition
+}
+
 /** One imported sound. */
 export interface AudioSummary {
   id: OpaqueId
@@ -1259,6 +1315,9 @@ export type NodeBehavior =
   | ({ kind: 'UiScrollbar' } & UiScrollbarConfig)
   | ({ kind: 'UiScrollView' } & UiScrollViewConfig)
   | ({ kind: 'UiToggle' } & UiToggleConfig)
+  | ({ kind: 'UiLayout' } & UiLayoutConfig)
+  | ({ kind: 'UiLayoutItem' } & UiLayoutItemConfig)
+  | ({ kind: 'UiShowWhen' } & UiShowWhenConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

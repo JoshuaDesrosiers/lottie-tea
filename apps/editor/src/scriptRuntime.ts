@@ -46,6 +46,11 @@ export interface ScriptContext {
    * change, mirroring `an1mbyt3_runtime::graph::GraphContext::elapsed_seconds`
    * (itself just `Layer`'s own already-ticking `Playback::time`). */
   time: number
+  /** The screen this frame was laid out for: `width` / `height` = the
+   * visible world area (world units), `screenWidth` / `screenHeight` = CSS
+   * pixels, `compact` = narrower than the scene's breakpoint (phones),
+   * `portrait` = taller than wide. Make anything conditional on layout. */
+  screen: { width: number; height: number; screenWidth: number; screenHeight: number; compact: boolean; portrait: boolean }
   deltaSeconds: number
   /** Which state-machine layer this program belongs to (`null` = the base
    * layer) and the state it's running in — every layer's active state runs

@@ -15,6 +15,17 @@ import type {
   UiToggleConfig,
   UiTransition,
   ImageAssetSummary,
+  ScreenSettings,
+  UiAlign,
+  UiEdges,
+  UiFlexDirection,
+  UiFlexStyle,
+  UiJustify,
+  UiLayoutConfig,
+  UiLayoutItemConfig,
+  UiScreenCondition,
+  UiShowWhenConfig,
+  UiSize,
   BoxCollider2DConfig,
   CapsuleCollider2DConfig,
   CircleCollider2DConfig,
@@ -724,6 +735,165 @@ export function UiScrollViewFields({ config, onChange }: { config: UiScrollViewC
   )
 }
 
+// ---- Layout ----
+
+const DIRECTION_NAMES: Record<UiFlexDirection, string> = { Row: 'Row →', Column: 'Column ↓', RowReverse: 'Row ←', ColumnReverse: 'Column ↑' }
+const JUSTIFY_NAMES: Record<UiJustify, string> = { Start: 'Start', Center: 'Center', End: 'End', SpaceBetween: 'Space between', SpaceAround: 'Space around', SpaceEvenly: 'Space evenly' }
+const ALIGN_NAMES: Record<UiAlign, string> = { Start: 'Start', Center: 'Center', End: 'End', Stretch: 'Stretch' }
+const CONDITION_NAMES: Record<UiScreenCondition, string> = { Compact: 'Compact (phones)', Regular: 'Regular (tablet / desktop)', Portrait: 'Portrait', Landscape: 'Landscape' }
+
+/** Hug / Fill / Fixed / Percent, plus the number for the last two. */
+function SizeField({ value, onChange }: { value: UiSize; onChange: (value: UiSize) => void }) {
+  const kind = typeof value === 'string' ? value : 'Fixed' in value ? 'Fixed' : 'Percent'
+  const amount = typeof value === 'string' ? 0 : 'Fixed' in value ? value.Fixed : value.Percent
+  return (
+    <>
+      <Dropdown
+        value={kind}
+        options={['Hug', 'Fill', 'Fixed', 'Percent'] as ('Hug' | 'Fill' | 'Fixed' | 'Percent')[]}
+        onChange={(k) => onChange(k === 'Hug' || k === 'Fill' ? k : k === 'Fixed' ? { Fixed: amount || 100 } : { Percent: amount || 50 })}
+      />
+      {kind === 'Fixed' && <NumberField label="" value={amount} step={1} onCommit={(v) => onChange({ Fixed: Math.max(0, v) })} />}
+      {kind === 'Percent' && <NumberField label="%" value={amount} step={5} onCommit={(v) => onChange({ Percent: clamp(v, 0, 100) })} />}
+    </>
+  )
+}
+
+/** Top / right / bottom / left. */
+function EdgesField({ value, onChange }: { value: UiEdges; onChange: (value: UiEdges) => void }) {
+  return (
+    <div className="grid grid-cols-4 gap-1">
+      {(['top', 'right', 'bottom', 'left'] as const).map((edge) => (
+        <NumberField key={edge} label={edge[0].toUpperCase()} value={value[edge]} step={1} onCommit={(v) => onChange({ ...value, [edge]: Math.max(0, v) })} />
+      ))}
+    </div>
+  )
+}
+
+/** Direction, wrap, justify, align, gap, padding. */
+function FlexStyleFields({ style, onChange }: { style: UiFlexStyle; onChange: (value: UiFlexStyle) => void }) {
+  const update = (patch: Partial<UiFlexStyle>) => onChange({ ...style, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Direction" title="Which way children run.">
+        <Dropdown value={style.direction} options={Object.keys(DIRECTION_NAMES) as UiFlexDirection[]} renderValue={(v) => DIRECTION_NAMES[v]} renderOption={(v) => DIRECTION_NAMES[v]} onChange={(direction) => update({ direction })} />
+      </Row>
+      <Row label="Justify" title="Spacing along the direction.">
+        <Dropdown value={style.justify} options={Object.keys(JUSTIFY_NAMES) as UiJustify[]} renderValue={(v) => JUSTIFY_NAMES[v]} renderOption={(v) => JUSTIFY_NAMES[v]} onChange={(justify) => update({ justify })} />
+      </Row>
+      <Row label="Align" title="Placement across the direction. Stretch fills it (children sized Hug keep their size).">
+        <Dropdown value={style.align} options={Object.keys(ALIGN_NAMES) as UiAlign[]} onChange={(align) => update({ align })} />
+      </Row>
+      <Row label="Gap" title="Space between children (and wrapped lines).">
+        <NumberField label="" value={style.gap} step={1} onCommit={(gap) => update({ gap: Math.max(0, gap) })} />
+      </Row>
+      <Row label="Padding" title="Inner space: top, right, bottom, left.">
+        <EdgesField value={style.padding} onChange={(padding) => update({ padding })} />
+      </Row>
+      <Check checked={style.wrap} onChange={(wrap) => update({ wrap })}>
+        Wrap onto more lines
+      </Check>
+    </div>
+  )
+}
+
+/** UI Layout: a flexbox container, with an optional phone (compact) style. */
+export function UiLayoutFields({ config, onChange }: { config: UiLayoutConfig; onChange: (value: UiLayoutConfig) => void }) {
+  const update = (patch: Partial<UiLayoutConfig>) => onChange({ ...config, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Width" title="Hug = fit the children. Fill = take the space (a root fills the screen). Fixed = exact. Percent = of the parent.">
+        <SizeField value={config.width} onChange={(width) => update({ width })} />
+      </Row>
+      <Row label="Height">
+        <SizeField value={config.height} onChange={(height) => update({ height })} />
+      </Row>
+      <FlexStyleFields style={config.style} onChange={(style) => update({ style })} />
+      <div className="flex flex-col gap-1.5 border-t border-overlay/10 pt-1.5">
+        <Check checked={config.compact !== null} onChange={(on) => update({ compact: on ? { ...config.style, direction: config.style.direction === 'Row' ? 'Column' : config.style.direction } : null })}>
+          Different layout on phones (compact)
+        </Check>
+        {config.compact && <FlexStyleFields style={config.compact} onChange={(compact) => update({ compact })} />}
+      </div>
+      <p className="text-[10px] leading-snug text-ink-dim">
+        Rectangles inside are resized to their slot; anything else is positioned. "Compact" = narrower than the scene's breakpoint (Canvas → Screen).
+      </p>
+    </div>
+  )
+}
+
+/** UI Layout Item: this child's size / grow / alignment inside its layout. */
+export function UiLayoutItemFields({ config, onChange }: { config: UiLayoutItemConfig; onChange: (value: UiLayoutItemConfig) => void }) {
+  const update = (patch: Partial<UiLayoutItemConfig>) => onChange({ ...config, ...patch })
+  const selfOptions = ['Auto', 'Start', 'Center', 'End', 'Stretch'] as ('Auto' | UiAlign)[]
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Width">
+        <SizeField value={config.width} onChange={(width) => update({ width })} />
+      </Row>
+      <Row label="Height">
+        <SizeField value={config.height} onChange={(height) => update({ height })} />
+      </Row>
+      <Row label="Grow / Shrink" title="Share of leftover space to take / of overflow to give up.">
+        <NumberField label="" value={config.grow} step={0.5} onCommit={(grow) => update({ grow: Math.max(0, grow) })} />
+        <NumberField label="" value={config.shrink} step={0.5} onCommit={(shrink) => update({ shrink: Math.max(0, shrink) })} />
+      </Row>
+      <Row label="Align self" title="Overrides the layout's Align for this child.">
+        <Dropdown value={config.alignSelf ?? 'Auto'} options={selfOptions} onChange={(v) => update({ alignSelf: v === 'Auto' ? null : v })} />
+      </Row>
+      <Row label="Margin" title="Outer space: top, right, bottom, left.">
+        <EdgesField value={config.margin} onChange={(margin) => update({ margin })} />
+      </Row>
+      <Check checked={config.ignore} onChange={(ignore) => update({ ignore })}>
+        Ignore layout (keep my position)
+      </Check>
+    </div>
+  )
+}
+
+/** UI Show When: only visible on matching screens. */
+export function UiShowWhenFields({ config, onChange }: { config: UiShowWhenConfig; onChange: (value: UiShowWhenConfig) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Show on" title="Hidden otherwise — and takes no space in its layout.">
+        <Dropdown value={config.when} options={Object.keys(CONDITION_NAMES) as UiScreenCondition[]} renderValue={(v) => CONDITION_NAMES[v]} renderOption={(v) => CONDITION_NAMES[v]} onChange={(when) => onChange({ when })} />
+      </Row>
+      <p className="text-[10px] leading-snug text-ink-dim">
+        Scripts can branch on <code className="text-ink">ctx.screen.compact</code> / <code>portrait</code>; state machines get <code>isCompact</code>, <code>isPortrait</code>, <code>screenWidth</code>, <code>screenHeight</code> inputs (declare them by name).
+      </p>
+    </div>
+  )
+}
+
+/** The Canvas section's Screen block (Fixed / Responsive + breakpoint). */
+export function ScreenFields({ screen, onChange }: { screen: ScreenSettings; onChange: (value: ScreenSettings) => void }) {
+  const update = (patch: Partial<ScreenSettings>) => onChange({ ...screen, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Screen" title="Fixed: the design size, scaled to fit with bars. Responsive: fills the whole page / window; the visible area follows the screen and layouts adapt.">
+        <Dropdown value={screen.mode} options={['Fixed', 'Responsive'] as ScreenSettings['mode'][]} onChange={(mode) => update({ mode })} />
+      </Row>
+      {screen.mode === 'Responsive' && (
+        <Row label="Match" title="Which design axis keeps its size: 0 = width (taller screens show more height), 1 = height (wider screens show more width).">
+          <input
+            type="range"
+            className="min-w-0 flex-1 accent-[rgb(var(--accent-rgb))]"
+            min={0}
+            max={1}
+            step={0.05}
+            value={screen.matchWidthOrHeight}
+            onChange={(e) => update({ matchWidthOrHeight: Number(e.target.value) })}
+          />
+          <span className="w-8 text-right text-[10px] tabular-nums text-ink-dim">{screen.matchWidthOrHeight.toFixed(2)}</span>
+        </Row>
+      )}
+      <Row label="Compact below" title="Screens narrower than this (CSS px) count as phones: compact layouts and 'Show When: Compact' apply.">
+        <NumberField label="px" value={screen.compactWidth} step={10} onCommit={(v) => update({ compactWidth: Math.max(0, v) })} />
+      </Row>
+    </div>
+  )
+}
+
 export function Liquid2DFields({ config, onChange }: { config: Liquid2DConfig; onChange: (value: Liquid2DConfig) => void }) {
   const update = (patch: Partial<Liquid2DConfig>) => onChange({ ...config, ...patch })
   const count = Math.max(1, Math.floor(config.size[0] / config.particleSpacing)) * Math.max(1, Math.floor(config.size[1] / config.particleSpacing))
@@ -789,13 +959,16 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   UiStack: 'UI Stack',
   UiButton: 'UI Button',
   UiToggle: 'UI Toggle',
+  UiLayout: 'UI Layout',
+  UiLayoutItem: 'UI Layout Item',
+  UiShowWhen: 'UI Show When',
   UiSlider: 'UI Slider',
   UiScrollbar: 'UI Scrollbar',
   UiScrollView: 'UI Scroll View',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
@@ -803,6 +976,7 @@ const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
   { title: 'Audio', kinds: ['AudioSource'] },
   { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView'] },
+  { title: 'Layout', kinds: ['UiLayout', 'UiLayoutItem', 'UiShowWhen'] },
 ]
 
 /**

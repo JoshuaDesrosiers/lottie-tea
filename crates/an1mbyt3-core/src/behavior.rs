@@ -87,8 +87,13 @@ pub enum NodeBehavior {
     /// A scrolling viewport — see [`crate::UiScrollView`].
     UiScrollView(crate::UiScrollView),
     /// An on / off checkbox or radio button — see [`crate::UiToggle`].
-    /// (Appended last.)
     UiToggle(crate::UiToggle),
+    /// A flexbox container — see [`crate::UiLayout`].
+    UiLayout(crate::UiLayout),
+    /// Per-child flexbox settings — see [`crate::UiLayoutItem`].
+    UiLayoutItem(crate::UiLayoutItem),
+    /// Show only on some screens — see [`crate::UiShowWhen`]. (Appended last.)
+    UiShowWhen(crate::UiShowWhen),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

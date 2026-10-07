@@ -151,6 +151,9 @@ pub enum Command {
     /// `[1.0, 64.0]`: `1.0` is native/off (below that has no sensible
     /// block size), `64.0` is an arbitrary "chunky enough" ceiling.
     SetArtboardResolutionScale { artboard: ArtboardId, value: f32 },
+    /// Sets the artboard's screen behaviour (Fixed / Responsive, scale
+    /// match, compact breakpoint) — see `crate::ScreenSettings`.
+    SetArtboardScreen { artboard: ArtboardId, value: crate::ScreenSettings },
     /// Inserts (or, at an already-keyframed `time`, *replaces*) a keyframe on
     /// `node`'s `value.property_kind()` track within `animation`, creating
     /// that track if this is its first keyframe. Replacing instead of
@@ -778,6 +781,11 @@ impl Command {
                 let previous = artboard_mut.resolution_scale;
                 artboard_mut.resolution_scale = value.clamp(1.0, 64.0);
                 Command::SetArtboardResolutionScale { artboard, value: previous }
+            }
+            Command::SetArtboardScreen { artboard, value } => {
+                let artboard_mut = document.artboard_mut(artboard).expect("Command::SetArtboardScreen: artboard not found");
+                let previous = std::mem::replace(&mut artboard_mut.screen, value);
+                Command::SetArtboardScreen { artboard, value: previous }
             }
             Command::AddKeyframe { artboard, animation, node, time, value, easing } => {
                 let property = value.property_kind();
