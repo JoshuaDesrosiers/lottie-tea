@@ -1109,6 +1109,8 @@ function App() {
 
     function handleWheel(event: WheelEvent) {
       event.preventDefault()
+      // In Playground the wheel is the game's (UI Scroll Views), not a pan.
+      if (modeRef.current === 'Playground') return
       const rect = canvas!.getBoundingClientRect()
       const canvasX = event.clientX - rect.left
       const canvasY = event.clientY - rect.top
@@ -1463,7 +1465,9 @@ function App() {
     },
   })
 
-  const transformHandlesNode = view3dActive
+  // Playground shows only the game: no selection widgets of any kind
+  // (handles, path edit, tile painting, gradient / bone gizmos).
+  const transformHandlesNode = view3dActive || mode === 'Playground'
     ? null
     : selectedNode && dragTranslation
       ? { ...selectedNode, transform: { ...selectedNode.transform, translation: dragTranslation } }
@@ -1474,7 +1478,7 @@ function App() {
   // deselecting) silently falls back out of path-edit mode instead of
   // needing its own explicit "exit" action synced against every place
   // selection can change.
-  const isPathEditing = pathEditNodeId !== null && selection !== null && idsEqual(pathEditNodeId, selection.nodeId)
+  const isPathEditing = mode !== 'Playground' && pathEditNodeId !== null && selection !== null && idsEqual(pathEditNodeId, selection.nodeId)
 
   /** A plain axis-aligned screen-space bounding box around every
    * multi-selected node — rendered instead of `TransformHandles`' full
@@ -1491,7 +1495,7 @@ function App() {
    * multi-selection (falls through to the single-node `TransformHandles`
    * instead). */
   const multiSelectionScreenBox = (() => {
-    if (multiSelectedIds.length < 2 || !selection) return null
+    if (mode === 'Playground' || multiSelectedIds.length < 2 || !selection) return null
     const artboard = artboards.find((a) => a.id.idx === selection.artboardId.idx && a.id.version === selection.artboardId.version)
     if (!artboard) return null
 
@@ -3247,14 +3251,10 @@ function App() {
     const artboard = artboards[0]
     if (!editor || !artboard) return
 
-    // Playground is meant to be played, not edited — selecting/dragging a
-    // node mid-test is almost always an accidental click, not intent.
-    // Panning still works (same branch "no hit" already takes below), just
-    // without ever hit-testing for something to select first.
-    if (mode === 'Playground') {
-      panRef.current = { startClientX: event.clientX, startClientY: event.clientY, startPan: cameraRef.current.pan }
-      return
-    }
+    // Playground is meant to be played, not edited: the mouse belongs to
+    // the game (scripts' "mouse" key, UI controls), so a click neither
+    // selects nor drags nodes, nor pans the editor view underneath.
+    if (mode === 'Playground') return
 
     const point = toArtboardPoint(event.clientX, event.clientY)
     const hit = pickNodeAt(editor, artboard.id, point.x, point.y)
