@@ -1,0 +1,40 @@
+/* DO NOT EDIT
+@todo This file is copied from GUI and should be pulled out into a shared library.
+See https://github.com/LLK/scratch-paint/issues/13 */
+
+/* Reskinned to an1mbyt3's own palette — `apps/editor/index.css`'s own
+ * `:root`/`:root[data-theme='light']` CSS custom properties, not literal
+ * hex, so this file (and everything that composes its own colors from it
+ * via `@import` + `$variable` substitution) follows the app's dark/light
+ * theme toggle automatically instead of staying a fixed dark palette —
+ * `postcss-simple-vars` is a pure textual substitution at build time, so a
+ * `$variable`'s own *value* being a live `var(--...)` reference compiles
+ * straight through into a real, runtime-reactive CSS custom property
+ * wherever that `$variable` is used, the same as writing it by hand. See
+ * `PaintAssetEditor.tsx`'s own doc comment for why this file (not the many
+ * individual component stylesheets) is the highest-leverage place to
+ * reskin. A handful of components hardcode these same original hex values
+ * directly instead of referencing the `$variable` (a pre-existing
+ * inconsistency in scratch-paint's own CSS, not introduced by this fork) —
+ * those are fixed to the same replacements directly at their own call
+ * sites instead (`paper-canvas.module.css`'s own doc comment is one). */
+$ui-pane-border: var(--color-panel-border);
+$ui-pane-gray: var(--solid-panel);
+$ui-background-blue: var(--color-canvas);
+
+$text-primary: var(--color-ink);
+
+$looks-secondary: var(--color-accent);
+$looks-transparent: var(--accent-transparent); /* 35% transparent version of looks-secondary */
+
+$red-primary: #FF661A;
+$red-tertiary: #E64D00;
+
+$sound-primary: #CF63CF;
+$sound-tertiary: #A63FA6;
+
+$control-primary: #FFAB19;
+
+$data-primary: #FF8C1A;
+
+$form-border: rgba(255, 255, 255, 0.08);

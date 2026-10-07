@@ -1,0 +1,12 @@
+[package]
+name = "an1mbyt3-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+an1mbyt3-core = { path = "../an1mbyt3-core" }
+an1mbyt3-geometry = { path = "../an1mbyt3-geometry" }
+glam = { workspace = true }
+serde = { workspace = true }

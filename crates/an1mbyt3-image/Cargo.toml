@@ -1,0 +1,9 @@
+[package]
+name = "an1mbyt3-image"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+image = { workspace = true }

@@ -1,0 +1,88 @@
+[package]
+name = "an1mbyt3-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# `wasm-opt`'s post-processing pass kept hanging/failing on this machine
+# during this session's dev iteration (stuck 30+ minutes twice, then a
+# "Failed opening ...wasm-opt.wasm" error from a leftover intermediate file
+# after one of those got killed) — pure dev-loop friction, not something a
+# local debug build needs at all (size optimization only matters for an
+# actual shipped build). Disabling it here only affects `wasm-pack build`'s
+# default (release) profile; re-enable (or pass `--release` explicitly with
+# this removed) before actually shipping a build where binary size matters.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+# `cdylib` is what wasm-pack/wasm-bindgen actually load in the browser (a
+# dynamic library with no Rust-specific ABI); `rlib` is kept alongside it so
+# this crate can still be depended on normally (e.g. by `cargo test`,
+# `cargo check --workspace`) without every consumer needing a wasm32 target.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+an1mbyt3-core = { path = "../an1mbyt3-core" }
+an1mbyt3-geometry = { path = "../an1mbyt3-geometry" }
+an1mbyt3-runtime = { path = "../an1mbyt3-runtime" }
+an1mbyt3-physics = { path = "../an1mbyt3-physics" }
+an1mbyt3-constraints = { path = "../an1mbyt3-constraints" }
+an1mbyt3-renderer = { path = "../an1mbyt3-renderer" }
+an1mbyt3-text = { path = "../an1mbyt3-text" }
+an1mbyt3-format = { path = "../an1mbyt3-format" }
+an1mbyt3-svg = { path = "../an1mbyt3-svg" }
+an1mbyt3-image = { path = "../an1mbyt3-image" }
+glam.workspace = true
+# `script_scene.rs` packs ids into floats via `Key::data().as_ffi()`.
+slotmap = { workspace = true }
+# `default-features = false` because wgpu's defaults pull in native backends
+# (dx12/metal/vulkan/gles) that don't build for wasm32-unknown-unknown; this
+# crate only ever runs on wasm, so it opts into exactly the browser backends
+# instead — "webgpu" (preferred, fastest) with "webgl" as the fallback wgpu
+# itself picks when a browser has no WebGPU support yet. "wgsl" is needed
+# because `an1mbyt3-renderer`'s shader is written in WGSL (in wgpu's default
+# features normally, lost here since defaults are off).
+wgpu = { workspace = true, default-features = false, features = ["webgpu", "webgl", "wgsl"] }
+
+# Versions pinned to match exactly what wgpu 30 itself depends on for its own
+# wasm32 target (see wgpu's Cargo.toml `[target.'cfg(all(target_arch =
+# "wasm32", ...))'.dependencies]` section) — letting these drift independently
+# risks cargo resolving two incompatible copies of wasm-bindgen/web-sys.
+wasm-bindgen = "0.2.108"
+# Required directly (not just transitively via wgpu's "webgpu" feature)
+# because `#[wasm_bindgen]`'s expansion of an `async fn` in an `impl` block
+# references `wasm_bindgen_futures` by name to turn the `Future` into a JS
+# `Promise` — wgpu depending on it internally doesn't put it in this crate's
+# own extern prelude.
+wasm-bindgen-futures = "0.4.58"
+# "MouseEvent"/"DomRect"/"EventTarget" added for `WasmPlayer`'s window-level
+# pointer tracking (`create`'s `track_pointer` flag) — `Window`'s
+# `add_event_listener_with_callback`/`remove_event_listener_with_callback`
+# come from the `EventTarget` trait it implements, so that feature is needed
+# even though no code names `EventTarget` directly.
+web-sys = { version = "0.3.85", features = [
+    "HtmlCanvasElement",
+    "MouseEvent",
+    "DomRect",
+    "EventTarget",
+    "Window",
+    # `performance.now()` for the frame profiler (`profiler.rs`).
+    "Performance",
+] }
+# Converts Rust panics into `console.error` logs instead of the default
+# opaque "unreachable executed" WASM trap, so a panic during development is
+# actually debuggable from the browser console.
+console_error_panic_hook = "0.1"
+serde.workspace = true
+# Bridges arbitrary `serde`-derived Rust types (here: `editor.rs`'s DTOs,
+# and `NodeId`/`ArtboardId` themselves) across the wasm-bindgen JS boundary —
+# wasm-bindgen alone only auto-bridges primitives and `#[wasm_bindgen]`-tagged
+# types, not arbitrary structs. Same "never expose a library's own Serialize
+# impl to a different consumer without an explicit DTO" discipline
+# `apps/editor/src-tauri/src/dto.rs` established for Tauri's IPC boundary —
+# this is that same discipline applied to the wasm-bindgen boundary instead.
+serde-wasm-bindgen = "0.6"
+# Fast JS hand-off for large summaries (`to_js_value` in `editor.rs`).
+serde_json.workspace = true

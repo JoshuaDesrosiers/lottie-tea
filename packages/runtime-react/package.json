@@ -1,0 +1,22 @@
+{
+  "name": "@an1mbyt3/react",
+  "private": true,
+  "version": "0.1.0",
+  "description": "React <Animation/> wrapper around @an1mbyt3/runtime. See AN1MBYT3_BUILD_PLAN.md §8, §10 Phase 8.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@an1mbyt3/runtime": "*"
+  },
+  "peerDependencies": {
+    "react": "^19"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "typescript": "~6.0.2"
+  }
+}

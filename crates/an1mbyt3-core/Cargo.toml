@@ -1,0 +1,17 @@
+[package]
+name = "an1mbyt3-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# No internal (workspace-crate) dependencies — this crate is the bottom of the
+# dependency graph (AN1MBYT3_BUILD_PLAN.md §3). Every other crate depends on
+# this one, directly or transitively; this one depends on nothing else in the workspace.
+[dependencies]
+glam = { workspace = true }
+serde = { workspace = true }
+slotmap = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

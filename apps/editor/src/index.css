@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theme tokens — every named color `tailwind.config.js` exposes
+ * (`canvas`/`panel`/`panel-border`/`ink`/`ink-dim`/`accent`) resolves to one
+ * of these custom properties instead of a static hex, so `TitleBar`'s
+ * dark/light toggle can flip the whole app at once just by setting
+ * `data-theme` on `<html>` — no React re-render, no per-component theme
+ * prop threading. `:root` (no attribute) is dark, this app's original and
+ * still-default look; `:root[data-theme='light']` overrides every token for
+ * the light variant. Only these six named tokens are retheamed this way —
+ * the many `bg-white/N`/`border-white/N` opacity utilities scattered through
+ * individual panels (hover states, subtle dividers) stay as literal white,
+ * a known, deliberate scope limit: they read as a slightly lighter tint in
+ * light mode too (never wrong-contrast-black-on-black), just not
+ * individually re-tuned per theme the way the six core surface colors are.
+ */
+:root {
+  --color-canvas: #15151a;
+  --color-panel: rgba(30, 30, 36, 0.72);
+  --color-panel-border: rgba(255, 255, 255, 0.08);
+  --color-ink: #e8e8ec;
+  --color-ink-dim: #8a8a94;
+  --color-accent: #6d8cff;
+  /* `--color-accent` as an RGB triplet, so Tailwind's opacity modifiers
+     (`bg-accent/15`, `ring-accent/40`) work — same trick as `--overlay-rgb`.
+     Without it every `accent/N` class silently generated no CSS at all. */
+  --accent-rgb: 109 140 255;
+  /* The `overlay` Tailwind color's own RGB triplet (no commas, no `#`,
+     see `tailwind.config.js`'s own doc comment) — white in dark mode,
+     identical to every `white/N` opacity utility this replaced. */
+  --overlay-rgb: 255 255 255;
+  /* An always-*opaque* panel background — for UI chrome that (unlike this
+     app's own `panel`/`backdrop-blur-panel` floating panels) has no blur
+     backdrop behind it and would look broken with `--color-panel`'s own
+     translucency. The forked-in `scratch-paint` Paint-mode toolbars
+     (`css/colors.module.css`'s `$ui-pane-gray`) are the one consumer so
+     far. */
+  --solid-panel: #1c1c22;
+  /* `--color-accent` with a fixed 35% alpha baked in, as its own token
+     (rather than a CSS relative-color expression, `rgb(from var(..) r g b
+     / 0.35)` — real but exotic/newer syntax not worth relying on here) —
+     `scratch-paint`'s own `$looks-transparent` is the one consumer. */
+  --accent-transparent: rgba(109, 140, 255, 0.35);
+  /* For a fixed-dark-fill icon image (`PaintToolPalette.jsx`'s own doc
+     comment on why — a plain `<img>` of an SVG with a hardcoded dark fill
+     baked in, not recolorable via `currentColor`/CSS) recolored via the
+     standard `brightness(0) invert(N)` trick: `1` flips it to solid white
+     (this app's original, dark-mode-only assumption — invisible against a
+     light panel in light mode, the actual bug report this fixes), `0`
+     leaves it solid black. */
+  --icon-invert: 1;
+  --native-color-scheme: dark;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.24);
+}
+
+:root[data-theme='light'] {
+  --color-canvas: #f2f2f5;
+  --color-panel: rgba(255, 255, 255, 0.78);
+  --color-panel-border: rgba(0, 0, 0, 0.1);
+  --color-ink: #1b1b1f;
+  --color-ink-dim: #6b6b76;
+  --color-accent: #4863d6;
+  --accent-rgb: 72 99 214;
+  --overlay-rgb: 0 0 0;
+  --solid-panel: #ffffff;
+  --accent-transparent: rgba(72, 99, 214, 0.35);
+  --icon-invert: 0;
+  --native-color-scheme: light;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.14);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.24);
+}
+
+/*
+ * Solid style — a second, independent axis from dark/light (`data-style`
+ * on `<html>`, set by `theme.ts`'s `applyStyle`). The default "glass" look
+ * is translucent, blurred, rounded panes floating *over* the canvas; Solid
+ * is hard, opaque, square-cornered panes that *enclose* the canvas — flush
+ * to each other and the window edges, IDE-style (`App.tsx`'s viewport
+ * insets and `layoutMetrics`'s zero gaps handle the "enclose" half; this
+ * block is the surface half). Works under either `data-theme`, since it
+ * only swaps the panel surface to that theme's own `--solid-panel` color.
+ */
+:root[data-style='solid'] {
+  --color-panel: var(--solid-panel);
+}
+
+:root[data-style='solid'] .pane {
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/*
+ * Canvas-first base styles (AN1MBYT3_BUILD_PLAN.md §15): the artboard canvas
+ * is the largest thing on screen at all times, so the document root just
+ * fills the viewport with the dark canvas color — every panel is a floating
+ * overlay on top of this, not a layout sibling that shrinks it.
+ */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: theme('colors.canvas');
+  color: theme('colors.ink');
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  /* Without this, WebView2/Chromium assumes a light page and paints every
+   * native form control (select's closed box + its popup list, checkboxes,
+   * number-input spinners) with light-theme chrome regardless of any
+   * author `background-color` — this is what made every <select>/<input>
+   * in the State Machine panel render as a solid white box even though
+   * they're all `bg-white/8`-classed. `color-scheme` tells the engine which
+   * palette its own native widget rendering should assume — `--native-color-scheme`
+   * flips alongside every other token above, so native controls stay
+   * readable in light mode too instead of staying dark-chromed forever. */
+  color-scheme: var(--native-color-scheme);
+}
+
+/*
+ * Themed scrollbars (WebView2/Chromium supports the `-webkit-scrollbar`
+ * pseudo-elements) — a default OS scrollbar is a bright, chunky, light-mode
+ * widget that clashes hard with every panel's dark/translucent surface
+ * (AN1MBYT3_BUILD_PLAN.md §15's "one consistent, custom-drawn" surface
+ * language). Applies everywhere (the Timeline's horizontal track scroll,
+ * any future overflowing panel content), not just one component.
+ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

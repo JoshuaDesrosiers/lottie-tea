@@ -1,0 +1,18 @@
+.paper-canvas {
+    top: 1px; /* leave room for the border */
+    left: 1px;
+    width: calc(100% - 2px);
+    height: calc(100% - 2px);
+    margin: auto;
+    position: absolute;
+    /* The *matting* around the actual artboard/paper — paper.js only draws
+       within the authored workspace bounds, so this shows through in the
+       margin around it. Matches an1mbyt3's own `canvas` token
+       (`var(--color-canvas)`, theme-reactive — was a hardcoded dark hex
+       before the light theme existed, the literal bug report this fixes)
+       — the actual artwork's own white background is a separate, real
+       drawing-surface rect paper.js itself renders on top of this,
+       untouched (per an1mbyt3's own request: keep the artwork white, only
+       the surface it sits on should match the app's own theme). */
+    background-color: var(--color-canvas);
+}

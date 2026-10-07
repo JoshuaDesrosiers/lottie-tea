@@ -1,0 +1,87 @@
+<!--
+  Phase 8 exit-criterion demo (AN1MBYT3_BUILD_PLAN.md §10: "`<Animation>`
+  plays a real `.teab` file in a browser with working state-machine input").
+  Unlike `index.html`/`main.js` (which build their demo document by hand in
+  JS-adjacent Rust code, `WasmPlayer::create`'s built-in scene), this page:
+  - fetches a *real* `.teab` file (`demo.teab`, produced by
+    `cargo run -p an1mbyt3-cli --example make_demo_teab`) over HTTP,
+  - loads it through `@an1mbyt3/runtime`'s `An1mbyt3Animation` class —
+    never touching `wasm-bindgen` glue directly, exactly the point of that
+    package existing,
+  - and drives its state machine's `toggle` trigger, proving working
+    state-machine input reaches a document this page never built itself.
+
+  Must be served over HTTP (not opened as a file:// URL), same reasoning as
+  `index.html`. Run `python -m http.server 8080` from the repo root, then
+  open http://localhost:8080/apps/web-test/teab-demo.html.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>an1mbyt3 — Phase 8 .teab demo</title>
+    <style>
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: #14141a;
+        color: #f0f0f5;
+        font-family: system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: 48px;
+      }
+      p.filler {
+        max-width: 480px;
+        text-align: center;
+        color: #d8d8e0cc;
+        font-size: 14px;
+      }
+      animation-player {
+        display: block;
+      }
+      button {
+        background: rgba(255, 255, 255, 0.08);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: rgba(255, 255, 255, 0.16);
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      #status {
+        font-size: 13px;
+        color: #d8d8e0aa;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>an1mbyt3 — Phase 8 .teab demo</h1>
+    <p class="filler">
+      This document was never built in this page's JS — it was compiled with
+      <code>cargo run -p an1mbyt3-cli --example make_demo_teab</code> into
+      <code>demo.teab</code>, fetched from the server, and loaded through
+      <code>@an1mbyt3/runtime</code>'s <code>An1mbyt3Animation.loadTeab()</code>.
+    </p>
+    <animation-player id="player" style="width: 400px; height: 400px"></animation-player>
+    <div class="controls">
+      <button id="toggle-button">Fire "toggle" trigger</button>
+      <button id="play-button">Play</button>
+      <button id="pause-button">Pause</button>
+      <button id="seek-button">Seek to 0.3s</button>
+    </div>
+    <div id="status">loading…</div>
+    <script type="module" src="./teab-demo.js"></script>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+[package]
+name = "an1mbyt3-constraints"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+an1mbyt3-core = { path = "../an1mbyt3-core" }
+an1mbyt3-geometry = { path = "../an1mbyt3-geometry" }
+glam = { workspace = true }
+
+# winit/pollster/wgpu/an1mbyt3-renderer are only needed by the `bone_ik`
+# demo example — same dev-only pattern as an1mbyt3-renderer's own examples
+# (see that crate's Cargo.toml comment): the IK solver itself is pure math,
+# no rendering or windowing dependency of its own.
+[dev-dependencies]
+winit = { workspace = true }
+pollster = { workspace = true }
+wgpu = { workspace = true }
+an1mbyt3-renderer = { path = "../an1mbyt3-renderer" }

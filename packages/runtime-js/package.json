@@ -1,0 +1,16 @@
+{
+  "name": "@an1mbyt3/runtime",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Vanilla JS runtime + <animation-player> custom element, hand-written wrapper around the an1mbyt3-wasm build. See AN1MBYT3_BUILD_PLAN.md §8, §10 Phase 8.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build:wasm": "cd ../../crates/an1mbyt3-wasm && wasm-pack build --target web --out-dir ../../packages/runtime-js/src/wasm-pkg",
+    "build": "tsc -b && node scripts/copy-wasm-pkg.mjs"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2"
+  }
+}

@@ -1,0 +1,60 @@
+<!--
+  Phase 8 stress test #2: two-bone IK arm following the mouse, exercising
+  parent-child bone transforms and multiple simultaneous DrawCalls through the
+  WASM pipeline (see `an1mbyt3-wasm/src/bone_ik.rs`'s doc comment for exactly
+  what this proves beyond the state-machine smoke test in index.html/main.js).
+
+  Same serving requirement as index.html — must be loaded over HTTP, not
+  file://. From the repo root: `python -m http.server 8080`, then open
+  http://localhost:8080/apps/web-test/bones.html
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>an1mbyt3 — Phase 8 WASM bone_ik smoke test</title>
+    <style>
+      /* Same "not a flat coincidence-matching background" gradient as
+         index.html, so the arm's transparency is obviously real rather than
+         a canvas background color happening to match the page. */
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: radial-gradient(circle at 15% 85%, #ffd166 0%, transparent 45%),
+          radial-gradient(circle at 85% 15%, #06d6a0 0%, transparent 50%),
+          radial-gradient(circle at 50% 50%, #ef476f 0%, transparent 60%), #14141a;
+        color: #f0f0f5;
+        font-family: system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: 48px;
+      }
+      p.filler {
+        max-width: 480px;
+        text-align: center;
+        color: #d8d8e0cc;
+        font-size: 14px;
+      }
+      canvas {
+        display: block;
+        cursor: crosshair;
+      }
+      #status {
+        font-size: 13px;
+        color: #d8d8e0aa;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>an1mbyt3 — Phase 8 WASM bone_ik smoke test</h1>
+    <p class="filler">
+      No canvas box here either — the arm is drawn on a transparent surface
+      directly over this gradient page background.
+    </p>
+    <canvas id="canvas" width="500" height="500"></canvas>
+    <div id="status">loading…</div>
+    <script type="module" src="./bones.js"></script>
+  </body>
+</html>

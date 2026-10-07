@@ -1,0 +1,22 @@
+# Rust
+/target/
+**/target/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Editor/OS
+.DS_Store
+*.log
+assets3d/_downloads/
+
+# Generated: wasm-pack output (rebuild with `wasm-pack build crates/an1mbyt3-wasm ...`)
+apps/editor/src/wasm-pkg/
+
+# Raw third-party asset packs (source art; the demos embed their own copies
+# under crates/an1mbyt3-wasm/assets/)
+/Ninja Adventure - Asset Pack/
+/2D Pixel Dungeon Asset Pack v2.0/
+/FREE_Samurai 2D Pixel Art v1.2/

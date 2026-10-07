@@ -1,0 +1,88 @@
+<!--
+  Phase 8 (WASM runtime) smoke test — the browser equivalent of every native
+  Phase's winit example. Not a real consumer app: `an1mbyt3-wasm`'s doc
+  comment explains this is a placeholder until `packages/runtime-js`/
+  `packages/runtime-react` exist (Phase 9+). This page's only job is proving
+  the `an1mbyt3-wasm` bindings actually run a real state machine in a real
+  browser, with a button standing in for the native example's Space key.
+
+  Must be served over HTTP (not opened as a file:// URL) — browsers refuse to
+  fetch a .wasm module's bytes via `fetch()` under the file:// scheme. Run:
+    python -m http.server 8080
+  from the repo root, then open http://localhost:8080/apps/web-test/.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>an1mbyt3 — Phase 8 WASM smoke test</title>
+    <style>
+      /* Deliberately a "real page" background (photo-style gradient, some
+         unrelated text) rather than a flat color a transparent canvas would
+         accidentally blend into by coincidence — proving the shape floats
+         over arbitrary page content, not just this one background. */
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background: radial-gradient(circle at 20% 20%, #ffb199 0%, transparent 45%),
+          radial-gradient(circle at 80% 30%, #6ec8ff 0%, transparent 50%),
+          radial-gradient(circle at 50% 90%, #a78bfa 0%, transparent 55%), #14141a;
+        color: #f0f0f5;
+        font-family: system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: 48px;
+      }
+      p.filler {
+        max-width: 480px;
+        text-align: center;
+        color: #d8d8e0cc;
+        font-size: 14px;
+      }
+      /* No border, no background — the canvas itself is invisible; only
+         what `WasmPlayer` actually draws (the square) shows up, composited
+         directly over this gradient by the browser. */
+      canvas {
+        display: block;
+      }
+      button {
+        background: rgba(20, 20, 26, 0.55);
+        backdrop-filter: blur(6px);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: rgba(30, 30, 38, 0.7);
+      }
+      #status {
+        font-size: 13px;
+        color: #d8d8e0aa;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>an1mbyt3 — Phase 8 WASM smoke test</h1>
+    <p class="filler">
+      This paragraph, and the gradient behind it, are plain page content — no
+      canvas styling involved. The square is drawn by a transparent WGPU
+      surface sitting directly on top of it. Click the button below to toggle
+      it between "Idle" (parked left) and "Active" (slid right, eased) via
+      the state machine's <code>toggle</code> trigger input.
+    </p>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <button id="toggle-button">Fire "toggle" trigger</button>
+    <div id="status">loading…</div>
+    <script type="module" src="./main.js"></script>
+    <p class="filler">
+      <a href="./teab-demo.html" style="color: #9fd8ff">Phase 8 exit-criterion demo →</a>
+      — the same scene, but loaded from a real <code>.teab</code> file via
+      <code>@an1mbyt3/runtime</code>, not built by hand in this page's JS.
+    </p>
+  </body>
+</html>

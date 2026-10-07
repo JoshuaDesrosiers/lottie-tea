@@ -1,0 +1,15 @@
+[package]
+name = "an1mbyt3-geometry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+an1mbyt3-core = { path = "../an1mbyt3-core" }
+lyon = { workspace = true }
+glam = { workspace = true }
+# glTF / GLB model import (`model3d.rs`). No default features: no file-system
+# import or image decoding here (the editor resolves external files from
+# the document and decodes textures itself) — keeps it wasm-friendly.
+gltf = { version = "1", default-features = false, features = ["utils", "names", "KHR_materials_unlit", "KHR_texture_transform"] }

@@ -1,0 +1,22 @@
+[package]
+name = "an1mbyt3-format"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+an1mbyt3-core = { path = "../an1mbyt3-core" }
+an1mbyt3-runtime = { path = "../an1mbyt3-runtime" }
+an1mbyt3-constraints = { path = "../an1mbyt3-constraints" }
+serde.workspace = true
+serde_json.workspace = true
+postcard.workspace = true
+flate2.workspace = true
+
+# Test-only: constructing a `Track<Vec2>` fixture for the translation-track
+# round-trip test below needs `glam::Vec2` directly.
+[dev-dependencies]
+glam.workspace = true
+# Project-format tests compare file -> item ids with real slotmap keys.
+slotmap.workspace = true

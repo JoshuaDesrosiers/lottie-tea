@@ -1,0 +1,17 @@
+[package]
+name = "an1mbyt3-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+an1mbyt3-core = { path = "../an1mbyt3-core" }
+an1mbyt3-format = { path = "../an1mbyt3-format" }
+clap.workspace = true
+
+[dev-dependencies]
+# Only needed by the `make_demo_teab` example (builds `Vec2` keyframe
+# values) — not by the actual `an1mbyt3-cli` binary, so this stays a
+# dev-dependency rather than a real one.
+glam.workspace = true

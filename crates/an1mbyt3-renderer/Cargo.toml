@@ -1,0 +1,36 @@
+[package]
+name = "an1mbyt3-renderer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+an1mbyt3-core = { path = "../an1mbyt3-core" }
+an1mbyt3-geometry = { path = "../an1mbyt3-geometry" }
+wgpu = { workspace = true }
+# Shader-graph materials: validate generated WGSL before handing it to wgpu
+# (same naga version wgpu 30 uses, so no second copy is built).
+naga = { version = "30", features = ["wgsl-in"] }
+glam = { workspace = true }
+bytemuck = { workspace = true }
+futures-channel = { workspace = true }
+
+# winit/pollster/an1mbyt3-runtime are only needed by the example smoke tests
+# (AN1MBYT3_BUILD_PLAN.md §11's vertical slice) — not runtime dependencies of
+# `Renderer` itself, which stays windowing-agnostic (Tauri/WASM provide their
+# own surface target in later phases) and animation-agnostic (the renderer
+# only draws whatever transform it's given; it doesn't know how that
+# transform got computed). `an1mbyt3-renderer` is intentionally a sibling of
+# `an1mbyt3-runtime` in the dependency graph (§3), not a dependent of it —
+# this dev-only edge exists purely so the `animate_shape` example can wire
+# both together for a demo, without making that a real architectural dependency.
+[dev-dependencies]
+winit = { workspace = true }
+pollster = { workspace = true }
+an1mbyt3-runtime = { path = "../an1mbyt3-runtime" }
+# Dev-only, for the `headless`/`image_node` examples' PNG dump/decode — proves
+# `render_to_texture` produces sane pixels, and gives `image_node` a real PNG
+# to decode into RGBA for the textured-quad smoke test; not a dependency of
+# `Renderer` itself (RGBA bytes go in, `an1mbyt3-image` does real decoding).
+image = { workspace = true }

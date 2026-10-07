@@ -1,0 +1,10 @@
+{
+  "name": "an1mbyt3",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Rive-class interactive animation platform — see AN1MBYT3_BUILD_PLAN.md",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

@@ -1,0 +1,62 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/an1mbyt3-core",
+    "crates/an1mbyt3-geometry",
+    "crates/an1mbyt3-runtime",
+    "crates/an1mbyt3-constraints",
+    "crates/an1mbyt3-renderer",
+    "crates/an1mbyt3-text",
+    "crates/an1mbyt3-format",
+    "crates/an1mbyt3-svg",
+    "crates/an1mbyt3-image",
+    "crates/an1mbyt3-physics",
+    "crates/an1mbyt3-wasm",
+    "crates/an1mbyt3-cli",
+    "apps/editor/src-tauri",
+]
+
+# Shared package metadata — individual crates inherit via `version.workspace = true` etc.
+# See AN1MBYT3_BUILD_PLAN.md §3 for the crate dependency graph this workspace encodes.
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+
+# Pinned once here so every crate stays on the same version instead of drifting —
+# each crate opts in with `x.workspace = true` in its own [dependencies] table.
+[workspace.dependencies]
+glam = { version = "0.33", features = ["serde"] }        # 2D/3D math (Transform2D, matrices)
+serde = { version = "1", features = ["derive"] }          # document model (de)serialization, §4
+slotmap = { version = "1", features = ["serde"] }         # generational-arena NodeId/ArtboardId scheme, §4
+lyon = "1"                                                # path tessellation, §6
+wgpu = "30"                                               # GPU rendering, §6
+winit = "0.30"                                            # windowing — example/dev use only, not a runtime dependency of an1mbyt3-renderer itself
+pollster = "1"                                            # block_on for wgpu's async init, example/dev use only
+bytemuck = { version = "1", features = ["derive"] }       # safe GPU buffer casting
+rustybuzz = "0.20"                                        # font shaping (also re-exports the ttf-parser version it was built against, as `rustybuzz::ttf_parser` — depend on that re-export, not a separately-pinned ttf-parser, so the two can never drift out of sync), §3
+serde_json = "1"                                          # `.tea` source format: pretty-printed, diff-friendly JSON, §4/§7
+postcard = { version = "1", features = ["alloc"] }        # `.teab` production format: compact binary — chosen over bincode for smaller varint-encoded output and no_std/wasm-friendliness (§4's still-open "true zero-copy WASM loads" goal), Phase 9
+clap = { version = "4", features = ["derive"] }            # `an1mbyt3-cli`'s subcommands (`compile`, `optimize`, `validate`, `export`, `package`), §2/§7
+# `.teab` compression, Phase 9 — `default-features = false` +
+# `rust_backend` (miniz_oxide) instead of the default `zlib`/`zlib-ng` C
+# bindings, since `an1mbyt3-format` needs to compile for wasm32 too
+# (Phase 8's WASM runtime eventually loads `.teab` files directly).
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+svgtypes = "0.16"                                         # SVG path-data (`d`)/`transform`/color attribute value parsing, `an1mbyt3-svg`'s import
+roxmltree = "0.21"                                        # read-only SVG XML tree walking, `an1mbyt3-svg`'s import
+# PNG/JPEG/GIF decode + PNG re-encode, `an1mbyt3-image`'s import — `default-features
+# = false` since this workspace never needs `image`'s other format codecs (bmp/tiff/
+# webp/etc.) or its `rayon`-based parallelism, just these three.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif"] }
+# A `Future`-based oneshot channel (not `std::sync::mpsc`) for `Renderer`'s
+# GPU-buffer readback (`render_to_texture`/`bake_image`) — needed so that
+# code is actually safe to `.await` from wasm32: a blocking `mpsc::Receiver::recv()`
+# deadlocks the whole (single-threaded) page waiting for a callback that can
+# only fire once control returns to the browser's event loop, which a real
+# `.await` yields to correctly and a blocking call never can.
+futures-channel = "0.3"
+# 2D rigid-body physics (Rigidbody 2D / Collider 2D components) — pure Rust,
+# builds for wasm32; see `an1mbyt3-physics`.
+rapier2d = "0.36"
