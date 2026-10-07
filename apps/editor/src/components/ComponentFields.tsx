@@ -6,7 +6,15 @@ import type {
   AudioSummary,
   UiAnchorConfig,
   UiButtonConfig,
+  UiFillDirection,
+  UiScrollbarConfig,
+  UiScrollViewConfig,
+  UiSliderConfig,
   UiStackConfig,
+  UiStateStyle,
+  UiToggleConfig,
+  UiTransition,
+  ImageAssetSummary,
   BoxCollider2DConfig,
   CapsuleCollider2DConfig,
   CircleCollider2DConfig,
@@ -26,6 +34,7 @@ import type {
 import { Dropdown, NumberField } from './InspectorPanel'
 import { PlusIcon, TrashIcon } from './icons'
 import { ColorSwatch } from './ColorPicker'
+import { ImageAssetPicker } from './ImageAssetPicker'
 
 /**
  * Unity-style component editors that aren't big enough for their own file
@@ -500,26 +509,217 @@ export function UiStackFields({ config, onChange }: { config: UiStackConfig; onC
   )
 }
 
-/** UI Button: feedback strength; clicks are read in scripts (`ref.clicked`). */
-export function UiButtonFields({ config, onChange }: { config: UiButtonConfig; onChange: (value: UiButtonConfig) => void }) {
-  const update = (patch: Partial<UiButtonConfig>) => onChange({ ...config, ...patch })
-  const grey = (b: number): [number, number, number, number] => [b, b, b, 1]
+const TRANSITION_LABEL: Record<UiTransition, string> = { None: 'None', ColorTint: 'Color Tint', SpriteSwap: 'Sprite Swap' }
+const DIRECTION_LABEL: Record<UiFillDirection, string> = { LeftToRight: 'Left to right', RightToLeft: 'Right to left', BottomToTop: 'Bottom to top', TopToBottom: 'Top to bottom' }
+
+/** Shared by every UI control's Inspector: what an image picker needs. */
+interface UiAssets {
+  images: ImageAssetSummary[]
+  editor: WasmEditor | null
+}
+
+/**
+ * Unity's Transition block: a colour (or image) per state — Normal,
+ * Highlighted, Pressed, Disabled — plus the colour multiplier, fade
+ * duration and per-state scale.
+ */
+export function UiStateStyleFields({ style, onChange, images, editor, scaleFields = true }: UiAssets & { style: UiStateStyle; onChange: (value: UiStateStyle) => void; scaleFields?: boolean }) {
+  const update = (patch: Partial<UiStateStyle>) => onChange({ ...style, ...patch })
+  const colorRow = (label: string, key: 'normalColor' | 'highlightedColor' | 'pressedColor' | 'disabledColor', title: string) => (
+    <Row label={label} title={title}>
+      <ColorSwatch value={style[key]} onChange={(c) => update({ [key]: c } as Partial<UiStateStyle>)} />
+    </Row>
+  )
+  const imageRow = (label: string, key: 'highlightedImage' | 'pressedImage' | 'disabledImage', title: string) => (
+    <Row label={label} title={title}>
+      {editor ? <ImageAssetPicker editor={editor} images={images} value={style[key]} onChange={(id) => update({ [key]: id } as Partial<UiStateStyle>)} /> : null}
+    </Row>
+  )
   return (
     <div className="flex flex-col gap-1.5">
-      <Row label="Hover" title="Brightness while the pointer is over it (1 = unchanged).">
-        <NumberField label="×" value={config.hoverTint[0]} step={0.05} onCommit={(v) => update({ hoverTint: grey(clamp(v, 0, 3)) })} />
+      <Row label="Transition" title="How the state shows: multiply the colour, swap the image, or nothing.">
+        <Dropdown value={style.transition} options={['ColorTint', 'SpriteSwap', 'None'] as UiTransition[]} renderValue={(v) => TRANSITION_LABEL[v]} renderOption={(v) => TRANSITION_LABEL[v]} onChange={(transition) => update({ transition })} />
       </Row>
-      <Row label="Pressed" title="Brightness while it's held down.">
-        <NumberField label="×" value={config.pressedTint[0]} step={0.05} onCommit={(v) => update({ pressedTint: grey(clamp(v, 0, 3)) })} />
-      </Row>
-      <Row label="Press scale" title="Scale while held — a small 'press in' (1 = none).">
-        <NumberField label="×" value={config.pressedScale} step={0.01} onCommit={(v) => update({ pressedScale: clamp(v, 0.5, 1.5) })} />
-      </Row>
-      <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Off = greyed out, no clicks.">
-        <input type="checkbox" checked={config.interactable} onChange={(e) => update({ interactable: e.target.checked })} />
+      {style.transition === 'ColorTint' && (
+        <>
+          {colorRow('Normal', 'normalColor', 'Multiplies the node colour when idle (white = as drawn).')}
+          {colorRow('Highlighted', 'highlightedColor', 'While the pointer is over it.')}
+          {colorRow('Pressed', 'pressedColor', 'While it is held down.')}
+          {colorRow('Disabled', 'disabledColor', 'While Interactable is off.')}
+          <Row label="Multiplier" title="Brightens every state colour (Unity's Color Multiplier, 1..5).">
+            <NumberField label="×" value={style.colorMultiplier} step={0.1} onCommit={(v) => update({ colorMultiplier: clamp(v, 0, 5) })} />
+          </Row>
+          <Row label="Fade" title="Seconds to blend between state colours (0 = instant).">
+            <NumberField label="s" value={style.fadeDuration} step={0.05} onCommit={(v) => update({ fadeDuration: clamp(v, 0, 5) })} />
+          </Row>
+          <Check checked={style.tintChildren} onChange={(tintChildren) => update({ tintChildren })}>
+            Tint children (label, icon)
+          </Check>
+        </>
+      )}
+      {style.transition === 'SpriteSwap' && (
+        <>
+          {imageRow('Highlighted', 'highlightedImage', 'Image while the pointer is over it (none = keep the normal one).')}
+          {imageRow('Pressed', 'pressedImage', 'Image while it is held down.')}
+          {imageRow('Disabled', 'disabledImage', 'Image while Interactable is off.')}
+        </>
+      )}
+      {scaleFields && style.transition !== 'None' && (
+        <>
+          <Row label="Hover scale" title="Scale while hovered — a small lift (1 = none).">
+            <NumberField label="×" value={style.highlightedScale} step={0.01} onCommit={(v) => update({ highlightedScale: clamp(v, 0.5, 1.5) })} />
+          </Row>
+          <Row label="Press scale" title="Scale while held — a 'press in' (1 = none).">
+            <NumberField label="×" value={style.pressedScale} step={0.01} onCommit={(v) => update({ pressedScale: clamp(v, 0.5, 1.5) })} />
+          </Row>
+        </>
+      )}
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5 border-t border-overlay/10 pt-1.5">
+      <span className="text-[10px] uppercase tracking-wider text-ink-dim">{title}</span>
+      {children}
+    </div>
+  )
+}
+
+function ScriptHint({ children }: { children: ReactNode }) {
+  return <p className="text-[10px] leading-snug text-ink-dim">{children}</p>
+}
+
+/** UI Button: interactable + its state look; clicks are read in scripts. */
+export function UiButtonFields({ config, onChange, images, editor }: UiAssets & { config: UiButtonConfig; onChange: (value: UiButtonConfig) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Check checked={config.interactable} onChange={(interactable) => onChange({ ...config, interactable })}>
         Interactable
-      </label>
-      <p className="text-[10px] leading-snug text-ink-dim">In a script: <code className="text-ink">if (getCompByID('play').clicked) …</code> (also <code>hovered</code>, <code>pressed</code>).</p>
+      </Check>
+      <UiStateStyleFields style={config.style} images={images} editor={editor} onChange={(style) => onChange({ ...config, style })} />
+      <ScriptHint>
+        In a script: <code className="text-ink">if (getCompByID('play').clicked) …</code> (also <code>hovered</code>, <code>pressed</code>).
+      </ScriptHint>
+    </div>
+  )
+}
+
+/** UI Toggle: on / off, radio group, and the box's state look. */
+export function UiToggleFields({ config, onChange, images, editor }: UiAssets & { config: UiToggleConfig; onChange: (value: UiToggleConfig) => void }) {
+  const update = (patch: Partial<UiToggleConfig>) => onChange({ ...config, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Check checked={config.isOn} onChange={(isOn) => update({ isOn })}>
+        Is on
+      </Check>
+      <Check checked={config.interactable} onChange={(interactable) => update({ interactable })}>
+        Interactable
+      </Check>
+      <Row label="Group" title="0 = an independent checkbox. Toggles with the same number are radio buttons: one on turns the others off.">
+        <NumberField label="#" value={config.group} step={1} onCommit={(v) => update({ group: Math.max(0, Math.round(v)) })} />
+      </Row>
+      {config.group > 0 && (
+        <Check checked={config.allowSwitchOff} onChange={(allowSwitchOff) => update({ allowSwitchOff })}>
+          Allow switching all off
+        </Check>
+      )}
+      <Section title="Look">
+        <UiStateStyleFields style={config.style} images={images} editor={editor} onChange={(style) => update({ style })} />
+      </Section>
+      <ScriptHint>
+        Shows its child named <code className="text-ink">Checkmark</code> while on. Script: <code className="text-ink">ref.isOn</code>, <code>ref.changed</code>.
+      </ScriptHint>
+    </div>
+  )
+}
+
+/** UI Slider: range, value, direction, and the handle's state look. */
+export function UiSliderFields({ config, onChange, images, editor }: UiAssets & { config: UiSliderConfig; onChange: (value: UiSliderConfig) => void }) {
+  const update = (patch: Partial<UiSliderConfig>) => onChange({ ...config, ...patch })
+  const step = config.wholeNumbers ? 1 : Math.max(0.01, Math.abs(config.max - config.min) / 100)
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Direction" title="Which way the fill grows.">
+        <Dropdown value={config.direction} options={Object.keys(DIRECTION_LABEL) as UiFillDirection[]} renderValue={(v) => DIRECTION_LABEL[v]} renderOption={(v) => DIRECTION_LABEL[v]} onChange={(direction) => update({ direction })} />
+      </Row>
+      <Row label="Min / Max">
+        <NumberField label="" value={config.min} step={1} onCommit={(min) => update({ min, value: clamp(config.value, Math.min(min, config.max), Math.max(min, config.max)) })} />
+        <NumberField label="" value={config.max} step={1} onCommit={(max) => update({ max, value: clamp(config.value, Math.min(config.min, max), Math.max(config.min, max)) })} />
+      </Row>
+      <Row label="Value" title="Starting value.">
+        <input
+          type="range"
+          className="min-w-0 flex-1 accent-[rgb(var(--accent-rgb))]"
+          min={Math.min(config.min, config.max)}
+          max={Math.max(config.min, config.max)}
+          step={step}
+          value={config.value}
+          onChange={(e) => update({ value: Number(e.target.value) })}
+        />
+        <NumberField label="" value={config.value} step={step} onCommit={(v) => update({ value: clamp(config.wholeNumbers ? Math.round(v) : v, Math.min(config.min, config.max), Math.max(config.min, config.max)) })} />
+      </Row>
+      <Check checked={config.wholeNumbers} onChange={(wholeNumbers) => update({ wholeNumbers, value: wholeNumbers ? Math.round(config.value) : config.value })}>
+        Whole numbers
+      </Check>
+      <Check checked={config.interactable} onChange={(interactable) => update({ interactable })}>
+        Interactable
+      </Check>
+      <Section title="Handle look">
+        <UiStateStyleFields style={config.style} images={images} editor={editor} onChange={(style) => update({ style })} />
+      </Section>
+      <ScriptHint>
+        Positions its <code className="text-ink">Fill</code> and <code className="text-ink">Handle</code> children. Script: <code className="text-ink">ref.value</code>, <code>ref.changed</code>.
+      </ScriptHint>
+    </div>
+  )
+}
+
+/** UI Scrollbar: value, handle size, steps, and the handle's look. */
+export function UiScrollbarFields({ config, onChange, images, editor }: UiAssets & { config: UiScrollbarConfig; onChange: (value: UiScrollbarConfig) => void }) {
+  const update = (patch: Partial<UiScrollbarConfig>) => onChange({ ...config, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Direction" title="Which end is value 0.">
+        <Dropdown value={config.direction} options={Object.keys(DIRECTION_LABEL) as UiFillDirection[]} renderValue={(v) => DIRECTION_LABEL[v]} renderOption={(v) => DIRECTION_LABEL[v]} onChange={(direction) => update({ direction })} />
+      </Row>
+      <Row label="Value" title="Handle position, 0..1.">
+        <NumberField label="" value={config.value} step={0.05} onCommit={(v) => update({ value: clamp(v, 0, 1) })} />
+      </Row>
+      <Row label="Size" title="Handle length as a fraction of the track (a Scroll View sets this from its content).">
+        <NumberField label="" value={config.size} step={0.05} onCommit={(v) => update({ size: clamp(v, 0.05, 1) })} />
+      </Row>
+      <Row label="Steps" title="0 = continuous; else the value snaps to that many positions.">
+        <NumberField label="" value={config.steps} step={1} onCommit={(v) => update({ steps: Math.max(0, Math.round(v)) })} />
+      </Row>
+      <Check checked={config.interactable} onChange={(interactable) => update({ interactable })}>
+        Interactable
+      </Check>
+      <Section title="Handle look">
+        <UiStateStyleFields style={config.style} images={images} editor={editor} scaleFields={false} onChange={(style) => update({ style })} />
+      </Section>
+    </div>
+  )
+}
+
+/** UI Scroll View: axes, wheel speed, inertia. */
+export function UiScrollViewFields({ config, onChange }: { config: UiScrollViewConfig; onChange: (value: UiScrollViewConfig) => void }) {
+  const update = (patch: Partial<UiScrollViewConfig>) => onChange({ ...config, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Check checked={config.vertical} onChange={(vertical) => update({ vertical, horizontal: vertical ? false : true })}>
+        Vertical (off = horizontal)
+      </Check>
+      <Row label="Wheel step" title="World units scrolled per mouse-wheel notch.">
+        <NumberField label="" value={config.wheelStep} step={5} onCommit={(v) => update({ wheelStep: Math.max(0, v) })} />
+      </Row>
+      <Check checked={config.inertia} onChange={(inertia) => update({ inertia })}>
+        Inertia (keeps gliding after a drag)
+      </Check>
+      <ScriptHint>
+        Scrolls its child named <code className="text-ink">Content</code>; a child named <code className="text-ink">Scrollbar</code> stays in sync. Turn on <em>Clip children</em> on this shape. Script: <code className="text-ink">ref.scroll</code>.
+      </ScriptHint>
     </div>
   )
 }
@@ -588,17 +788,21 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   UiAnchor: 'UI Anchor',
   UiStack: 'UI Stack',
   UiButton: 'UI Button',
+  UiToggle: 'UI Toggle',
+  UiSlider: 'UI Slider',
+  UiScrollbar: 'UI Scrollbar',
+  UiScrollView: 'UI Scroll View',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
   { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
   { title: 'Audio', kinds: ['AudioSource'] },
-  { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton'] },
+  { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView'] },
 ]
 
 /**

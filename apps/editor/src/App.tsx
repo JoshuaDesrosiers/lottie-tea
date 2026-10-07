@@ -231,7 +231,7 @@ import {
   updateState,
   type WasmEditor,
 } from './ipc/wasmEditor'
-import type { ShapePreset } from './ipc/wasmEditor'
+import type { ShapePreset, UiMenuItem } from './ipc/wasmEditor'
 import { useDockLayout, groupMemberKeys, type PanelKey } from './hooks/useDockLayout'
 import { isBoolean, isNumber, usePersistedState } from './hooks/persisted'
 import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_HEIGHT, TIMELINE_HEIGHT, TOP_CLEARANCE } from './layoutConstants'
@@ -825,6 +825,13 @@ function App() {
     }
     window.addEventListener('pointermove', handleMouseMove)
     window.addEventListener('pointerdown', handleMouseMove)
+    // Wheel since the last frame (UI Scroll Views in Playground).
+    let wheel = { x: 0, y: 0 }
+    const handleGameWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.target !== canvasRef.current) return
+      wheel = { x: wheel.x + event.deltaX, y: wheel.y + event.deltaY }
+    }
+    window.addEventListener('wheel', handleGameWheel, { passive: true })
 
     async function init() {
       if (!canvasRef.current) return
@@ -957,6 +964,7 @@ function App() {
                 machine: activeStateMachineRef.current,
                 mouseWorld: mouseToWorld(editor, currentArtboard.id, mouseClient.x - rect.left, mouseClient.y - rect.top, cameraRef.current, canvasSizeRef.current),
                 mouseDelta,
+                wheel,
                 gestures: gesturesRef.current.take(),
                 keysDown: heldKeysRef.current,
                 pointerLocked: document.pointerLockElement === canvasRef.current,
@@ -982,6 +990,7 @@ function App() {
             }
           }
           mouseDelta = { x: 0, y: 0 }
+          wheel = { x: 0, y: 0 }
           perf.endFrame(editorRef.current, deltaSeconds * 1000, now)
         } catch (err) {
           // Logged sparingly: a per-frame error would otherwise flood the console.
@@ -1001,6 +1010,7 @@ function App() {
       cancelAnimationFrame(rafHandle)
       window.removeEventListener('pointermove', handleMouseMove)
       window.removeEventListener('pointerdown', handleMouseMove)
+      window.removeEventListener('wheel', handleGameWheel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -2377,7 +2387,7 @@ function App() {
   }
 
   /** + menu's UI items: added under the scene's camera (the HUD) and selected. */
-  const handleAddUi = (item: 'Button' | 'Panel' | 'Label' | 'Stack') => {
+  const handleAddUi = (item: UiMenuItem) => {
     const artboard = artboards[0]
     if (!editorRef.current || !artboard) return
     const result = addUiNode(editorRef.current, artboard.id, item)

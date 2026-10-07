@@ -59,7 +59,11 @@ import {
   AudioSourceFields,
   UiAnchorFields,
   UiButtonFields,
+  UiScrollbarFields,
+  UiScrollViewFields,
+  UiSliderFields,
   UiStackFields,
+  UiToggleFields,
 } from './ComponentFields'
 import { defaultComponent } from '../ipc/wasmEditor'
 import { ImageAssetPicker } from './ImageAssetPicker'
@@ -734,7 +738,23 @@ function BehaviorsFields({
       }
       case 'UiButton': {
         const { kind: _k, ...config } = behavior
-        return <UiButtonFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiButton', ...c })} />
+        return <UiButtonFields config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'UiButton', ...c })} />
+      }
+      case 'UiToggle': {
+        const { kind: _k, ...config } = behavior
+        return <UiToggleFields config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'UiToggle', ...c })} />
+      }
+      case 'UiSlider': {
+        const { kind: _k, ...config } = behavior
+        return <UiSliderFields config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'UiSlider', ...c })} />
+      }
+      case 'UiScrollbar': {
+        const { kind: _k, ...config } = behavior
+        return <UiScrollbarFields config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'UiScrollbar', ...c })} />
+      }
+      case 'UiScrollView': {
+        const { kind: _k, ...config } = behavior
+        return <UiScrollViewFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiScrollView', ...c })} />
       }
       case 'AudioSource': {
         const { kind: _k, ...config } = behavior

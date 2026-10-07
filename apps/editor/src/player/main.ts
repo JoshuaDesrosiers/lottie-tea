@@ -160,6 +160,16 @@ async function boot() {
   })
   window.addEventListener('pointercancel', () => keys.delete('mouse'))
   canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+  // Wheel since the last frame (UI Scroll Views).
+  let wheel = { x: 0, y: 0 }
+  canvas.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault()
+      wheel = { x: wheel.x + e.deltaX, y: wheel.y + e.deltaY }
+    },
+    { passive: false },
+  )
 
   /** Canvas-box point -> world: the visible frame spans the whole box. */
   const screenToGame = (scene: OpaqueId, x: number, y: number, w: number, h: number) => {
@@ -223,6 +233,7 @@ async function boot() {
           // clicks and taps line up at any size, phones included.
           mouseWorld: screenToGame(live.id, mouseClient.x - rect.left, mouseClient.y - rect.top, rect.width, rect.height),
           mouseDelta,
+          wheel,
           gestures: gestures.take(),
           keysDown: keys,
           pointerLocked: document.pointerLockElement === canvas,
@@ -248,6 +259,7 @@ async function boot() {
         }
       }
       mouseDelta = { x: 0, y: 0 }
+      wheel = { x: 0, y: 0 }
       perf.endFrame(editor, deltaSeconds * 1000, now)
     } catch (err) {
       // Logged sparingly: a per-frame error would otherwise flood the console.

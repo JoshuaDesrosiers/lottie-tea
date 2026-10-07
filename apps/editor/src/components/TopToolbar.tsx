@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
-import type { ShapePreset } from '../ipc/wasmEditor'
+import { UI_MENU_ITEMS, type ShapePreset, type UiMenuItem } from '../ipc/wasmEditor'
 import type { Light2DType, Node3DItem } from '../ipc/document'
 import { useLayoutMetrics } from '../layoutMetrics'
 import { FloatingPanel } from './FloatingPanel'
@@ -123,7 +123,7 @@ function ShapesMenu({
   /** "3D" items — a Node3D mesh / camera / light / pivot. */
   onAddNode3D: (item: Node3DItem) => void
   /** "UI" items — Button / Panel / Label / Stack, under the Camera (HUD). */
-  onAddUi: (item: 'Button' | 'Panel' | 'Label' | 'Stack') => void
+  onAddUi: (item: UiMenuItem) => void
   /** "Light 2D" items — a Unity-style Light 2D node of the given type. */
   onAddLight2D: (lightType: Light2DType) => void
   /** "Trail Renderer" — attaches to the selected node (so it follows it). */
@@ -193,7 +193,7 @@ function ShapesMenu({
       kind: 'submenu',
       label: 'UI',
       icon: <SparkleIcon />,
-      children: (['Button', 'Panel', 'Label', 'Stack'] as const).map((item): AddMenuEntry => ({ kind: 'item', label: item, icon: <SparkleIcon />, onSelect: () => onAddUi(item) })),
+      children: UI_MENU_ITEMS.map((item): AddMenuEntry => ({ kind: 'item', label: item === 'ScrollView' ? 'Scroll View' : item, icon: <SparkleIcon />, onSelect: () => onAddUi(item) })),
     },
     {
       kind: 'submenu',
@@ -465,7 +465,7 @@ export function TopToolbar({
   /** "3D" items — a Node3D mesh / camera / light / pivot. */
   onAddNode3D: (item: Node3DItem) => void
   /** "UI" items — Button / Panel / Label / Stack, under the Camera (HUD). */
-  onAddUi: (item: 'Button' | 'Panel' | 'Label' | 'Stack') => void
+  onAddUi: (item: UiMenuItem) => void
   /** "Light 2D" items — a Unity-style Light 2D node of the given type. */
   onAddLight2D: (lightType: Light2DType) => void
   /** "Trail Renderer" — attaches to the selected node (so it follows it). */

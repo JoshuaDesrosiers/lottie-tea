@@ -154,8 +154,11 @@ export interface ScriptContext {
   stopAllSounds(): void
   /** The game's overall volume (0..1). */
   setMasterVolume(volume: number): void
-  /** Host primitive behind `ref.clicked` / `ref.hovered` / `ref.pressed`. */
-  buttonState(node: OpaqueId): { hovered: boolean; pressed: boolean; clicked: boolean }
+  /** Host primitive behind `ref.clicked` / `hovered` / `pressed` /
+   * `changed` / `value` / `isOn` / `scroll` (UI controls). */
+  uiState(node: OpaqueId): { hovered: boolean; pressed: boolean; clicked: boolean; changed: boolean; value: number; isOn: boolean; scroll: number }
+  /** `ref.value = ...` / `ref.isOn = ...` / `ref.scroll = ...`. */
+  setUiState(node: OpaqueId, patch: { value?: number; isOn?: boolean; scroll?: number }): void
   /** Host primitives behind `ref.playAudio()` / `ref.stopAudio()`. */
   playAudioSource(node: OpaqueId, options?: { volume?: number; pitch?: number }): SoundHandle | null
   stopAudioSource(node: OpaqueId): void
@@ -394,12 +397,21 @@ export interface ComponentRef {
    * stop what it's playing. */
   playAudio(options?: { volume?: number; pitch?: number }): SoundHandle | null
   stopAudio(): void
-  /** Nodes with a **UI Button**: `true` on the frame it was clicked
-   * (pressed and released over it); while the pointer is over it; while
-   * it's held down. */
+  /** UI Buttons / Toggles (and other UI controls): `true` on the frame it
+   * was clicked (pressed and released over it); while the pointer is over
+   * it; while it's held down. */
   readonly clicked: boolean
   readonly hovered: boolean
   readonly pressed: boolean
+  /** UI Slider / Toggle / Scrollbar / Scroll View: `true` on frames its
+   * value changed (dragged, clicked, or set by a script). */
+  readonly changed: boolean
+  /** UI Slider: its value (min..max). UI Scrollbar / Scroll View: 0..1. */
+  value: number
+  /** UI Toggle: on / off. */
+  isOn: boolean
+  /** UI Scroll View: how far the content is scrolled (world units). */
+  scroll: number
   /** Tilemap nodes: replaces the whole grid — row-major, `mapWidth *
    * mapHeight` tile indices (`-1` = empty). Procedural levels. */
   setTiles(tiles: number[]): void
@@ -699,9 +711,13 @@ function makeComponentRefFromState(
       get: () => vec3(current3d()?.scale),
       set: (v: { x: number; y: number; z: number } | null) => v && write3d({ scale: [v.x, v.y, v.z] }),
     },
-    clicked: { enumerable: true, get: () => ctx.buttonState(node.id).clicked },
-    hovered: { enumerable: true, get: () => ctx.buttonState(node.id).hovered },
-    pressed: { enumerable: true, get: () => ctx.buttonState(node.id).pressed },
+    clicked: { enumerable: true, get: () => ctx.uiState(node.id).clicked },
+    hovered: { enumerable: true, get: () => ctx.uiState(node.id).hovered },
+    pressed: { enumerable: true, get: () => ctx.uiState(node.id).pressed },
+    changed: { enumerable: true, get: () => ctx.uiState(node.id).changed },
+    value: { enumerable: true, get: () => ctx.uiState(node.id).value, set: (v: number) => ctx.setUiState(node.id, { value: Number(v) }) },
+    isOn: { enumerable: true, get: () => ctx.uiState(node.id).isOn, set: (v: boolean) => ctx.setUiState(node.id, { isOn: !!v }) },
+    scroll: { enumerable: true, get: () => ctx.uiState(node.id).scroll, set: (v: number) => ctx.setUiState(node.id, { scroll: Number(v) }) },
     playAudio: {
       enumerable: false,
       value: (options?: { volume?: number; pitch?: number }) => ctx.playAudioSource(node.id, options),

@@ -936,8 +936,13 @@ export function bindSpriteSkin(editor: WasmEditor, artboard: OpaqueId, node: Opa
 /** Script API: untracked Rigidbody 2D body type switch (`deep` = whole subtree). */
 // ---- UI ----
 
+/** Everything the + → UI menu can add (`WasmEditor::add_ui_node`). */
+export type UiMenuItem = 'Button' | 'Toggle' | 'Slider' | 'Scrollbar' | 'ScrollView' | 'Panel' | 'Label' | 'Stack'
+/** Menu order, with display names. */
+export const UI_MENU_ITEMS: UiMenuItem[] = ['Button', 'Toggle', 'Slider', 'Scrollbar', 'ScrollView', 'Panel', 'Label', 'Stack']
+
 /** The + menu's UI items, under the active camera (HUD). One undo step. */
-export function addUiNode(editor: WasmEditor, artboard: OpaqueId, item: 'Button' | 'Panel' | 'Label' | 'Stack'): AddNodeResult {
+export function addUiNode(editor: WasmEditor, artboard: OpaqueId, item: UiMenuItem): AddNodeResult {
   return editor.add_ui_node(artboard, item) as AddNodeResult
 }
 
@@ -1090,6 +1095,12 @@ export function commitNodeRotation(editor: WasmEditor, artboard: OpaqueId, node:
  * the transform tool's corner handles scale around the opposite corner
  * (`TransformHandles.tsx`'s corner-drag math), which keeps that corner fixed
  * in world space by moving the node's origin as it grows/shrinks. */
+/** A node's current local bounds `[minX, minY, maxX, maxY]` (UI scroll views). */
+export function nodeLocalBounds(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId): [number, number, number, number] {
+  const b = editor.node_local_bounds(artboard, node)
+  return [b[0] ?? 0, b[1] ?? 0, b[2] ?? 0, b[3] ?? 0]
+}
+
 export function previewNodeScale(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, x: number, y: number, scaleX: number, scaleY: number): void {
   editor.preview_node_scale(artboard, node, x, y, scaleX, scaleY)
 }

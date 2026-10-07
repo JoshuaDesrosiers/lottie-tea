@@ -70,23 +70,196 @@ impl Default for UiStack {
     }
 }
 
+/// How a [`UiButton`] (or any interactive UI control) shows its state —
+/// Unity's `Selectable.transition`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum UiTransition {
+    /// No visual change (scripts still get clicks).
+    None,
+    /// Multiply the node's own colour by the state's colour.
+    #[default]
+    ColorTint,
+    /// Show a different image per state (an Image node, or a Shape's image
+    /// fill); states without one keep the normal image.
+    SpriteSwap,
+}
+
+/// One colour / image / scale per interaction state — Unity's `ColorBlock`
+/// (+ `SpriteState`), shared by buttons, slider handles and scrollbar
+/// handles.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiStateStyle {
+    pub transition: UiTransition,
+    pub normal_color: [f32; 4],
+    pub highlighted_color: [f32; 4],
+    pub pressed_color: [f32; 4],
+    pub disabled_color: [f32; 4],
+    /// Brightens / darkens every state colour (Unity's multiplier).
+    pub color_multiplier: f32,
+    /// Seconds to blend between states' colours (0 = instant).
+    pub fade_duration: f32,
+    pub highlighted_image: Option<crate::ImageId>,
+    pub pressed_image: Option<crate::ImageId>,
+    pub disabled_image: Option<crate::ImageId>,
+    /// Scale while hovered / held (1 = unchanged) — a hover "lift" and a
+    /// press "push in".
+    pub highlighted_scale: f32,
+    pub pressed_scale: f32,
+    /// Also tint the node's children (a button's label) with the state colour.
+    pub tint_children: bool,
+}
+
+impl Default for UiStateStyle {
+    fn default() -> Self {
+        // Unity's defaults (normal white, highlighted / pressed slightly
+        // darker, disabled faded) plus a small press-in.
+        Self {
+            transition: UiTransition::ColorTint,
+            normal_color: [1.0, 1.0, 1.0, 1.0],
+            highlighted_color: [0.96, 0.96, 0.96, 1.0],
+            pressed_color: [0.78, 0.78, 0.78, 1.0],
+            disabled_color: [0.78, 0.78, 0.78, 0.5],
+            color_multiplier: 1.0,
+            fade_duration: 0.1,
+            highlighted_image: None,
+            pressed_image: None,
+            disabled_image: None,
+            highlighted_scale: 1.0,
+            pressed_scale: 0.95,
+            tint_children: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UiButton {
-    /// Multiplies the node's fill while the pointer is over it.
-    pub hover_tint: [f32; 4],
-    /// … and while it's held down.
-    pub pressed_tint: [f32; 4],
-    /// Scale while held (a "press in" — 1 = none).
-    pub pressed_scale: f32,
-    /// Off = no feedback and no clicks (a greyed-out button).
+    /// Off = the disabled look, and no clicks.
     pub interactable: bool,
+    #[serde(default)]
+    pub style: UiStateStyle,
 }
 
 impl Default for UiButton {
     fn default() -> Self {
-        Self { hover_tint: [1.15, 1.15, 1.15, 1.0], pressed_tint: [0.8, 0.8, 0.8, 1.0], pressed_scale: 0.94, interactable: true }
+        Self { interactable: true, style: UiStateStyle::default() }
     }
+}
+
+/// Which way a [`UiSlider`] / [`UiScrollbar`] fills.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum UiFillDirection {
+    #[default]
+    LeftToRight,
+    RightToLeft,
+    BottomToTop,
+    TopToBottom,
+}
+
+/// Unity's `Slider`: on a track shape whose children named **"Fill"** (a
+/// shape stretched from the start up to the value) and **"Handle"** (moved
+/// to the value) are positioned for it. Drag the track or handle to change
+/// the value; scripts read / write `ref.value` and see `ref.changed`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiSlider {
+    pub min: f32,
+    pub max: f32,
+    pub value: f32,
+    /// Snap to integers (a 1–10 volume step, a level picker).
+    pub whole_numbers: bool,
+    pub direction: UiFillDirection,
+    pub interactable: bool,
+    /// The handle's state look.
+    #[serde(default)]
+    pub style: UiStateStyle,
+}
+
+impl Default for UiSlider {
+    fn default() -> Self {
+        Self { min: 0.0, max: 1.0, value: 0.5, whole_numbers: false, direction: UiFillDirection::LeftToRight, interactable: true, style: UiStateStyle::default() }
+    }
+}
+
+/// Unity's `Scrollbar`: on a track shape whose child named **"Handle"** is
+/// sized to `size` of the track and placed by `value` (0..1). Drag the
+/// handle (or click the track to jump).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiScrollbar {
+    pub value: f32,
+    /// The handle's length as a fraction of the track (0.1..1).
+    pub size: f32,
+    pub direction: UiFillDirection,
+    /// 0 = continuous; else the value snaps to that many positions.
+    pub steps: u32,
+    pub interactable: bool,
+    #[serde(default)]
+    pub style: UiStateStyle,
+}
+
+impl Default for UiScrollbar {
+    fn default() -> Self {
+        Self { value: 0.0, size: 0.25, direction: UiFillDirection::TopToBottom, steps: 0, interactable: true, style: UiStateStyle::default() }
+    }
+}
+
+/// Unity's `ScrollRect`: a viewport (turn on *Clip children to this shape*)
+/// whose child named **"Content"** scrolls by dragging and the mouse wheel,
+/// within its bounds. A child named **"Scrollbar"** (with a UI Scrollbar)
+/// is kept in sync both ways.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiScrollView {
+    pub horizontal: bool,
+    pub vertical: bool,
+    /// World units per wheel notch.
+    pub wheel_step: f32,
+    /// Keep sliding after a drag is released (with this much friction per
+    /// second; 0 = stop at once).
+    pub inertia: bool,
+}
+
+impl Default for UiScrollView {
+    fn default() -> Self {
+        Self { horizontal: false, vertical: true, wheel_step: 40.0, inertia: true }
+    }
+}
+
+/// Unity's `Toggle` (+ `ToggleGroup`): a box whose child named
+/// **"Checkmark"** is shown while it's on. Clicking flips it; toggles that
+/// share a non-zero `group` (siblings or not) act as radio buttons — turning
+/// one on turns the others off. Scripts read / write `ref.isOn` and see
+/// `ref.changed`.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiToggle {
+    pub is_on: bool,
+    pub interactable: bool,
+    /// 0 = independent; else a radio group number.
+    pub group: u32,
+    /// In a group: whether clicking the on toggle turns it off (leaving
+    /// none on). Unity's `ToggleGroup.allowSwitchOff`.
+    pub allow_switch_off: bool,
+    /// The box's state look.
+    #[serde(default)]
+    pub style: UiStateStyle,
+}
+
+impl Default for UiToggle {
+    fn default() -> Self {
+        Self { is_on: false, interactable: true, group: 0, allow_switch_off: false, style: UiStateStyle::default() }
+    }
+}
+
+/// The 0..1 position of a value in `[min, max]`.
+pub fn slider_fraction(slider: &UiSlider) -> f32 {
+    let span = slider.max - slider.min;
+    if span.abs() < f32::EPSILON {
+        return 0.0;
+    }
+    ((slider.value - slider.min) / span).clamp(0.0, 1.0)
 }
 
 /// Lays out `sizes` (each child's `(width, height)`, centred on its own
@@ -123,6 +296,21 @@ pub fn stack_positions(stack: &UiStack, sizes: &[Vec2]) -> Vec<Vec2> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slider_fraction_clamps_and_handles_empty_ranges() {
+        let s = UiSlider { min: 10.0, max: 20.0, value: 15.0, ..Default::default() };
+        assert_eq!(slider_fraction(&s), 0.5);
+        assert_eq!(slider_fraction(&UiSlider { value: 99.0, ..s }), 1.0);
+        assert_eq!(slider_fraction(&UiSlider { min: 3.0, max: 3.0, ..s }), 0.0);
+    }
+
+    #[test]
+    fn old_buttons_load_with_the_default_style() {
+        // A button saved before state styling existed (it had tints).
+        let old: UiButton = serde_json::from_str(r#"{"hoverTint":[1,1,1,1],"pressedTint":[1,1,1,1],"pressedScale":0.9,"interactable":true}"#).unwrap();
+        assert_eq!(old.style, UiStateStyle::default());
+    }
 
     #[test]
     fn a_vertical_stack_runs_down_with_spacing() {

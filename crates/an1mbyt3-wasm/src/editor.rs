@@ -5597,6 +5597,10 @@ impl WasmEditor {
             "UiAnchor" => B::UiAnchor(an1mbyt3_core::UiAnchor::default()),
             "UiStack" => B::UiStack(an1mbyt3_core::UiStack::default()),
             "UiButton" => B::UiButton(an1mbyt3_core::UiButton::default()),
+            "UiSlider" => B::UiSlider(an1mbyt3_core::UiSlider::default()),
+            "UiScrollbar" => B::UiScrollbar(an1mbyt3_core::UiScrollbar::default()),
+            "UiScrollView" => B::UiScrollView(an1mbyt3_core::UiScrollView::default()),
+            "UiToggle" => B::UiToggle(an1mbyt3_core::UiToggle::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -6599,8 +6603,11 @@ impl WasmEditor {
 
     /// The + menu's UI items, added under the scene's active Camera (the HUD
     /// layer) when it has one: `"Button"` (a rounded panel + label with a
-    /// UI Button), `"Panel"`, `"Label"` (text), `"Stack"` (a group that
-    /// lays out its children). Undoable as one step. Returns
+    /// UI Button), `"Toggle"` (box + Checkmark + label), `"Slider"` (track +
+    /// Fill + Handle), `"Scrollbar"` (track + Handle), `"ScrollView"` (a
+    /// clipped viewport with a Content stack and a linked Scrollbar),
+    /// `"Panel"`, `"Label"` (text), `"Stack"` (a group that lays out its
+    /// children). Undoable as one step. Returns
     /// `{ document, newNode }`.
     pub fn add_ui_node(&mut self, artboard: JsValue, what: &str) -> Result<JsValue, JsValue> {
         use an1mbyt3_core::NodeBehavior as B;
@@ -6618,6 +6625,81 @@ impl WasmEditor {
                 let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
                 inverses.push(inverse);
                 inverses.push(Command::AddNode { artboard: artboard_id, node: label("Button", 20.0, Some(id)) }.apply(&mut self.document));
+                id
+            }
+            // A track with Fill + Handle children (positioned by the host).
+            "Slider" => {
+                let mut track = shape("Slider", 220.0, 8.0, [0.16, 0.17, 0.22, 1.0]);
+                track.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiSlider(an1mbyt3_core::UiSlider::default()), enabled: true });
+                let inverse = Command::AddNode { artboard: artboard_id, node: track }.apply(&mut self.document);
+                let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                let mut fill = shape("Fill", 220.0, 8.0, [0.28, 0.39, 0.84, 1.0]);
+                fill.parent = Some(id);
+                inverses.push(Command::AddNode { artboard: artboard_id, node: fill }.apply(&mut self.document));
+                let mut handle = Node::new("Handle", Some(id), NodeKind::Shape(ShapeNode { path: an1mbyt3_core::Path::ellipse(20.0, 20.0), fill_color: [1.0; 4], blend_mode: Default::default(), gradient: None, image: None, stroke: None }));
+                handle.parent = Some(id);
+                inverses.push(Command::AddNode { artboard: artboard_id, node: handle }.apply(&mut self.document));
+                id
+            }
+            // A box with a Checkmark child (shown while on) and a label.
+            "Toggle" => {
+                let mut toggle = shape("Toggle", 26.0, 26.0, [0.16, 0.17, 0.22, 1.0]);
+                toggle.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiToggle(an1mbyt3_core::UiToggle { is_on: true, ..Default::default() }), enabled: true });
+                let inverse = Command::AddNode { artboard: artboard_id, node: toggle }.apply(&mut self.document);
+                let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                let mut check = shape("Checkmark", 14.0, 14.0, [0.4, 0.55, 1.0, 1.0]);
+                check.parent = Some(id);
+                inverses.push(Command::AddNode { artboard: artboard_id, node: check }.apply(&mut self.document));
+                let mut text = label("Toggle", 16.0, Some(id));
+                text.transform.translation = Vec2::new(60.0, 0.0);
+                inverses.push(Command::AddNode { artboard: artboard_id, node: text }.apply(&mut self.document));
+                id
+            }
+            // A track with a Handle child.
+            "Scrollbar" => {
+                let mut track = shape("Scrollbar", 12.0, 180.0, [0.16, 0.17, 0.22, 1.0]);
+                track.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiScrollbar(an1mbyt3_core::UiScrollbar::default()), enabled: true });
+                let inverse = Command::AddNode { artboard: artboard_id, node: track }.apply(&mut self.document);
+                let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                let mut handle = shape("Handle", 12.0, 180.0, [0.55, 0.57, 0.66, 1.0]);
+                handle.parent = Some(id);
+                inverses.push(Command::AddNode { artboard: artboard_id, node: handle }.apply(&mut self.document));
+                id
+            }
+            // A clipped viewport with a stacked Content list and a Scrollbar.
+            "ScrollView" => {
+                let mut view = shape("Scroll View", 260.0, 200.0, [0.08, 0.08, 0.11, 0.9]);
+                view.clip_children = true;
+                view.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiScrollView(an1mbyt3_core::UiScrollView::default()), enabled: true });
+                let inverse = Command::AddNode { artboard: artboard_id, node: view }.apply(&mut self.document);
+                let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                let mut content = Node::new("Content", Some(id), NodeKind::Group(an1mbyt3_core::GroupNode::default()));
+                content.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiStack(an1mbyt3_core::UiStack { spacing: 6.0, padding: 8.0, ..Default::default() }), enabled: true });
+                let inverse = Command::AddNode { artboard: artboard_id, node: content }.apply(&mut self.document);
+                let Command::SetDeleted { node: content_id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                for i in 1..=10 {
+                    let mut row = shape(&format!("Item {i}"), 220.0, 30.0, [0.18, 0.2, 0.27, 1.0]);
+                    row.parent = Some(content_id);
+                    let inverse = Command::AddNode { artboard: artboard_id, node: row }.apply(&mut self.document);
+                    let Command::SetDeleted { node: row_id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                    inverses.push(inverse);
+                    inverses.push(Command::AddNode { artboard: artboard_id, node: label(&format!("Item {i}"), 14.0, Some(row_id)) }.apply(&mut self.document));
+                }
+                let mut bar = shape("Scrollbar", 10.0, 188.0, [0.12, 0.13, 0.17, 1.0]);
+                bar.parent = Some(id);
+                bar.transform.translation = Vec2::new(121.0, 0.0);
+                bar.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiScrollbar(an1mbyt3_core::UiScrollbar::default()), enabled: true });
+                let inverse = Command::AddNode { artboard: artboard_id, node: bar }.apply(&mut self.document);
+                let Command::SetDeleted { node: bar_id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                let mut handle = shape("Handle", 10.0, 188.0, [0.5, 0.52, 0.62, 1.0]);
+                handle.parent = Some(bar_id);
+                inverses.push(Command::AddNode { artboard: artboard_id, node: handle }.apply(&mut self.document));
                 id
             }
             "Panel" | "Label" | "Stack" => {
@@ -6640,6 +6722,17 @@ impl WasmEditor {
         inverses.reverse();
         self.document.commit_batch(inverses);
         to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node: root })
+    }
+
+    /// A node's *current* local bounds `[min x, min y, max x, max y]` — for
+    /// the host's scroll views, whose content (a stack laid out this frame)
+    /// changes size.
+    pub fn node_local_bounds(&self, artboard: JsValue, node: JsValue) -> Result<Vec<f32>, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let Some(a) = self.document.artboard(artboard_id).filter(|a| a.node(node_id).is_some()) else { return Ok(vec![0.0; 4]) };
+        let (min, max) = crate::dto::local_bounds(a, node_id);
+        Ok(vec![min.x, min.y, max.x, max.y])
     }
 
     /// The Inspector's 3D section: replaces a Node3D's transform + content.

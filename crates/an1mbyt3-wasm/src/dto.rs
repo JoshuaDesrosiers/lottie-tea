@@ -2050,6 +2050,10 @@ pub enum NodeBehaviorDto {
     UiAnchor(an1mbyt3_core::UiAnchor),
     UiStack(an1mbyt3_core::UiStack),
     UiButton(an1mbyt3_core::UiButton),
+    UiSlider(an1mbyt3_core::UiSlider),
+    UiScrollbar(an1mbyt3_core::UiScrollbar),
+    UiScrollView(an1mbyt3_core::UiScrollView),
+    UiToggle(an1mbyt3_core::UiToggle),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2078,6 +2082,10 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::UiAnchor(c) => NodeBehaviorDto::UiAnchor(*c),
             an1mbyt3_core::NodeBehavior::UiStack(c) => NodeBehaviorDto::UiStack(*c),
             an1mbyt3_core::NodeBehavior::UiButton(c) => NodeBehaviorDto::UiButton(*c),
+            an1mbyt3_core::NodeBehavior::UiSlider(c) => NodeBehaviorDto::UiSlider(*c),
+            an1mbyt3_core::NodeBehavior::UiScrollbar(c) => NodeBehaviorDto::UiScrollbar(*c),
+            an1mbyt3_core::NodeBehavior::UiScrollView(c) => NodeBehaviorDto::UiScrollView(*c),
+            an1mbyt3_core::NodeBehavior::UiToggle(c) => NodeBehaviorDto::UiToggle(*c),
         }
     }
 }
@@ -2108,6 +2116,10 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::UiAnchor(c) => an1mbyt3_core::NodeBehavior::UiAnchor(c),
             NodeBehaviorDto::UiStack(c) => an1mbyt3_core::NodeBehavior::UiStack(c),
             NodeBehaviorDto::UiButton(c) => an1mbyt3_core::NodeBehavior::UiButton(c),
+            NodeBehaviorDto::UiSlider(c) => an1mbyt3_core::NodeBehavior::UiSlider(c),
+            NodeBehaviorDto::UiScrollbar(c) => an1mbyt3_core::NodeBehavior::UiScrollbar(c),
+            NodeBehaviorDto::UiScrollView(c) => an1mbyt3_core::NodeBehavior::UiScrollView(c),
+            NodeBehaviorDto::UiToggle(c) => an1mbyt3_core::NodeBehavior::UiToggle(c),
         }
     }
 }

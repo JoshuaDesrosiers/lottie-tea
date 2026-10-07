@@ -44,6 +44,11 @@ pub struct ScriptNodeDto {
     pub audio_source: Option<an1mbyt3_core::AudioSource>,
     /// The node's UI Button (hover / press / click, handled by the host).
     pub button: Option<an1mbyt3_core::UiButton>,
+    /// The node's UI Slider / Scrollbar / Scroll View (handled by the host).
+    pub slider: Option<an1mbyt3_core::UiSlider>,
+    pub scrollbar: Option<an1mbyt3_core::UiScrollbar>,
+    pub scroll_view: Option<an1mbyt3_core::UiScrollView>,
+    pub toggle: Option<an1mbyt3_core::UiToggle>,
     /// Local-space bounds `[min x, min y, max x, max y]` (button hit tests).
     pub bounds: [f32; 4],
 }
@@ -135,6 +140,22 @@ pub fn scene(document: &Document, artboard: &Artboard) -> ScriptSceneDto {
                 audio_source: node.audio_source().copied(),
                 button: node.behaviors.iter().find_map(|e| match &e.behavior {
                     an1mbyt3_core::NodeBehavior::UiButton(b) if e.enabled => Some(*b),
+                    _ => None,
+                }),
+                slider: node.behaviors.iter().find_map(|e| match &e.behavior {
+                    an1mbyt3_core::NodeBehavior::UiSlider(b) if e.enabled => Some(*b),
+                    _ => None,
+                }),
+                scrollbar: node.behaviors.iter().find_map(|e| match &e.behavior {
+                    an1mbyt3_core::NodeBehavior::UiScrollbar(b) if e.enabled => Some(*b),
+                    _ => None,
+                }),
+                scroll_view: node.behaviors.iter().find_map(|e| match &e.behavior {
+                    an1mbyt3_core::NodeBehavior::UiScrollView(b) if e.enabled => Some(*b),
+                    _ => None,
+                }),
+                toggle: node.behaviors.iter().find_map(|e| match &e.behavior {
+                    an1mbyt3_core::NodeBehavior::UiToggle(b) if e.enabled => Some(*b),
                     _ => None,
                 }),
                 bounds: {

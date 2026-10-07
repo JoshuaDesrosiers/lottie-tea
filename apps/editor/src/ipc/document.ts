@@ -1036,12 +1036,77 @@ export interface UiStackConfig {
   align: 'Start' | 'Center' | 'End'
 }
 
+/** How a UI control shows its state (`an1mbyt3_core::UiTransition`). */
+export type UiTransition = 'None' | 'ColorTint' | 'SpriteSwap'
+
+/**
+ * A colour / image / scale per interaction state — Unity's `ColorBlock` +
+ * `SpriteState` (`an1mbyt3_core::UiStateStyle`).
+ */
+export interface UiStateStyle {
+  transition: UiTransition
+  normalColor: [number, number, number, number]
+  highlightedColor: [number, number, number, number]
+  pressedColor: [number, number, number, number]
+  disabledColor: [number, number, number, number]
+  colorMultiplier: number
+  /** Seconds to blend between states (0 = instant). */
+  fadeDuration: number
+  highlightedImage: OpaqueId | null
+  pressedImage: OpaqueId | null
+  disabledImage: OpaqueId | null
+  highlightedScale: number
+  pressedScale: number
+  /** Also tint the children (a button's label). */
+  tintChildren: boolean
+}
+
 /** Hover / press feedback and clicks (`an1mbyt3_core::UiButton`). */
 export interface UiButtonConfig {
-  hoverTint: [number, number, number, number]
-  pressedTint: [number, number, number, number]
-  pressedScale: number
   interactable: boolean
+  style: UiStateStyle
+}
+
+export type UiFillDirection = 'LeftToRight' | 'RightToLeft' | 'BottomToTop' | 'TopToBottom'
+
+/** A value slider; positions its "Fill" / "Handle" children (`an1mbyt3_core::UiSlider`). */
+export interface UiSliderConfig {
+  min: number
+  max: number
+  value: number
+  wholeNumbers: boolean
+  direction: UiFillDirection
+  interactable: boolean
+  style: UiStateStyle
+}
+
+/** A scrollbar; sizes / places its "Handle" child (`an1mbyt3_core::UiScrollbar`). */
+export interface UiScrollbarConfig {
+  value: number
+  size: number
+  direction: UiFillDirection
+  /** 0 = continuous, else that many positions. */
+  steps: number
+  interactable: boolean
+  style: UiStateStyle
+}
+
+/** Scrolls its "Content" child (`an1mbyt3_core::UiScrollView`). */
+export interface UiScrollViewConfig {
+  horizontal: boolean
+  vertical: boolean
+  wheelStep: number
+  inertia: boolean
+}
+
+/** A checkbox / radio button; shows its "Checkmark" child while on (`an1mbyt3_core::UiToggle`). */
+export interface UiToggleConfig {
+  isOn: boolean
+  interactable: boolean
+  /** 0 = independent, else a radio group. */
+  group: number
+  allowSwitchOff: boolean
+  style: UiStateStyle
 }
 
 /** One imported sound. */
@@ -1190,6 +1255,10 @@ export type NodeBehavior =
   | ({ kind: 'UiAnchor' } & UiAnchorConfig)
   | ({ kind: 'UiStack' } & UiStackConfig)
   | ({ kind: 'UiButton' } & UiButtonConfig)
+  | ({ kind: 'UiSlider' } & UiSliderConfig)
+  | ({ kind: 'UiScrollbar' } & UiScrollbarConfig)
+  | ({ kind: 'UiScrollView' } & UiScrollViewConfig)
+  | ({ kind: 'UiToggle' } & UiToggleConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

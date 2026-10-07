@@ -79,8 +79,16 @@ pub enum NodeBehavior {
     /// Row / column layout of the children — see [`crate::UiStack`].
     UiStack(crate::UiStack),
     /// Hover / press feedback and clicks — see [`crate::UiButton`].
-    /// (Appended last.)
     UiButton(crate::UiButton),
+    /// A value slider — see [`crate::UiSlider`].
+    UiSlider(crate::UiSlider),
+    /// A scrollbar — see [`crate::UiScrollbar`].
+    UiScrollbar(crate::UiScrollbar),
+    /// A scrolling viewport — see [`crate::UiScrollView`].
+    UiScrollView(crate::UiScrollView),
+    /// An on / off checkbox or radio button — see [`crate::UiToggle`].
+    /// (Appended last.)
+    UiToggle(crate::UiToggle),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

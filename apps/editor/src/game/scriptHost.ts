@@ -18,6 +18,7 @@
 import { audio, type SoundHandle } from './audio'
 import type { ArtboardSummary, OpaqueId, StateMachineDefSummary, StateMachineSummary } from '../ipc/document'
 import { SceneMirror, type ScriptNode } from './sceneMirror'
+import { UiControls } from './uiControls'
 import { gameStorage } from './storage'
 import {
   deleteNode,
@@ -39,6 +40,7 @@ import {
   previewNodeAnchor,
   previewNodePath,
   previewNodeScale,
+  nodeLocalBounds,
   previewTextContent,
   previewTilemapTiles,
   previewBodyType,
@@ -139,6 +141,9 @@ export interface ScriptFrame {
   machine: StateMachineDefSummary | undefined
   mouseWorld: { x: number; y: number }
   mouseDelta: { x: number; y: number }
+  /** Mouse-wheel movement since last frame (pixels, +y = scroll down);
+   * drives UI Scroll Views. */
+  wheel?: { x: number; y: number }
   /** This frame's tap / swipe (`PointerGestures.take()`). */
   gestures: { tap: boolean; swipe: Swipe | null }
   keysDown: ReadonlySet<string>
@@ -184,68 +189,32 @@ export class ScriptHost {
    * Returns the scene name a script asked to `loadScene`, if any — the
    * caller switches scenes *after* the frame, so no script ever sees half
    * of one scene and half of another. */
-  /** Per UI Button node: pointer state, and the look it had before feedback. */
-  private buttons = new Map<string, { hovered: boolean; pressed: boolean; clicked: boolean; baseColor: [number, number, number, number] | null; baseScale: { x: number; y: number } | null; look: string }>()
-  private buttonSession: unknown = null
-  private mouseWasDown = false
+  /** UI Button / Toggle / Slider / Scrollbar / Scroll View behaviour. */
+  private readonly ui = new UiControls()
 
-  /** Hover / press / click for every UI Button, with its visual feedback. */
-  private updateButtons(frame: ScriptFrame, nodes: ScriptNode[]): void {
+  /** Hover / press / drag for every UI control, with its visual feedback. */
+  private updateUi(frame: ScriptFrame, nodes: ScriptNode[]): void {
     const { editor, scene } = frame
-    if (frame.globals !== this.buttonSession) {
-      this.buttons.clear()
-      this.buttonSession = frame.globals
-    }
-    const down = frame.keysDown.has('mouse')
-    const pressedNow = down && !this.mouseWasDown
-    const releasedNow = !down && this.mouseWasDown
-    this.mouseWasDown = down
-    const m = frame.mouseWorld
-    for (const n of nodes) {
-      const cfg = n.button
-      if (!cfg || !n.visible) continue
-      const key = `${n.id.idx}:${n.id.version}`
-      let state = this.buttons.get(key)
-      if (!state) {
-        state = { hovered: false, pressed: false, clicked: false, baseColor: n.fillColor, baseScale: { x: n.transform.scale.x, y: n.transform.scale.y }, look: '' }
-        this.buttons.set(key, state)
-      }
-      // The pointer in the node's own space (inverse of its world transform).
-      const t = n.worldTransform
-      const dx = m.x - t.translation.x, dy = m.y - t.translation.y
-      const c = Math.cos(-t.rotation), s = Math.sin(-t.rotation)
-      const lx = (dx * c - dy * s) / (t.scale.x || 1) + t.anchor.x
-      const ly = (dx * s + dy * c) / (t.scale.y || 1) + t.anchor.y
-      const [x0, y0, x1, y1] = n.bounds
-      const over = cfg.interactable && lx >= x0 && lx <= x1 && ly >= y0 && ly <= y1
-      state.clicked = false
-      if (cfg.interactable) {
-        if (pressedNow && over) state.pressed = true
-        if (releasedNow) {
-          state.clicked = state.pressed && over
-          state.pressed = false
-        }
-      } else {
-        state.pressed = false
-      }
-      state.hovered = over
-      // Feedback: tint the fill, "press in" the scale (only on change).
-      const look = !cfg.interactable ? 'off' : state.pressed ? 'pressed' : over ? 'hover' : 'idle'
-      if (look !== state.look) {
-        state.look = look
-        const base = state.baseColor
-        if (base) {
-          const tint = look === 'pressed' ? cfg.pressedTint : look === 'hover' ? cfg.hoverTint : look === 'off' ? [0.55, 0.55, 0.55, 0.7] : [1, 1, 1, 1]
-          this.writes.push(6, n.id, Math.min(1, base[0] * tint[0]), Math.min(1, base[1] * tint[1]), Math.min(1, base[2] * tint[2]), base[3] * tint[3])
-        }
-        const bs = state.baseScale
-        if (bs) {
-          const k = look === 'pressed' ? cfg.pressedScale : 1
+    this.ui.update(
+      {
+        mouse: frame.mouseWorld,
+        down: frame.keysDown.has('mouse'),
+        wheel: frame.wheel ?? { x: 0, y: 0 },
+        dt: frame.deltaSeconds,
+        liveBounds: (node) => nodeLocalBounds(editor, scene.id, node),
+        setFill: (node, c) => this.writes.push(6, node, c[0], c[1], c[2], c[3]),
+        setImage: (node, image) => this.writes.push(5, node, image.idx, image.version),
+        setVisible: (node, visible) => this.writes.push(4, node, visible ? 1 : 0),
+        setTranslation: (node, x, y) => this.writes.push(1, node, x, y),
+        setScale: (node, sx, sy, tx, ty) => {
+          // Immediate (not batched) - flush first so write order holds.
           this.writes.flush()
-          previewNodeScale(editor, scene.id, n.id, n.transform.translation.x, n.transform.translation.y, bs.x * k, bs.y * k)
-        }
-      }
-    }
+          previewNodeScale(editor, scene.id, node, tx, ty, sx, sy)
+        },
+      },
+      nodes,
+      frame.globals,
+    )
   }
 
   /** Which Playground session / scene sound was last started for. */
@@ -330,7 +299,7 @@ export class ScriptHost {
     // Sound and buttons run even in scenes without scripts.
     this.writes.target(editor, artboardId)
     this.updateAudio(frame, nodes)
-    this.updateButtons(frame, nodes)
+    this.updateUi(frame, nodes)
     if (programs.length === 0) {
       this.writes.flush()
       return null
@@ -417,10 +386,8 @@ export class ScriptHost {
         stopAllSounds: () => audio.stopAll(),
         setMasterVolume: (volume) => audio.setMasterVolume(volume),
         playAudioSource: (node, options) => this.playSource(editor, nodes, node, options),
-        buttonState: (node) => {
-          const b = this.buttons.get(`${node.idx}:${node.version}`)
-          return { hovered: !!b?.hovered, pressed: !!b?.pressed, clicked: !!b?.clicked }
-        },
+        uiState: (node) => this.ui.state(node),
+        setUiState: (node, patch) => this.ui.set(node, patch),
         stopAudioSource: (node) => audio.stopNodeSounds(`${node.idx}:${node.version}`),
         setLight: (node, intensity, radius) => flushed(() => previewLight(editor, artboardId, node, intensity, radius)),
         emitParticles: (node, count) => flushed(() => emitParticles(editor, artboardId, node, count)),
