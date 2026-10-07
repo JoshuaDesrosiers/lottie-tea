@@ -120,6 +120,17 @@ pub(crate) fn local_bounds(artboard: &Artboard, node_id: NodeId) -> (Vec2, Vec2)
             .light2d()
             .and_then(|l| l.local_extent())
             .unwrap_or((Vec2::splat(-SMALL_GIZMO_HALF_EXTENT), Vec2::splat(SMALL_GIZMO_HALF_EXTENT))),
+        NodeKind::Group(_) if node.behaviors.iter().any(|e| matches!(e.behavior, an1mbyt3_core::NodeBehavior::UiHtml(_))) => {
+            let half = node
+                .behaviors
+                .iter()
+                .find_map(|e| match &e.behavior {
+                    an1mbyt3_core::NodeBehavior::UiHtml(h) => Some(Vec2::new(h.width, h.height) * 0.5),
+                    _ => None,
+                })
+                .unwrap_or(Vec2::splat(SMALL_GIZMO_HALF_EXTENT));
+            (-half, half)
+        }
         NodeKind::Group(_) if !node.behaviors.is_empty() && artboard.children_of(node_id).next().is_none() => {
             (Vec2::splat(-SMALL_GIZMO_HALF_EXTENT), Vec2::splat(SMALL_GIZMO_HALF_EXTENT))
         }
@@ -2057,6 +2068,7 @@ pub enum NodeBehaviorDto {
     UiLayout(an1mbyt3_core::UiLayout),
     UiLayoutItem(an1mbyt3_core::UiLayoutItem),
     UiShowWhen(an1mbyt3_core::UiShowWhen),
+    UiHtml(an1mbyt3_core::UiHtml),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2092,6 +2104,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::UiLayout(c) => NodeBehaviorDto::UiLayout(*c),
             an1mbyt3_core::NodeBehavior::UiLayoutItem(c) => NodeBehaviorDto::UiLayoutItem(*c),
             an1mbyt3_core::NodeBehavior::UiShowWhen(c) => NodeBehaviorDto::UiShowWhen(*c),
+            an1mbyt3_core::NodeBehavior::UiHtml(c) => NodeBehaviorDto::UiHtml(c.clone()),
         }
     }
 }
@@ -2129,6 +2142,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::UiLayout(c) => an1mbyt3_core::NodeBehavior::UiLayout(c),
             NodeBehaviorDto::UiLayoutItem(c) => an1mbyt3_core::NodeBehavior::UiLayoutItem(c),
             NodeBehaviorDto::UiShowWhen(c) => an1mbyt3_core::NodeBehavior::UiShowWhen(c),
+            NodeBehaviorDto::UiHtml(c) => an1mbyt3_core::NodeBehavior::UiHtml(c),
         }
     }
 }

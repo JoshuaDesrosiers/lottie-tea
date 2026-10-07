@@ -5654,6 +5654,7 @@ impl WasmEditor {
             "UiLayout" => B::UiLayout(an1mbyt3_core::UiLayout::default()),
             "UiLayoutItem" => B::UiLayoutItem(an1mbyt3_core::UiLayoutItem::default()),
             "UiShowWhen" => B::UiShowWhen(an1mbyt3_core::UiShowWhen::default()),
+            "UiHtml" => B::UiHtml(an1mbyt3_core::UiHtml::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -6773,6 +6774,15 @@ impl WasmEditor {
             // Flex containers: a row / column that hugs its children, and a
             // full-screen responsive page (header, then a row of cards
             // that stacks into a column on phones).
+            // An HTML + CSS box (starts as a sample card).
+            "Html" => {
+                let mut node = Node::new("HTML", parent, NodeKind::Group(an1mbyt3_core::GroupNode::default()));
+                node.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: B::UiHtml(an1mbyt3_core::UiHtml::default()), enabled: true });
+                let inverse = Command::AddNode { artboard: artboard_id, node }.apply(&mut self.document);
+                let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("AddNode's inverse is SetDeleted") };
+                inverses.push(inverse);
+                id
+            }
             "Row" | "Column" => {
                 let mut node = Node::new(what, parent, NodeKind::Group(an1mbyt3_core::GroupNode::default()));
                 let direction = if what == "Row" { an1mbyt3_core::UiFlexDirection::Row } else { an1mbyt3_core::UiFlexDirection::Column };
@@ -8362,6 +8372,14 @@ impl WasmEditor {
     /// phones and desktops (UI Layout / Show When / Responsive screen).
     pub async fn load_responsive_demo(&mut self) -> Result<JsValue, JsValue> {
         let demo = crate::demo_responsive::build_demo_responsive(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
+    /// The + menu's Demos → "HTML UI Lab" — HTML + CSS UI in a scene,
+    /// wired by data-trigger, by script (`ref.dom`) and anchored in the world.
+    pub async fn load_html_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_html::build_demo_html(&mut self.document);
         migrate_document(&mut self.document);
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }

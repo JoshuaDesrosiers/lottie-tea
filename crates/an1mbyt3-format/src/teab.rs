@@ -194,6 +194,7 @@ mod tests {
         }
         let mut ui = Node::new("layout", None, NodeKind::Group(Default::default()));
         ui.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::UiLayout(UiLayout { width: UiSize::Fixed(120.0), height: UiSize::Fill, ..Default::default() }), enabled: true });
+        ui.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::UiHtml(an1mbyt3_core::UiHtml::default()), enabled: true });
         artboard.add_node(ui);
 
         let loaded = load_teab(&save_teab(&document).unwrap()).unwrap();
@@ -203,6 +204,11 @@ mod tests {
             _ => None,
         }).collect();
         assert_eq!(loaded_contents, contents.to_vec());
+        let html = artboard.node_ids().filter_map(|id| artboard.node(id)).flat_map(|n| n.behaviors.iter()).find_map(|e| match &e.behavior {
+            NodeBehavior::UiHtml(h) => Some(h.clone()),
+            _ => None,
+        });
+        assert_eq!(html, Some(an1mbyt3_core::UiHtml::default()));
         // JSON keeps its internally tagged shape.
         let json = serde_json::to_string(&contents[1]).unwrap();
         assert!(json.contains("\"type\":\"Mesh\"") && json.contains("\"shape\":\"Torus\""), "{json}");

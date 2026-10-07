@@ -92,8 +92,10 @@ pub enum NodeBehavior {
     UiLayout(crate::UiLayout),
     /// Per-child flexbox settings — see [`crate::UiLayoutItem`].
     UiLayoutItem(crate::UiLayoutItem),
-    /// Show only on some screens — see [`crate::UiShowWhen`]. (Appended last.)
+    /// Show only on some screens — see [`crate::UiShowWhen`].
     UiShowWhen(crate::UiShowWhen),
+    /// HTML + CSS shown at this node — see [`crate::UiHtml`]. (Appended last.)
+    UiHtml(crate::UiHtml),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

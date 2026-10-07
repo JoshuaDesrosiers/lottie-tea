@@ -1165,6 +1165,17 @@ export interface UiShowWhenConfig {
   when: UiScreenCondition
 }
 
+/** HTML + CSS shown at a node (`an1mbyt3_core::UiHtml`). */
+export interface UiHtmlConfig {
+  html: string
+  css: string
+  /** The element's box, world units. */
+  width: number
+  height: number
+  /** Takes clicks / typing in Playground and games. */
+  interactive: boolean
+}
+
 /** One imported sound. */
 export interface AudioSummary {
   id: OpaqueId
@@ -1318,6 +1329,7 @@ export type NodeBehavior =
   | ({ kind: 'UiLayout' } & UiLayoutConfig)
   | ({ kind: 'UiLayoutItem' } & UiLayoutItemConfig)
   | ({ kind: 'UiShowWhen' } & UiShowWhenConfig)
+  | ({ kind: 'UiHtml' } & UiHtmlConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

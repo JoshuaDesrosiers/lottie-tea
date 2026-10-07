@@ -162,6 +162,8 @@ export interface ScriptContext {
   /** Host primitive behind `ref.clicked` / `hovered` / `pressed` /
    * `changed` / `value` / `isOn` / `scroll` (UI controls). */
   uiState(node: OpaqueId): { hovered: boolean; pressed: boolean; clicked: boolean; changed: boolean; value: number; isOn: boolean; scroll: number }
+  /** Host primitive behind `ref.dom` (HTML UI nodes). */
+  htmlRoot(node: OpaqueId): ShadowRoot | null
   /** `ref.value = ...` / `ref.isOn = ...` / `ref.scroll = ...`. */
   setUiState(node: OpaqueId, patch: { value?: number; isOn?: boolean; scroll?: number }): void
   /** Host primitives behind `ref.playAudio()` / `ref.stopAudio()`. */
@@ -417,6 +419,10 @@ export interface ComponentRef {
   isOn: boolean
   /** UI Scroll View: how far the content is scrolled (world units). */
   scroll: number
+  /** HTML UI nodes: the element's live DOM (a `ShadowRoot` — use
+   * `querySelector`, set `textContent`, add listeners). `null` before the
+   * element first shows, and outside Playground / games. */
+  readonly dom: ShadowRoot | null
   /** Tilemap nodes: replaces the whole grid — row-major, `mapWidth *
    * mapHeight` tile indices (`-1` = empty). Procedural levels. */
   setTiles(tiles: number[]): void
@@ -720,6 +726,7 @@ function makeComponentRefFromState(
     hovered: { enumerable: true, get: () => ctx.uiState(node.id).hovered },
     pressed: { enumerable: true, get: () => ctx.uiState(node.id).pressed },
     changed: { enumerable: true, get: () => ctx.uiState(node.id).changed },
+    dom: { enumerable: false, get: () => ctx.htmlRoot(node.id) },
     value: { enumerable: true, get: () => ctx.uiState(node.id).value, set: (v: number) => ctx.setUiState(node.id, { value: Number(v) }) },
     isOn: { enumerable: true, get: () => ctx.uiState(node.id).isOn, set: (v: boolean) => ctx.setUiState(node.id, { isOn: !!v }) },
     scroll: { enumerable: true, get: () => ctx.uiState(node.id).scroll, set: (v: number) => ctx.setUiState(node.id, { scroll: Number(v) }) },

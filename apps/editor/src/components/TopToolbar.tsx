@@ -97,6 +97,7 @@ function ShapesMenu({
   onLoad3DDemo,
   onLoadUiDemo,
   onLoadResponsiveDemo,
+  onLoadHtmlDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddTilemap,
@@ -147,6 +148,7 @@ function ShapesMenu({
   onLoad3DDemo: () => void
   onLoadUiDemo: () => void
   onLoadResponsiveDemo: () => void
+  onLoadHtmlDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
 }) {
@@ -245,6 +247,7 @@ function ShapesMenu({
         { kind: 'item', label: '3D Showroom', icon: <SparkleIcon />, onSelect: onLoad3DDemo },
         { kind: 'item', label: 'UI & Sound Lab', icon: <SparkleIcon />, onSelect: onLoadUiDemo },
         { kind: 'item', label: 'Responsive Layout', icon: <SparkleIcon />, onSelect: onLoadResponsiveDemo },
+        { kind: 'item', label: 'HTML UI Lab', icon: <SparkleIcon />, onSelect: onLoadHtmlDemo },
         { kind: 'item', label: 'Sunset Tactics (5v5)', icon: <SparkleIcon />, onSelect: onLoadTacticsDemo },
         { kind: 'item', label: 'Raycaster FPS', icon: <SparkleIcon />, onSelect: onLoadFpsDemo },
         { kind: 'item', label: 'Ragdoll Arena', icon: <SparkleIcon />, onSelect: onLoadRigDemo },
@@ -482,6 +485,7 @@ export function TopToolbar({
   onLoad3DDemo,
   onLoadUiDemo,
   onLoadResponsiveDemo,
+  onLoadHtmlDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddBone,
@@ -532,6 +536,7 @@ export function TopToolbar({
   onLoad3DDemo: () => void
   onLoadUiDemo: () => void
   onLoadResponsiveDemo: () => void
+  onLoadHtmlDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
   onAddBone: () => void
@@ -625,6 +630,7 @@ export function TopToolbar({
               onLoad3DDemo={onLoad3DDemo}
               onLoadUiDemo={onLoadUiDemo}
               onLoadResponsiveDemo={onLoadResponsiveDemo}
+              onLoadHtmlDemo={onLoadHtmlDemo}
               onLoadTacticsDemo={onLoadTacticsDemo}
               onLoadPhysicsDemo={onLoadPhysicsDemo}
               onAddBone={onAddBone}

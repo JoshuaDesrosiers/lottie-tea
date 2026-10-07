@@ -253,6 +253,41 @@ impl Default for UiToggle {
     }
 }
 
+/// **HTML UI**: a box of real HTML + CSS shown over the scene at this
+/// node — its position, rotation and scale (and the camera) move it like
+/// any other node. Rendered by the host as a DOM element laid over the
+/// canvas (so it always draws on top of the canvas), in a shadow root so
+/// its CSS can't leak out.
+///
+/// Wiring without code: clicking an element with `data-trigger="name"`
+/// fires that state-machine trigger; an `<input data-input="name">` sets
+/// that input (checkbox → bool, range / number → number, else enum
+/// value). Scripts get the live DOM as `ref.dom` (a `ShadowRoot`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UiHtml {
+    pub html: String,
+    pub css: String,
+    /// The element's box, world units (CSS px at zoom 1).
+    pub width: f32,
+    pub height: f32,
+    /// Receives clicks / typing in Playground and games (off = the pointer
+    /// goes through it to the game).
+    pub interactive: bool,
+}
+
+impl Default for UiHtml {
+    fn default() -> Self {
+        Self {
+            html: "<div class=\"card\">\n  <h1>Hello!</h1>\n  <p>Real HTML + CSS, in your scene.</p>\n  <button data-trigger=\"start\">Start</button>\n</div>".into(),
+            css: ".card {\n  box-sizing: border-box; width: 100%; height: 100%;\n  padding: 18px; border-radius: 16px;\n  font-family: system-ui, sans-serif; color: #f4f1ff;\n  background: linear-gradient(135deg, #5b4bd6, #c2418f);\n  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);\n}\nh1 { margin: 0 0 6px; font-size: 26px; }\np { margin: 0 0 14px; opacity: 0.85; }\nbutton {\n  font: inherit; font-weight: 600; padding: 8px 18px;\n  border: 0; border-radius: 999px; background: #fff; color: #5b4bd6; cursor: pointer;\n}\nbutton:hover { transform: scale(1.05); }".into(),
+            width: 320.0,
+            height: 180.0,
+            interactive: true,
+        }
+    }
+}
+
 /// The 0..1 position of a value in `[min, max]`.
 pub fn slider_fraction(slider: &UiSlider) -> f32 {
     let span = slider.max - slider.min;

@@ -19,6 +19,7 @@ import { audio, type SoundHandle } from './audio'
 import type { ArtboardSummary, OpaqueId, StateMachineDefSummary, StateMachineSummary } from '../ipc/document'
 import { SceneMirror, type ScriptNode } from './sceneMirror'
 import { UiControls } from './uiControls'
+import { htmlOverlay } from './htmlOverlay'
 import { gameStorage } from './storage'
 import {
   deleteNode,
@@ -216,6 +217,36 @@ export class ScriptHost {
       nodes,
       frame.globals,
     )
+    this.updateHtml(frame, nodes)
+  }
+
+  /** HTML UI nodes: laid over the canvas through the Playground camera,
+   * taking the pointer, wired to the state machine (`data-trigger` /
+   * `data-input`). */
+  private updateHtml(frame: ScriptFrame, nodes: ScriptNode[]): void {
+    const { editor, scene } = frame
+    const items = []
+    for (const n of nodes) {
+      if (!n.html) continue
+      const t = n.worldTransform
+      items.push({ id: n.id, config: n.html, translation: t.translation, rotation: t.rotation, scale: t.scale, visible: n.visible, zIndex: n.zIndex })
+    }
+    const view = playgroundView(editor, scene.id)
+    const overlayView = view
+      ? { panX: view[0], panY: view[1], pxPerWorld: view[2] * htmlOverlay.cssPerPhysical() }
+      : { panX: frame.camera.panX, panY: frame.camera.panY, pxPerWorld: frame.camera.zoom }
+    const kinds = new Map((frame.machine?.inputs ?? []).map((i) => [i.name, i.kind]))
+    htmlOverlay.update(items, overlayView, true, {
+      fireTrigger: (name) => fireTrigger(editor, name),
+      setInput: (name, value) => {
+        const kind = kinds.get(name)
+        if (kind === 'Bool') setStateMachineBoolInput(editor, name, Boolean(value))
+        else if (kind === 'Number') setStateMachineNumberInput(editor, name, Number(value))
+        else if (kind === 'Enum') setStateMachineEnumInput(editor, name, String(value))
+        else if (kind === 'Trigger') fireTrigger(editor, name)
+        else console.warn(`HTML UI: state machine has no input "${name}"`)
+      },
+    })
   }
 
   /** Which Playground session / scene sound was last started for. */
@@ -390,6 +421,7 @@ export class ScriptHost {
         setMasterVolume: (volume) => audio.setMasterVolume(volume),
         playAudioSource: (node, options) => this.playSource(editor, nodes, node, options),
         uiState: (node) => this.ui.state(node),
+        htmlRoot: (node) => htmlOverlay.root(node),
         setUiState: (node, patch) => this.ui.set(node, patch),
         stopAudioSource: (node) => audio.stopNodeSounds(`${node.idx}:${node.version}`),
         setLight: (node, intensity, radius) => flushed(() => previewLight(editor, artboardId, node, intensity, radius)),

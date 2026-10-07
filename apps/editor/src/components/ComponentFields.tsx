@@ -26,6 +26,7 @@ import type {
   UiScreenCondition,
   UiShowWhenConfig,
   UiSize,
+  UiHtmlConfig,
   BoxCollider2DConfig,
   CapsuleCollider2DConfig,
   CircleCollider2DConfig,
@@ -865,6 +866,62 @@ export function UiShowWhenFields({ config, onChange }: { config: UiShowWhenConfi
   )
 }
 
+/** A code box that commits on blur / Ctrl+Enter (one undo step per edit). */
+function CodeArea({ value, onCommit, rows, placeholder }: { value: string; onCommit: (value: string) => void; rows: number; placeholder?: string }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const commit = () => {
+    if (draft !== value) onCommit(draft)
+  }
+  return (
+    <textarea
+      value={draft}
+      rows={rows}
+      spellCheck={false}
+      placeholder={placeholder}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) commit()
+        // Tab inserts two spaces instead of leaving the box.
+        if (e.key === 'Tab') {
+          e.preventDefault()
+          const el = e.currentTarget
+          const start = el.selectionStart
+          const next = draft.slice(0, start) + '  ' + draft.slice(el.selectionEnd)
+          setDraft(next)
+          requestAnimationFrame(() => el.setSelectionRange(start + 2, start + 2))
+        }
+      }}
+      className="w-full resize-y rounded-md border border-overlay/10 bg-overlay/5 p-1.5 font-mono text-[10.5px] leading-snug text-ink outline-none focus:border-accent/60"
+    />
+  )
+}
+
+/** HTML UI: the element's HTML, CSS, size and interactivity. */
+export function UiHtmlFields({ config, onChange }: { config: UiHtmlConfig; onChange: (value: UiHtmlConfig) => void }) {
+  const update = (patch: Partial<UiHtmlConfig>) => onChange({ ...config, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Size" title="The element's box in world units (CSS px at zoom 1). It scales with the node and the camera.">
+        <NumberField label="W" value={config.width} step={10} onCommit={(width) => update({ width: Math.max(1, width) })} />
+        <NumberField label="H" value={config.height} step={10} onCommit={(height) => update({ height: Math.max(1, height) })} />
+      </Row>
+      <Check checked={config.interactive} onChange={(interactive) => update({ interactive })}>
+        Interactive (takes clicks and typing when playing)
+      </Check>
+      <span className="text-[11px] text-ink-dim">HTML</span>
+      <CodeArea value={config.html} rows={7} onCommit={(html) => update({ html })} placeholder="<div class='card'>Hello</div>" />
+      <span className="text-[11px] text-ink-dim">CSS</span>
+      <CodeArea value={config.css} rows={7} onCommit={(css) => update({ css })} placeholder=".card { color: white; }" />
+      <p className="text-[10px] leading-snug text-ink-dim">
+        Applies when the box loses focus (or Ctrl+Enter). <code className="text-ink">data-trigger="name"</code> on an element fires that trigger when clicked; <code className="text-ink">&lt;input data-input="name"&gt;</code> sets that input. Scripts get the DOM as <code className="text-ink">ref.dom</code>. Always drawn on top of the canvas.
+      </p>
+    </div>
+  )
+}
+
 /** The Canvas section's Screen block (Fixed / Responsive + breakpoint). */
 export function ScreenFields({ screen, onChange }: { screen: ScreenSettings; onChange: (value: ScreenSettings) => void }) {
   const update = (patch: Partial<ScreenSettings>) => onChange({ ...screen, ...patch })
@@ -962,20 +1019,21 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   UiLayout: 'UI Layout',
   UiLayoutItem: 'UI Layout Item',
   UiShowWhen: 'UI Show When',
+  UiHtml: 'HTML UI',
   UiSlider: 'UI Slider',
   UiScrollbar: 'UI Scrollbar',
   UiScrollView: 'UI Scroll View',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
   { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
   { title: 'Audio', kinds: ['AudioSource'] },
-  { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView'] },
+  { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiHtml'] },
   { title: 'Layout', kinds: ['UiLayout', 'UiLayoutItem', 'UiShowWhen'] },
 ]
 

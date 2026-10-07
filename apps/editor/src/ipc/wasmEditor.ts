@@ -185,6 +185,11 @@ export async function loadLiquidDemo(editor: WasmEditor): Promise<AddArtboardRes
 }
 
 /** Demos → "UI & Sound Lab": UI anchors, a button stack, synthesized sounds. */
+/** Demos → "HTML UI Lab". */
+export async function loadHtmlDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_html_demo()) as AddArtboardResult
+}
+
 /** Demos → "Responsive Layout". */
 export async function loadResponsiveDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_responsive_demo()) as AddArtboardResult
@@ -942,11 +947,11 @@ export function bindSpriteSkin(editor: WasmEditor, artboard: OpaqueId, node: Opa
 // ---- UI ----
 
 /** Everything the + → UI menu can add (`WasmEditor::add_ui_node`). */
-export type UiMenuItem = 'Button' | 'Toggle' | 'Slider' | 'Scrollbar' | 'ScrollView' | 'Panel' | 'Label' | 'Stack' | 'Row' | 'Column' | 'Page'
+export type UiMenuItem = 'Button' | 'Toggle' | 'Slider' | 'Scrollbar' | 'ScrollView' | 'Panel' | 'Label' | 'Stack' | 'Row' | 'Column' | 'Page' | 'Html'
 /** Menu order. */
-export const UI_MENU_ITEMS: UiMenuItem[] = ['Page', 'Row', 'Column', 'Button', 'Toggle', 'Slider', 'Scrollbar', 'ScrollView', 'Panel', 'Label', 'Stack']
+export const UI_MENU_ITEMS: UiMenuItem[] = ['Page', 'Row', 'Column', 'Html', 'Button', 'Toggle', 'Slider', 'Scrollbar', 'ScrollView', 'Panel', 'Label', 'Stack']
 /** Menu labels where the id isn't presentable. */
-export const UI_MENU_LABEL: Partial<Record<UiMenuItem, string>> = { ScrollView: 'Scroll View', Page: 'Responsive Page', Row: 'Row Layout', Column: 'Column Layout' }
+export const UI_MENU_LABEL: Partial<Record<UiMenuItem, string>> = { ScrollView: 'Scroll View', Page: 'Responsive Page', Row: 'Row Layout', Column: 'Column Layout', Html: 'HTML + CSS' }
 
 /** Sets the scene's screen behaviour (Fixed / Responsive). Undoable. */
 export function setArtboardScreen(editor: WasmEditor, artboard: OpaqueId, value: ScreenSettings): DocumentSummary {

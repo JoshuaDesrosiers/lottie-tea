@@ -150,6 +150,7 @@ import {
   load3DDemo,
   loadUiDemo,
   loadResponsiveDemo,
+  loadHtmlDemo,
   addNode3D,
   setNode3D,
   importModel,
@@ -237,6 +238,7 @@ import {
 import type { ShapePreset, UiMenuItem } from './ipc/wasmEditor'
 import type { ScreenSettings } from './ipc/document'
 import { responsiveView, SCREEN_PRESETS } from './game/screen'
+import { htmlOverlay, type HtmlItem } from './game/htmlOverlay'
 import { useDockLayout, groupMemberKeys, type PanelKey } from './hooks/useDockLayout'
 import { isBoolean, isNumber, usePersistedState } from './hooks/persisted'
 import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_HEIGHT, TIMELINE_HEIGHT, TOP_CLEARANCE } from './layoutConstants'
@@ -650,8 +652,10 @@ function App() {
     if (mode !== 'Playground') {
       pointerLockArmedRef.current = false
       if (document.pointerLockElement) document.exitPointerLock()
-      // Leaving Playground silences the game.
+      // Leaving Playground silences the game, and drops HTML UI a script
+      // may have changed (it's rebuilt from the design next frame).
       audio.stopAll()
+      htmlOverlay.clear()
     }
   }, [mode])
   useEffect(() => {
@@ -850,6 +854,7 @@ function App() {
       if (cancelled) return
 
       editorRef.current = editor
+      if (canvasRef.current.parentElement) htmlOverlay.attach(canvasRef.current.parentElement, canvasRef.current)
       const initialSummary = getDocumentSummary(editor)
       setDoc(initialSummary)
 
@@ -929,6 +934,24 @@ function App() {
             gridG,
             gridB,
           )
+
+          // HTML UI: a live preview over the canvas wherever scripts aren't
+          // driving it (then `ScriptHost` lays it out, interactive).
+          const scriptsDriveHtml = modeRef.current === 'Playground' || (effectiveBottomTabRef.current === 'StateMachine' && programsEnabledRef.current)
+          if (!scriptsDriveHtml) {
+            const doc = docRef.current
+            const shown = doc?.artboards.find((a) => activeArtboardIdRef.current !== null && idsEqual(a.id, activeArtboardIdRef.current)) ?? doc?.artboards[0]
+            const items: HtmlItem[] = []
+            for (const n of shown?.nodes ?? []) {
+              for (const entry of n.behaviors) {
+                if (!entry.enabled || entry.behavior.kind !== 'UiHtml') continue
+                const { kind: _kind, ...config } = entry.behavior
+                const t = n.worldTransform
+                items.push({ id: n.id, config, translation: t.translation, rotation: t.rotation, scale: t.scale, visible: n.visible, zIndex: n.zIndex })
+              }
+            }
+            htmlOverlay.update(items, { panX: cam.pan.x, panY: cam.pan.y, pxPerWorld: cam.zoom }, false, null)
+          }
 
           if (effectiveBottomTabRef.current === 'StateMachine' || modeRef.current === 'Playground') {
             const syncStart = performance.now()
@@ -2256,6 +2279,20 @@ function App() {
     if (!editor) return
     demoLoadingRef.current = true
     void load3DDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
+  const handleLoadHtmlDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadHtmlDemo(editor)
       .then((result) => {
         switchToScene(result.newArtboard, result.document)
         setMode('Playground')
@@ -4045,6 +4082,7 @@ function App() {
             onLoad3DDemo={handleLoad3DDemo}
             onLoadUiDemo={handleLoadUiDemo}
             onLoadResponsiveDemo={handleLoadResponsiveDemo}
+            onLoadHtmlDemo={handleLoadHtmlDemo}
             onLoadTacticsDemo={handleLoadTacticsDemo}
             onLoadPhysicsDemo={handleLoadPhysicsDemo}
         onAddText={handleAddText}

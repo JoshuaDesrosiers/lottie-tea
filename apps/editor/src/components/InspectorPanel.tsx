@@ -67,6 +67,7 @@ import {
   UiLayoutFields,
   UiLayoutItemFields,
   UiShowWhenFields,
+  UiHtmlFields,
   ScreenFields,
 } from './ComponentFields'
 import { defaultComponent } from '../ipc/wasmEditor'
@@ -763,6 +764,10 @@ function BehaviorsFields({
       case 'UiLayoutItem': {
         const { kind: _k, ...config } = behavior
         return <UiLayoutItemFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiLayoutItem', ...c })} />
+      }
+      case 'UiHtml': {
+        const { kind: _k, ...config } = behavior
+        return <UiHtmlFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiHtml', ...c })} />
       }
       case 'UiShowWhen': {
         const { kind: _k, ...config } = behavior

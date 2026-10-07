@@ -28,6 +28,7 @@ import type { ArtboardSummary, DocumentSummary, OpaqueId } from '../ipc/document
 import { normalizeKeyName, PointerGestures, ScriptHost } from '../game/scriptHost'
 import { PerfMeter } from '../game/perf'
 import { responsiveView } from '../game/screen'
+import { htmlOverlay } from '../game/htmlOverlay'
 
 interface PlayerConfig {
   title: string
@@ -62,6 +63,13 @@ async function boot() {
   // Safari / Firefox / Android browsers run the game too.
   setWasmBytes(base64Bytes(payload('an1-wasm')))
   const canvas = document.getElementById('an1-canvas') as HTMLCanvasElement
+  // HTML UI nodes sit in a layer over the canvas: wrap it in a box that is
+  // exactly the canvas's size.
+  const stage = document.createElement('div')
+  stage.style.cssText = 'position:relative;flex:none;line-height:0;'
+  canvas.parentElement?.insertBefore(stage, canvas)
+  stage.appendChild(canvas)
+  htmlOverlay.attach(stage, canvas)
 
   // The game renders at its own resolution and the canvas is then *scaled*
   // (CSS) to fill as much of the screen as its aspect ratio allows,

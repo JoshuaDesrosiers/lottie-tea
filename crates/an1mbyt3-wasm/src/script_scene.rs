@@ -49,6 +49,8 @@ pub struct ScriptNodeDto {
     pub scrollbar: Option<an1mbyt3_core::UiScrollbar>,
     pub scroll_view: Option<an1mbyt3_core::UiScrollView>,
     pub toggle: Option<an1mbyt3_core::UiToggle>,
+    /// The node's HTML UI (laid over the canvas by the host).
+    pub html: Option<an1mbyt3_core::UiHtml>,
     /// Local-space bounds `[min x, min y, max x, max y]` (button hit tests).
     pub bounds: [f32; 4],
 }
@@ -156,6 +158,10 @@ pub fn scene(document: &Document, artboard: &Artboard) -> ScriptSceneDto {
                 }),
                 toggle: node.behaviors.iter().find_map(|e| match &e.behavior {
                     an1mbyt3_core::NodeBehavior::UiToggle(b) if e.enabled => Some(*b),
+                    _ => None,
+                }),
+                html: node.behaviors.iter().find_map(|e| match &e.behavior {
+                    an1mbyt3_core::NodeBehavior::UiHtml(b) if e.enabled => Some(b.clone()),
                     _ => None,
                 }),
                 bounds: {
