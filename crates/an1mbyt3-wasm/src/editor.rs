@@ -1986,6 +1986,9 @@ pub struct WasmEditor {
     view3d_hot: Option<crate::view3d::GizmoHandle>,
     /// The last `render` call's device pixel ratio (CSS px -> canvas px).
     last_device_pixel_ratio: f32,
+    /// Exporting a transparent GIF / video: frames clear to alpha 0 and
+    /// skip editor chrome (the grid) — see `set_export_transparent`.
+    export_transparent: bool,
     /// Design-mode "preview on" screen size (CSS px) — how UI Layouts,
     /// UI Anchors and Show When react to a phone / tablet / desktop
     /// without leaving the editor. `None` = the artboard's own size.
@@ -2286,7 +2289,10 @@ impl WasmEditor {
         // A *real* surface-backed renderer, not `new_headless` — this is
         // the whole point: the canvas's own surface is presented to
         // directly, no offscreen texture, no readback, no bridge.
-        let renderer = Renderer::new(&instance, surface, width, height).await;
+        // Alpha-capable surface (premultiplied), so a transparent export
+        // can read frames back with their alpha; every normal frame clears
+        // opaque, so the editor looks the same.
+        let renderer = Renderer::new_transparent(&instance, surface, width, height).await;
         let (mut document, square_id, animation_id) = build_demo_document();
         migrate_document(&mut document);
         let artboard_id = document.artboards().next().map(|(id, _)| id).expect("build_demo_document always creates one artboard");
@@ -2349,6 +2355,7 @@ impl WasmEditor {
             last_device_pixel_ratio: 1.0,
             preview_screen: None,
             last_screen: None,
+            export_transparent: false,
             model_gpu: HashMap::new(),
             anim_clocks: HashMap::new(),
             textured_material_3d: None,
@@ -3174,7 +3181,7 @@ impl WasmEditor {
         // real native resolution/unaffected by any post effect even when
         // the real content ends up rendered through a scaled/post-processed
         // offscreen buffer instead.
-        let chrome_draws: Vec<DrawCall> = vec![DrawCall {
+        let chrome_draws: Vec<DrawCall> = if self.export_transparent { Vec::new() } else { vec![DrawCall {
             mesh: &chrome.grid_mesh,
             binding: &chrome.grid_binding,
             transform: an1mbyt3_core::Transform2D::default(),
@@ -3183,7 +3190,7 @@ impl WasmEditor {
             gradient: None,
             texture: None,
             material: None,
-        }];
+        }] };
         stats.prep_ms = stopwatch.lap();
         let mut unmasked: Vec<DrawCall> = Vec::new();
         // A real, depth-first walk of the scene tree — not four separate
@@ -3354,7 +3361,7 @@ impl WasmEditor {
         // crate has no concept of "app theme" itself, only whatever colors
         // it's told to clear/draw the grid with each frame. Both were fixed
         // constants before the light theme existed at all.
-        let clear_color = wgpu::Color { r: clear_r as f64, g: clear_g as f64, b: clear_b as f64, a: 1.0 };
+        let clear_color = if self.export_transparent { wgpu::Color::TRANSPARENT } else { wgpu::Color { r: clear_r as f64, g: clear_g as f64, b: clear_b as f64, a: 1.0 } };
         stats.draws = (unmasked.len() + masked.len() + chrome_draws.len() + lighting.as_ref().map_or(0, |l| l.unlit.len())) as u32;
         let result = if lighting.is_some() || resolution_scale != 1.0 || effects.iter().any(|effect| *effect != an1mbyt3_core::PostEffect::None) {
             // `render_with_post_effects` now draws `(unmasked, masked)`
@@ -6899,6 +6906,13 @@ impl WasmEditor {
         inverses.reverse();
         self.document.commit_batch(inverses);
         to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node: root })
+    }
+
+    /// Transparent export mode (Export → transparent GIF / WebM): while on,
+    /// frames clear to fully transparent and draw no editor grid, so the
+    /// canvas read back holds only the artwork, with its alpha.
+    pub fn set_export_transparent(&mut self, on: bool) {
+        self.export_transparent = on;
     }
 
     /// Sets the artboard's screen behaviour (Fixed / Responsive, scale

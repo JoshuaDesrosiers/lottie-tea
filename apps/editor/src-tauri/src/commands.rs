@@ -309,3 +309,11 @@ pub fn export_desktop_game(app: tauri::AppHandle, path: String, html: String) ->
     }
     Ok(())
 }
+
+/// A "Save As" dialog for any one file type (`filter_name`, `extensions`
+/// without dots) — the Export menu's GIF / WebM / MP4 targets.
+#[tauri::command]
+pub async fn pick_save_file_path(app: tauri::AppHandle, suggested_name: String, filter_name: String, extensions: Vec<String>) -> Option<String> {
+    let extensions: Vec<&str> = extensions.iter().map(String::as_str).collect();
+    app.dialog().file().set_file_name(&suggested_name).add_filter(&filter_name, &extensions).blocking_save_file().map(|path| path.to_string())
+}

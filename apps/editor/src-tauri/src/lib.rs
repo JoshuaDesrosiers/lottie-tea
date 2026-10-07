@@ -45,6 +45,7 @@ pub fn run() {
             commands::pick_save_gif_path,
             commands::pick_save_html_path,
             commands::pick_save_exe_path,
+            commands::pick_save_file_path,
             commands::export_desktop_game,
             commands::write_text_file,
             commands::write_binary_file,

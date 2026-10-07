@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import type { AnimationExportOptions } from '../exportGif'
 import { UI_MENU_ITEMS, UI_MENU_LABEL, type ShapePreset, type UiMenuItem } from '../ipc/wasmEditor'
 import type { Light2DType, Node3DItem } from '../ipc/document'
 import { useLayoutMetrics } from '../layoutMetrics'
@@ -338,6 +339,48 @@ function FileMenu({ actions, onSave }: { actions: FileMenuActions; onSave: () =>
   )
 }
 
+/**
+ * The toolbar's Export menu: the active animation as a GIF (opaque or
+ * transparent), a transparent WebM or an MP4 video; or the whole game as
+ * a web page or a desktop app.
+ */
+function ExportMenu({ onExportAnimation, onExportGame, onExportDesktopGame }: { onExportAnimation: (options: AnimationExportOptions) => void; onExportGame: () => void; onExportDesktopGame: () => void }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
+  const entries: AddMenuEntry[] = [
+    { kind: 'item', label: 'Animation → GIF', icon: <GifExportIcon />, onSelect: () => onExportAnimation({ format: 'gif', transparent: false }) },
+    { kind: 'item', label: 'Animation → GIF (transparent)', icon: <GifExportIcon />, onSelect: () => onExportAnimation({ format: 'gif', transparent: true }), hint: '1-bit transparency: pixels are fully clear or fully solid' },
+    { kind: 'item', label: 'Animation → WebM (transparent)', icon: <GifExportIcon />, onSelect: () => onExportAnimation({ format: 'webm', transparent: true }), hint: 'VP9 video with a real alpha channel — overlays for OBS, video editors, the web' },
+    { kind: 'item', label: 'Animation → MP4', icon: <GifExportIcon />, onSelect: () => onExportAnimation({ format: 'mp4', transparent: false }), hint: 'H.264 video (MP4 has no transparency)' },
+    { kind: 'separator' },
+    { kind: 'item', label: 'Game → Web page (.html)', icon: <GameExportIcon />, onSelect: onExportGame, hint: 'One self-contained page — runs in any browser' },
+    { kind: 'item', label: 'Game → Desktop app (.exe)', icon: <DesktopExportIcon />, onSelect: onExportDesktopGame, hint: 'One file, double-click to play, F11 for fullscreen' },
+  ]
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Export"
+        className="flex h-6 w-6 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
+      >
+        <GameExportIcon />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-1 [&>div]:w-60">
+          <AddMenuList entries={entries} onDone={() => setOpen(false)} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** The editor's top-level modes — the toolbar's segmented buttons.
  * Animate/State Machine are bottom-dock tabs, not modes (see
  * `TopToolbar`'s own doc comment). */
@@ -385,7 +428,7 @@ const MODES: Mode[] = ['Design', 'Playground', 'Paint']
  * reasoning, now that a document can actually be saved/opened at all
  * (`App.tsx`'s handlers call through `ipc/nativeFile.ts`'s dialog/disk-I/O
  * wrappers plus `WasmEditor`'s `save_tea`/`save_teab`/`load_tea`/`load_teab`).
- * `onExportGif` sits right next to `onSave` for the same "global document
+ * `onExportAnimation` sits right next to `onSave` for the same "global document
  * action" reasoning — renders the active animation to a `.gif` (see
  * `exportGif.ts`) so it can be dropped next to a reference clip for
  * comparison, a fidelity-debugging aid rather than a "share this clip"
@@ -410,7 +453,7 @@ export function TopToolbar({
   onRedo,
   fileMenu,
   onSave,
-  onExportGif,
+  onExportAnimation,
   onExportGame,
   onExportDesktopGame,
   onAddShape,
@@ -452,7 +495,8 @@ export function TopToolbar({
   onRedo: () => void
   fileMenu: FileMenuActions
   onSave: () => void
-  onExportGif: () => void
+  /** Export menu → an animation as GIF / WebM / MP4. */
+  onExportAnimation: (options: AnimationExportOptions) => void
   /** Exports the document as one self-contained, playable `.html`. */
   onExportGame: () => void
   onExportDesktopGame: () => void
@@ -602,27 +646,7 @@ export function TopToolbar({
               <SaveIcon />
               {fileMenu.dirty && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-accent" />}
             </button>
-            <button
-              onClick={onExportGif}
-              title="Export GIF"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
-            >
-              <GifExportIcon />
-            </button>
-            <button
-              onClick={onExportGame}
-              title="Export Game (.html)"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
-            >
-              <GameExportIcon />
-            </button>
-            <button
-              onClick={onExportDesktopGame}
-              title="Export Game as a desktop app (.exe) — one file, double-click to play, F11 for fullscreen"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
-            >
-              <DesktopExportIcon />
-            </button>
+            <ExportMenu onExportAnimation={onExportAnimation} onExportGame={onExportGame} onExportDesktopGame={onExportDesktopGame} />
             <div className="mx-1 h-4 w-px bg-overlay/10" />
             <button
               onClick={onUndo}

@@ -75,8 +75,8 @@ import type {
   Stroke,
   Transform2D,
 } from './ipc/document'
-import { pickOpenAudioPath, pickOpenImagePath, pickOpenModelPath, pickOpenSvgPath, pickSaveHtmlPath, pickSaveExePath, exportDesktopGame, pickSaveGifPath, readBinaryFile, readTextFile, writeTextFile } from './ipc/nativeFile'
-import { exportActiveAnimationAsGif, GifExportError } from './exportGif'
+import { pickOpenAudioPath, pickOpenImagePath, pickOpenModelPath, pickOpenSvgPath, pickSaveHtmlPath, pickSaveExePath, pickSaveFilePath, exportDesktopGame, readBinaryFile, readTextFile, writeTextFile } from './ipc/nativeFile'
+import { exportActiveAnimation, EXPORT_FORMAT_INFO, GifExportError, type AnimationExportOptions } from './exportGif'
 import {
   addAnimation,
   addBoneNode,
@@ -722,7 +722,7 @@ function App() {
   const heldKeysRef = useRef<Set<string>>(new Set())
   const canvasSizeRef = useRef(canvasSize)
   canvasSizeRef.current = canvasSize
-  // Set for the duration of `handleExportGif` — the live loop below checks
+  // Set for the duration of `handleExportAnimation` — the live loop below checks
   // this and skips its own `render()` call while true, so its "whatever the
   // live camera/scrub state is" draws don't race with the export's own
   // direct `render()` calls (each sampling a specific export frame's time)
@@ -867,7 +867,7 @@ function App() {
 
       function frame(now: number) {
         if (cancelled || !editorRef.current) return
-        // While a GIF export is in progress, `handleExportGif` is driving
+        // While an animation export is in progress, `handleExportAnimation` is driving
         // `render()` directly with its own per-export-frame time — skip this
         // loop's own call entirely (but still reschedule) so the two don't
         // fight over the same canvas.
@@ -3156,23 +3156,26 @@ function App() {
     }
   }
 
-  const handleExportGif = () => {
+  /** Export menu → GIF / transparent GIF / WebM (transparent) / MP4. */
+  const handleExportAnimation = (options: AnimationExportOptions) => {
     const artboard = artboards[0]
     if (!editorRef.current || !canvasRef.current || !artboard) return
     const editor = editorRef.current
     const canvas = canvasRef.current
+    const info = EXPORT_FORMAT_INFO[options.format]
     ;(async () => {
-      const path = await pickSaveGifPath('untitled.gif')
+      const stem = (artboard.name || 'untitled').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'untitled'
+      const path = await pickSaveFilePath(`${stem}${options.transparent ? '-transparent' : ''}.${info.extension}`, info.filter, [info.extension])
       if (!path) return
       exportingRef.current = true
       try {
-        await exportActiveAnimationAsGif(editor, canvas, artboard, path)
+        await exportActiveAnimation(editor, canvas, artboard, path, options)
       } finally {
         exportingRef.current = false
       }
     })().catch((err) => {
-      console.error('GIF export failed', err)
-      alert(err instanceof GifExportError ? err.message : 'GIF export failed — see the console for details.')
+      console.error('Animation export failed', err)
+      alert(err instanceof GifExportError ? err.message : `${info.label} export failed — see the console for details.`)
     })
   }
 
@@ -4022,7 +4025,7 @@ function App() {
         onRedo={handleRedo}
         fileMenu={project.fileMenu}
         onSave={handleSave}
-        onExportGif={handleExportGif}
+        onExportAnimation={handleExportAnimation}
         onExportGame={() => void handleExportGame()}
         onExportDesktopGame={() => void handleExportGame('desktop')}
         onAddShape={handleAddShape}

@@ -55,6 +55,11 @@ export function pickSaveHtmlPath(suggestedName: string): Promise<string | null> 
   return invoke('pick_save_html_path', { suggestedName })
 }
 
+/** "Save As" filtered to one file type (`extensions` without dots). */
+export function pickSaveFilePath(suggestedName: string, filterName: string, extensions: string[]): Promise<string | null> {
+  return invoke('pick_save_file_path', { suggestedName, filterName, extensions })
+}
+
 /** "Save As" for Export Game → Desktop app (`.exe` on Windows). */
 export function pickSaveExePath(suggestedName: string): Promise<string | null> {
   return invoke('pick_save_exe_path', { suggestedName })

@@ -820,6 +820,9 @@ var t = class e {
 		if (n[2]) throw q(n[1]);
 		return q(n[0]);
 	}
+	set_export_transparent(e) {
+		Y.wasmeditor_set_export_transparent(this.__wbg_ptr, e);
+	}
 	set_fill_color(e, t, n) {
 		let r = Y.wasmeditor_set_fill_color(this.__wbg_ptr, e, t, n);
 		if (r[2]) throw q(r[1]);
