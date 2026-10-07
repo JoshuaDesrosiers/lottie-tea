@@ -25,7 +25,7 @@ export const ASSET_DRAG_MIME = 'application/x-an1mbyt3-asset'
 
 export type DraggedAsset = { kind: 'prefab' | 'image' | 'drawing'; id: OpaqueId }
 
-type ItemKind = 'scene' | 'prefab' | 'image' | 'drawing' | 'file'
+type ItemKind = 'scene' | 'prefab' | 'image' | 'audio' | 'model' | 'drawing' | 'file'
 
 interface BrowserItem {
   /** Project-relative, `/`-separated. */

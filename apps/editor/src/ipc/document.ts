@@ -1250,7 +1250,7 @@ export interface ProjectFileListing {
   /** An image's own source file in the project — written only if missing. */
   linked: boolean
   /** The document item the file holds (`null` for the manifest). */
-  asset: { kind: 'scene' | 'prefab' | 'image'; id: OpaqueId } | null
+  asset: { kind: 'scene' | 'prefab' | 'image' | 'audio' | 'model'; id: OpaqueId } | null
 }
 
 /** Mirrors `an1mbyt3_core::ScriptFieldKind` — a bare string-literal union,

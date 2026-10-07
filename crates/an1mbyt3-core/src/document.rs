@@ -224,6 +224,12 @@ impl Document {
         self.audio.iter()
     }
 
+    /// Every model slot, deleted ones included (project saving keeps slot
+    /// order).
+    pub fn model_slots(&self) -> impl Iterator<Item = (crate::ModelId, &crate::ModelAsset)> {
+        self.models.iter()
+    }
+
     pub fn add_model(&mut self, model: crate::ModelAsset) -> crate::ModelId {
         self.models.insert(model)
     }

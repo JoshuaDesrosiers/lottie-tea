@@ -2689,7 +2689,7 @@ pub struct ProjectFileDto {
     pub asset: Option<ProjectAssetDto>,
 }
 
-/// `ProjectFileDto::asset`: `kind` is `"scene" | "prefab" | "image"`, `id`
+/// `ProjectFileDto::asset`: `kind` is `"scene" | "prefab" | "image" | "audio" | "model"`, `id`
 /// the item's id in the usual `{ idx, version }` shape.
 #[derive(Serialize)]
 pub struct ProjectAssetDto {

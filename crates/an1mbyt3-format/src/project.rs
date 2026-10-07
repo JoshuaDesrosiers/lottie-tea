@@ -82,6 +82,7 @@ pub enum ProjectAssetKind {
     Prefab,
     Image,
     Audio,
+    Model,
 }
 
 impl ProjectAssetKind {
@@ -91,6 +92,7 @@ impl ProjectAssetKind {
             Self::Prefab => "prefab",
             Self::Image => "image",
             Self::Audio => "audio",
+            Self::Model => "model",
         }
     }
 }
@@ -139,6 +141,18 @@ fn safe_name(name: &str) -> String {
 
 /// `dir/stem.ext`, made unique against `taken` (case-insensitive — Windows
 /// and macOS file systems are) by appending ` 2`, ` 3`, …
+/// A model's referenced file (`Textures/wood.png`, `../shared/a.bin`) as a
+/// safe path inside the model's folder: each component cleaned; `..`, `.`
+/// and drive letters dropped.
+fn model_file_path(path: &str) -> String {
+    let parts: Vec<String> = path.split(['/', '\u{5c}']).filter(|p| !p.is_empty() && *p != "." && *p != ".." && !p.ends_with(':')).map(safe_name).collect();
+    if parts.is_empty() {
+        "file".into()
+    } else {
+        parts.join("/")
+    }
+}
+
 fn unique_path(dir: &str, stem: &str, ext: &str, taken: &mut HashSet<String>) -> String {
     let mut n = 1;
     loop {
@@ -214,6 +228,18 @@ pub fn save_project(document: &Document, project_name: &str) -> serde_json::Resu
         let asset = stripped.audio_mut(id).expect("listed above");
         audio_bytes.push((deleted, asset.name.clone(), asset.file.clone(), if deleted { Vec::new() } else { std::mem::take(&mut asset.source) }));
     }
+    // Models too: the model file plus its textures / buffers, each a real
+    // file in the model's own folder (deleted ones stay inline).
+    let model_ids: Vec<_> = stripped.model_slots().map(|(id, m)| (id, m.deleted)).collect();
+    let mut model_bytes = Vec::new();
+    for (id, deleted) in model_ids {
+        let asset = stripped.model_mut(id).expect("listed above");
+        if deleted {
+            model_bytes.push(None);
+        } else {
+            model_bytes.push(Some((asset.name.clone(), std::mem::take(&mut asset.source), std::mem::take(&mut asset.files))));
+        }
+    }
     let mut root = serde_json::to_value(VersionedDocument::wrap(&stripped))?;
     let doc = root.get_mut("document").expect("VersionedDocument has a document");
 
@@ -277,6 +303,32 @@ pub fn save_project(document: &Document, project_name: &str) -> serde_json::Resu
             value.insert("$source".into(), Value::String(path.clone()));
             asset_paths.push(path.clone());
             files.push(ProjectFile { path, contents: ProjectContents::Bytes(bytes), asset, linked });
+        }
+    }
+
+    if let Some(slots) = doc.get_mut("models") {
+        for ((idx, slot), entry) in indexed_slots(slots).zip(model_bytes) {
+            let Some((name, source, extra)) = entry else { continue };
+            let asset = Some(ProjectAsset { kind: ProjectAssetKind::Model, idx, version: slot_version(slot) });
+            let value = slot.get_mut("value").and_then(Value::as_object_mut).expect("occupied model slot");
+            let stem = name.rsplit_once('.').map_or(name.as_str(), |(stem, _)| stem);
+            // `Assets/Models/<name>/<name>.glb`, with its textures beside it
+            // at the relative paths the model refers to them by.
+            let folder = unique_path("Assets/Models", &safe_name(stem), "", &mut taken);
+            let ext = if source.starts_with(b"glTF") { ".glb" } else { ".gltf" };
+            let path = format!("{folder}/{}{ext}", safe_name(stem));
+            value.insert("$source".into(), Value::String(path.clone()));
+            asset_paths.push(path.clone());
+            files.push(ProjectFile { path, contents: ProjectContents::Bytes(source), asset, linked: false });
+            let mut refs = Vec::new();
+            for file in extra {
+                let on_disk = format!("{folder}/{}", model_file_path(&file.path));
+                taken.insert(on_disk.to_lowercase());
+                refs.push(json!({ "path": file.path, "file": on_disk }));
+                asset_paths.push(on_disk.clone());
+                files.push(ProjectFile { path: on_disk, contents: ProjectContents::Bytes(file.data), asset: None, linked: false });
+            }
+            value.insert("$files".into(), Value::Array(refs));
         }
     }
 
@@ -355,6 +407,27 @@ pub fn load_project(manifest: &str, mut read: impl FnMut(&str) -> Option<Vec<u8>
         }
     }
 
+    // Models: `$source` + `$files` back into bytes (in slot order).
+    let mut model_files = Vec::new();
+    if let Some(slots) = doc.get_mut("models") {
+        for slot in occupied_slots(slots) {
+            let value = slot.get_mut("value").and_then(Value::as_object_mut).expect("occupied model slot");
+            let source = value.remove("$source").and_then(|v| v.as_str().map(String::from));
+            let refs: Vec<(String, String)> = value
+                .remove("$files")
+                .and_then(|v| v.as_array().cloned())
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|r| Some((r.get("path")?.as_str()?.to_string(), r.get("file")?.as_str()?.to_string())))
+                .collect();
+            if source.is_some() {
+                value.insert("source".into(), Value::Array(Vec::new()));
+                value.insert("files".into(), Value::Array(Vec::new()));
+            }
+            model_files.push(source.map(|s| (s, refs)));
+        }
+    }
+
     let versioned: VersionedDocument = serde_json::from_value(json!({ "schema_version": schema_version, "document": doc })).map_err(ProjectLoadError::Json)?;
     check_schema_version(versioned.schema_version).map_err(ProjectLoadError::UnsupportedSchemaVersion)?;
     let mut document = versioned.document;
@@ -372,6 +445,19 @@ pub fn load_project(manifest: &str, mut read: impl FnMut(&str) -> Option<Vec<u8>
         let Some(path) = path else { continue };
         let bytes = read(&path).ok_or_else(|| ProjectLoadError::MissingFile(path.clone()))?;
         document.audio_mut(id).expect("listed above").source = bytes;
+    }
+    let ids: Vec<_> = document.model_slots().map(|(id, _)| id).collect();
+    for (id, entry) in ids.into_iter().zip(model_files) {
+        let Some((source, refs)) = entry else { continue };
+        let bytes = read(&source).ok_or_else(|| ProjectLoadError::MissingFile(source.clone()))?;
+        let mut files = Vec::with_capacity(refs.len());
+        for (path, file) in refs {
+            let data = read(&file).ok_or_else(|| ProjectLoadError::MissingFile(file.clone()))?;
+            files.push(an1mbyt3_core::ModelFile { path, data });
+        }
+        let model = document.model_mut(id).expect("listed above");
+        model.source = bytes;
+        model.files = files;
     }
     Ok(document)
 }
@@ -440,6 +526,36 @@ mod tests {
         assert_eq!(jump.source, wav);
         assert_eq!(loaded.audio_assets().count(), 1);
         assert!(loaded.audio(gone).is_none(), "the deleted sound stays deleted");
+    }
+
+    #[test]
+    fn models_are_saved_as_a_folder_with_their_textures() {
+        use an1mbyt3_core::{ModelAsset, ModelFile};
+        let mut document = Document::new();
+        document.add_artboard(Artboard::new("Level 1", 100.0, 100.0));
+        let glb = b"glTF   model".to_vec();
+        let png = vec![0x89, b'P', b'N', b'G', 9, 9];
+        document.add_model(ModelAsset {
+            name: "character-a.glb".into(),
+            source: glb.clone(),
+            // A sneaky `..` must not escape the model's folder.
+            files: vec![ModelFile { path: "Textures/../texture-a.png".into(), data: png.clone() }],
+            deleted: false,
+        });
+        let files = save_project(&document, "Game").unwrap();
+        let paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
+        assert!(paths.contains(&"Assets/Models/character-a/character-a.glb"), "{paths:?}");
+        assert!(paths.contains(&"Assets/Models/character-a/Textures/texture-a.png"), "{paths:?}");
+        let store: HashMap<String, Vec<u8>> = files
+            .iter()
+            .map(|f| (f.path.clone(), match &f.contents { ProjectContents::Text(t) => t.clone().into_bytes(), ProjectContents::Bytes(b) => b.clone() }))
+            .collect();
+        let manifest = String::from_utf8(store["Game.an1proj"].clone()).unwrap();
+        assert!(!manifest.contains("103,108,84,70"), "model bytes aren't inlined in the manifest");
+        let loaded = load_project(&manifest, |p| store.get(p).cloned()).unwrap();
+        let (_, model) = loaded.models().next().unwrap();
+        assert_eq!(model.source, glb);
+        assert_eq!(model.files, vec![ModelFile { path: "Textures/../texture-a.png".into(), data: png }], "original reference path kept");
     }
 
     #[test]
