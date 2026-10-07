@@ -2066,6 +2066,9 @@ pub struct WasmEditor {
     /// dropped on leaving Playground or switching scenes (stopping
     /// Playground restores every node's designed pose anyway).
     physics: Option<(ArtboardId, an1mbyt3_physics::PhysicsWorld)>,
+    /// Physics 3D (Rigidbody 3D / Collider 3D), Playground only — same
+    /// lifecycle as `physics`.
+    physics3d: Option<(ArtboardId, an1mbyt3_physics::physics3d::Physics3DWorld)>,
 }
 
 /// One node's runtime-mutable state, as captured on entering a live mode
@@ -2372,6 +2375,7 @@ impl WasmEditor {
             crop_bars: None,
             trail_gpu: HashMap::new(),
             physics: None,
+            physics3d: None,
         })
     }
 
@@ -2705,9 +2709,24 @@ impl WasmEditor {
             }
         } else if self.physics.is_some() {
             self.physics = None;
+        self.physics3d = None;
+        }
+        // Physics 3D, the same way (only for scenes that use it).
+        if self.playground_active && self.document.artboard(artboard_id).is_some_and(an1mbyt3_physics::physics3d::Physics3DWorld::scene_has_physics) {
+            if self.physics3d.as_ref().is_none_or(|(scene, _)| *scene != artboard_id) {
+                self.physics3d = Some((artboard_id, an1mbyt3_physics::physics3d::Physics3DWorld::new()));
+            }
+            let model_gpu = &self.model_gpu;
+            let bounds = |m: an1mbyt3_core::ModelId| model_gpu.get(&m).map(|g| g.data.bounds);
+            if let (Some((_, world)), Some(artboard_mut)) = (self.physics3d.as_mut(), self.document.artboard_mut(artboard_id)) {
+                world.sync(artboard_mut, &bounds);
+                world.step(artboard_mut, delta_seconds);
+            }
+        } else if self.physics3d.is_some() {
+            self.physics3d = None;
         }
         stats.physics_ms = stopwatch.lap();
-        stats.bodies = self.physics.as_ref().map_or(0, |(_, world)| world.body_count() as u32);
+        stats.bodies = self.physics.as_ref().map_or(0, |(_, world)| world.body_count() as u32) + self.physics3d.as_ref().map_or(0, |(_, world)| world.body_count() as u32);
         self.step_camera_follow(artboard_id, delta_seconds);
         let (camera_pan_x, camera_pan_y, camera_zoom, clear_r, clear_g, clear_b, grid_r, grid_g, grid_b) =
             match self.active_camera_view(artboard_id) {
@@ -3919,6 +3938,7 @@ impl WasmEditor {
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
+        self.physics3d = None;
         self.trail_gpu.clear();
         self.active_animation = self.document.artboard(artboard_id).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
@@ -5655,6 +5675,8 @@ impl WasmEditor {
             "UiLayoutItem" => B::UiLayoutItem(an1mbyt3_core::UiLayoutItem::default()),
             "UiShowWhen" => B::UiShowWhen(an1mbyt3_core::UiShowWhen::default()),
             "UiHtml" => B::UiHtml(an1mbyt3_core::UiHtml::default()),
+            "Rigidbody3D" => B::Rigidbody3D(an1mbyt3_core::Rigidbody3D::default()),
+            "Collider3D" => B::Collider3D(an1mbyt3_core::Collider3D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -5734,14 +5756,91 @@ impl WasmEditor {
     /// since the last call, as `{ a, b, started, trigger }` (node ids).
     pub fn physics_events(&mut self, artboard: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
-        let events: Vec<crate::dto::ContactEventDto> = self
-            .physics_for(artboard_id)
-            .map(|w| w.take_events())
-            .unwrap_or_default()
+        let mut events = self.physics_for(artboard_id).map(|w| w.take_events()).unwrap_or_default();
+        // 3D contacts come through the same `ctx.collisions` list.
+        if let Some(world) = self.physics3d_for(artboard_id) {
+            events.extend(world.take_events());
+        }
+        let events: Vec<crate::dto::ContactEventDto> = events
             .into_iter()
             .map(|e| crate::dto::ContactEventDto { a: e.a, b: e.b, started: e.started, trigger: e.trigger })
             .collect();
         to_js_value(&events)
+    }
+
+    /// The 3D physics world for `artboard`, if Playground is simulating it.
+    fn physics3d_for(&mut self, artboard: ArtboardId) -> Option<&mut an1mbyt3_physics::physics3d::Physics3DWorld> {
+        self.physics3d.as_mut().filter(|(scene, _)| *scene == artboard).map(|(_, world)| world)
+    }
+
+    /// Script API (`ref.velocity3`): a Rigidbody 3D's linear velocity
+    /// `[x, y, z]` in m/s, or `null`.
+    pub fn physics3d_velocity(&mut self, artboard: JsValue, node: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let v = self.physics3d_for(artboard_id).and_then(|w| w.velocity(node_id)).map(|v| [v.x, v.y, v.z]);
+        to_js_value(&v)
+    }
+
+    /// Script API (`ref.angularVelocity3`): degrees/second about each axis.
+    pub fn physics3d_angular_velocity(&mut self, artboard: JsValue, node: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let v = self.physics3d_for(artboard_id).and_then(|w| w.angular_velocity(node_id)).map(|v| [v.x, v.y, v.z]);
+        to_js_value(&v)
+    }
+
+    /// Script API: set velocity (`kind` 0) or angular velocity in degrees/s
+    /// (`kind` 1).
+    #[allow(clippy::too_many_arguments)]
+    pub fn physics3d_set_velocity(&mut self, artboard: JsValue, node: JsValue, kind: u32, x: f32, y: f32, z: f32) -> Result<(), JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        if let Some(world) = self.physics3d_for(artboard_id) {
+            let v = glam::Vec3::new(x, y, z);
+            if kind == 0 {
+                world.set_velocity(node_id, v);
+            } else {
+                world.set_angular_velocity(node_id, v);
+            }
+        }
+        Ok(())
+    }
+
+    /// Script API (`ref.addForce3` / `addImpulse3` / `addTorque3`):
+    /// `mode` 0 = force (over the next frame), 1 = impulse, 2 = torque
+    /// impulse.
+    #[allow(clippy::too_many_arguments)]
+    pub fn physics3d_add_force(&mut self, artboard: JsValue, node: JsValue, mode: u32, x: f32, y: f32, z: f32) -> Result<(), JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        if let Some(world) = self.physics3d_for(artboard_id) {
+            let v = glam::Vec3::new(x, y, z);
+            match mode {
+                0 => world.add_force(node_id, v),
+                1 => world.add_impulse(node_id, v),
+                _ => world.add_torque_impulse(node_id, v),
+            }
+        }
+        Ok(())
+    }
+
+    /// Script API (`ctx.raycast3`): Unity's `Physics.Raycast` — the first
+    /// non-trigger 3D collider hit as `{ node, x, y, z, normalX, normalY,
+    /// normalZ, distance }`, or `null`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn physics3d_raycast(&mut self, artboard: JsValue, ox: f32, oy: f32, oz: f32, dx: f32, dy: f32, dz: f32, max_distance: f32, exclude: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let exclude: Option<NodeId> = parse_id(exclude)?;
+        let hit = self.physics3d_for(artboard_id).and_then(|w| w.raycast(glam::Vec3::new(ox, oy, oz), glam::Vec3::new(dx, dy, dz), max_distance, exclude));
+        to_js_value(&hit.map(|h| crate::dto::RayHit3Dto { node: h.node, x: h.point.x, y: h.point.y, z: h.point.z, normal_x: h.normal.x, normal_y: h.normal.y, normal_z: h.normal.z, distance: h.distance }))
+    }
+
+    /// Scene 3D gravity (Inspector → Canvas → Gravity 3D). Undoable.
+    pub fn set_artboard_gravity_3d(&mut self, artboard: JsValue, x: f32, y: f32, z: f32) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        self.document.apply(Command::SetArtboardGravity3D { artboard: artboard_id, value: glam::Vec3::new(x, y, z) });
+        self.document_summary()
     }
 
     /// Scene gravity (Inspector → Canvas → Gravity). Undoable.
@@ -8384,6 +8483,14 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// The + menu's Demos → "Physics 3D Lab" — Rigidbody 3D / Collider 3D:
+    /// a crate pyramid, a ramp, a trigger zone and a click-to-fire cannon.
+    pub async fn load_physics3d_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_physics3d::build_demo_physics3d(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     /// The + menu's Demos → "3D Showroom" — the first 3D scene: every
     /// primitive on a lit stage, an orbit camera, moving point lights.
     pub async fn load_3d_demo(&mut self) -> Result<JsValue, JsValue> {
@@ -8968,6 +9075,7 @@ impl WasmEditor {
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
+        self.physics3d = None;
         self.trail_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
@@ -9132,6 +9240,7 @@ impl WasmEditor {
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
+        self.physics3d = None;
         self.trail_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
@@ -9174,6 +9283,7 @@ impl WasmEditor {
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
+        self.physics3d = None;
         self.trail_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);

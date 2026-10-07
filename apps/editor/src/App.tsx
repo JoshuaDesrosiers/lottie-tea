@@ -151,6 +151,7 @@ import {
   loadUiDemo,
   loadResponsiveDemo,
   loadHtmlDemo,
+  loadPhysics3DDemo,
   addNode3D,
   setNode3D,
   importModel,
@@ -183,6 +184,7 @@ import {
   setArtboardGravity,
   setArtboardResolutionScale,
   setArtboardScreen,
+  setArtboardGravity3D,
   setPreviewScreen,
   setBoneLength,
   setImageProcessing,
@@ -2288,6 +2290,20 @@ function App() {
       })
   }
 
+  const handleLoadPhysics3DDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadPhysics3DDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
   const handleLoadHtmlDemo = () => {
     const editor = editorRef.current
     if (!editor) return
@@ -2903,6 +2919,11 @@ function App() {
   }
 
   // Physics 2D gravity for the scene being edited (world units / s², +y up).
+  const handleSetArtboardGravity3D = (x: number, y: number, z: number) => {
+    if (!editorRef.current || !activeArtboard) return
+    setDoc(setArtboardGravity3D(editorRef.current, activeArtboard.id, x, y, z))
+  }
+
   const handleSetArtboardGravity = (x: number, y: number) => {
     if (!editorRef.current || !activeArtboard) return
     setDoc(setArtboardGravity(editorRef.current, activeArtboard.id, x, y))
@@ -4083,6 +4104,7 @@ function App() {
             onLoadUiDemo={handleLoadUiDemo}
             onLoadResponsiveDemo={handleLoadResponsiveDemo}
             onLoadHtmlDemo={handleLoadHtmlDemo}
+            onLoadPhysics3DDemo={handleLoadPhysics3DDemo}
             onLoadTacticsDemo={handleLoadTacticsDemo}
             onLoadPhysicsDemo={handleLoadPhysicsDemo}
         onAddText={handleAddText}
@@ -4189,6 +4211,7 @@ function App() {
                 artboard={artboards[0] ?? null}
                 onSetArtboardSize={handleSetArtboardSize}
                 onSetArtboardGravity={handleSetArtboardGravity}
+                onSetArtboardGravity3D={handleSetArtboardGravity3D}
                 onSetArtboardResolutionScale={handleSetArtboardResolutionScale}
                 onSetArtboardScreen={handleSetArtboardScreen}
                 onSetMainCamera={handleSetMainCamera}

@@ -896,6 +896,8 @@ export interface ArtboardSummary {
   activeCamera: OpaqueId | null
   /** Physics 2D gravity (world units / s², +y up). */
   gravity: Vec2
+  /** Physics 3D gravity `[x, y, z]`, m/s². */
+  gravity3d: [number, number, number]
 }
 
 /** Mirrors `crates/an1mbyt3-wasm/src/dto.rs`'s `PostEffectDto` — one
@@ -1176,6 +1178,29 @@ export interface UiHtmlConfig {
   interactive: boolean
 }
 
+/** A 3D physics body (`an1mbyt3_core::Rigidbody3D`). */
+export interface Rigidbody3DConfig {
+  bodyType: 'Dynamic' | 'Kinematic' | 'Static'
+  mass: number
+  gravityScale: number
+  linearDamping: number
+  angularDamping: number
+  freezeRotation: boolean
+  continuous: boolean
+}
+
+/** A 3D collision shape (`an1mbyt3_core::Collider3DShape`). */
+export type Collider3DShape = 'Auto' | { Box: { size: [number, number, number] } } | { Sphere: { radius: number } } | { Capsule: { radius: number; height: number } }
+
+/** `an1mbyt3_core::Collider3D`. */
+export interface Collider3DConfig {
+  shape: Collider3DShape
+  offset: [number, number, number]
+  isTrigger: boolean
+  friction: number
+  restitution: number
+}
+
 /** One imported sound. */
 export interface AudioSummary {
   id: OpaqueId
@@ -1330,6 +1355,8 @@ export type NodeBehavior =
   | ({ kind: 'UiLayoutItem' } & UiLayoutItemConfig)
   | ({ kind: 'UiShowWhen' } & UiShowWhenConfig)
   | ({ kind: 'UiHtml' } & UiHtmlConfig)
+  | ({ kind: 'Rigidbody3D' } & Rigidbody3DConfig)
+  | ({ kind: 'Collider3D' } & Collider3DConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

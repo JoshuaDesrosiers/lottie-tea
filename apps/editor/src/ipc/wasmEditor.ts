@@ -185,6 +185,11 @@ export async function loadLiquidDemo(editor: WasmEditor): Promise<AddArtboardRes
 }
 
 /** Demos → "UI & Sound Lab": UI anchors, a button stack, synthesized sounds. */
+/** Demos → "Physics 3D Lab". */
+export async function loadPhysics3DDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_physics3d_demo()) as AddArtboardResult
+}
+
 /** Demos → "HTML UI Lab". */
 export async function loadHtmlDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_html_demo()) as AddArtboardResult
@@ -347,6 +352,40 @@ export function defaultComponent(editor: WasmEditor, kind: ComponentKind): NodeB
 }
 
 /** Scene gravity (Canvas section). Undoable. */
+/** Scene 3D gravity (Rigidbody 3D), m/s². Undoable. */
+export function setArtboardGravity3D(editor: WasmEditor, artboard: OpaqueId, x: number, y: number, z: number): DocumentSummary {
+  return editor.set_artboard_gravity_3d(artboard, x, y, z) as DocumentSummary
+}
+
+/** `physics3d_raycast`'s hit. */
+export interface RayHit3D {
+  node: OpaqueId
+  x: number
+  y: number
+  z: number
+  normalX: number
+  normalY: number
+  normalZ: number
+  distance: number
+}
+export function physics3dVelocity(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId): [number, number, number] | null {
+  return editor.physics3d_velocity(artboard, node) as [number, number, number] | null
+}
+export function physics3dAngularVelocity(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId): [number, number, number] | null {
+  return editor.physics3d_angular_velocity(artboard, node) as [number, number, number] | null
+}
+/** `kind` 0 = linear velocity (m/s), 1 = angular (degrees/s). */
+export function physics3dSetVelocity(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, kind: 0 | 1, x: number, y: number, z: number): void {
+  editor.physics3d_set_velocity(artboard, node, kind, x, y, z)
+}
+/** `mode` 0 = force, 1 = impulse, 2 = torque impulse. */
+export function physics3dAddForce(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, mode: 0 | 1 | 2, x: number, y: number, z: number): void {
+  editor.physics3d_add_force(artboard, node, mode, x, y, z)
+}
+export function physics3dRaycast(editor: WasmEditor, artboard: OpaqueId, o: [number, number, number], d: [number, number, number], maxDistance: number, exclude: OpaqueId | null): RayHit3D | null {
+  return editor.physics3d_raycast(artboard, o[0], o[1], o[2], d[0], d[1], d[2], maxDistance, exclude) as RayHit3D | null
+}
+
 export function setArtboardGravity(editor: WasmEditor, artboard: OpaqueId, x: number, y: number): DocumentSummary {
   return editor.set_artboard_gravity(artboard, x, y) as DocumentSummary
 }

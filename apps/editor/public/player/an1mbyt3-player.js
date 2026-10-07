@@ -410,6 +410,9 @@ var t = class e {
 	load_ninja_demo() {
 		return J.wasmeditor_load_ninja_demo(this.__wbg_ptr);
 	}
+	load_physics3d_demo() {
+		return J.wasmeditor_load_physics3d_demo(this.__wbg_ptr);
+	}
 	load_physics_demo() {
 		let e = J.wasmeditor_load_physics_demo(this.__wbg_ptr);
 		if (e[2]) throw K(e[1]);
@@ -475,6 +478,29 @@ var t = class e {
 		if (n[3]) throw K(n[2]);
 		var r = A(n[0], n[1]).slice();
 		return J.__wbindgen_free(n[0], n[1] * 4, 4), r;
+	}
+	physics3d_add_force(e, t, n, r, i, a) {
+		let o = J.wasmeditor_physics3d_add_force(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[1]) throw K(o[0]);
+	}
+	physics3d_angular_velocity(e, t) {
+		let n = J.wasmeditor_physics3d_angular_velocity(this.__wbg_ptr, e, t);
+		if (n[2]) throw K(n[1]);
+		return K(n[0]);
+	}
+	physics3d_raycast(e, t, n, r, i, a, o, s, c) {
+		let l = J.wasmeditor_physics3d_raycast(this.__wbg_ptr, e, t, n, r, i, a, o, s, c);
+		if (l[2]) throw K(l[1]);
+		return K(l[0]);
+	}
+	physics3d_set_velocity(e, t, n, r, i, a) {
+		let o = J.wasmeditor_physics3d_set_velocity(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[1]) throw K(o[0]);
+	}
+	physics3d_velocity(e, t) {
+		let n = J.wasmeditor_physics3d_velocity(this.__wbg_ptr, e, t);
+		if (n[2]) throw K(n[1]);
+		return K(n[0]);
 	}
 	physics_add_force(e, t, n, r, i) {
 		let a = J.wasmeditor_physics_add_force(this.__wbg_ptr, e, t, n, r, i);
@@ -787,6 +813,11 @@ var t = class e {
 		let r = J.wasmeditor_set_artboard_gravity(this.__wbg_ptr, e, t, n);
 		if (r[2]) throw K(r[1]);
 		return K(r[0]);
+	}
+	set_artboard_gravity_3d(e, t, n, r) {
+		let i = J.wasmeditor_set_artboard_gravity_3d(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw K(i[1]);
+		return K(i[0]);
 	}
 	set_artboard_resolution_scale(e, t) {
 		let n = J.wasmeditor_set_artboard_resolution_scale(this.__wbg_ptr, e, t);
@@ -3314,7 +3345,7 @@ function r() {
 	};
 }
 function i(e, t, n) {
-	J.wasm_bindgen__convert__closures_____invoke__h2245bf6d9197d0b0(e, t, n);
+	J.wasm_bindgen__convert__closures_____invoke__h36fbaf31d1926eb4(e, t, n);
 }
 function a(e, t, n) {
 	let r = J.wasm_bindgen__convert__closures_____invoke__h8a34eac7d22ddaa9(e, t, n);
@@ -3697,54 +3728,69 @@ function Je(e, t) {
 	return e.set_active_artboard(t);
 }
 function Ye(e, t, n) {
-	return e.physics_velocity(t, n);
+	return e.physics3d_velocity(t, n);
 }
-function Xe(e, t, n, r, i) {
-	e.physics_set_velocity(t, n, r, i);
+function Xe(e, t, n) {
+	return e.physics3d_angular_velocity(t, n);
 }
-function Ze(e, t, n) {
-	return e.physics_angular_velocity(t, n);
+function Ze(e, t, n, r, i, a, o) {
+	e.physics3d_set_velocity(t, n, r, i, a, o);
 }
-function Qe(e, t, n, r) {
-	e.physics_set_angular_velocity(t, n, r);
+function Qe(e, t, n, r, i, a, o) {
+	e.physics3d_add_force(t, n, r, i, a, o);
 }
 function $e(e, t, n, r, i, a) {
+	return e.physics3d_raycast(t, n[0], n[1], n[2], r[0], r[1], r[2], i, a);
+}
+function et(e, t, n) {
+	return e.physics_velocity(t, n);
+}
+function tt(e, t, n, r, i) {
+	e.physics_set_velocity(t, n, r, i);
+}
+function nt(e, t, n) {
+	return e.physics_angular_velocity(t, n);
+}
+function rt(e, t, n, r) {
+	e.physics_set_angular_velocity(t, n, r);
+}
+function it(e, t, n, r, i, a) {
 	e.physics_add_force(t, n, r, i, a);
 }
-function et(e, t, n, r, i, a, o, s) {
+function at(e, t, n, r, i, a, o, s) {
 	return e.physics_raycast(t, n, r, i, a, o, s);
 }
-function tt(e, t) {
+function ot(e, t) {
 	return e.physics_events(t);
 }
-function nt(e, t, n, r) {
+function st(e, t, n, r) {
 	e.emit_particles(t, n, r);
 }
-function rt(e, t) {
+function ct(e, t) {
 	return e.playground_view(t);
 }
-function it(e, t, n, r) {
+function lt(e, t, n, r) {
 	e.preview_tilemap_tiles(t, n, Int32Array.from(r));
 }
-function at(e, t, n, r, i) {
+function ut(e, t, n, r, i) {
 	e.preview_light(t, n, r, i);
 }
-function ot(e, t, n, r) {
+function dt(e, t, n, r) {
 	e.preview_text_content(t, n, r);
 }
-function st(e, t, n, r) {
+function ft(e, t, n, r) {
 	e.preview_node_path(t, n, r);
 }
-function ct(e, t, n) {
+function pt(e, t, n) {
 	return e.delete_node(t, n);
 }
-async function lt(e, t) {
+async function mt(e, t) {
 	return await e.load_teab(t);
 }
-function ut(e, t, n) {
+function ht(e, t, n) {
 	return e.set_mode(t, n);
 }
-function dt(e) {
+function gt(e) {
 	let t = e.screen_info_now();
 	return {
 		width: t[0] ?? 0,
@@ -3755,22 +3801,22 @@ function dt(e) {
 		portrait: t[5] === 1
 	};
 }
-function ft(e) {
+function _t(e) {
 	return e.audio_list();
 }
-function pt(e, t, n, r, i, a) {
+function vt(e, t, n, r, i, a) {
 	e.preview_node3d_animation(t, n, r, i, a);
 }
-function mt(e, t, n, r) {
+function yt(e, t, n, r) {
 	e.preview_node3d_transform(t, n, Float32Array.from(r));
 }
-function ht(e, t, n) {
+function bt(e, t, n) {
 	e.preview_break_joint(t, n);
 }
-function gt(e, t, n, r, i) {
+function xt(e, t, n, r, i) {
 	e.preview_body_type(t, n, r, i);
 }
-function _t(e, t, n) {
+function St(e, t, n) {
 	let r = e.node_local_bounds(t, n);
 	return [
 		r[0] ?? 0,
@@ -3779,40 +3825,40 @@ function _t(e, t, n) {
 		r[3] ?? 0
 	];
 }
-function vt(e, t, n, r, i, a, o) {
+function Ct(e, t, n, r, i, a, o) {
 	e.preview_node_scale(t, n, r, i, a, o);
 }
-function yt(e, t, n, r, i, a, o) {
+function wt(e, t, n, r, i, a, o) {
 	e.preview_node_anchor(t, n, r, i, a, o);
 }
-function bt(e, t) {
+function Tt(e, t) {
 	e.fire_trigger(t);
 }
-function xt(e) {
+function Et(e) {
 	return e.state_machine_summary();
 }
-function St(e, t, n) {
+function Dt(e, t, n) {
 	e.set_state_machine_bool_input(t, n);
 }
-function Ct(e, t, n) {
+function Ot(e, t, n) {
 	e.set_state_machine_number_input(t, n);
 }
-function wt(e, t, n) {
+function kt(e, t, n) {
 	e.set_state_machine_enum_input(t, n);
 }
-function Tt(e, t, n) {
+function At(e, t, n) {
 	e.set_key_down(t, n);
 }
-function Et(e, t, n, r, i, a) {
+function jt(e, t, n, r, i, a) {
 	return e.spawn_prefab(t, n, r, i, a);
 }
-function Dt(e, t, n) {
+function Mt(e, t, n) {
 	e.destroy_node(t, n);
 }
 //#endregion
 //#region src/game/audio.ts
-var Ot = (e) => `${e.idx}:${e.version}`;
-function kt(e, t, n) {
+var Nt = (e) => `${e.idx}:${e.version}`;
+function Pt(e, t, n) {
 	let r = Math.max(1, n), i = Math.hypot(e, t);
 	return {
 		pan: Math.max(-1, Math.min(1, e / (r * .5))),
@@ -3839,7 +3885,7 @@ var Y = new class {
 		return this.ctx ? this.ctx : typeof AudioContext > "u" ? null : (this.ctx = new AudioContext(), this.master = this.ctx.createGain(), this.master.gain.value = this.masterVolume, this.master.connect(this.ctx.destination), this.unlocked && this.ctx.state === "suspended" && this.ctx.resume(), this.ctx);
 	}
 	load(e, t) {
-		let n = Ot(t), r = this.buffers.get(n);
+		let n = Nt(t), r = this.buffers.get(n);
 		if (!r) {
 			let i = this.context();
 			if (!i) return Promise.resolve(null);
@@ -3932,7 +3978,7 @@ var Y = new class {
 			if (!r.spatial || !r.node) continue;
 			let i = n(r.node);
 			if (!i) continue;
-			let a = kt(i.x - e, i.y - t, r.range);
+			let a = Pt(i.x - e, i.y - t, r.range);
 			r.panner.pan.value = a.pan, r.gain.gain.value = r.baseVolume * a.gain;
 		}
 	}
@@ -3945,7 +3991,7 @@ var Y = new class {
 	setMasterVolume(e) {
 		this.masterVolume = Math.max(0, e), this.master && (this.master.gain.value = this.masterVolume);
 	}
-}(), X = 31, At = class {
+}(), X = 31, Ft = class {
 	id;
 	elementId;
 	name;
@@ -4045,7 +4091,7 @@ var Y = new class {
 			]
 		};
 	}
-}, jt = class {
+}, It = class {
 	block = /* @__PURE__ */ new Float32Array();
 	nodes = [];
 	images = [];
@@ -4055,26 +4101,26 @@ var Y = new class {
 		let n = `${t.idx}:${t.version}`, r = e.script_revision(t);
 		if (n !== this.sceneKey || r !== this.revision) {
 			let r = e.script_scene(t);
-			this.sceneKey = n, this.revision = r.revision, this.nodes = r.nodes.map((e, t) => new At(this, t, e)), this.images = r.images;
+			this.sceneKey = n, this.revision = r.revision, this.nodes = r.nodes.map((e, t) => new Ft(this, t, e)), this.images = r.images;
 		}
 		return this.block = e.script_dynamic(t), this.nodes;
 	}
-}, Z = (e) => `${e.idx}:${e.version}`, Mt = (e) => Math.max(0, Math.min(1, e));
-function Nt(e, t) {
+}, Z = (e) => `${e.idx}:${e.version}`, Lt = (e) => Math.max(0, Math.min(1, e));
+function Rt(e, t) {
 	let n = e.worldTransform, r = t.x - n.translation.x, i = t.y - n.translation.y, a = Math.cos(-n.rotation), o = Math.sin(-n.rotation);
 	return {
 		x: (r * a - i * o) / (n.scale.x || 1) + n.anchor.x,
 		y: (r * o + i * a) / (n.scale.y || 1) + n.anchor.y
 	};
 }
-var Pt = (e, t) => t.x >= e[0] && t.x <= e[2] && t.y >= e[1] && t.y <= e[3], Q = (e, t) => Pt(e.bounds, Nt(e, t));
-function Ft(e) {
+var zt = (e, t) => t.x >= e[0] && t.x <= e[2] && t.y >= e[1] && t.y <= e[3], Q = (e, t) => zt(e.bounds, Rt(e, t));
+function Bt(e) {
 	return {
 		vertical: e === "BottomToTop" || e === "TopToBottom",
 		reversed: e === "RightToLeft" || e === "TopToBottom"
 	};
 }
-var It = class {
+var Vt = class {
 	states = /* @__PURE__ */ new Map();
 	session = null;
 	wasDown = !1;
@@ -4192,14 +4238,14 @@ var It = class {
 			if (n.slider) {
 				let t = n.slider, i = this.stateFor(n, t.value);
 				i.clicked = !1;
-				let { vertical: a, reversed: o } = Ft(t.direction), [s, d, f, p] = n.bounds, m = a ? d : s, h = a ? p : f, g = Nt(n, e.mouse), _ = c(n, "Handle"), v = t.interactable && l(n) && (Pt(n.bounds, g) || !!_ && Q(_, e.mouse));
+				let { vertical: a, reversed: o } = Bt(t.direction), [s, d, f, p] = n.bounds, m = a ? d : s, h = a ? p : f, g = Rt(n, e.mouse), _ = c(n, "Handle"), v = t.interactable && l(n) && (zt(n.bounds, g) || !!_ && Q(_, e.mouse));
 				if (t.interactable && r && v && (i.pressed = !0), e.down || (i.pressed = !1), i.hovered = v, i.pressed) {
-					let e = Mt(((a ? g.y : g.x) - m) / Math.max(1e-4, h - m));
+					let e = Lt(((a ? g.y : g.x) - m) / Math.max(1e-4, h - m));
 					o && (e = 1 - e);
 					let n = t.min + e * (t.max - t.min);
 					t.wholeNumbers && (n = Math.round(n)), i.value = n;
 				}
-				let y = t.max - t.min, b = Math.abs(y) < 1e-6 ? 0 : Mt((i.value - t.min) / y);
+				let y = t.max - t.min, b = Math.abs(y) < 1e-6 ? 0 : Lt((i.value - t.min) / y);
 				o && (b = 1 - b);
 				let x = m + b * (h - m), S = c(n, "Fill");
 				if (S) {
@@ -4216,7 +4262,7 @@ var It = class {
 			if (n.scrollbar && this.updateScrollbar(e, n, c(n, "Handle"), r, l(n)), n.scrollView) {
 				let t = n.scrollView, i = this.stateFor(n), a = c(n, "Content");
 				if (!a) continue;
-				let o = n.bounds, s = e.liveBounds(a.id), u = t.vertical || !t.horizontal, d = u ? o[3] - o[1] : o[2] - o[0], f = u ? s[3] - s[1] : s[2] - s[0], p = Math.max(0, f - d), m = Nt(n, e.mouse), h = l(n) && Pt(o, m);
+				let o = n.bounds, s = e.liveBounds(a.id), u = t.vertical || !t.horizontal, d = u ? o[3] - o[1] : o[2] - o[0], f = u ? s[3] - s[1] : s[2] - s[0], p = Math.max(0, f - d), m = Rt(n, e.mouse), h = l(n) && zt(o, m);
 				i.hovered = h;
 				let g = c(n, "Scrollbar"), _ = g ? this.states.get(Z(g.id)) : void 0, v = !!g && Q(g, e.mouse);
 				if (h && (e.wheel.y || e.wheel.x) && (i.scroll += (u ? e.wheel.y : e.wheel.x) / 100 * t.wheelStep, i.velocity = 0), r && h && !v && (i.drag = {
@@ -4244,10 +4290,10 @@ var It = class {
 		}
 	}
 	updateScrollbar(e, t, n, r, i) {
-		let a = t.scrollbar, o = this.stateFor(t, a.value), { vertical: s, reversed: c } = Ft(a.direction), [l, u, d, f] = t.bounds, p = s ? u : l, m = Math.max(1e-4, (s ? f : d) - p), h = m * Math.max(.05, Math.min(1, o.sizeOverride ?? a.size)), g = m - h, _ = Nt(t, e.mouse), v = s ? _.y : _.x, y = (e) => p + h / 2 + (c ? 1 - e : e) * g, b = (e) => {
-			let t = g > 1e-4 ? Mt((e - p - h / 2) / g) : 0;
+		let a = t.scrollbar, o = this.stateFor(t, a.value), { vertical: s, reversed: c } = Bt(a.direction), [l, u, d, f] = t.bounds, p = s ? u : l, m = Math.max(1e-4, (s ? f : d) - p), h = m * Math.max(.05, Math.min(1, o.sizeOverride ?? a.size)), g = m - h, _ = Rt(t, e.mouse), v = s ? _.y : _.x, y = (e) => p + h / 2 + (c ? 1 - e : e) * g, b = (e) => {
+			let t = g > 1e-4 ? Lt((e - p - h / 2) / g) : 0;
 			return c ? 1 - t : t;
-		}, x = y(Mt(o.value)), S = a.interactable && i && Pt(t.bounds, _);
+		}, x = y(Lt(o.value)), S = a.interactable && i && zt(t.bounds, _);
 		if (a.interactable && r && S && (o.pressed = !0, o.drag = {
 			mouse: v,
 			scroll: 0,
@@ -4257,10 +4303,10 @@ var It = class {
 			a.steps > 1 && (e = Math.round(e * (a.steps - 1)) / (a.steps - 1)), o.value = e;
 		}
 		if (!n) return;
-		let C = this.stateFor(n), ee = s ? n.bounds[3] - n.bounds[1] : n.bounds[2] - n.bounds[0], w = ee > 1e-4 ? h / ee : 1, T = y(Mt(o.value)), E = `${w.toFixed(4)}|${T.toFixed(2)}`;
+		let C = this.stateFor(n), ee = s ? n.bounds[3] - n.bounds[1] : n.bounds[2] - n.bounds[0], w = ee > 1e-4 ? h / ee : 1, T = y(Lt(o.value)), E = `${w.toFixed(4)}|${T.toFixed(2)}`;
 		C.layout !== E && (C.layout = E, s ? e.setScale(n.id, C.baseScale.x, C.baseScale.y * w, n.transform.translation.x, T) : e.setScale(n.id, C.baseScale.x * w, C.baseScale.y, T, n.transform.translation.y)), this.applyStyle(e, n, C, a.style, a.interactable ? o.pressed ? "pressed" : S ? "highlighted" : "normal" : "disabled", [], !1);
 	}
-}, Lt = (e) => `${e.idx}:${e.version}`, Rt = new class {
+}, Ht = (e) => `${e.idx}:${e.version}`, Ut = new class {
 	container = null;
 	live = /* @__PURE__ */ new Map();
 	handlers = null;
@@ -4284,7 +4330,7 @@ var It = class {
 		return e && e.width > 0 ? e.clientWidth / e.width : 1 / (window.devicePixelRatio || 1);
 	}
 	root(e) {
-		return this.live.get(Lt(e))?.root ?? null;
+		return this.live.get(Ht(e))?.root ?? null;
 	}
 	update(e, t, n, r) {
 		let i = this.container;
@@ -4292,7 +4338,7 @@ var It = class {
 		this.handlers = r, this.interactive = n;
 		let a = i.clientWidth, o = i.clientHeight, s = /* @__PURE__ */ new Set();
 		for (let r of e) {
-			let e = Lt(r.id);
+			let e = Ht(r.id);
 			s.add(e);
 			let c = this.live.get(e);
 			if (!c) {
@@ -4324,10 +4370,10 @@ var It = class {
 		let t = e.target, n = t?.getAttribute?.("data-input");
 		!t || !n || (t instanceof HTMLInputElement && t.type === "checkbox" ? this.handlers.setInput(n, t.checked) : t instanceof HTMLInputElement && (t.type === "range" || t.type === "number") ? this.handlers.setInput(n, Number(t.value)) : this.handlers.setInput(n, t.value));
 	}
-}(), zt = "an1mbyt3.save.", Bt = {
+}(), Wt = "an1mbyt3.save.", Gt = {
 	get(e) {
 		try {
-			let t = localStorage.getItem(zt + e);
+			let t = localStorage.getItem(Wt + e);
 			return t === null ? null : JSON.parse(t);
 		} catch {
 			return null;
@@ -4335,14 +4381,14 @@ var It = class {
 	},
 	set(e, t) {
 		try {
-			localStorage.setItem(zt + e, JSON.stringify(t));
+			localStorage.setItem(Wt + e, JSON.stringify(t));
 		} catch (t) {
 			console.warn(`ctx.storage.set('${e}') failed`, t);
 		}
 	},
 	remove(e) {
 		try {
-			localStorage.removeItem(zt + e);
+			localStorage.removeItem(Wt + e);
 		} catch {}
 	},
 	keys() {
@@ -4350,27 +4396,35 @@ var It = class {
 			let e = [];
 			for (let t = 0; t < localStorage.length; t++) {
 				let n = localStorage.key(t);
-				n?.startsWith(zt) && e.push(n.slice(14));
+				n?.startsWith(Wt) && e.push(n.slice(14));
 			}
 			return e;
 		} catch {
 			return [];
 		}
 	}
-}, Vt = [], Ht = null;
-function Ut(e) {
-	return Ht ||= new Map(Vt.map((e) => [`${e.id.idx}:${e.id.version}`, e])), Ht.get(`${e.idx}:${e.version}`) ?? null;
+}, Kt = (e) => Array.isArray(e) ? [
+	e[0],
+	e[1],
+	e[2]
+] : [
+	e.x,
+	e.y,
+	e.z
+], qt = [], Jt = null;
+function Yt(e) {
+	return Jt ||= new Map(qt.map((e) => [`${e.id.idx}:${e.id.version}`, e])), Jt.get(`${e.idx}:${e.version}`) ?? null;
 }
-function Wt(e, t) {
+function Xt(e, t) {
 	let n = e.nodes.find((e) => e.id.idx === t.idx && e.id.version === t.version)?.behaviors.find((e) => e.enabled && e.behavior.kind === "Rigidbody2D")?.behavior;
 	return n && n.kind === "Rigidbody2D" ? n.bodyType : null;
 }
-var Gt = 180 / Math.PI, Kt = Math.PI / 180, $ = /* @__PURE__ */ new WeakMap();
-function qt(e, t, n, r, i, a) {
+var Zt = 180 / Math.PI, Qt = Math.PI / 180, $ = /* @__PURE__ */ new WeakMap();
+function $t(e, t, n, r, i, a) {
 	let o = {
 		x: i.x,
 		y: i.y,
-		rotation: i.rotationRadians * Gt,
+		rotation: i.rotationRadians * Zt,
 		scaleX: i.scaleX,
 		scaleY: i.scaleY,
 		anchorX: i.anchorX,
@@ -4391,7 +4445,7 @@ function qt(e, t, n, r, i, a) {
 		intensity: null,
 		radius: null
 	}, u = null, d = { key: null }, f = () => {
-		let t = Ut(e)?.transform3d ?? null;
+		let t = Yt(e)?.transform3d ?? null;
 		return u && u.at === a.time ? u.value : t;
 	}, p = (e) => e ? {
 		x: e[0],
@@ -4412,7 +4466,7 @@ function qt(e, t, n, r, i, a) {
 			...n.rotation,
 			...n.scale
 		]);
-	}, h = () => Ut(e), g = (e, t) => {
+	}, h = () => Yt(e), g = (e, t) => {
 		let n = h()?.worldTransform;
 		if (!n) return {
 			x: e,
@@ -4423,7 +4477,7 @@ function qt(e, t, n, r, i, a) {
 			x: n.translation.x + r * a - i * o,
 			y: n.translation.y + r * o + i * a
 		};
-	}, _ = { type: Wt(a, s.id) };
+	}, _ = { type: Xt(a, s.id) };
 	return Object.defineProperties(c, {
 		x: {
 			enumerable: !0,
@@ -4539,7 +4593,7 @@ function qt(e, t, n, r, i, a) {
 		},
 		worldRotation: {
 			enumerable: !0,
-			get: () => (h()?.worldTransform.rotation ?? 0) * Gt
+			get: () => (h()?.worldTransform.rotation ?? 0) * Zt
 		},
 		worldPoint: {
 			enumerable: !1,
@@ -4645,7 +4699,7 @@ function qt(e, t, n, r, i, a) {
 			value: (e, t, n) => {
 				let r = f();
 				if (!r) return;
-				let [i, a, o] = r.position, s = e - i, c = t - a, l = n - o, u = Math.atan2(-s, -l) * Gt, d = Math.atan2(c, Math.hypot(s, l)) * Gt;
+				let [i, a, o] = r.position, s = e - i, c = t - a, l = n - o, u = Math.atan2(-s, -l) * Zt, d = Math.atan2(c, Math.hypot(s, l)) * Zt;
 				m({ rotation: [
 					d,
 					u,
@@ -4700,11 +4754,51 @@ function qt(e, t, n, r, i, a) {
 		addImpulse: {
 			enumerable: !1,
 			value: (e, t) => a.physics.addForce(s.id, e, t, !0)
+		},
+		velocity3: {
+			enumerable: !0,
+			get: () => {
+				let e = a.physics.velocity3(s.id);
+				return e ? {
+					x: e[0],
+					y: e[1],
+					z: e[2]
+				} : null;
+			},
+			set: (e) => {
+				e && a.physics.setVelocity3(s.id, 0, ...Kt(e));
+			}
+		},
+		angularVelocity3: {
+			enumerable: !0,
+			get: () => {
+				let e = a.physics.angularVelocity3(s.id);
+				return e ? {
+					x: e[0],
+					y: e[1],
+					z: e[2]
+				} : null;
+			},
+			set: (e) => {
+				e && a.physics.setVelocity3(s.id, 1, ...Kt(e));
+			}
+		},
+		addForce3: {
+			enumerable: !1,
+			value: (e, t, n) => a.physics.addForce3(s.id, 0, e, t, n)
+		},
+		addImpulse3: {
+			enumerable: !1,
+			value: (e, t, n) => a.physics.addForce3(s.id, 1, e, t, n)
+		},
+		addTorque3: {
+			enumerable: !1,
+			value: (e, t, n) => a.physics.addForce3(s.id, 2, e, t, n)
 		}
 	}), c;
 }
-function Jt(e, t) {
-	return qt(e.id, e.elementId, e.name, e.classes, {
+function en(e, t) {
+	return $t(e.id, e.elementId, e.name, e.classes, {
 		x: e.transform.translation.x,
 		y: e.transform.translation.y,
 		rotationRadians: e.transform.rotation,
@@ -4720,14 +4814,14 @@ function Jt(e, t) {
 		zIndex: e.zIndex
 	}, t);
 }
-function Yt(e, t) {
+function tn(e, t) {
 	let n = $.get(e);
 	if (!n) return null;
 	let r = t.spawnClone(n);
-	return r ? qt(r, e.id, e.name, e.classes, {
+	return r ? $t(r, e.id, e.name, e.classes, {
 		x: e.x,
 		y: e.y,
-		rotationRadians: e.rotation * Kt,
+		rotationRadians: e.rotation * Qt,
 		scaleX: e.scaleX,
 		scaleY: e.scaleY,
 		anchorX: e.anchorX,
@@ -4740,90 +4834,90 @@ function Yt(e, t) {
 		zIndex: e.zIndex
 	}, t) : null;
 }
-function Xt(e, t) {
+function nn(e, t) {
 	let n = $.get(e);
 	n && t.deleteNode(n);
 }
-function Zt(e, t) {
+function rn(e, t) {
 	return e + t;
 }
-function Qt(e, t) {
+function an(e, t) {
 	return e - t;
 }
-function $t(e, t) {
+function on(e, t) {
 	return e * t;
 }
-function en(e, t) {
+function sn(e, t) {
 	return t === 0 ? 0 : e / t;
 }
-function tn(e, t) {
+function cn(e, t) {
 	return +(e > t);
 }
-function nn(e, t) {
+function ln(e, t) {
 	return +(e < t);
 }
-function rn(e, t) {
+function un(e, t) {
 	return +(e === t);
 }
-function an(e, t) {
+function dn(e, t) {
 	return +(e !== 0 && t !== 0);
 }
-function on(e, t) {
+function fn(e, t) {
 	return +(e !== 0 || t !== 0);
 }
-function sn(e) {
+function pn(e) {
 	return +(e === 0);
 }
-function cn(e, t, n) {
+function mn(e, t, n) {
 	return e === 0 ? n : t;
 }
-function ln(e, t, n) {
+function hn(e, t, n) {
 	return e + (t - e) * Math.min(Math.max(n, 0), 1);
 }
-function un(e, t, n) {
+function gn(e, t, n) {
 	return Math.min(Math.max(e, Math.min(t, n)), Math.max(t, n));
 }
-function dn(e) {
+function _n(e) {
 	let t = Math.imul(e >>> 0, 2654435761) >>> 0;
 	return t = (t ^ t >>> 15) >>> 0, t = Math.imul(t, 2246822507) >>> 0, t = (t ^ t >>> 13) >>> 0, t / 4294967295;
 }
-var fn = {
-	add: Zt,
-	subtract: Qt,
-	multiply: $t,
-	divide: en,
-	greaterThan: tn,
-	lessThan: nn,
-	equals: rn,
-	and: an,
-	or: on,
-	not: sn,
-	select: cn,
-	lerp: ln,
-	clamp: un,
-	random: dn
-}, pn = /* @__PURE__ */ new Map();
-function mn(e) {
-	let t = pn.get(e);
+var vn = {
+	add: rn,
+	subtract: an,
+	multiply: on,
+	divide: sn,
+	greaterThan: cn,
+	lessThan: ln,
+	equals: un,
+	and: dn,
+	or: fn,
+	not: pn,
+	select: mn,
+	lerp: hn,
+	clamp: gn,
+	random: _n
+}, yn = /* @__PURE__ */ new Map();
+function bn(e) {
+	let t = yn.get(e);
 	if (!t) {
 		let n = `const { add, subtract, multiply, divide, greaterThan, lessThan, equals, and, or, not, select, lerp, clamp, random } = helpers;\n${e}`;
-		t = Function("ctx", "getCompByID", "getCompByClass", "spawnClone", "deleteNode", "helpers", n), pn.set(e, t);
+		t = Function("ctx", "getCompByID", "getCompByClass", "spawnClone", "deleteNode", "helpers", n), yn.set(e, t);
 	}
 	return t;
 }
-var hn = /* @__PURE__ */ new Map();
-function gn(e) {
-	let t = e instanceof Error ? `${e.name}: ${e.message}` : String(e), n = hn.get(t) ?? 0;
-	hn.set(t, n + 1), n === 0 ? console.error("Programmable State (Code) threw — skipping this frame (further repeats of this error are counted, not logged):", e) : (n + 1) % 600 == 0 && console.warn(`Script error repeated ${n + 1} times: ${t}`);
+var xn = /* @__PURE__ */ new Map();
+function Sn(e) {
+	let t = e instanceof Error ? `${e.name}: ${e.message}` : String(e), n = xn.get(t) ?? 0;
+	xn.set(t, n + 1), n === 0 ? console.error("Programmable State (Code) threw — skipping this frame (further repeats of this error are counted, not logged):", e) : (n + 1) % 600 == 0 && console.warn(`Script error repeated ${n + 1} times: ${t}`);
 }
-function _n(e, t) {
-	Vt !== t.nodes && (Vt = t.nodes, Ht = null);
+function Cn(e, t) {
+	qt !== t.nodes && (qt = t.nodes, Jt = null);
 	let n = (e) => {
 		let n = t.nodes.find((t) => t.elementId === e);
-		return n ? Jt(n, t) : null;
-	}, r = (e) => t.nodes.filter((t) => t.classes.includes(e)).map((e) => Jt(e, t)), i = (e) => {
+		return n ? en(n, t) : null;
+	}, r = (e) => t.nodes.filter((t) => t.classes.includes(e)).map((e) => en(e, t)), i = (e) => {
 		let n = t.nodes.find((t) => t.id.idx === e.idx && t.id.version === e.version);
-		return n ? Jt(n, t) : null;
+		return n ? en(n, t) : null;
 	};
 	t.raycast = (e, n, r, a, o = Number.MAX_VALUE, s = null) => {
 		let c = s ? $.get(s) ?? null : null, l = t.physics.raycast(e, n, r, a, o, c);
@@ -4835,12 +4929,24 @@ function _n(e, t) {
 			normalY: l.normalY,
 			distance: l.distance
 		} : null;
+	}, t.raycast3 = (e, n, r = Number.MAX_VALUE, a = null) => {
+		let o = a ? $.get(a) ?? null : null, s = t.physics.raycast3(Kt(e), Kt(n), r, o);
+		return s ? {
+			ref: i(s.node),
+			x: s.x,
+			y: s.y,
+			z: s.z,
+			normalX: s.normalX,
+			normalY: s.normalY,
+			normalZ: s.normalZ,
+			distance: s.distance
+		} : null;
 	}, t.spawn = (e, n, r, i = null) => {
 		let a = i ? $.get(i) ?? null : null, o = t.spawnPrefab(e, a, n, r);
 		if (!o || o.length === 0) return null;
 		let s = o.map((e) => {
 			let n = e.transform;
-			return qt(e.id, "", e.name, [], {
+			return $t(e.id, "", e.name, [], {
 				x: n.translation.x,
 				y: n.translation.y,
 				rotationRadians: n.rotation,
@@ -4864,24 +4970,24 @@ function _n(e, t) {
 		trigger: e.trigger
 	}));
 	try {
-		mn(e)(t, n, r, (e) => Yt(e, t), (e) => Xt(e, t), fn);
+		bn(e)(t, n, r, (e) => tn(e, t), (e) => nn(e, t), vn);
 	} catch (e) {
-		gn(e);
+		Sn(e);
 	}
 }
 //#endregion
 //#region src/game/scriptHost.ts
-var vn = {
+var wn = {
 	" ": "space",
 	ArrowUp: "up",
 	ArrowDown: "down",
 	ArrowLeft: "left",
 	ArrowRight: "right"
 };
-function yn(e) {
-	return vn[e] ?? e.toLowerCase();
+function Tn(e) {
+	return wn[e] ?? e.toLowerCase();
 }
-var bn = class {
+var En = class {
 	start = null;
 	tapped = !1;
 	swiped = null;
@@ -4913,9 +5019,9 @@ var bn = class {
 		};
 		return this.tapped = !1, this.swiped = null, e;
 	}
-}, xn = class {
-	mirror = new jt();
-	writes = new Sn();
+}, Dn = class {
+	mirror = new It();
+	writes = new On();
 	baseState = null;
 	baseElapsed = 0;
 	layerClocks = {};
@@ -4931,7 +5037,7 @@ var bn = class {
 		}
 		return n;
 	}
-	ui = new It();
+	ui = new Vt();
 	updateUi(e, t) {
 		let { editor: n, scene: r } = e;
 		this.ui.update({
@@ -4942,13 +5048,13 @@ var bn = class {
 				y: 0
 			},
 			dt: e.deltaSeconds,
-			liveBounds: (e) => _t(n, r.id, e),
+			liveBounds: (e) => St(n, r.id, e),
 			setFill: (e, t) => this.writes.push(6, e, t[0], t[1], t[2], t[3]),
 			setImage: (e, t) => this.writes.push(5, e, t.idx, t.version),
 			setVisible: (e, t) => this.writes.push(4, e, +!!t),
 			setTranslation: (e, t, n) => this.writes.push(1, e, t, n),
 			setScale: (e, t, i, a, o) => {
-				this.writes.flush(), vt(n, r.id, e, a, o, t, i);
+				this.writes.flush(), Ct(n, r.id, e, a, o, t, i);
 			}
 		}, t, e.globals), this.updateHtml(e, t);
 	}
@@ -4967,20 +5073,20 @@ var bn = class {
 				zIndex: e.zIndex
 			});
 		}
-		let a = rt(n, r.id), o = a ? {
+		let a = ct(n, r.id), o = a ? {
 			panX: a[0],
 			panY: a[1],
-			pxPerWorld: a[2] * Rt.cssPerPhysical()
+			pxPerWorld: a[2] * Ut.cssPerPhysical()
 		} : {
 			panX: e.camera.panX,
 			panY: e.camera.panY,
 			pxPerWorld: e.camera.zoom
 		}, s = new Map((e.machine?.inputs ?? []).map((e) => [e.name, e.kind]));
-		Rt.update(i, o, !0, {
-			fireTrigger: (e) => bt(n, e),
+		Ut.update(i, o, !0, {
+			fireTrigger: (e) => Tt(n, e),
 			setInput: (e, t) => {
 				let r = s.get(e);
-				r === "Bool" ? St(n, e, !!t) : r === "Number" ? Ct(n, e, Number(t)) : r === "Enum" ? wt(n, e, String(t)) : r === "Trigger" ? bt(n, e) : console.warn(`HTML UI: state machine has no input "${e}"`);
+				r === "Bool" ? Dt(n, e, !!t) : r === "Number" ? Ot(n, e, Number(t)) : r === "Enum" ? kt(n, e, String(t)) : r === "Trigger" ? Tt(n, e) : console.warn(`HTML UI: state machine has no input "${e}"`);
 			}
 		});
 	}
@@ -4994,7 +5100,7 @@ var bn = class {
 		}, r = n();
 		if (!r) {
 			this.soundNames = /* @__PURE__ */ new Map();
-			for (let t of ft(e)) {
+			for (let t of _t(e)) {
 				let e = t.name.toLowerCase();
 				this.soundNames.set(e, t.id), this.soundNames.set(e.replace(/\.[a-z0-9]+$/, ""), t.id);
 			}
@@ -5019,7 +5125,7 @@ var bn = class {
 			e.globals === this.audioSession ? Y.stopNodeSounds() : Y.stopAll(), this.audioSession = e.globals, this.audioScene = i, this.soundNames = null;
 			for (let e of t) e.audioSource?.playOnStart && e.audioSource.clip && this.playSource(n, t, e.id);
 		}
-		let a = rt(n, r.id), o = a ? a[0] : e.camera.panX, s = a ? a[1] : e.camera.panY, c = null;
+		let a = ct(n, r.id), o = a ? a[0] : e.camera.panX, s = a ? a[1] : e.camera.panY, c = null;
 		Y.update(o, s, (e) => {
 			c ||= new Map(t.map((e) => [`${e.id.idx}:${e.id.version}`, e]));
 			let n = c.get(e)?.worldTransform;
@@ -5050,11 +5156,11 @@ var bn = class {
 		if (this.writes.target(n, s), this.updateAudio(t, c), this.updateUi(t, c), a.length === 0) return this.writes.flush(), null;
 		let l = null, u = this.writes;
 		u.target(n, s);
-		let d = (e) => (u.flush(), e()), f = tt(n, s), p = new Map((r?.inputs ?? []).map((e) => [e.name, e.kind])), m = (e, t) => {
+		let d = (e) => (u.flush(), e()), f = ot(n, s), p = new Map((r?.inputs ?? []).map((e) => [e.name, e.kind])), m = (e, t) => {
 			let r = p.get(e);
-			r === "Bool" ? St(n, e, !!t) : r === "Number" ? Ct(n, e, Number(t)) : r === "Enum" ? wt(n, e, String(t)) : r === "Trigger" ? t && bt(n, e) : console.warn(`ctx.setInput: state machine has no input "${e}"`);
-		}, h = dt(n);
-		for (let e of a) _n(e.source, {
+			r === "Bool" ? Dt(n, e, !!t) : r === "Number" ? Ot(n, e, Number(t)) : r === "Enum" ? kt(n, e, String(t)) : r === "Trigger" ? t && Tt(n, e) : console.warn(`ctx.setInput: state machine has no input "${e}"`);
+		}, h = gt(n);
+		for (let e of a) Cn(e.source, {
 			time: e.time,
 			screen: h,
 			layer: e.layer,
@@ -5074,15 +5180,15 @@ var bn = class {
 				l = e;
 			},
 			globals: t.globals,
-			storage: Bt,
+			storage: Gt,
 			setTranslation: (e, t, n) => u.push(1, e, t, n),
 			setRotationDegrees: (e, t) => u.push(2, e, t),
-			setScale: (e, t, r, i, a) => d(() => vt(n, s, e, i, a, t, r)),
-			setAnchor: (e, t, r, i, a) => d(() => yt(n, s, e, t, r, i, a)),
+			setScale: (e, t, r, i, a) => d(() => Ct(n, s, e, i, a, t, r)),
+			setAnchor: (e, t, r, i, a) => d(() => wt(n, s, e, t, r, i, a)),
 			setFillColor: (e, t, n, r, i) => u.push(6, e, t, n, r, i),
-			setTextContent: (e, t) => d(() => ot(n, s, e, t)),
+			setTextContent: (e, t) => d(() => dt(n, s, e, t)),
 			setImage: (e, t) => u.push(5, e, t.idx, t.version),
-			setPath: (e, t) => d(() => st(n, s, e, t)),
+			setPath: (e, t) => d(() => ft(n, s, e, t)),
 			tap: t.gestures.tap,
 			swipe: t.gestures.swipe,
 			mouseDX: t.mouseDelta.x,
@@ -5091,11 +5197,11 @@ var bn = class {
 			requestPointerLock: t.requestPointerLock,
 			exitPointerLock: t.exitPointerLock,
 			setZIndex: (e, t) => u.push(3, e, t),
-			setTiles: (e, t) => d(() => it(n, s, e, t)),
-			setBodyType: (e, t, r) => d(() => gt(n, s, e, t, r)),
-			breakJoint: (e) => d(() => ht(n, s, e)),
-			setTransform3D: (e, t) => d(() => mt(n, s, e, t)),
-			setAnimation3D: (e, t, r, i) => d(() => pt(n, s, e, t, r, i)),
+			setTiles: (e, t) => d(() => lt(n, s, e, t)),
+			setBodyType: (e, t, r) => d(() => xt(n, s, e, t, r)),
+			breakJoint: (e) => d(() => bt(n, s, e)),
+			setTransform3D: (e, t) => d(() => yt(n, s, e, t)),
+			setAnimation3D: (e, t, r, i) => d(() => vt(n, s, e, t, r, i)),
 			playSound: (e, t) => {
 				let r = this.soundId(n, e);
 				return r ? Y.play(n, r, t) : (console.warn(`ctx.playSound: no sound named "${e}"`), null);
@@ -5105,34 +5211,40 @@ var bn = class {
 			setMasterVolume: (e) => Y.setMasterVolume(e),
 			playAudioSource: (e, t) => this.playSource(n, c, e, t),
 			uiState: (e) => this.ui.state(e),
-			htmlRoot: (e) => Rt.root(e),
+			htmlRoot: (e) => Ut.root(e),
 			setUiState: (e, t) => this.ui.set(e, t),
 			stopAudioSource: (e) => Y.stopNodeSounds(`${e.idx}:${e.version}`),
-			setLight: (e, t, r) => d(() => at(n, s, e, t, r)),
-			emitParticles: (e, t) => d(() => nt(n, s, e, t)),
+			setLight: (e, t, r) => d(() => ut(n, s, e, t, r)),
+			emitParticles: (e, t) => d(() => st(n, s, e, t)),
 			physics: {
-				velocity: (e) => d(() => Ye(n, s, e)),
-				setVelocity: (e, t, r) => d(() => Xe(n, s, e, t, r)),
-				angularVelocity: (e) => d(() => Ze(n, s, e)),
-				setAngularVelocity: (e, t) => d(() => Qe(n, s, e, t)),
-				addForce: (e, t, r, i) => d(() => $e(n, s, e, t, r, i)),
-				raycast: (e, t, r, i, a, o) => d(() => et(n, s, e, t, r, i, a, o)),
+				velocity: (e) => d(() => et(n, s, e)),
+				setVelocity: (e, t, r) => d(() => tt(n, s, e, t, r)),
+				angularVelocity: (e) => d(() => nt(n, s, e)),
+				setAngularVelocity: (e, t) => d(() => rt(n, s, e, t)),
+				addForce: (e, t, r, i) => d(() => it(n, s, e, t, r, i)),
+				raycast: (e, t, r, i, a, o) => d(() => at(n, s, e, t, r, i, a, o)),
+				velocity3: (e) => d(() => Ye(n, s, e)),
+				angularVelocity3: (e) => d(() => Xe(n, s, e)),
+				setVelocity3: (e, t, r, i, a) => d(() => Ze(n, s, e, t, r, i, a)),
+				addForce3: (e, t, r, i, a) => d(() => Qe(n, s, e, t, r, i, a)),
+				raycast3: (e, t, r, i) => d(() => $e(n, s, e, t, r, i)),
 				events: f
 			},
 			raycast: () => null,
+			raycast3: () => null,
 			collisions: [],
 			setVisible: (e, t) => u.push(4, e, +!!t),
 			spawnClone: (e) => d(() => qe(n, s, [e]).newNodes[0] ?? null),
 			spawn: () => null,
-			spawnPrefab: (e, t, r, i) => d(() => Et(n, s, e, t, r, i)),
-			destroyNode: (e) => d(() => Dt(n, s, e)),
+			spawnPrefab: (e, t, r, i) => d(() => jt(n, s, e, t, r, i)),
+			destroyNode: (e) => d(() => Mt(n, s, e)),
 			deleteNode: (e) => {
-				d(() => ct(n, s, e));
+				d(() => pt(n, s, e));
 			}
 		});
 		return u.flush(), l;
 	}
-}, Sn = class {
+}, On = class {
 	buf = /* @__PURE__ */ new Float64Array(1792);
 	len = 0;
 	editor = null;
@@ -5153,7 +5265,7 @@ var bn = class {
 		let e = this.buf.subarray(0, this.len);
 		this.len = 0, this.editor.apply_node_writes(this.artboard, e);
 	}
-}, Cn = [
+}, kn = [
 	"logic",
 	"ik",
 	"physics",
@@ -5162,7 +5274,7 @@ var bn = class {
 	"gpu",
 	"sync",
 	"scripts"
-], wn = {
+], An = {
 	logic: "anim/logic",
 	ik: "ik",
 	physics: "physics",
@@ -5171,10 +5283,10 @@ var bn = class {
 	gpu: "gpu submit",
 	sync: "doc sync",
 	scripts: "scripts"
-}, Tn = class {
+}, jn = class {
 	enabled = !1;
 	el = null;
-	ema = Object.fromEntries(Cn.map((e) => [e, 0]));
+	ema = Object.fromEntries(kn.map((e) => [e, 0]));
 	frameMs = 16.7;
 	worstMs = 0;
 	counts = {
@@ -5211,14 +5323,14 @@ var bn = class {
 		};
 		this.jsMarks = {};
 		let a = .1;
-		for (let e of Cn) this.ema[e] += (i[e] - this.ema[e]) * a;
+		for (let e of kn) this.ema[e] += (i[e] - this.ema[e]) * a;
 		if (t > 0 && t < 1e3 && (this.frameMs += (t - this.frameMs) * a, n - this.lastWorstReset > 2e3 && (this.worstMs = 0, this.lastWorstReset = n), this.worstMs = Math.max(this.worstMs, t)), this.counts = r, n - this.lastPaint > 250 && this.el) {
 			this.lastPaint = n;
-			let e = Cn.reduce((e, t) => e + this.ema[t], 0), t = 1e3 / Math.max(1, this.frameMs), r = (e) => "█".repeat(Math.min(20, Math.round(e / 16.7 * 20))), i = [
+			let e = kn.reduce((e, t) => e + this.ema[t], 0), t = 1e3 / Math.max(1, this.frameMs), r = (e) => "█".repeat(Math.min(20, Math.round(e / 16.7 * 20))), i = [
 				`${t.toFixed(0).padStart(3)} fps   frame ${this.frameMs.toFixed(1)}ms`,
 				`worst ${this.worstMs.toFixed(1)}ms   cpu ${e.toFixed(1)}ms`,
 				"",
-				...Cn.map((e) => `${wn[e].padEnd(10)} ${this.ema[e].toFixed(2).padStart(6)} ${r(this.ema[e])}`),
+				...kn.map((e) => `${An[e].padEnd(10)} ${this.ema[e].toFixed(2).padStart(6)} ${r(this.ema[e])}`),
 				"",
 				`nodes ${this.counts.nodes}  draws ${this.counts.draws}`,
 				`lights ${this.counts.lights}  bodies ${this.counts.bodies}`,
@@ -5230,7 +5342,7 @@ var bn = class {
 };
 //#endregion
 //#region src/game/screen.ts
-function En(e, t, n) {
+function Mn(e, t, n) {
 	let r = Math.max(1, e.width), i = Math.max(1, e.height), a = Math.max(1, t.width), o = Math.max(1, t.height), s = Math.max(0, Math.min(1, n.matchWidthOrHeight)), c = Math.log(a / r), l = Math.log(o / i), u = Math.max(1e-4, Math.exp(c + (l - c) * s));
 	return {
 		width: a / u,
@@ -5239,25 +5351,25 @@ function En(e, t, n) {
 }
 //#endregion
 //#region src/player/main.ts
-function Dn(e) {
+function Nn(e) {
 	let t = document.getElementById(e);
 	if (!t?.textContent) throw Error(`missing ${e}`);
 	return t.textContent.trim();
 }
-function On(e) {
+function Pn(e) {
 	let t = atob(e), n = new Uint8Array(new ArrayBuffer(t.length));
 	for (let e = 0; e < t.length; e++) n[e] = t.charCodeAt(e);
 	return n;
 }
-function kn(e) {
+function Fn(e) {
 	let t = document.getElementById("an1-status");
 	t && (t.textContent = e, t.style.display = e ? "flex" : "none");
 }
-async function An() {
-	let e = JSON.parse(Dn("an1-config"));
-	document.title = e.title, We(On(Dn("an1-wasm")));
+async function In() {
+	let e = JSON.parse(Nn("an1-config"));
+	document.title = e.title, We(Pn(Nn("an1-wasm")));
 	let t = document.getElementById("an1-canvas"), n = document.createElement("div");
-	n.style.cssText = "position:relative;flex:none;line-height:0;", t.parentElement?.insertBefore(n, t), n.appendChild(t), Rt.attach(n, t);
+	n.style.cssText = "position:relative;flex:none;line-height:0;", t.parentElement?.insertBefore(n, t), n.appendChild(t), Ut.attach(n, t);
 	let r = {
 		width: 1,
 		height: 1
@@ -5267,7 +5379,7 @@ async function An() {
 	}, a = await Ke(t), o = null, s = null, c = (e, t) => e.idx === t.idx && e.version === t.version, l = () => o?.artboards.find((e) => s && c(e.id, s)) ?? o?.artboards[0] ?? null, u = () => {
 		let e = window.devicePixelRatio || 1, n = window.visualViewport, o = Math.max(1, n?.width ?? window.innerWidth), s = Math.max(1, n?.height ?? window.innerHeight), u = l(), d = u?.nodes.find((e) => u.activeCamera && c(e.id, u.activeCamera))?.camera ?? null, f = Math.max(.01, d?.zoom ?? 1), p = (u?.width ?? o) / f, m = (u?.height ?? s) / f;
 		if (u?.screen.mode === "Responsive") {
-			let e = En({
+			let e = Mn({
 				width: p,
 				height: m
 			}, {
@@ -5288,15 +5400,15 @@ async function An() {
 		let g = !!d?.pixelPerfect.enabled, _ = g ? Math.max(1, Math.floor(h * e)) : h * e, v = Math.max(1, Math.round(p * _)), y = Math.max(1, Math.round(m * _));
 		t.width = v, t.height = y, t.style.width = `${r.width}px`, t.style.height = `${r.height}px`, t.style.imageRendering = g ? "pixelated" : "auto", a.resize(v, y);
 	};
-	window.addEventListener("resize", u), window.visualViewport?.addEventListener("resize", u), window.addEventListener("orientationchange", () => setTimeout(u, 200)), o = await lt(a, On(Dn("an1-game")));
+	window.addEventListener("resize", u), window.visualViewport?.addEventListener("resize", u), window.addEventListener("orientationchange", () => setTimeout(u, 200)), o = await mt(a, Pn(Nn("an1-game")));
 	let d = (e) => {
-		o = Je(a, e), o = ut(a, e, "Playground"), s = e, u();
+		o = Je(a, e), o = ht(a, e, "Playground"), s = e, u();
 	}, f = o, p = f.artboards.find((t) => t.name === e.startScene) ?? f.artboards[0];
 	if (!p) {
-		kn("This game has no scenes.");
+		Fn("This game has no scenes.");
 		return;
 	}
-	d(p.id), kn("");
+	d(p.id), Fn("");
 	let m = /* @__PURE__ */ new Set(), h = {
 		x: 0,
 		y: 0
@@ -5304,17 +5416,17 @@ async function An() {
 		x: 0,
 		y: 0
 	}, _ = !1, v = (e, t) => {
-		let n = yn(e.key);
+		let n = Tn(e.key);
 		[
 			"space",
 			"up",
 			"down",
 			"left",
 			"right"
-		].includes(n) && e.preventDefault(), t ? m.add(n) : m.delete(n), Tt(a, n, t);
+		].includes(n) && e.preventDefault(), t ? m.add(n) : m.delete(n), At(a, n, t);
 	};
 	window.addEventListener("keydown", (e) => v(e, !0)), window.addEventListener("keyup", (e) => v(e, !1)), window.addEventListener("blur", () => m.clear());
-	let y = new bn();
+	let y = new En();
 	window.addEventListener("pointermove", (e) => {
 		g = {
 			x: g.x + e.movementX,
@@ -5342,7 +5454,7 @@ async function An() {
 		};
 	}, { passive: !1 });
 	let x = (e, t, n, o, s) => {
-		let c = rt(a, e), l = c ? {
+		let c = ct(a, e), l = c ? {
 			x: c[0],
 			y: c[1]
 		} : D.pan, u = c ? i.width / Math.max(1, o) : 1 / Math.max(1e-6, D.zoom * (o / Math.max(1, r.width)));
@@ -5350,7 +5462,7 @@ async function An() {
 			x: l.x + (t - o / 2) * u,
 			y: l.y - (n - s / 2) * u
 		};
-	}, S = new xn(), C = new Tn();
+	}, S = new Dn(), C = new jn();
 	new URLSearchParams(location.search).has("stats") && C.toggle(), window.addEventListener("keydown", (e) => {
 		(e.key === "F3" || e.key === "`") && (e.preventDefault(), C.toggle());
 	});
@@ -5372,7 +5484,7 @@ async function An() {
 			w = e;
 			let r = window.devicePixelRatio || 1, i = l();
 			i && !te && (D = E(i)), a.render(n, D.pan.x, D.pan.y, D.zoom * r, -1, r, 0, 0, 0, 0, 0, 0);
-			let u = performance.now(), f = xt(a);
+			let u = performance.now(), f = Et(a);
 			S.tick(f, n);
 			let p = o;
 			C.add("sync", performance.now() - u);
@@ -5434,7 +5546,7 @@ async function An() {
 	};
 	requestAnimationFrame(ne);
 }
-An().catch((e) => {
-	console.error(e), kn(`Couldn't start the game: ${e instanceof Error ? e.message : String(e)}`);
+In().catch((e) => {
+	console.error(e), Fn(`Couldn't start the game: ${e instanceof Error ? e.message : String(e)}`);
 });
 //#endregion

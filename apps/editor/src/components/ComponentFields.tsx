@@ -27,6 +27,9 @@ import type {
   UiShowWhenConfig,
   UiSize,
   UiHtmlConfig,
+  Rigidbody3DConfig,
+  Collider3DConfig,
+  Collider3DShape,
   BoxCollider2DConfig,
   CapsuleCollider2DConfig,
   CircleCollider2DConfig,
@@ -108,6 +111,105 @@ function ColliderCommon({
         <NumberField label="" value={material.bounciness} step={0.05} onCommit={(v) => onChange({ material: { ...material, bounciness: clamp(v, 0, 1) } })} />
       </Row>
     </>
+  )
+}
+
+/** Three number boxes for a `[x, y, z]`. */
+function Vec3Fields({ value, onChange, min, step }: { value: [number, number, number]; onChange: (value: [number, number, number]) => void; min?: number; step?: number }) {
+  const fix = (v: number) => Math.max(min ?? -Infinity, v)
+  return (
+    <>
+      <NumberField label="X" value={value[0]} step={step} onCommit={(x) => onChange([fix(x), value[1], value[2]])} />
+      <NumberField label="Y" value={value[1]} step={step} onCommit={(y) => onChange([value[0], fix(y), value[2]])} />
+      <NumberField label="Z" value={value[2]} step={step} onCommit={(z) => onChange([value[0], value[1], fix(z)])} />
+    </>
+  )
+}
+
+/** Unity's `Rigidbody` (3D) — on a Node3D. */
+export function Rigidbody3DFields({ config, onChange }: { config: Rigidbody3DConfig; onChange: (value: Rigidbody3DConfig) => void }) {
+  const update = (patch: Partial<Rigidbody3DConfig>) => onChange({ ...config, ...patch })
+  const dynamic = config.bodyType === 'Dynamic'
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Body Type" title="Dynamic: simulated (gravity, collisions). Kinematic: moved by script / animation, pushes others. Static: never moves.">
+        <Dropdown value={config.bodyType} options={['Dynamic', 'Kinematic', 'Static'] as Rigidbody3DConfig['bodyType'][]} onChange={(bodyType) => update({ bodyType })} />
+      </Row>
+      {dynamic && (
+        <>
+          <Row label="Mass">
+            <NumberField label="kg" value={config.mass} step={0.1} onCommit={(mass) => update({ mass: Math.max(0.0001, mass) })} />
+          </Row>
+          <Row label="Gravity Scale" title="Multiplies the scene's 3D gravity (0 = floats).">
+            <NumberField label="×" value={config.gravityScale} step={0.1} onCommit={(gravityScale) => update({ gravityScale })} />
+          </Row>
+          <Row label="Drag" title="Slows movement over time (linear / angular).">
+            <NumberField label="" value={config.linearDamping} step={0.05} onCommit={(linearDamping) => update({ linearDamping: Math.max(0, linearDamping) })} />
+            <NumberField label="" value={config.angularDamping} step={0.05} onCommit={(angularDamping) => update({ angularDamping: Math.max(0, angularDamping) })} />
+          </Row>
+          <Check checked={config.freezeRotation} onChange={(freezeRotation) => update({ freezeRotation })}>
+            Freeze rotation (character capsules)
+          </Check>
+          <Check checked={config.continuous} onChange={(continuous) => update({ continuous })}>
+            Continuous collision (fast objects)
+          </Check>
+        </>
+      )}
+      <p className="text-[10px] leading-snug text-ink-dim">
+        Script: <code className="text-ink">ref.velocity3</code>, <code>ref.addImpulse3(x, y, z)</code>, <code>ref.addForce3</code>, <code>ref.addTorque3</code>, <code>ctx.raycast3(origin, dir)</code>.
+      </p>
+    </div>
+  )
+}
+
+const SHAPE_KIND = (shape: Collider3DShape) => (typeof shape === 'string' ? shape : 'Box' in shape ? 'Box' : 'Sphere' in shape ? 'Sphere' : 'Capsule')
+
+/** Unity's Box / Sphere / Capsule Collider (3D), or Auto (fit the mesh). */
+export function Collider3DFields({ config, onChange }: { config: Collider3DConfig; onChange: (value: Collider3DConfig) => void }) {
+  const update = (patch: Partial<Collider3DConfig>) => onChange({ ...config, ...patch })
+  const kind = SHAPE_KIND(config.shape)
+  const shape = config.shape
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Shape" title="Auto fits the node's mesh: cube → box, sphere → ball, plane → floor slab, cylinder / cone, models → their bounds.">
+        <Dropdown
+          value={kind}
+          options={['Auto', 'Box', 'Sphere', 'Capsule'] as ('Auto' | 'Box' | 'Sphere' | 'Capsule')[]}
+          onChange={(k) =>
+            update({ shape: k === 'Auto' ? 'Auto' : k === 'Box' ? { Box: { size: [1, 1, 1] } } : k === 'Sphere' ? { Sphere: { radius: 0.5 } } : { Capsule: { radius: 0.5, height: 2 } } })
+          }
+        />
+      </Row>
+      {typeof shape !== 'string' && 'Box' in shape && (
+        <Row label="Size">
+          <Vec3Fields value={shape.Box.size} min={0.01} step={0.1} onChange={(size) => update({ shape: { Box: { size } } })} />
+        </Row>
+      )}
+      {typeof shape !== 'string' && 'Sphere' in shape && (
+        <Row label="Radius">
+          <NumberField label="m" value={shape.Sphere.radius} step={0.05} onCommit={(radius) => update({ shape: { Sphere: { radius: Math.max(0.005, radius) } } })} />
+        </Row>
+      )}
+      {typeof shape !== 'string' && 'Capsule' in shape && (
+        <Row label="Radius / Height">
+          <NumberField label="" value={shape.Capsule.radius} step={0.05} onCommit={(radius) => update({ shape: { Capsule: { ...shape.Capsule, radius: Math.max(0.005, radius) } } })} />
+          <NumberField label="" value={shape.Capsule.height} step={0.1} onCommit={(height) => update({ shape: { Capsule: { ...shape.Capsule, height: Math.max(0.01, height) } } })} />
+        </Row>
+      )}
+      <Row label="Center">
+        <Vec3Fields value={config.offset} step={0.1} onChange={(offset) => update({ offset })} />
+      </Row>
+      <Check checked={config.isTrigger} onChange={(isTrigger) => update({ isTrigger })}>
+        Is Trigger (detects overlaps, doesn&apos;t push)
+      </Check>
+      <Row label="Friction">
+        <NumberField label="" value={config.friction} step={0.05} onCommit={(friction) => update({ friction: Math.max(0, friction) })} />
+      </Row>
+      <Row label="Bounciness">
+        <NumberField label="" value={config.restitution} step={0.05} onCommit={(restitution) => update({ restitution: clamp(restitution, 0, 1) })} />
+      </Row>
+      <p className="text-[10px] leading-snug text-ink-dim">Without a Rigidbody 3D (here or on a parent Node3D) it's static scenery.</p>
+    </div>
   )
 }
 
@@ -1020,17 +1122,20 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   UiLayoutItem: 'UI Layout Item',
   UiShowWhen: 'UI Show When',
   UiHtml: 'HTML UI',
+  Rigidbody3D: 'Rigidbody 3D',
+  Collider3D: 'Collider 3D',
   UiSlider: 'UI Slider',
   UiScrollbar: 'UI Scrollbar',
   UiScrollView: 'UI Scroll View',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
   { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D'] },
+  { title: 'Physics 3D', kinds: ['Rigidbody3D', 'Collider3D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
   { title: 'Audio', kinds: ['AudioSource'] },
   { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiHtml'] },

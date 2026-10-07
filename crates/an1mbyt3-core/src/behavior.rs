@@ -94,8 +94,12 @@ pub enum NodeBehavior {
     UiLayoutItem(crate::UiLayoutItem),
     /// Show only on some screens — see [`crate::UiShowWhen`].
     UiShowWhen(crate::UiShowWhen),
-    /// HTML + CSS shown at this node — see [`crate::UiHtml`]. (Appended last.)
+    /// HTML + CSS shown at this node — see [`crate::UiHtml`].
     UiHtml(crate::UiHtml),
+    /// A 3D physics body — see [`crate::Rigidbody3D`].
+    Rigidbody3D(crate::Rigidbody3D),
+    /// A 3D collision shape — see [`crate::Collider3D`]. (Appended last.)
+    Collider3D(crate::Collider3D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

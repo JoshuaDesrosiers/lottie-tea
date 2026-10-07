@@ -98,6 +98,7 @@ function ShapesMenu({
   onLoadUiDemo,
   onLoadResponsiveDemo,
   onLoadHtmlDemo,
+  onLoadPhysics3DDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddTilemap,
@@ -149,6 +150,7 @@ function ShapesMenu({
   onLoadUiDemo: () => void
   onLoadResponsiveDemo: () => void
   onLoadHtmlDemo: () => void
+  onLoadPhysics3DDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
 }) {
@@ -248,6 +250,7 @@ function ShapesMenu({
         { kind: 'item', label: 'UI & Sound Lab', icon: <SparkleIcon />, onSelect: onLoadUiDemo },
         { kind: 'item', label: 'Responsive Layout', icon: <SparkleIcon />, onSelect: onLoadResponsiveDemo },
         { kind: 'item', label: 'HTML UI Lab', icon: <SparkleIcon />, onSelect: onLoadHtmlDemo },
+        { kind: 'item', label: 'Physics 3D Lab', icon: <SparkleIcon />, onSelect: onLoadPhysics3DDemo },
         { kind: 'item', label: 'Sunset Tactics (5v5)', icon: <SparkleIcon />, onSelect: onLoadTacticsDemo },
         { kind: 'item', label: 'Raycaster FPS', icon: <SparkleIcon />, onSelect: onLoadFpsDemo },
         { kind: 'item', label: 'Ragdoll Arena', icon: <SparkleIcon />, onSelect: onLoadRigDemo },
@@ -486,6 +489,7 @@ export function TopToolbar({
   onLoadUiDemo,
   onLoadResponsiveDemo,
   onLoadHtmlDemo,
+  onLoadPhysics3DDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddBone,
@@ -537,6 +541,7 @@ export function TopToolbar({
   onLoadUiDemo: () => void
   onLoadResponsiveDemo: () => void
   onLoadHtmlDemo: () => void
+  onLoadPhysics3DDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
   onAddBone: () => void
@@ -631,6 +636,7 @@ export function TopToolbar({
               onLoadUiDemo={onLoadUiDemo}
               onLoadResponsiveDemo={onLoadResponsiveDemo}
               onLoadHtmlDemo={onLoadHtmlDemo}
+              onLoadPhysics3DDemo={onLoadPhysics3DDemo}
               onLoadTacticsDemo={onLoadTacticsDemo}
               onLoadPhysicsDemo={onLoadPhysicsDemo}
               onAddBone={onAddBone}

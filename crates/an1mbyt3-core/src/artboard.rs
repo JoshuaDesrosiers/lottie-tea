@@ -74,6 +74,9 @@ pub struct Artboard {
     /// see [`crate::ScreenSettings`].
     #[serde(default)]
     pub screen: crate::ScreenSettings,
+    /// Gravity for Rigidbody 3D bodies, m/s² (Unity's Physics.gravity).
+    #[serde(default = "crate::default_gravity_3d")]
+    pub gravity_3d: glam::Vec3,
     nodes: SlotMap<NodeId, Node>,
     /// Node IDs with `parent == None`, in draw order (later entries draw on
     /// top). This is the artboard's actual scene-graph root list — a node's
@@ -190,6 +193,7 @@ impl Artboard {
             height,
             gravity: default_gravity(),
             screen: crate::ScreenSettings::default(),
+            gravity_3d: crate::default_gravity_3d(),
             resolution_scale: default_resolution_scale(),
             nodes: SlotMap::with_key(),
             root_nodes: Vec::new(),

@@ -36,7 +36,7 @@
  */
 
 import type { SoundHandle, ToneOptions } from './game/audio'
-import type { ContactEvent, RayHit, SpawnedPart } from './ipc/wasmEditor'
+import type { ContactEvent, RayHit, RayHit3D, SpawnedPart } from './ipc/wasmEditor'
 import type { OpaqueId, Path } from './ipc/document'
 import type { ScriptImage, ScriptNode } from './game/sceneMirror'
 import type { ScriptStorage } from './game/storage'
@@ -191,6 +191,12 @@ export interface ScriptContext {
    * usually the caster itself, so a ray fired from inside the player
    * doesn't hit the player. Filled in by `runScript`. */
   raycast(originX: number, originY: number, dirX: number, dirY: number, maxDistance?: number, ignore?: ComponentRef | null): RaycastHit | null
+  /** Unity's `Physics.Raycast` for Rigidbody 3D / Collider 3D scenes:
+   * from `origin` along `direction` (normalized for you), the first
+   * non-trigger 3D collider within `maxDistance` meters (default
+   * unlimited), or `null`. `ignore`: a ref whose body the ray skips. Filled
+   * in by `runScript`. */
+  raycast3(origin: Vec3Like, direction: Vec3Like, maxDistance?: number, ignore?: ComponentRef | null): RaycastHit3 | null
   /** Contacts that began (`started: true`) or ended this frame — Unity's
    * `OnCollisionEnter2D`/`Exit2D` plus `OnTriggerEnter2D`/`Exit2D`
    * (`trigger: true` when either collider is a trigger) in one list. `a` /
@@ -282,10 +288,35 @@ export interface PhysicsHost {
   /** `impulse`: Unity's ForceMode2D.Impulse (instant) vs Force (over a frame). */
   addForce(node: OpaqueId, x: number, y: number, impulse: boolean): void
   raycast(ox: number, oy: number, dx: number, dy: number, maxDistance: number, exclude: OpaqueId | null): RayHit | null
+  /** Rigidbody 3D: velocity m/s / angular velocity degrees/s. */
+  velocity3(node: OpaqueId): [number, number, number] | null
+  angularVelocity3(node: OpaqueId): [number, number, number] | null
+  /** `kind` 0 = linear, 1 = angular. */
+  setVelocity3(node: OpaqueId, kind: 0 | 1, x: number, y: number, z: number): void
+  /** `mode` 0 = force, 1 = impulse, 2 = torque impulse. */
+  addForce3(node: OpaqueId, mode: 0 | 1 | 2, x: number, y: number, z: number): void
+  raycast3(o: [number, number, number], d: [number, number, number], maxDistance: number, exclude: OpaqueId | null): RayHit3D | null
   /** Contact events since the previous frame (already drained from the
    * engine — read once per frame by the App, then shared). */
   events: readonly ContactEvent[]
 }
+
+/** `ctx.raycast3`'s hit — Unity's `RaycastHit`. */
+export interface RaycastHit3 {
+  ref: ComponentRef | null
+  x: number
+  y: number
+  z: number
+  normalX: number
+  normalY: number
+  normalZ: number
+  distance: number
+}
+
+/** A 3D vector argument: `{ x, y, z }` or `[x, y, z]`. */
+export type Vec3Like = { x: number; y: number; z: number } | [number, number, number]
+
+const vec3Of = (v: Vec3Like): [number, number, number] => (Array.isArray(v) ? [v[0], v[1], v[2]] : [v.x, v.y, v.z])
 
 /** `ctx.raycast`'s hit — Unity's `RaycastHit2D`. */
 export interface RaycastHit {
@@ -443,6 +474,15 @@ export interface ComponentRef {
   /** Unity's `AddForce(force, ForceMode2D.Impulse)` — an instant kick
    * (jumps, knockback). */
   addImpulse(x: number, y: number): void
+  /** Rigidbody 3D: velocity (m/s) and angular velocity (degrees/s per
+   * axis), read live from the engine; assign `{ x, y, z }` to set. */
+  velocity3: { x: number; y: number; z: number } | null
+  angularVelocity3: { x: number; y: number; z: number } | null
+  /** Rigidbody 3D: Unity's AddForce (over the next frame), an instant
+   * impulse (velocity change = impulse / mass), and an instant spin. */
+  addForce3(x: number, y: number, z: number): void
+  addImpulse3(x: number, y: number, z: number): void
+  addTorque3(x: number, y: number, z: number): void
 }
 
 // The node snapshot of the frame currently being scripted, indexed by id —
@@ -814,6 +854,29 @@ function makeComponentRefFromState(
       enumerable: false,
       value: (x: number, y: number) => ctx.physics.addForce(node.id, x, y, true),
     },
+    velocity3: {
+      enumerable: true,
+      get: () => {
+        const v = ctx.physics.velocity3(node.id)
+        return v ? { x: v[0], y: v[1], z: v[2] } : null
+      },
+      set: (value: Vec3Like | null) => {
+        if (value) ctx.physics.setVelocity3(node.id, 0, ...vec3Of(value))
+      },
+    },
+    angularVelocity3: {
+      enumerable: true,
+      get: () => {
+        const v = ctx.physics.angularVelocity3(node.id)
+        return v ? { x: v[0], y: v[1], z: v[2] } : null
+      },
+      set: (value: Vec3Like | null) => {
+        if (value) ctx.physics.setVelocity3(node.id, 1, ...vec3Of(value))
+      },
+    },
+    addForce3: { enumerable: false, value: (x: number, y: number, z: number) => ctx.physics.addForce3(node.id, 0, x, y, z) },
+    addImpulse3: { enumerable: false, value: (x: number, y: number, z: number) => ctx.physics.addForce3(node.id, 1, x, y, z) },
+    addTorque3: { enumerable: false, value: (x: number, y: number, z: number) => ctx.physics.addForce3(node.id, 2, x, y, z) },
   })
 
   return ref
@@ -1018,6 +1081,11 @@ export function runScript(source: string, ctx: ScriptContext): void {
     const exclude = ignore ? (componentOpaqueIds.get(ignore) ?? null) : null
     const hit = ctx.physics.raycast(ox, oy, dx, dy, maxDistance, exclude)
     return hit ? { ref: refById(hit.node), x: hit.x, y: hit.y, normalX: hit.normalX, normalY: hit.normalY, distance: hit.distance } : null
+  }
+  ctx.raycast3 = (origin, direction, maxDistance = Number.MAX_VALUE, ignore = null) => {
+    const exclude = ignore ? (componentOpaqueIds.get(ignore) ?? null) : null
+    const hit = ctx.physics.raycast3(vec3Of(origin), vec3Of(direction), maxDistance, exclude)
+    return hit ? { ref: refById(hit.node), x: hit.x, y: hit.y, z: hit.z, normalX: hit.normalX, normalY: hit.normalY, normalZ: hit.normalZ, distance: hit.distance } : null
   }
   ctx.spawn = (prefabName, x, y, parent = null) => {
     const parentId = parent ? (componentOpaqueIds.get(parent) ?? null) : null

@@ -45,6 +45,13 @@ impl Transform3D {
         Quat::from_euler(EulerRot::YXZ, r.y, r.x, r.z)
     }
 
+    /// Sets the rotation from a quaternion (stored back as Y-X-Z Euler
+    /// degrees) — what 3D physics writes a body's orientation through.
+    pub fn set_rotation(&mut self, rotation: Quat) {
+        let (y, x, z) = rotation.to_euler(EulerRot::YXZ);
+        self.rotation_degrees = Vec3::new(x, y, z) * (180.0 / std::f32::consts::PI);
+    }
+
     /// The local-to-parent matrix.
     pub fn matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rotation(), self.position)

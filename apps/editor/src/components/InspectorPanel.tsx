@@ -68,6 +68,8 @@ import {
   UiLayoutItemFields,
   UiShowWhenFields,
   UiHtmlFields,
+  Rigidbody3DFields,
+  Collider3DFields,
   ScreenFields,
 } from './ComponentFields'
 import { defaultComponent } from '../ipc/wasmEditor'
@@ -764,6 +766,14 @@ function BehaviorsFields({
       case 'UiLayoutItem': {
         const { kind: _k, ...config } = behavior
         return <UiLayoutItemFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiLayoutItem', ...c })} />
+      }
+      case 'Rigidbody3D': {
+        const { kind: _k, ...config } = behavior
+        return <Rigidbody3DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Rigidbody3D', ...c })} />
+      }
+      case 'Collider3D': {
+        const { kind: _k, ...config } = behavior
+        return <Collider3DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Collider3D', ...c })} />
       }
       case 'UiHtml': {
         const { kind: _k, ...config } = behavior
@@ -1839,6 +1849,7 @@ export function InspectorPanel({
   artboard,
   onSetArtboardSize,
   onSetArtboardGravity,
+  onSetArtboardGravity3D,
   onSetArtboardResolutionScale,
   onSetArtboardScreen,
   onSetMainCamera,
@@ -1986,6 +1997,8 @@ export function InspectorPanel({
   onSetArtboardSize: (width: number, height: number) => void
   /** Physics 2D gravity (world units / s²; Unity's Physics2D.gravity). */
   onSetArtboardGravity: (x: number, y: number) => void
+  /** Physics 3D gravity, m/s². */
+  onSetArtboardGravity3D: (x: number, y: number, z: number) => void
   onSetArtboardResolutionScale: (value: number) => void
   /** Fixed / Responsive screen settings. */
   onSetArtboardScreen: (value: ScreenSettings) => void
@@ -2023,6 +2036,16 @@ export function InspectorPanel({
         <div className="flex gap-1">
           <NumberField label="X" value={artboard.gravity.x} onCommit={(x) => onSetArtboardGravity(x, artboard.gravity.y)} />
           <NumberField label="Y" value={artboard.gravity.y} onCommit={(y) => onSetArtboardGravity(artboard.gravity.x, y)} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-[11px] text-ink-dim" title="Physics 3D gravity in m/s² (+Y is up) for Rigidbody 3D bodies. Earth is (0, -9.81, 0).">
+          Gravity 3D
+        </span>
+        <div className="flex gap-1">
+          <NumberField label="X" value={artboard.gravity3d[0]} onCommit={(x) => onSetArtboardGravity3D(x, artboard.gravity3d[1], artboard.gravity3d[2])} />
+          <NumberField label="Y" value={artboard.gravity3d[1]} onCommit={(y) => onSetArtboardGravity3D(artboard.gravity3d[0], y, artboard.gravity3d[2])} />
+          <NumberField label="Z" value={artboard.gravity3d[2]} onCommit={(z) => onSetArtboardGravity3D(artboard.gravity3d[0], artboard.gravity3d[1], z)} />
         </div>
       </div>
       <ScreenFields screen={artboard.screen} onChange={onSetArtboardScreen} />

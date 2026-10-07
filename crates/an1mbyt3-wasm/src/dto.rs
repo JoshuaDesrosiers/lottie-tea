@@ -756,6 +756,20 @@ impl From<TrailDto> for an1mbyt3_core::TrailNode {
 }
 
 /// `WasmEditor::physics_raycast`'s hit.
+/// `physics3d_raycast`'s result.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RayHit3Dto {
+    pub node: NodeId,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub normal_x: f32,
+    pub normal_y: f32,
+    pub normal_z: f32,
+    pub distance: f32,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RayHitDto {
@@ -2069,6 +2083,8 @@ pub enum NodeBehaviorDto {
     UiLayoutItem(an1mbyt3_core::UiLayoutItem),
     UiShowWhen(an1mbyt3_core::UiShowWhen),
     UiHtml(an1mbyt3_core::UiHtml),
+    Rigidbody3D(an1mbyt3_core::Rigidbody3D),
+    Collider3D(an1mbyt3_core::Collider3D),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2105,6 +2121,8 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::UiLayoutItem(c) => NodeBehaviorDto::UiLayoutItem(*c),
             an1mbyt3_core::NodeBehavior::UiShowWhen(c) => NodeBehaviorDto::UiShowWhen(*c),
             an1mbyt3_core::NodeBehavior::UiHtml(c) => NodeBehaviorDto::UiHtml(c.clone()),
+            an1mbyt3_core::NodeBehavior::Rigidbody3D(c) => NodeBehaviorDto::Rigidbody3D(*c),
+            an1mbyt3_core::NodeBehavior::Collider3D(c) => NodeBehaviorDto::Collider3D(*c),
         }
     }
 }
@@ -2143,6 +2161,8 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::UiLayoutItem(c) => an1mbyt3_core::NodeBehavior::UiLayoutItem(c),
             NodeBehaviorDto::UiShowWhen(c) => an1mbyt3_core::NodeBehavior::UiShowWhen(c),
             NodeBehaviorDto::UiHtml(c) => an1mbyt3_core::NodeBehavior::UiHtml(c),
+            NodeBehaviorDto::Rigidbody3D(c) => an1mbyt3_core::NodeBehavior::Rigidbody3D(c),
+            NodeBehaviorDto::Collider3D(c) => an1mbyt3_core::NodeBehavior::Collider3D(c),
         }
     }
 }
@@ -2302,6 +2322,8 @@ pub struct ArtboardSummary {
     pub active_camera: Option<NodeId>,
     /// Physics 2D gravity (world units / s²).
     pub gravity: Vec2Dto,
+    /// Physics 3D gravity `[x, y, z]`, m/s².
+    pub gravity_3d: [f32; 3],
 }
 
 #[derive(Serialize)]
@@ -2627,6 +2649,7 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
                 post_effects: artboard.post_effects().iter().map(PostEffectLayerDto::from).collect(),
                 active_camera: artboard.active_camera(),
                 gravity: artboard.gravity.into(),
+                gravity_3d: artboard.gravity_3d.to_array(),
             })
             .collect(),
     }

@@ -12,3 +12,4 @@ publish.workspace = true
 an1mbyt3-core = { path = "../an1mbyt3-core" }
 glam = { workspace = true }
 rapier2d = { workspace = true }
+rapier3d = { workspace = true }

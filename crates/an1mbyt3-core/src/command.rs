@@ -577,6 +577,8 @@ pub enum Command {
     SetNodeUnlit { artboard: ArtboardId, node: NodeId, value: bool },
     /// Changes a scene's Physics 2D gravity (`Artboard::gravity`).
     SetArtboardGravity { artboard: ArtboardId, value: glam::Vec2 },
+    /// Sets the scene's 3D gravity (Rigidbody 3D), m/s².
+    SetArtboardGravity3D { artboard: ArtboardId, value: glam::Vec3 },
     /// Inserts a new, empty `Artboard` (a "Scene," in the Scenes panel's own
     /// words) into the document. Carries just the constructor arguments, not
     /// a whole `Artboard` — `Artboard` holds `SlotMap`s, which don't
@@ -1390,6 +1392,11 @@ impl Command {
                 let target = &mut document.artboard_mut(artboard).expect("Command::SetArtboardGravity: artboard not found").gravity;
                 let previous = std::mem::replace(target, value);
                 Command::SetArtboardGravity { artboard, value: previous }
+            }
+            Command::SetArtboardGravity3D { artboard, value } => {
+                let target = &mut document.artboard_mut(artboard).expect("Command::SetArtboardGravity3D: artboard not found").gravity_3d;
+                let previous = std::mem::replace(target, value);
+                Command::SetArtboardGravity3D { artboard, value: previous }
             }
             Command::SetNodeUnlit { artboard, node, value } => {
                 let previous = std::mem::replace(&mut document.node_mut(artboard, node).unlit, value);

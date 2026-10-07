@@ -61,3 +61,4 @@ futures-channel = "0.3"
 # 2D rigid-body physics (Rigidbody 2D / Collider 2D components) — pure Rust,
 # builds for wasm32; see `an1mbyt3-physics`.
 rapier2d = "0.36"
+rapier3d = "0.36"                                         # 3D physics (Rigidbody 3D + colliders)

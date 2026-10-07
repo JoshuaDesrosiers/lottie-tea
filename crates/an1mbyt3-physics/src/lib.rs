@@ -26,6 +26,7 @@
 //! divided by [`PIXELS_PER_METER`] on the way in and multiplied back out.
 
 pub mod liquid;
+pub mod physics3d;
 
 use std::collections::{HashMap, HashSet};
 
