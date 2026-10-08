@@ -83,6 +83,7 @@ mod demo_physics3d;
 mod view3d;
 mod demo_tactics_3d;
 mod demo_tactics;
+mod demo_tactics_ui;
 mod demo_fps;
 mod demo_physics;
 mod demo_rig;

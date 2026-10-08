@@ -425,46 +425,25 @@ pub(crate) fn build_demo_tactics(document: &mut Document) -> TacticsDemo {
     {
         let (document, inverses, scene) = (&mut *document, &mut inverses, select);
         add_node(document, inverses, scene, shape("bg", None, Path::rect(VIEW_W, VIEW_H), [0.07, 0.06, 0.09, 1.0], Vec2::ZERO));
-        add_node(document, inverses, scene, shape("", None, Path::rect(VIEW_W, 2.0), [1.0, 0.3, 0.35, 1.0], Vec2::new(0.0, 92.0)));
-        add_node(document, inverses, scene, text("title", None, "SUNSET TACTICS", font, [1.0, 0.92, 0.85, 1.0], Vec2::new(0.0, 102.0)));
-        add_node(document, inverses, scene, text("subtitle", None, "CHOOSE YOUR AGENT", font, [0.7, 0.66, 0.75, 1.0], Vec2::new(-110.0, 82.0)));
-        add_node(document, inverses, scene, text("record", None, "", font, [0.55, 0.55, 0.6, 1.0], Vec2::new(120.0, 82.0)));
-        // Agent cards.
-        for (i, (_, name, color)) in AGENTS.iter().enumerate() {
-            let x = -140.0 + i as f32 * 70.0;
-            add_node(document, inverses, scene, stroked(shape(&format!("card{i}"), None, Path::rect(54.0, 44.0), [0.14, 0.12, 0.17, 1.0], Vec2::new(x, 54.0)), 1.0, [0.4, 0.38, 0.45, 1.0]));
-            add_node(document, inverses, scene, shape(&format!("portrait{i}"), None, Path::rect(16.0, 16.0), *color, Vec2::new(x, 60.0)));
-            add_node(document, inverses, scene, text(&format!("cardName{i}"), None, name, font, [1.0, 1.0, 1.0, 1.0], Vec2::new(x, 40.0)));
-        }
-        add_node(document, inverses, scene, text("pickName", None, "", font, [1.0, 0.92, 0.85, 1.0], Vec2::new(0.0, 20.0)));
-        for k in 0..4 {
-            add_node(document, inverses, scene, text(&format!("abil{k}"), None, "", font, [0.75, 0.74, 0.8, 1.0], Vec2::new(0.0, 8.0 - k as f32 * 10.0)));
-        }
-        // AI difficulty: four presets.
-        add_node(document, inverses, scene, shape("", None, Path::rect(VIEW_W - 40.0, 1.0), [0.4, 0.38, 0.45, 1.0], Vec2::new(0.0, -32.0)));
-        add_node(document, inverses, scene, text("diffTitle", None, "AI DIFFICULTY", font, [0.85, 0.82, 0.9, 1.0], Vec2::new(-130.0, -42.0)));
-        for (k, label) in ["EASY", "NORMAL", "HARD", "INSANE"].into_iter().enumerate() {
-            let x = -40.0 + k as f32 * 62.0;
-            add_node(document, inverses, scene, stroked(shape(&format!("diff{k}Btn"), None, Path::rect(58.0, 12.0), [0.16, 0.14, 0.2, 1.0], Vec2::new(x, -42.0)), 1.0, [0.45, 0.42, 0.5, 1.0]));
-            add_node(document, inverses, scene, text(&format!("diff{k}Label"), None, label, font, [1.0, 1.0, 1.0, 1.0], Vec2::new(x, -42.0)));
-        }
-        // Bot customization rows: label, - , value, +.
-        for (k, label) in ["ENEMY ACCURACY", "ALLY ACCURACY", "BOT REACTION", "MOUSE SENS"].into_iter().enumerate() {
-            let y = -55.0 - k as f32 * 10.0;
-            add_node(document, inverses, scene, text(&format!("set{k}Label"), None, label, font, [0.75, 0.74, 0.8, 1.0], Vec2::new(-100.0, y)));
-            for (part, x, sign) in [("Minus", 40.0f32, "-"), ("Plus", 120.0, "+")] {
-                add_node(document, inverses, scene, stroked(shape(&format!("set{k}{part}"), None, Path::rect(12.0, 9.0), [0.16, 0.14, 0.2, 1.0], Vec2::new(x, y)), 1.0, [0.45, 0.42, 0.5, 1.0]));
-                add_node(document, inverses, scene, text(&format!("set{k}{part}Label"), None, sign, font, [1.0, 1.0, 1.0, 1.0], Vec2::new(x + 0.5, y)));
-            }
-            add_node(document, inverses, scene, text(&format!("set{k}Value"), None, "100%", font, [1.0, 0.9, 0.55, 1.0], Vec2::new(80.0, y)));
-        }
-        add_node(document, inverses, scene, text("diffHint", None, "", font, [0.55, 0.55, 0.6, 1.0], Vec2::new(0.0, -97.0)));
-        // Top-down vs raycast first-person view (also V in a match).
-        add_node(document, inverses, scene, stroked(shape("viewBtn", None, Path::rect(110.0, 13.0), [0.16, 0.14, 0.2, 1.0], Vec2::new(-150.0, -100.0)), 1.0, [0.45, 0.42, 0.5, 1.0]));
-        add_node(document, inverses, scene, text("viewLabel", None, "VIEW: TOP-DOWN", font, [1.0, 1.0, 1.0, 1.0], Vec2::new(-150.0, -100.0)));
-        add_node(document, inverses, scene, stroked(shape("lockBtn", None, Path::rect(110.0, 13.0), [0.85, 0.25, 0.3, 1.0], Vec2::new(150.0, -100.0)), 1.0, [1.0, 0.85, 0.8, 1.0]));
-        add_node(document, inverses, scene, text("lockLabel", None, "LOCK IN", font, [1.0, 1.0, 1.0, 1.0], Vec2::new(150.0, -100.0)));
-        add_program(document, inverses, scene, "Tactics Select", "Select", "");
+        // The whole menu is one HTML + CSS node (`demo_tactics_ui.rs`),
+        // 1600×900 CSS px scaled to the 400×225 view; the script fills it in
+        // and handles its clicks.
+        let mut menu = Node::with_components(
+            "Select Menu",
+            None,
+            vec![NodeBehavior::UiHtml(an1mbyt3_core::UiHtml {
+                html: crate::demo_tactics_ui::SELECT_HTML.into(),
+                css: crate::demo_tactics_ui::SELECT_CSS.into(),
+                width: 1600.0,
+                height: 900.0,
+                interactive: true,
+            })],
+        );
+        menu.transform.scale = Vec2::splat(VIEW_W / 1600.0);
+        add_node(document, inverses, scene, with_id(menu, "selectUi"));
+        // The menu's agent cards are tinted with each agent's color.
+        let colors = format!("const AGENT_COLORS = {{ {} }}", AGENTS.iter().map(|(id, _, c)| format!("{id}: [{}, {}, {}, 1]", c[0], c[1], c[2])).collect::<Vec<_>>().join(", "));
+        add_program(document, inverses, scene, "Tactics Select", "Select", &colors);
     }
 
     // ========================================================== Match
@@ -608,6 +587,24 @@ pub(crate) fn build_demo_tactics(document: &mut Document) -> TacticsDemo {
         let mut near = stroked(shape("nearsight", Some(camera), Path::ellipse(VIEW_W * 2.6, VIEW_W * 2.6), [0.0, 0.0, 0.0, 0.0], Vec2::ZERO), VIEW_W * 2.1, [0.12, 0.0, 0.2, 0.93]);
         near.visible = false;
         hud(document, inverses, near);
+        let mut html_hud = Node::with_components(
+            "HUD",
+            Some(camera),
+            vec![NodeBehavior::UiHtml(an1mbyt3_core::UiHtml {
+                html: crate::demo_tactics_ui::HUD_HTML.into(),
+                css: crate::demo_tactics_ui::HUD_CSS.into(),
+                width: 1600.0,
+                height: 900.0,
+                interactive: false,
+            })],
+        );
+        html_hud.transform.scale = Vec2::splat(VIEW_W / 1600.0);
+        hud(document, inverses, with_id(html_hud, "hud"));
+        // The original pixel-font HUD, kept (hidden) so older script paths
+        // that still name its nodes keep working; the HTML HUD above is what
+        // shows.
+        let legacy = hud(document, inverses, hidden(group("Pixel HUD (unused)", Some(camera), Vec2::ZERO)));
+        let camera = legacy;
         hud(document, inverses, shape("", Some(camera), Path::rect(124.0, 22.0), [0.0, 0.0, 0.0, 0.55], Vec2::new(0.0, VIEW_H / 2.0 - 11.0)));
         hud(document, inverses, text("score", Some(camera), "0  -  0", font, [1.0, 1.0, 1.0, 1.0], Vec2::new(0.0, VIEW_H / 2.0 - 7.0)));
         hud(document, inverses, text("atkLabel", Some(camera), "ATK", font, [0.4, 1.0, 0.65, 1.0], Vec2::new(-46.0, VIEW_H / 2.0 - 7.0)));

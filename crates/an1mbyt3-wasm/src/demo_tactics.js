@@ -142,61 +142,67 @@ function makeTraits(team) {
 }
 
 //@program Select
-// Agent select: click a card to preview its kit; set the AI difficulty and
-// bot accuracy / reaction; LOCK IN to play.
+// Agent select (an HTML menu, `selectUi`): pick an agent to preview its kit,
+// set the AI difficulty and bot accuracy / reaction, toggle the view, LOCK
+// IN. The menu's markup and look live in `demo_tactics_ui.rs`; this builds
+// its repeated parts once, handles its clicks, and keeps it in sync.
 if (!g.pick) g.pick = S.agent || 'jett'
 const set = S.settings
-const over = (x, y, w, h) => Math.abs(ctx.mouseX - x) < w / 2 && Math.abs(ctx.mouseY - y) < h / 2
-for (let i = 0; i < 5; i++) {
-  const id = AGENT_IDS[i]
-  const x = -140 + i * 70, y = 54
-  const hover = over(x, y, 54, 44)
-  const chosen = g.pick === id
-  ref('card' + i).fillColor = chosen ? [0.35, 0.12, 0.16, 1] : hover ? [0.2, 0.18, 0.24, 1] : [0.14, 0.12, 0.17, 1]
-  const sc = chosen ? 1 + Math.sin(T * 5) * 0.05 : 1
-  ref('portrait' + i).scaleX = sc; ref('portrait' + i).scaleY = sc
-  ref('portrait' + i).rotation = chosen ? (T * 90) % 360 : 0
-  if (hover && ctx.tap) g.pick = id
-}
-const kit = KIT[g.pick]
-setText('pickName', kit.name + ' - ' + kit.role)
-;['C', 'Q', 'E', 'X'].forEach((k, i) => setText('abil' + i, kit[k].desc))
-setText('record', S.record.wins + 'W ' + S.record.losses + 'L')
-// Difficulty buttons.
-let changed = false
-DIFFICULTY_IDS.forEach((d, k) => {
-  const x = -40 + k * 62, y = -42
-  const on = set.difficulty === d
-  const hover = over(x, y, 58, 12)
-  ref('diff' + k + 'Btn').fillColor = on ? [[0.2, 0.5, 0.3, 1], [0.25, 0.4, 0.6, 1], [0.6, 0.35, 0.15, 1], [0.7, 0.15, 0.2, 1]][k] : hover ? [0.24, 0.22, 0.28, 1] : [0.16, 0.14, 0.2, 1]
-  if (hover && ctx.tap && !on) { set.difficulty = d; changed = true }
-})
-// Customization rows: - / + in steps of 25%, 25%..200%.
+if (set.sens === undefined) set.sens = 45
 // [key, label, step, min, max, neutral] — MOUSE SENS is the first-person
 // look speed (100% = the original, fast speed; 45% is the default).
 const SETTINGS = [['enemyAcc', 'ENEMY ACCURACY', 25, 25, 200, 100], ['allyAcc', 'ALLY ACCURACY', 25, 25, 200, 100], ['reaction', 'BOT REACTION', 25, 25, 200, 100], ['sens', 'MOUSE SENS', 5, 5, 200, 45]]
-if (set.sens === undefined) set.sens = 45
-SETTINGS.forEach(([key, , step, lo, hi, neutral], k) => {
-  const y = -55 - k * 10
-  for (const [part, x, delta] of [['Minus', 40, -step], ['Plus', 120, step]]) {
-    const hover = over(x, y, 12, 9)
-    ref('set' + k + part).fillColor = hover ? [0.3, 0.28, 0.36, 1] : [0.16, 0.14, 0.2, 1]
-    if (hover && ctx.tap) { set[key] = clip(set[key] + delta, lo, hi); changed = true }
+const menu = ref('selectUi')
+const dom = menu && menu.dom
+const hex = (c) => '#' + c.slice(0, 3).map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')
+if (dom && g.menuDom !== dom) {
+  g.menuDom = dom
+  const $ = (id) => dom.getElementById(id)
+  $('agents').innerHTML = AGENT_IDS.map((id) => {
+    const k = KIT[id]
+    return `<button class="agent" data-agent="${id}" style="--c:${hex(AGENT_COLORS[id])}"><div class="glyph"></div><span class="nm">${k.name}</span><span class="rl">${k.role}</span></button>`
+  }).join('')
+  $('diff').innerHTML = DIFFICULTY_IDS.map((d) => `<button data-diff="${d}">${d.toUpperCase()}</button>`).join('')
+  $('rows').innerHTML = SETTINGS.map(([key, label]) => `<div class="row"><span class="lbl">${label}</span><button data-step="${key}" data-dir="-1">−</button><span class="val" id="v_${key}"></span><button data-step="${key}" data-dir="1">+</button></div>`).join('')
+  dom.addEventListener('click', (e) => {
+    const t = e.target.closest('button')
+    if (!t) return
+    if (t.dataset.agent) g.pick = t.dataset.agent
+    else if (t.dataset.diff) { set.difficulty = t.dataset.diff; ctx.storage.set('tacticsSettings', set) }
+    else if (t.dataset.step) {
+      const row = SETTINGS.find((r) => r[0] === t.dataset.step)
+      set[row[0]] = clip(set[row[0]] + row[2] * Number(t.dataset.dir), row[3], row[4])
+      ctx.storage.set('tacticsSettings', set)
+    } else if (t.id === 'viewBtn') { set.view = set.view === '3d' ? 'top' : '3d'; ctx.storage.set('tacticsSettings', set) }
+    else if (t.id === 'lock') g.lockIn = true
+    g.menuKey = ''
+  })
+}
+if (dom) {
+  // Refresh only when something the menu shows changed.
+  const key = [g.pick, set.difficulty, set.view, set.enemyAcc, set.allyAcc, set.reaction, set.sens, S.record.wins, S.record.losses].join('|')
+  if (g.menuKey !== key) {
+    g.menuKey = key
+    const $ = (id) => dom.getElementById(id)
+    for (const b of dom.querySelectorAll('[data-agent]')) b.classList.toggle('on', b.dataset.agent === g.pick)
+    for (const b of dom.querySelectorAll('[data-diff]')) b.classList.toggle('on', b.dataset.diff === set.difficulty)
+    const kit = KIT[g.pick]
+    $('kitName').textContent = kit.name
+    $('kitRole').textContent = kit.role
+    $('kitList').innerHTML = ['C', 'Q', 'E', 'X'].map((k) => `<li class="${k === 'X' ? 'ult' : ''}"><b>${k}</b><span>${kit[k].desc.replace(/^[CQEX]\s+/, '')}</span></li>`).join('')
+    for (const [k, , , , , neutral] of SETTINGS) {
+      const el = $('v_' + k)
+      el.textContent = set[k] + '%'
+      el.className = 'val' + (set[k] > neutral ? ' up' : set[k] < neutral ? ' down' : '')
+    }
+    const d = DIFFICULTY[set.difficulty]
+    $('hint').textContent = d.hint + (set.enemyAcc !== 100 || set.allyAcc !== 100 || set.reaction !== 100 ? '  ·  CUSTOM' : '')
+    $('viewBtn').textContent = set.view === '3d' ? 'VIEW: FIRST PERSON' : 'VIEW: TOP-DOWN'
+    $('rec').textContent = S.record.wins + 'W  ' + S.record.losses + 'L'
   }
-  setText('set' + k + 'Value', set[key] + '%')
-  ref('set' + k + 'Value').fillColor = set[key] > neutral ? [1, 0.55, 0.45, 1] : set[key] < neutral ? [0.55, 0.85, 1, 1] : [1, 0.9, 0.55, 1]
-})
-if (changed) ctx.storage.set('tacticsSettings', set)
-const d = DIFFICULTY[set.difficulty]
-setText('diffHint', d.hint + (set.enemyAcc !== 100 || set.allyAcc !== 100 || set.reaction !== 100 ? '  (CUSTOM)' : ''))
-// View toggle: top-down vs raycast first-person.
-const viewOver = over(-150, -100, 110, 13)
-ref('viewBtn').fillColor = viewOver ? [0.3, 0.28, 0.36, 1] : set.view === '3d' ? [0.25, 0.4, 0.6, 1] : [0.16, 0.14, 0.2, 1]
-setText('viewLabel', set.view === '3d' ? 'VIEW: 3D' : 'VIEW: TOP-DOWN')
-if (viewOver && ctx.tap) { set.view = set.view === '3d' ? 'top' : '3d'; ctx.storage.set('tacticsSettings', set) }
-const lockOver = over(150, -100, 110, 13)
-ref('lockBtn').fillColor = lockOver ? [1, 0.35, 0.4, 1] : [0.85, 0.25, 0.3, 1]
-if ((lockOver && ctx.tap) || keys.has('enter')) {
+}
+if (g.lockIn || keys.has('enter')) {
+  g.lockIn = false
   S.agent = g.pick
   ctx.globals.tacScene = {}
   ctx.loadScene('Tactics Match')
@@ -1752,54 +1758,122 @@ function drawAgents() {
   }
 }
 
+// The in-match HUD is HTML (`hud`, markup in `demo_tactics_ui.rs`). Every
+// element is looked up once per DOM and only rewritten when its value
+// changes — `hudSet` / `hudClass` compare against what was last written.
+function hudEls() {
+  const r = ref('hud')
+  const dom = r && r.dom
+  if (!dom) return null
+  if (g.hudDom !== dom) {
+    g.hudDom = dom
+    g.hudCache = {}
+    const $ = (id) => dom.getElementById(id)
+    g.hudEls = {
+      $, pipsA: [...$('pipsA').children], pipsB: [...$('pipsB').children], feed: [...$('feed').children],
+      ab: [0, 1, 2, 3].map((i) => { const el = $('ab' + i); return { el, name: el.querySelector('.name'), charges: el.querySelector('.charges') } }),
+    }
+  }
+  return g.hudEls
+}
+function hudSet(el, key, text) {
+  if (g.hudCache[key] !== text) { g.hudCache[key] = text; el.textContent = text }
+}
+function hudClass(el, key, cls) {
+  if (g.hudCache['c:' + key] !== cls) { g.hudCache['c:' + key] = cls; el.className = cls }
+}
+function hudHtml(el, key, html) {
+  if (g.hudCache['h:' + key] !== html) { g.hudCache['h:' + key] = html; el.innerHTML = html }
+}
+
 function drawHud() {
   const me = g.agents[0]
   const v = g.viewer
-  setText('score', g.score[MY] + '  -  ' + g.score[ENEMY])
-  const atkMine = g.attackers === MY
-  setText('atkLabel', atkMine ? 'ATK' : 'DEF'); ref('atkLabel').fillColor = [0.4, 1, 0.65, 1]
-  setText('defLabel', atkMine ? 'DEF' : 'ATK')
-  for (let k = 0; k < 5; k++) {
-    ref('pipA' + k).fillColor = k < g.score[MY] ? [0.3, 1, 0.6, 1] : [0.2, 0.3, 0.25, 1]
-    ref('pipD' + k).fillColor = k < g.score[ENEMY] ? [1, 0.3, 0.3, 1] : [0.3, 0.2, 0.2, 1]
-  }
-  const t = g.phase === 'planted' ? g.spike.timer : g.phase === 'buy' ? g.phaseT : g.time
-  const secs = Math.max(0, Math.ceil(t))
-  setText('timer', (g.phase === 'buy' ? 'BUY ' : g.phase === 'planted' ? 'SPIKE ' : '') + Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'))
-  ref('timer').fillColor = g.phase === 'planted' ? [1, 0.45 + Math.sin(T * 8) * 0.2, 0.3, 1] : [1, 0.9, 0.7, 1]
-  setText('hpText', String(Math.ceil(v.hp)))
-  setText('armorText', String(Math.ceil(v.armor)))
-  setText('agentText', v.kit.name + (v !== me ? ' (SPEC)' : ''))
-  ;['C', 'Q', 'E', 'X'].forEach((k, i) => {
-    const n = k === 'X' ? v.ult + '/' + v.kit.ultCost : String(v.charges[k] || 0)
-    setText('slotN' + i, k === 'X' ? '' : n)
-    const ready = k === 'X' ? v.ult >= v.kit.ultCost : (v.charges[k] || 0) > 0
-    ref('slot' + i).fillColor = ready ? (k === 'X' ? [0.5, 0.4, 0.1, 1] : [0.2, 0.35, 0.3, 1]) : [0.12, 0.12, 0.14, 1]
-    if (k === 'X') setText('slotKey' + i, ready ? 'X!' : v.ult + '/' + v.kit.ultCost)
-  })
-  setText('ammoText', v.knives > 0 ? 'KNIVES ' + v.knives : v.reloadT > 0 ? 'RELOAD' : v.ammo + '/' + v.mag)
-  // Spike status and plant / defuse bar.
-  const sp = g.spike
-  setText('spikeText', sp.state === 'planted' ? 'SPIKE PLANTED ' + sp.site : sp.state === 'dropped' ? 'SPIKE DROPPED' : sp.carrier && sp.carrier.isPlayer ? 'YOU HAVE THE SPIKE' : '')
-  const prog = sp.state === 'planted' ? (sp.defuser ? sp.prog / DEFUSE_TIME : 0) : sp.carrier ? sp.prog / PLANT_TIME : 0
-  show('progBack', prog > 0); show('progFill', prog > 0)
-  ref('progFill').scaleX = Math.max(0.01, prog); ref('progFill').x = -40 * (1 - prog)
-  setText('progText', prog > 0 ? (sp.state === 'planted' ? 'DEFUSING' : 'PLANTING') : '')
-  // Help line.
-  let help = ''
-  if (me.alive && sp.state === 'carried' && sp.carrier === me && siteAt(me.x, me.y)) help = 'HOLD F TO PLANT'
-  else if (me.alive && sp.state === 'planted' && !isAttacker(me) && dist(me.x, me.y, sp.x, sp.y) < 12) help = 'HOLD F TO DEFUSE'
-  else if (g.round === 1 && g.phase === 'buy') help = fps3d() ? 'CLICK TO LOCK MOUSE  WASD MOVE  C Q E X ABILITIES  V TOP-DOWN' : 'WASD MOVE  CLICK SHOOT  C Q E X ABILITIES  V 3D VIEW'
-  setText('help', help)
-  // Feed.
-  for (let k = 0; k < 4; k++) {
-    const f = g.feed[k]
-    if (f) f.t -= dt
-    setText('feed' + k, f && f.t > 0 ? f.text : '')
-    if (f) ref('feed' + k).fillColor = f.mine ? [0.5, 1, 0.7, 1] : [1, 0.55, 0.55, 1]
-  }
+  const H = hudEls()
+  // Still advance the timers the HUD owns, even before the DOM is up.
+  for (let k = 0; k < 4; k++) { const f = g.feed[k]; if (f) f.t -= dt }
   if (g.msgT > 0) { g.msgT -= dt; if (g.msgT <= 0) message('', '', 0) }
-  // Overlays: nearsight (Leer), hit / detonation flash.
+  if (H) {
+    const $ = H.$
+    // Score bar: your team on the left (teal), theirs on the right (red).
+    const atkMine = g.attackers === MY
+    hudSet($('sideA'), 'sideA', atkMine ? 'ATK' : 'DEF')
+    hudSet($('sideB'), 'sideB', atkMine ? 'DEF' : 'ATK')
+    hudSet($('scoreA'), 'scoreA', String(g.score[MY]))
+    hudSet($('scoreB'), 'scoreB', String(g.score[ENEMY]))
+    H.pipsA.forEach((p, k) => hudClass(p, 'pa' + k, k < g.score[MY] ? 'on' : ''))
+    H.pipsB.forEach((p, k) => hudClass(p, 'pb' + k, k < g.score[ENEMY] ? 'on' : ''))
+    const t = g.phase === 'planted' ? g.spike.timer : g.phase === 'buy' ? g.phaseT : g.time
+    const secs = Math.max(0, Math.ceil(t))
+    hudSet($('time'), 'time', Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'))
+    hudSet($('phase'), 'phase', g.phase === 'buy' ? 'BUY PHASE' : g.phase === 'planted' ? 'SPIKE PLANTED' : g.phase === 'over' ? 'ROUND OVER' : g.phase === 'matchover' ? 'MATCH OVER' : 'ROUND ' + g.round)
+    hudClass($('clock'), 'clock', 'clock' + (g.phase === 'planted' ? ' planted' : ''))
+    // Spike status.
+    const sp = g.spike
+    const spikeText = sp.state === 'planted' ? 'SPIKE PLANTED · ' + sp.site : sp.state === 'dropped' ? 'SPIKE DROPPED' : sp.carrier && sp.carrier.isPlayer ? 'YOU HAVE THE SPIKE' : ''
+    hudSet($('spikeText'), 'spikeText', spikeText)
+    hudClass($('spike'), 'spike', 'spike' + (spikeText ? ' on' : ''))
+    // Big round / match messages.
+    hudSet($('msg'), 'msg', ref('msg') ? ref('msg').textContent || '' : '')
+    hudSet($('sub'), 'sub', ref('sub') ? ref('sub').textContent || '' : '')
+    const msg = g.hudCache.msg || ''
+    hudClass($('msg'), 'msgc', 'msg' + (/VICTORY|ROUND WON|WON/.test(msg) ? ' win' : /DEFEAT|ROUND LOST|LOST/.test(msg) ? ' lose' : ''))
+    // Kill feed.
+    H.feed.forEach((row, k) => {
+      const f = g.feed[k]
+      const live = f && f.t > 0
+      hudSet(row, 'feed' + k, live ? f.text : '')
+      hudClass(row, 'fc' + k, 'row' + (live ? ' on' : '') + (live && f.mine ? ' mine' : ''))
+    })
+    // Plant / defuse progress.
+    const prog = sp.state === 'planted' ? (sp.defuser ? sp.prog / DEFUSE_TIME : 0) : sp.carrier ? sp.prog / PLANT_TIME : 0
+    hudClass($('prog'), 'prog', 'prog' + (prog > 0 ? ' on' : ''))
+    if (prog > 0) {
+      hudSet($('progLabel'), 'progLabel', sp.state === 'planted' ? 'DEFUSING' : 'PLANTING')
+      $('progFill').style.width = Math.round(prog * 100) + '%'
+    }
+    // Help line.
+    let help = ''
+    if (me.alive && sp.state === 'carried' && sp.carrier === me && siteAt(me.x, me.y)) help = 'HOLD F TO PLANT'
+    else if (me.alive && sp.state === 'planted' && !isAttacker(me) && dist(me.x, me.y, sp.x, sp.y) < 12) help = 'HOLD F TO DEFUSE'
+    else if (g.round === 1 && g.phase === 'buy') help = fps3d() ? 'CLICK TO LOCK MOUSE  ·  WASD MOVE  ·  C Q E X ABILITIES  ·  V TOP-DOWN' : 'WASD MOVE  ·  CLICK SHOOT  ·  C Q E X ABILITIES  ·  V FIRST PERSON'
+    hudSet($('help'), 'help', help)
+    // Vitals: who you're seeing through, HP and armor.
+    hudSet($('agent'), 'agent', v.kit.name + (v !== me ? '  ·  SPECTATING' : ''))
+    const hp = Math.max(0, Math.ceil(v.hp))
+    hudSet($('hp'), 'hp', String(hp))
+    hudClass($('hp'), 'hpc', 'hp' + (hp <= 30 ? ' low' : ''))
+    const hpFill = $('hpFill')
+    const hpW = Math.round(clip(v.hp / 100, 0, 1) * 100) + '%'
+    if (g.hudCache.hpW !== hpW) { g.hudCache.hpW = hpW; hpFill.style.width = hpW }
+    hudClass(hpFill, 'hpf', 'fill' + (hp <= 30 ? ' low' : ''))
+    const armor = Math.max(0, Math.ceil(v.armor))
+    hudSet($('armor'), 'armor', String(armor))
+    hudClass($('armor').parentNode, 'armc', 'armor' + (armor > 0 ? '' : ' none'))
+    // Abilities: name, charges (ult: points toward the cost).
+    ;['C', 'Q', 'E', 'X'].forEach((k, i) => {
+      const a = H.ab[i]
+      const ability = v.kit[k]
+      hudSet(a.name, 'abn' + i, ability.name)
+      if (k === 'X') {
+        const ready = v.ult >= v.kit.ultCost
+        hudClass(a.el, 'abc' + i, 'ab ult' + (ready ? ' ready' : ''))
+        hudHtml(a.charges, 'abp' + i, Array.from({ length: v.kit.ultCost }, (_, j) => `<i class="${j < v.ult ? 'on' : ''}"></i>`).join(''))
+      } else {
+        const have = v.charges[k] || 0
+        const max = Math.max(ability.n || 1, have)
+        hudClass(a.el, 'abc' + i, 'ab' + (have > 0 ? ' ready' : ''))
+        hudHtml(a.charges, 'abp' + i, Array.from({ length: max }, (_, j) => `<i class="${j < have ? '' : 'off'}"></i>`).join(''))
+      }
+    })
+    // Ammo.
+    const knives = v.knives > 0
+    hudSet($('mag'), 'mag', knives ? String(v.knives) : v.reloadT > 0 ? '··' : String(v.ammo))
+    hudSet($('reserve'), 'reserve', knives ? 'KNIVES' : v.reloadT > 0 ? 'RELOADING' : '/ ' + v.mag)
+    hudClass($('mag'), 'magc', 'mag' + (!knives && v.reloadT <= 0 && v.ammo <= Math.ceil(v.mag * 0.2) ? ' low' : ''))
+    hudSet($('gun'), 'gun', knives ? 'BLADE STORM' : 'RIFLE')
+  }
+  // Overlays drawn by the engine: nearsight (Leer), hit / detainment flash.
   show('nearsight', v.nearT > 0)
   g.hitFlash = Math.max(0, (g.hitFlash || 0) - dt)
   const fl = ref('flash')
