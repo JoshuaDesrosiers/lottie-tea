@@ -90,4 +90,25 @@ mod tests {
         let err = load_tea(&json).unwrap_err();
         assert!(matches!(err, TeaLoadError::UnsupportedSchemaVersion(_)));
     }
+
+    /// Reordered layers (`Artboard::child_order`, keyed by `NodeId`) must
+    /// save as JSON and as `.teab`, and load back in the same order.
+    #[test]
+    fn reordered_children_round_trip_through_tea_and_teab() {
+        use an1mbyt3_core::{Artboard, GroupNode, Node, NodeKind};
+        let mut document = Document::new();
+        let artboard_id = document.add_artboard(Artboard::new("Main", 100.0, 100.0));
+        let artboard = document.artboard_mut(artboard_id).unwrap();
+        let group = artboard.add_node(Node::new("Group", None, NodeKind::Group(GroupNode::default())));
+        let a = artboard.add_node(Node::new("A", Some(group), NodeKind::Group(GroupNode::default())));
+        let b = artboard.add_node(Node::new("B", Some(group), NodeKind::Group(GroupNode::default())));
+        assert!(artboard.move_node_forward(a), "A moves above B");
+        let order = |d: &Document| d.artboards().next().unwrap().1.children_of(group).map(|(id, _)| id).collect::<Vec<_>>();
+        assert_eq!(order(&document), vec![b, a]);
+
+        let json = save_tea(&document).expect("a document with reordered layers saves as .tea");
+        assert_eq!(order(&load_tea(&json).unwrap()), vec![b, a]);
+        let bytes = crate::save_teab(&document).unwrap();
+        assert_eq!(order(&crate::load_teab(&bytes).unwrap()), vec![b, a]);
+    }
 }

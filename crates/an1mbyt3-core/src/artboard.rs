@@ -96,7 +96,12 @@ pub struct Artboard {
     /// for a parent whose children have never been reordered — `children_of`
     /// falls back to the old linear-scan-over-the-arena order in that case,
     /// same as before this field existed.
-    #[serde(default)]
+    ///
+    /// Serialized as a list of `[parent, children]` pairs (see
+    /// [`node_map_serde`]): JSON object keys must be strings, and a `NodeId`
+    /// is a struct, so as a plain map this made any document with
+    /// reordered layers impossible to save as `.tea` / a project.
+    #[serde(default, with = "node_map_serde")]
     child_order: HashMap<NodeId, Vec<NodeId>>,
     /// Named, authored animations — see [`Animation`]'s module doc
     /// (`timeline.rs`) for why this lives here (artboard-scoped, since a
@@ -1353,5 +1358,66 @@ impl SceneIndex {
     /// Whether `id` is some `Group`'s mask (never drawn as content).
     pub fn is_mask_target(&self, id: NodeId) -> bool {
         self.mask_targets.contains(&id)
+    }
+}
+
+
+/// (De)serializes `Artboard::child_order` as a sequence of `(parent,
+/// children)` pairs, sorted by parent so saves are deterministic.
+///
+/// - Binary (`.teab`, postcard): a sequence of pairs encodes exactly like
+///   the map did, so existing files load unchanged.
+/// - JSON: an array of `[parent, [children…]]`; also accepts the old
+///   object form (only ever `{}` in practice — a non-empty one couldn't be
+///   written).
+mod node_map_serde {
+    use std::collections::HashMap;
+    use std::fmt;
+
+    use serde::de::{MapAccess, SeqAccess, Visitor};
+    use serde::{Deserializer, Serializer};
+
+    use crate::NodeId;
+
+    pub fn serialize<S: Serializer>(map: &HashMap<NodeId, Vec<NodeId>>, s: S) -> Result<S::Ok, S::Error> {
+        let mut entries: Vec<(&NodeId, &Vec<NodeId>)> = map.iter().collect();
+        entries.sort_by_key(|(parent, _)| **parent);
+        s.collect_seq(entries)
+    }
+
+    struct PairsOrMap;
+
+    impl<'de> Visitor<'de> for PairsOrMap {
+        type Value = HashMap<NodeId, Vec<NodeId>>;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a list of [parent, children] pairs")
+        }
+
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            let mut map = HashMap::new();
+            while let Some((parent, children)) = seq.next_element::<(NodeId, Vec<NodeId>)>()? {
+                map.insert(parent, children);
+            }
+            Ok(map)
+        }
+
+        fn visit_map<A: MapAccess<'de>>(self, mut access: A) -> Result<Self::Value, A::Error> {
+            let mut map = HashMap::new();
+            while let Some((parent, children)) = access.next_entry::<NodeId, Vec<NodeId>>()? {
+                map.insert(parent, children);
+            }
+            Ok(map)
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<HashMap<NodeId, Vec<NodeId>>, D::Error> {
+        // JSON can be asked what it holds (old files have `{}`); postcard
+        // can't, and always holds the sequence.
+        if d.is_human_readable() {
+            d.deserialize_any(PairsOrMap)
+        } else {
+            d.deserialize_seq(PairsOrMap)
+        }
     }
 }
