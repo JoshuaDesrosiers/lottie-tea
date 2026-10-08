@@ -389,43 +389,61 @@ fn parse_stroke_join(value: &str) -> StrokeJoin {
     }
 }
 
-/// Resolves `child`'s own `stroke`/`stroke-width`/`stroke-opacity`/
-/// `stroke-linecap`/`stroke-linejoin` (presentation attributes, each
-/// overridden by the same-named `style="..."` declaration if present — same
-/// cascade `visit`'s own fill resolution already follows) into a real
-/// `an1mbyt3_core::Stroke`, or `None` if this element has no stroke at all.
-/// `stroke-width` defaults to `1.0` (SVG's own default) when a stroke color
-/// resolves but no explicit width was given.
-fn resolve_stroke(child: roxmltree::Node) -> Option<Stroke> {
-    let mut color = child.attribute("stroke").and_then(parse_stroke_color);
-    let mut width = child.attribute("stroke-width").and_then(|v| v.parse::<f64>().ok());
-    let mut cap = child.attribute("stroke-linecap").map(parse_stroke_cap);
-    let mut join = child.attribute("stroke-linejoin").map(parse_stroke_join);
-    let mut opacity = child.attribute("stroke-opacity").and_then(|v| v.parse::<f32>().ok()).unwrap_or(1.0);
-
-    if let Some(style) = child.attribute("style") {
-        for declaration in style.split(';') {
-            let Some((property, value)) = declaration.split_once(':') else { continue };
-            let value = value.trim();
-            match property.trim() {
-                "stroke" => color = parse_stroke_color(value),
-                "stroke-width" => width = value.parse::<f64>().ok(),
-                "stroke-linecap" => cap = Some(parse_stroke_cap(value)),
-                "stroke-linejoin" => join = Some(parse_stroke_join(value)),
-                "stroke-opacity" => opacity = value.parse::<f32>().unwrap_or(opacity),
-                _ => {}
+/// An SVG property's own-or-inherited value: the nearest element — `node`
+/// itself first, then each ancestor — that declares it, an inline
+/// `style="..."` declaration beating the same element's presentation
+/// attribute (the CSS cascade). `inherit` defers to the next ancestor.
+///
+/// `stroke*` and `fill` are *inherited* properties in SVG: an editor that
+/// puts them on a group (scratch-paint always writes its whole layer's
+/// `fill`/`stroke`/`stroke-width` on the layer `<g>`) means every shape
+/// inside has them. Reading only the shape's own attributes silently lost
+/// every Paint-mode outline.
+fn inherited_property(node: roxmltree::Node, name: &str) -> Option<String> {
+    for element in node.ancestors().filter(|n| n.is_element()) {
+        let mut value = None;
+        if let Some(style) = element.attribute("style") {
+            for declaration in style.split(';') {
+                let Some((property, v)) = declaration.split_once(':') else { continue };
+                if property.trim() == name {
+                    value = Some(v.trim().to_string());
+                }
             }
         }
+        let value = value.or_else(|| element.attribute(name).map(|v| v.trim().to_string()));
+        match value {
+            Some(v) if v == "inherit" => continue,
+            Some(v) => return Some(v),
+            None => continue,
+        }
     }
+    None
+}
 
-    let [r, g, b, a] = color?;
+/// Resolves `child`'s `stroke`/`stroke-width`/`stroke-opacity`/
+/// `stroke-linecap`/`stroke-linejoin` — its own or inherited from an
+/// ancestor group (`inherited_property`) — into a real
+/// `an1mbyt3_core::Stroke`, or `None` if it has no stroke at all
+/// (`stroke="none"` or no stroke anywhere up the tree). `stroke-width`
+/// defaults to `1.0` (SVG's own default) when a stroke color resolves but no
+/// width was given, and is scaled by `matrix` (the element's accumulated
+/// transform), since the path coordinates it outlines have that transform
+/// baked in.
+fn resolve_stroke(child: roxmltree::Node, matrix: Matrix) -> Option<Stroke> {
+    let [r, g, b, a] = parse_stroke_color(&inherited_property(child, "stroke")?)?;
+    let width = inherited_property(child, "stroke-width").and_then(|v| v.trim_end_matches("px").parse::<f64>().ok()).unwrap_or(1.0);
+    if width <= 0.0 {
+        return None;
+    }
+    let scale = (matrix.a * matrix.d - matrix.b * matrix.c).abs().sqrt();
+    let opacity = inherited_property(child, "stroke-opacity").and_then(|v| v.parse::<f32>().ok()).unwrap_or(1.0);
     Some(Stroke {
-        width: width.unwrap_or(1.0) as f32,
+        width: (width * if scale > 0.0 { scale } else { 1.0 }) as f32,
         color: [r, g, b, a * opacity],
         gradient: None,
         image: None,
-        cap: cap.unwrap_or_default(),
-        join: join.unwrap_or_default(),
+        cap: inherited_property(child, "stroke-linecap").map(|v| parse_stroke_cap(&v)).unwrap_or_default(),
+        join: inherited_property(child, "stroke-linejoin").map(|v| parse_stroke_join(&v)).unwrap_or_default(),
     })
 }
 
@@ -545,16 +563,9 @@ fn average_gradient_color(node: roxmltree::Node, depth: u32) -> Option<[f32; 4]>
 /// mapping) — a flat-color resolution doesn't need to wait for that, hence
 /// the two separate helpers rather than one doing both jobs.
 fn effective_fill_value(child: roxmltree::Node) -> Option<String> {
-    let mut value = child.attribute("fill").map(str::to_string);
-    if let Some(style) = child.attribute("style") {
-        for declaration in style.split(';') {
-            let Some((property, val)) = declaration.split_once(':') else { continue };
-            if property.trim() == "fill" {
-                value = Some(val.trim().to_string());
-            }
-        }
-    }
-    value
+    // Own or inherited (see `inherited_property`): a group's `fill="none"`
+    // applies to every shape inside it.
+    inherited_property(child, "fill")
 }
 
 /// Parses a plain number or a `NN%` percentage into a `0.0..=1.0`-scaled
@@ -897,7 +908,7 @@ impl Walker {
         }
         let child_fill = child_fill.unwrap_or(fill);
         let fill_value = effective_fill_value(child);
-        let effective_stroke = resolve_stroke(child);
+        let effective_stroke = resolve_stroke(child, world_matrix);
         // Two cases force a transparent fill instead of `parse_fill`'s
         // "approximate rather than disappear" gray fallback (or SVG's own
         // default-to-black when no `fill` was specified at all):
@@ -1454,6 +1465,32 @@ mod tests {
             }
         }
         None
+    }
+
+    /// scratch-paint (Paint mode) writes the layer's stroke on its `<g>`,
+    /// not on each path — the outline must still come through.
+    #[test]
+    fn a_stroke_set_on_a_group_is_inherited_by_its_children() {
+        let svg = r##"<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="262" height="202" viewBox="0,0,262,202"><g transform="translate(-89,-55)"><g fill="#9966ff" fill-rule="nonzero" stroke="#000000" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><path d="M90,136v-80h100v80z"/><path d="M350,216c0,22 -22,40 -50,40c-27,0 -50,-17 -50,-40z" stroke="none"/></g></g></svg>"##;
+        let nodes = import_svg(svg).unwrap();
+        let mut shapes = Vec::new();
+        fn collect<'a>(nodes: &'a [ImportedNode], out: &mut Vec<&'a ImportedNode>) {
+            for n in nodes {
+                match n {
+                    ImportedNode::Shape { .. } => out.push(n),
+                    ImportedNode::Group { children, .. } => collect(children, out),
+                }
+            }
+        }
+        collect(&nodes, &mut shapes);
+        assert_eq!(shapes.len(), 2);
+        let ImportedNode::Shape { stroke, fill_color, .. } = shapes[0] else { unreachable!() };
+        let stroke = stroke.as_ref().expect("the group's stroke is inherited");
+        assert_eq!(stroke.width, 2.0);
+        assert_eq!(stroke.color, [0.0, 0.0, 0.0, 1.0]);
+        assert!((fill_color[0] - 0.6).abs() < 0.01, "fill still inherits too");
+        let ImportedNode::Shape { stroke, .. } = shapes[1] else { unreachable!() };
+        assert!(stroke.is_none(), "a child's own stroke=\"none\" overrides the group");
     }
 
     #[test]
