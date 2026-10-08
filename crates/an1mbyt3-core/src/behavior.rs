@@ -98,8 +98,11 @@ pub enum NodeBehavior {
     UiHtml(crate::UiHtml),
     /// A 3D physics body — see [`crate::Rigidbody3D`].
     Rigidbody3D(crate::Rigidbody3D),
-    /// A 3D collision shape — see [`crate::Collider3D`]. (Appended last.)
+    /// A 3D collision shape — see [`crate::Collider3D`].
     Collider3D(crate::Collider3D),
+    /// Shows one child at a time on a clock — see [`crate::Flipbook`].
+    /// (Appended last.)
+    Flipbook(crate::Flipbook),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

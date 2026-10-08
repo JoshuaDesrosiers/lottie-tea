@@ -30,6 +30,7 @@ import type {
   Rigidbody3DConfig,
   Collider3DConfig,
   Collider3DShape,
+  FlipbookConfig,
   BoxCollider2DConfig,
   CapsuleCollider2DConfig,
   CircleCollider2DConfig,
@@ -123,6 +124,28 @@ function Vec3Fields({ value, onChange, min, step }: { value: [number, number, nu
       <NumberField label="Y" value={value[1]} step={step} onCommit={(y) => onChange([value[0], fix(y), value[2]])} />
       <NumberField label="Z" value={value[2]} step={step} onCommit={(z) => onChange([value[0], value[1], fix(z)])} />
     </>
+  )
+}
+
+/** Flipbook — shows the node's children one at a time (a placed animated
+ * drawing's frames, or any sprite flipbook you build). */
+export function FlipbookFields({ config, frameCount, onChange }: { config: FlipbookConfig; frameCount: number; onChange: (value: FlipbookConfig) => void }) {
+  const update = (patch: Partial<FlipbookConfig>) => onChange({ ...config, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Frame Rate" title="Frames per second while playing.">
+        <NumberField label="fps" value={config.fps} step={1} onCommit={(fps) => update({ fps: Math.min(120, Math.max(0.1, fps)) })} />
+      </Row>
+      <Row label="Frame" title="The frame shown in Design (and in Playground when not playing). Each child of this node is one frame, in Layers order.">
+        <NumberField label={`/ ${Math.max(1, frameCount)}`} value={config.frame + 1} step={1} onCommit={(frame) => update({ frame: Math.min(Math.max(1, frameCount), Math.max(1, Math.round(frame))) - 1 })} />
+      </Row>
+      <Check checked={config.playing} onChange={(playing) => update({ playing })}>
+        Play in Playground
+      </Check>
+      <Check checked={config.looping} onChange={(looping) => update({ looping })}>
+        Loop (otherwise stop on the last frame)
+      </Check>
+    </div>
   )
 }
 
@@ -1136,13 +1159,14 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   UiHtml: 'HTML UI',
   Rigidbody3D: 'Rigidbody 3D',
   Collider3D: 'Collider 3D',
+  Flipbook: 'Flipbook',
   UiSlider: 'UI Slider',
   UiScrollbar: 'UI Scrollbar',
   UiScrollView: 'UI Scroll View',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
@@ -1150,6 +1174,7 @@ const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Physics 3D', kinds: ['Rigidbody3D', 'Collider3D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
   { title: 'Audio', kinds: ['AudioSource'] },
+  { title: 'Animation', kinds: ['Flipbook'] },
   { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiHtml'] },
   { title: 'Layout', kinds: ['UiLayout', 'UiLayoutItem', 'UiShowWhen'] },
 ]

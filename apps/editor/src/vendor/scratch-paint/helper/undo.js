@@ -28,12 +28,20 @@ const _restore = function (entry, setSelectedItems, onUpdateImage, isBitmapMode)
         const layer = paper.project.layers[i];
         if (!layer.data.isBackgroundGuideLayer &&
             !layer.data.isDragCrosshairLayer &&
-            !layer.data.isOutlineLayer) {
+            !layer.data.isOutlineLayer &&
+            !layer.data.isOnionLayer &&
+            !layer.data.isOverLayer) { // an1mbyt3: kept across undo
             layer.removeChildren();
             layer.remove();
         }
     }
     paper.project.importJSON(entry.json);
+    // an1mbyt3: the re-imported painting layer lands on top — keep the
+    // "layers above" reference layer over it.
+    const paintingLayer = paper.project.layers.find(l => l.data && l.data.isPaintingLayer);
+    const overLayer = paper.project.layers.find(l => l.data && l.data.isOverLayer);
+    if (paintingLayer && overLayer) overLayer.insertAbove(paintingLayer);
+    if (paintingLayer) paintingLayer.activate();
     setSelectedItems();
 
     // Ensure that all rasters are loaded before updating storage with new image data.

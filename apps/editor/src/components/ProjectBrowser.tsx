@@ -16,7 +16,9 @@
 import { useEffect, useMemo, useState, type DragEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import type { ComponentDefinitionSummary, DocumentSummary, DrawingSummary, ImageAssetSummary, OpaqueId, ProjectFileListing } from '../ipc/document'
 import type { ProjectEntry } from '../ipc/nativeFile'
-import { drawingSvg, projectFileIndex, type WasmEditor } from '../ipc/wasmEditor'
+import { projectFileIndex, type WasmEditor } from '../ipc/wasmEditor'
+import { renderFrame, thumbnail } from '../paint/session'
+import { sessionFromDrawing } from '../paint/drawingIo'
 import { AssetThumbnail } from './ResourcesPanel'
 import { ChevronDownIcon, ImageIcon } from './icons'
 
@@ -66,26 +68,29 @@ function drawingItems(doc: DocumentSummary): BrowserItem[] {
   ]
 }
 
-/** A vector drawing's thumbnail: its own SVG, drawn by the browser. */
+/** A drawing's thumbnail: its first frame, every visible layer, drawn the
+ * way Paint shows it (`paint/session.ts`). Animated drawings get a frame
+ * count badge. */
 function DrawingThumbnail({ editor, drawing }: { editor: WasmEditor; drawing: DrawingSummary }) {
-  const url = useMemo(() => {
-    if (drawing.kind !== 'Vector') return null
-    try {
-      const svg = drawingSvg(editor, drawing.id)
-      return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : null
-    } catch {
-      return null
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const session = sessionFromDrawing(editor, drawing.id)
+      const frame = await renderFrame(session, 0)
+      if (!cancelled) setUrl(thumbnail(frame, 80))
+    })().catch(() => !cancelled && setUrl(null))
+    return () => {
+      cancelled = true
     }
     // The summary object changes when the drawing does (re-save, rename).
   }, [editor, drawing])
-  if (drawing.kind === 'Bitmap' && drawing.image) {
-    return (
-      <div className="scale-150">
-        <AssetThumbnail editor={editor} image={drawing.image} />
-      </div>
-    )
-  }
-  return url ? <img src={url} alt="" className="h-10 w-10 object-contain" draggable={false} /> : <KindGlyph kind="drawing" name={drawing.name} />
+  return (
+    <span className="relative flex h-full w-full items-center justify-center">
+      {url ? <img src={url} alt="" className="h-10 w-10 object-contain" draggable={false} /> : <KindGlyph kind="drawing" name={drawing.name} />}
+      {drawing.frameCount > 1 && <span className="absolute bottom-0 right-0 rounded-tl bg-black/60 px-0.5 text-[9px] tabular-nums leading-tight text-white">{drawing.frameCount}f</span>}
+    </span>
+  )
 }
 
 /** Items for a folder-less document: the layout a save would produce. */

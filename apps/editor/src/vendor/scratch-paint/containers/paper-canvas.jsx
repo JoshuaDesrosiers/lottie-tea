@@ -114,6 +114,12 @@ class PaperCanvas extends React.Component {
         }
     }
     switchCostume (format, image, rotationCenterX, rotationCenterY, oldZoomLevelId, newZoomLevelId) {
+        // an1mbyt3: same zoom id = another frame / layer of the same drawing:
+        // keep the view exactly where it is (otherwise a pending first-load
+        // "zoom to fit" fires on the next frame and the canvas jumps).
+        if (oldZoomLevelId === newZoomLevelId && paper.view) {
+            this.shouldZoomToFit = paper.view.matrix.clone();
+        }
         if (oldZoomLevelId && oldZoomLevelId !== newZoomLevelId) {
             this.props.saveZoomLevel();
         }
@@ -130,7 +136,9 @@ class PaperCanvas extends React.Component {
                 clearRaster();
             } else if (!layer.data.isBackgroundGuideLayer &&
                 !layer.data.isDragCrosshairLayer &&
-                !layer.data.isOutlineLayer) {
+                !layer.data.isOutlineLayer &&
+                !layer.data.isOnionLayer &&
+                !layer.data.isOverLayer) { // an1mbyt3: the frame strip owns these
                 layer.removeChildren();
             }
         }

@@ -20,6 +20,83 @@ const _getPaintingLayer = function () {
     return _getLayer('isPaintingLayer');
 };
 
+// ---- an1mbyt3: onion skin ----
+// A non-editable, never-exported layer just above the checkerboard showing
+// other frames of an animation (an1mbyt3's Paint frame strip draws them into
+// one art-board-sized canvas). It lives in project coordinates, so it
+// follows zoom/pan like the artwork; `hideGuideLayers` detaches it for
+// export like the guide layers, and `setupLayers` (every image load) puts
+// it back with whatever was last set.
+let onionCanvas = null;
+const _fillOnionLayer = function (layer) {
+    layer.removeChildren();
+    if (!onionCanvas) return;
+    const raster = new paper.Raster({insert: false});
+    raster.setImage(onionCanvas);
+    raster.position = CENTER;
+    raster.guide = true;
+    raster.locked = true;
+    layer.addChild(raster);
+};
+const _makeOnionLayer = function () {
+    const layer = new paper.Layer();
+    layer.data.isOnionLayer = true;
+    layer.locked = true;
+    _fillOnionLayer(layer);
+    return layer;
+};
+/**
+ * Shows `canvas` (art-board sized, already faded/tinted) under the artwork,
+ * or nothing for `null`.
+ * @param {?HTMLCanvasElement} canvas the onion skin
+ */
+const setOnionSkin = function (canvas) {
+    onionCanvas = canvas;
+    // Before Paint's first open there is no paper project yet; the layer is
+    // built (with this canvas) when it is.
+    if (!paper.project) return;
+    const layer = _getLayer('isOnionLayer');
+    if (layer) {
+        _fillOnionLayer(layer);
+        if (paper.view) paper.view.update();
+    }
+};
+
+// ---- an1mbyt3: layers above the one being edited ----
+// Same idea as the onion skin, but *over* the artwork (just above the
+// painting layer): the drawing's higher layers on this frame, for reference.
+let overCanvas = null;
+const _fillOverLayer = function (layer) {
+    layer.removeChildren();
+    if (!overCanvas) return;
+    const raster = new paper.Raster({insert: false});
+    raster.setImage(overCanvas);
+    raster.position = CENTER;
+    raster.guide = true;
+    raster.locked = true;
+    layer.addChild(raster);
+};
+const _makeOverLayer = function () {
+    const layer = new paper.Layer();
+    layer.data.isOverLayer = true;
+    layer.locked = true;
+    _fillOverLayer(layer);
+    return layer;
+};
+/**
+ * Shows `canvas` (art-board sized) over the artwork, or nothing for `null`.
+ * @param {?HTMLCanvasElement} canvas the layers above
+ */
+const setOverSkin = function (canvas) {
+    overCanvas = canvas;
+    if (!paper.project) return;
+    const layer = _getLayer('isOverLayer');
+    if (layer) {
+        _fillOverLayer(layer);
+        if (paper.view) paper.view.update();
+    }
+};
+
 /**
  * Creates a canvas with width and height matching the art board size.
  * @param {?number} width Width of the canvas. Defaults to ART_BOARD_WIDTH.
@@ -112,6 +189,10 @@ const hideGuideLayers = function (includeRaster) {
     outlineLayer.remove();
     guideLayer.remove();
     backgroundGuideLayer.remove();
+    const onionLayer = _getLayer('isOnionLayer');
+    if (onionLayer) onionLayer.remove();
+    const overLayer = _getLayer('isOverLayer');
+    if (overLayer) overLayer.remove();
     let rasterLayer;
     if (includeRaster) {
         rasterLayer = _getLayer('isRasterLayer');
@@ -122,6 +203,8 @@ const hideGuideLayers = function (includeRaster) {
         outlineLayer: outlineLayer,
         guideLayer: guideLayer,
         backgroundGuideLayer: backgroundGuideLayer,
+        onionLayer: onionLayer,
+        overLayer: overLayer,
         rasterLayer: rasterLayer
     };
 };
@@ -144,6 +227,14 @@ const showGuideLayers = function (guideLayers) {
     if (!backgroundGuideLayer.index) {
         paper.project.addLayer(backgroundGuideLayer);
         backgroundGuideLayer.sendToBack();
+    }
+    if (guideLayers.onionLayer && !guideLayers.onionLayer.parent) {
+        paper.project.addLayer(guideLayers.onionLayer);
+        guideLayers.onionLayer.insertAbove(backgroundGuideLayer);
+    }
+    if (guideLayers.overLayer && !guideLayers.overLayer.parent && _getPaintingLayer()) {
+        paper.project.addLayer(guideLayers.overLayer);
+        guideLayers.overLayer.insertAbove(_getPaintingLayer());
     }
     if (!dragCrosshairLayer.index) {
         paper.project.addLayer(dragCrosshairLayer);
@@ -334,6 +425,8 @@ const setupLayers = function (format) {
     const outlineLayer = _makeOutlineLayer();
     const guideLayer = _makeGuideLayer();
     backgroundGuideLayer.sendToBack();
+    _makeOnionLayer().insertAbove(backgroundGuideLayer);
+    _makeOverLayer().insertAbove(paintLayer);
     dragCrosshairLayer.bringToFront();
     outlineLayer.bringToFront();
     guideLayer.bringToFront();
@@ -353,5 +446,7 @@ export {
     clearRaster,
     getRaster,
     setGuideItem,
+    setOnionSkin,
+    setOverSkin,
     setupLayers
 };

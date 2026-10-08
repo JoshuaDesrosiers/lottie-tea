@@ -17,7 +17,9 @@ import { GradientHandle } from './components/GradientHandle'
 import { PathEditOverlay } from './components/PathEditOverlay'
 import { TilemapPaintOverlay } from './components/TilemapPaintOverlay'
 import { TilePalettePanel } from './components/TilePalettePanel'
-import { imageDataToPng, PaintAssetEditor, type PaintImage, type PaintLoad } from './components/PaintAssetEditor'
+import { PaintAssetEditor, type PaintImage } from './components/PaintAssetEditor'
+import { blankSession, withLive, type PaintSession } from './paint/session'
+import { sessionFromDrawing, sessionToAnimation } from './paint/drawingIo'
 import { StateMachineDock } from './components/StateMachineDock'
 import { LocalErrorBoundary } from './components/LocalErrorBoundary'
 import { TimelinePanel, type TimelinePanelHandle } from './components/TimelinePanel'
@@ -42,15 +44,11 @@ import {
   renamePrefab,
   revertPrefabInstance,
   unpackPrefabInstance,
-  addDrawing,
-  addBitmapDrawing,
-  updateDrawing,
-  updateBitmapDrawing,
+  addAnimatedDrawing,
+  updateAnimatedDrawing,
   renameDrawing,
   deleteDrawing,
-  drawingSvg,
   placeDrawing,
-  getImageSource,
 } from './ipc/wasmEditor'
 import { SceneSwitcher } from './components/SceneSwitcher'
 import type {
@@ -469,12 +467,13 @@ function App() {
   // name and latest artwork "Save as Resource" (triggered from `TopToolbar`,
   // since its own Save button lives there now) reads; `editingDrawing` is
   // the Drawing resource being edited (re-saving updates it instead of
-  // adding a copy), `paintLoad` what scratch-paint should load.
+  // adding a copy); `paintSession` its frames × layers (`paint/session.ts`).
   const [paintActionBarTarget, setPaintActionBarTarget] = useState<HTMLDivElement | null>(null)
   const [paintDrawingName, setPaintDrawingName] = useState('New Drawing')
   const paintImageRef = useRef<PaintImage | null>(null)
   const [editingDrawing, setEditingDrawing] = useState<OpaqueId | null>(null)
-  const [paintLoad, setPaintLoad] = useState<PaintLoad>({ id: 'blank-0', image: null, format: 'svg' })
+  const [paintSession, setPaintSession] = useState<PaintSession>(blankSession)
+  const [paintSessionKey, setPaintSessionKey] = useState('blank-0')
   // A short message over the canvas (e.g. why a save didn't happen).
   const [notice, setNotice] = useState<string | null>(null)
   useEffect(() => {
@@ -1973,34 +1972,30 @@ function App() {
   const handleSaveDrawingAsResource = () => {
     const editor = editorRef.current
     if (!editor) return
-    const painted = paintImageRef.current
     const name = paintDrawingName.trim() || 'Drawing'
-    const MAX_SVG_BYTES = 4 * 1024 * 1024
+    const session = withLive(paintSession, paintImageRef.current)
     ;(async () => {
-      if (!painted) throw new Error('Draw something first.')
+      const MAX_SVG_BYTES = 4 * 1024 * 1024
+      for (const layer of session.layers) {
+        for (const cel of layer.cels) {
+          if (cel?.kind === 'svg' && (!cel.svg.trimStart().startsWith('<') || cel.svg.length > MAX_SVG_BYTES)) throw new Error("A frame can't be saved (not a plain SVG, or too large).")
+        }
+      }
+      const { json, saved: savedSession } = await sessionToAnimation(editor, session, name)
       let next: DocumentSummary
       let saved = editingDrawing
-      if (painted.isVector) {
-        if (!painted.svg.trimStart().startsWith('<') || painted.svg.length > MAX_SVG_BYTES) throw new Error("This drawing can't be saved (not a plain SVG, or too large).")
-        if (saved) next = updateDrawing(editor, saved, painted.svg)
-        else {
-          const result = addDrawing(editor, name, painted.svg)
-          next = result.document
-          saved = result.drawing
-        }
-      } else {
-        const png = await imageDataToPng(painted.bitmap)
-        if (saved) next = await updateBitmapDrawing(editor, saved, png)
-        else {
-          const result = await addBitmapDrawing(editor, name, png)
-          next = result.document
-          saved = result.drawing
-        }
+      if (saved) next = updateAnimatedDrawing(editor, saved, json)
+      else {
+        const result = addAnimatedDrawing(editor, name, json)
+        next = result.document
+        saved = result.drawing
       }
       if (saved && next.drawings.find((d) => idsEqual(d.id, saved))?.name !== name) next = renameDrawing(editor, saved, name)
       setEditingDrawing(saved)
+      setPaintSession(savedSession)
+      paintImageRef.current = savedSession.layers[savedSession.currentLayer]?.cels[savedSession.currentFrame] ?? null
       setDoc(next)
-      setNotice(`Saved "${name}" to Resources ▸ Drawings`)
+      setNotice(`Saved "${name}" to Resources ▸ Drawings${session.frameCount > 1 ? ` (${session.frameCount} frames)` : ''}`)
       setBottomDockTab('Resources')
       setBottomDockOpen(true)
       setMode('Design')
@@ -2015,30 +2010,27 @@ function App() {
     setEditingDrawing(null)
     paintImageRef.current = null
     setPaintDrawingName('New Drawing')
-    setPaintLoad({ id: `blank-${Date.now()}`, image: null, format: 'svg' })
+    setPaintSession(blankSession())
+    setPaintSessionKey(`blank-${Date.now()}`)
     setMode('Paint')
   }
 
   /** Resources ▸ Drawings "Edit in Paint" (double-click): reopens a drawing
-   * in Paint; saving then updates it. */
+   * — every frame and layer — in Paint; saving then updates it. */
   const handleEditDrawing = (drawingId: OpaqueId) => {
     const editor = editorRef.current
     const drawing = doc?.drawings.find((d) => idsEqual(d.id, drawingId))
     if (!editor || !drawing) return
-    let load: PaintLoad
-    if (drawing.kind === 'Vector') {
-      load = { id: `drawing-${drawingId.idx}-${Date.now()}`, image: drawingSvg(editor, drawingId), format: 'svg' }
-    } else {
-      if (!drawing.image) return
-      const bytes = getImageSource(editor, drawing.image)
-      let binary = ''
-      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
-      load = { id: `drawing-${drawingId.idx}-${Date.now()}`, image: `data:image/png;base64,${btoa(binary)}`, format: 'png' }
+    try {
+      setPaintSession(sessionFromDrawing(editor, drawingId))
+    } catch (err) {
+      setNotice(`Couldn't open the drawing: ${err instanceof Error ? err.message : String(err)}`)
+      return
     }
     paintImageRef.current = null
     setEditingDrawing(drawingId)
     setPaintDrawingName(drawing.name)
-    setPaintLoad(load)
+    setPaintSessionKey(`drawing-${drawingId.idx}-${Date.now()}`)
     setMode('Paint')
   }
 
@@ -4075,7 +4067,9 @@ function App() {
         visible={mode === 'Paint'}
         actionBarTarget={paintActionBarTarget}
         imageRef={paintImageRef}
-        load={paintLoad}
+        session={paintSession}
+        sessionKey={paintSessionKey}
+        onSessionChange={setPaintSession}
         name={paintDrawingName}
         onNameChange={setPaintDrawingName}
         onClose={() => setMode('Design')}

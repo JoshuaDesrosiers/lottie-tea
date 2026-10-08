@@ -878,6 +878,34 @@ fn preset_shape_path(kind: &str) -> Result<Path, JsValue> {
 /// `inverses`/`new_nodes`. Returns the id assigned to `imported` itself, so
 /// a `Group` arm can resolve its own `mask_index` against its children's
 /// freshly assigned ids once they're all inserted.
+/// Multiplies every imported shape's fill / stroke alpha by `opacity` — a
+/// drawing layer's opacity, on placement (nodes have no opacity of their own).
+fn fade_imported(nodes: &mut [an1mbyt3_svg::ImportedNode], opacity: f32) {
+    if opacity >= 1.0 {
+        return;
+    }
+    for node in nodes {
+        match node {
+            an1mbyt3_svg::ImportedNode::Shape { fill_color, stroke, .. } => {
+                fill_color[3] *= opacity;
+                if let Some(stroke) = stroke {
+                    stroke.color[3] *= opacity;
+                }
+            }
+            an1mbyt3_svg::ImportedNode::Group { children, .. } => fade_imported(children, opacity),
+        }
+    }
+}
+
+/// An SVG root's `viewBox` (min-x, min-y, width, height), comma- or
+/// space-separated.
+fn svg_view_box(svg: &str) -> Option<(f32, f32, f32, f32)> {
+    let start = svg.find("viewBox=\"")? + "viewBox=\"".len();
+    let end = start + svg[start..].find('"')?;
+    let n: Vec<f32> = svg[start..end].split(|c: char| c == ',' || c.is_whitespace()).filter(|s| !s.is_empty()).filter_map(|s| s.parse().ok()).collect();
+    (n.len() == 4).then(|| (n[0], n[1], n[2], n[3]))
+}
+
 /// Refuses an SVG that wouldn't place as anything (the same importer
 /// `place_drawing` uses) — see `add_drawing`.
 fn check_drawing_svg(svg: &str) -> Result<(), JsValue> {
@@ -1958,6 +1986,9 @@ pub struct WasmEditor {
     /// Per-node animation clocks for model meshes: the clips playing (base,
     /// overlay) and how far into each.
     anim_clocks: HashMap<NodeId, AnimClock>,
+    /// Seconds each Flipbook node has been playing this Playground session
+    /// (cleared on entering / leaving Playground) — see `apply_flipbooks`.
+    flipbook_clocks: HashMap<NodeId, f32>,
     /// The built-in material textured model meshes draw with (Sample
     /// Texture × Tint), compiled once.
     textured_material_3d: Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>,
@@ -2322,6 +2353,7 @@ impl WasmEditor {
             export_transparent: false,
             model_gpu: HashMap::new(),
             anim_clocks: HashMap::new(),
+            flipbook_clocks: HashMap::new(),
             textured_material_3d: None,
             frame_delta: 0.0,
             pointer_position,
@@ -2481,6 +2513,9 @@ impl WasmEditor {
         //   restores everything — and it gets its own fresh snapshot on the
         //   way in, so edits made in Design/Animate since the Animate-tab
         //   snapshot was taken aren't rolled back by Playground's restore.
+        if entering_playground || leaving_playground {
+            self.flipbook_clocks.clear();
+        }
         if entering_playground {
             self.runtime_spawned.clear();
             if let Some(snapshot) = self.design_pose_snapshot.take() {
@@ -2718,6 +2753,8 @@ impl WasmEditor {
         self.collect_scene_3d(artboard_id);
         // UI: anchors and stacks position their nodes for this frame.
         self.apply_ui_layout(artboard_id);
+        // Flipbooks: show this frame's child.
+        self.apply_flipbooks(artboard_id);
 
         let artboard = self.document.artboard(artboard_id).unwrap();
         // Deliberately *not* `artboard.shapes()` — that iterator excludes
@@ -5283,7 +5320,7 @@ impl WasmEditor {
         let value = self.document.drawing(drawing_id).ok_or_else(|| JsValue::from_str("drawing_svg: unknown drawing"))?;
         Ok(match &value.content {
             an1mbyt3_core::DrawingContent::Vector { svg } => Some(svg.clone()),
-            an1mbyt3_core::DrawingContent::Bitmap { .. } => None,
+            an1mbyt3_core::DrawingContent::Bitmap { .. } | an1mbyt3_core::DrawingContent::Animation(_) => None,
         })
     }
 
@@ -5299,11 +5336,16 @@ impl WasmEditor {
         let value = self.document.drawing(drawing_id).filter(|d| !d.deleted).ok_or_else(|| JsValue::from_str("place_drawing: unknown drawing"))?.clone();
         let svg = match value.content {
             an1mbyt3_core::DrawingContent::Bitmap { image } => {
-                let image_js = to_js_value(&image)?;
-                let parent_js = to_js_value(&parent_id)?;
-                let artboard_js = to_js_value(&artboard_id)?;
-                return self.add_image_node(artboard_js, parent_js, image_js, x, y);
+                // scratch-paint's bitmap mode paints at 2x: half the pixel
+                // size is the drawing's real size.
+                let (w, h) = self.document.image(image).and_then(|a| an1mbyt3_image::png_dimensions(&a.source).ok()).unwrap_or((32, 32));
+                let mut node = Node::new(value.name.clone(), parent_id, NodeKind::Image(an1mbyt3_core::ImageNode { image, width: w as f32 / 2.0, height: h as f32 / 2.0, fill_color: [1.0; 4], blend_mode: Default::default() }));
+                node.transform.translation = Vec2::new(x, y);
+                let inverse = self.document.apply(Command::AddNode { artboard: artboard_id, node });
+                let Command::SetDeleted { node: new_node, .. } = inverse else { unreachable!("Command::AddNode's inverse is always a SetDeleted") };
+                return to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node });
             }
+            an1mbyt3_core::DrawingContent::Animation(animation) => return self.place_animation(artboard_id, parent_id, &value.name, &animation, x, y),
             an1mbyt3_core::DrawingContent::Vector { svg } => svg,
         };
         let nodes = an1mbyt3_svg::import_svg(&svg).map_err(|err| JsValue::from_str(&format!("place_drawing: {err}")))?;
@@ -5327,6 +5369,141 @@ impl WasmEditor {
         inverses.reverse();
         self.document.commit_batch(inverses);
         to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node: root_id })
+    }
+
+    /// `place_drawing` for a frames × layers drawing: one root Group named
+    /// after it at `(x, y)` (with a Flipbook when there's more than one
+    /// frame), a Group per frame ("Frame 1"…, in order), and inside each a
+    /// node per visible layer's cel — imported shapes for vector cels, an
+    /// Image for bitmap cels. Each cel is offset so its registration point
+    /// (`DrawingCel::center`) sits on the root's origin, which is what keeps
+    /// the frames lined up exactly as they were in Paint. One undo step.
+    fn place_animation(&mut self, artboard_id: ArtboardId, parent: Option<NodeId>, name: &str, animation: &an1mbyt3_core::DrawingAnimation, x: f32, y: f32) -> Result<JsValue, JsValue> {
+        let mut inverses = Vec::new();
+        let mut new_nodes = Vec::new();
+        let add = |document: &mut Document, node: Node, inverses: &mut Vec<Command>| -> NodeId {
+            let inverse = Command::AddNode { artboard: artboard_id, node }.apply(document);
+            let Command::SetDeleted { node: id, .. } = inverse else { unreachable!("Command::AddNode's inverse is always a SetDeleted") };
+            inverses.push(inverse);
+            id
+        };
+        let frames = animation.frame_count.max(1) as usize;
+        let mut root = Node::new(name.to_string(), parent, NodeKind::Group(Default::default()));
+        root.transform.translation = Vec2::new(x, y);
+        if frames > 1 {
+            root.behaviors.push(an1mbyt3_core::NodeBehaviorEntry {
+                behavior: an1mbyt3_core::NodeBehavior::Flipbook(an1mbyt3_core::Flipbook { fps: animation.fps, ..Default::default() }),
+                enabled: true,
+            });
+        }
+        let root_id = add(&mut self.document, root, &mut inverses);
+        new_nodes.push(root_id);
+        let visible_layers: Vec<&an1mbyt3_core::DrawingLayer> = animation.layers.iter().filter(|l| l.visible).collect();
+        for frame in 0..frames {
+            let frame_parent = if frames > 1 {
+                let mut node = Node::new(format!("Frame {}", frame + 1), Some(root_id), NodeKind::Group(Default::default()));
+                node.visible = frame == 0;
+                add(&mut self.document, node, &mut inverses)
+            } else {
+                root_id
+            };
+            for layer in &visible_layers {
+                let Some(Some(cel)) = layer.cels.get(frame) else { continue };
+                let [cx, cy] = cel.center;
+                let layer_name = if visible_layers.len() > 1 { layer.name.clone() } else { format!("{name} art") };
+                match &cel.content {
+                    an1mbyt3_core::DrawingCelContent::Vector { svg } => {
+                        let Ok(mut nodes) = an1mbyt3_svg::import_svg(svg) else { continue };
+                        fade_imported(&mut nodes, layer.opacity.clamp(0.0, 1.0));
+                        // The importer centres the SVG's viewBox on (0, 0)
+                        // and flips y: SVG point (px, py) lands at
+                        // (px - w/2, h/2 - py). Shift so `center` hits 0.
+                        let (_, _, w, h) = svg_view_box(svg).unwrap_or((0.0, 0.0, 0.0, 0.0));
+                        let mut holder = Node::new(layer_name, Some(frame_parent), NodeKind::Group(Default::default()));
+                        holder.transform.translation = Vec2::new(w / 2.0 - cx, cy - h / 2.0);
+                        let holder_id = add(&mut self.document, holder, &mut inverses);
+                        for node in nodes {
+                            insert_imported_node(&mut self.document, artboard_id, node, Some(holder_id), &mut inverses, &mut new_nodes);
+                        }
+                    }
+                    an1mbyt3_core::DrawingCelContent::Bitmap { image } => {
+                        let Some((w, h)) = self.document.image(*image).and_then(|a| an1mbyt3_image::png_dimensions(&a.source).ok()) else { continue };
+                        let (w, h) = (w as f32, h as f32);
+                        // 2 bitmap px per unit; the Image is centred on its node.
+                        let mut node = Node::new(layer_name, Some(frame_parent), NodeKind::Image(an1mbyt3_core::ImageNode { image: *image, width: w / 2.0, height: h / 2.0, fill_color: [1.0, 1.0, 1.0, layer.opacity.clamp(0.0, 1.0)], blend_mode: Default::default() }));
+                        node.transform.translation = Vec2::new((w / 2.0 - cx) / 2.0, (cy - h / 2.0) / 2.0);
+                        add(&mut self.document, node, &mut inverses);
+                    }
+                }
+            }
+        }
+        inverses.reverse();
+        self.document.commit_batch(inverses);
+        to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node: root_id })
+    }
+
+    /// Saves a frames × layers drawing (Paint's frame strip) as a new
+    /// Drawing resource. `value` is `DrawingAnimation`-shaped JSON; bitmap
+    /// cels reference image assets made first with `add_drawing_cel_image`.
+    /// Undoable. Returns `{ document, drawing }`.
+    pub fn add_animated_drawing(&mut self, name: String, value: JsValue) -> Result<JsValue, JsValue> {
+        let animation = self.parse_drawing_animation(value)?;
+        let inverse = self.document.apply(Command::AddDrawing {
+            drawing: an1mbyt3_core::DrawingAsset { name, content: an1mbyt3_core::DrawingContent::Animation(animation), deleted: false },
+        });
+        let Command::SetDrawingDeleted { drawing, .. } = inverse else { unreachable!("AddDrawing's inverse is SetDrawingDeleted") };
+        to_js_value(&crate::dto::DrawingResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), drawing })
+    }
+
+    /// Re-saves a drawing as frames × layers (see `add_animated_drawing`). Undoable.
+    pub fn update_animated_drawing(&mut self, drawing: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
+        let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
+        let animation = self.parse_drawing_animation(value)?;
+        let mut asset = self.document.drawing(drawing_id).ok_or_else(|| JsValue::from_str("update_animated_drawing: unknown drawing"))?.clone();
+        asset.content = an1mbyt3_core::DrawingContent::Animation(animation);
+        self.document.apply(Command::SetDrawing { drawing: drawing_id, value: Box::new(asset) });
+        self.document_summary()
+    }
+
+    /// A bitmap cel's PNG as a new image asset (2x scale, see
+    /// `DrawingCel::center`); returns its id for `add_animated_drawing`.
+    pub async fn add_drawing_cel_image(&mut self, name: String, png: &[u8]) -> Result<JsValue, JsValue> {
+        let image = self.add_drawing_image(&name, png).await?;
+        to_js_value(&image)
+    }
+
+    /// The drawing's full content as JSON (`DrawingContent`), for reopening
+    /// it in Paint and drawing its thumbnail.
+    pub fn drawing_content(&self, drawing: JsValue) -> Result<JsValue, JsValue> {
+        let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
+        let value = self.document.drawing(drawing_id).ok_or_else(|| JsValue::from_str("drawing_content: unknown drawing"))?;
+        to_js_value(&value.content)
+    }
+
+    fn parse_drawing_animation(&self, value: JsValue) -> Result<an1mbyt3_core::DrawingAnimation, JsValue> {
+        let mut animation: an1mbyt3_core::DrawingAnimation = serde_wasm_bindgen::from_value(value).map_err(|err| JsValue::from_str(&format!("invalid drawing: {err}")))?;
+        if animation.layers.is_empty() {
+            return Err(JsValue::from_str("the drawing has no layers"));
+        }
+        let frames = animation.frame_count.max(1);
+        animation.frame_count = frames;
+        let mut any = false;
+        for layer in &mut animation.layers {
+            layer.cels.resize(frames as usize, None);
+            for cel in layer.cels.iter_mut() {
+                let Some(c) = cel else { continue };
+                let ok = match &c.content {
+                    an1mbyt3_core::DrawingCelContent::Vector { svg } => an1mbyt3_svg::import_svg(svg).ok().and_then(|n| imported_bounds(&n)).is_some(),
+                    an1mbyt3_core::DrawingCelContent::Bitmap { image } => self.document.image(*image).is_some(),
+                };
+                // An empty or unreadable cel is just an empty cel.
+                if ok { any = true } else { *cel = None }
+            }
+        }
+        if !any {
+            return Err(JsValue::from_str("the drawing is empty — draw something first"));
+        }
+        Ok(animation)
     }
 
     /// A drawing's PNG as a new (baked) image asset named after it.
@@ -5782,6 +5959,7 @@ impl WasmEditor {
             "UiHtml" => B::UiHtml(an1mbyt3_core::UiHtml::default()),
             "Rigidbody3D" => B::Rigidbody3D(an1mbyt3_core::Rigidbody3D::default()),
             "Collider3D" => B::Collider3D(an1mbyt3_core::Collider3D::default()),
+            "Flipbook" => B::Flipbook(an1mbyt3_core::Flipbook::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -6535,6 +6713,43 @@ impl WasmEditor {
             (None, an1mbyt3_core::ScreenMode::Fixed) => reference,
         };
         Some(an1mbyt3_core::ScreenInfo::new(view, screen, &settings))
+    }
+
+    /// Every enabled Flipbook component shows exactly one of its node's
+    /// children (in Layers order): in Playground the frame its clock has
+    /// reached, otherwise its `frame` setting — so Design shows a stable
+    /// frame you can pick in the Inspector. Untracked visibility writes,
+    /// like UI Show When's.
+    fn apply_flipbooks(&mut self, artboard_id: ArtboardId) {
+        let playing = self.playground_active;
+        let delta = self.frame_delta;
+        let Some(artboard) = self.document.artboard_mut(artboard_id) else { return };
+        let books: Vec<(NodeId, an1mbyt3_core::Flipbook)> = artboard
+            .node_ids()
+            .filter_map(|id| {
+                let node = artboard.node(id).filter(|n| !n.deleted)?;
+                node.behaviors.iter().find_map(|e| match &e.behavior {
+                    an1mbyt3_core::NodeBehavior::Flipbook(f) if e.enabled => Some((id, *f)),
+                    _ => None,
+                })
+            })
+            .collect();
+        for (id, book) in books {
+            let frames: Vec<NodeId> = artboard.children_of(id).filter(|(_, n)| !n.deleted).map(|(c, _)| c).collect();
+            let shown = if playing {
+                let clock = self.flipbook_clocks.entry(id).or_insert(0.0);
+                let shown = book.frame_at(*clock, frames.len());
+                *clock += delta;
+                shown
+            } else {
+                an1mbyt3_core::Flipbook { playing: false, ..book }.frame_at(0.0, frames.len())
+            };
+            for (index, child) in frames.into_iter().enumerate() {
+                if let Some(node) = artboard.node_mut(child) {
+                    node.visible = index == shown;
+                }
+            }
+        }
     }
 
     fn apply_ui_layout(&mut self, artboard_id: ArtboardId) {

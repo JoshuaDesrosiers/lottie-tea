@@ -1181,6 +1181,15 @@ export interface UiHtmlConfig {
 }
 
 /** A 3D physics body (`an1mbyt3_core::Rigidbody3D`). */
+/** `an1mbyt3_core::Flipbook` — shows one child at a time on a clock. */
+export interface FlipbookConfig {
+  fps: number
+  playing: boolean
+  looping: boolean
+  /** 0-based frame shown while not playing (and in Design). */
+  frame: number
+}
+
 export interface Rigidbody3DConfig {
   bodyType: 'Dynamic' | 'Kinematic' | 'Static'
   mass: number
@@ -1271,9 +1280,13 @@ export interface MaterialStatus {
 export interface DrawingSummary {
   id: OpaqueId
   name: string
-  kind: 'Vector' | 'Bitmap'
-  /** A bitmap drawing's image asset; `null` for vector drawings. */
+  /** `Animation` = frames × layers (what Paint saves now); the others are
+   * older single-image drawings. */
+  kind: 'Vector' | 'Bitmap' | 'Animation'
+  /** An old bitmap drawing's image asset; `null` otherwise. */
   image: OpaqueId | null
+  frameCount: number
+  layerCount: number
 }
 
 /** Result of `addDrawing` / `addBitmapDrawing`. */
@@ -1375,6 +1388,7 @@ export type NodeBehavior =
   | ({ kind: 'UiHtml' } & UiHtmlConfig)
   | ({ kind: 'Rigidbody3D' } & Rigidbody3DConfig)
   | ({ kind: 'Collider3D' } & Collider3DConfig)
+  | ({ kind: 'Flipbook' } & FlipbookConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

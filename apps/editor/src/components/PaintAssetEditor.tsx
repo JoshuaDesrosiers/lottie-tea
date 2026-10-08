@@ -1,4 +1,4 @@
-import { Component, useLayoutEffect, useMemo, useState, type ReactNode, type RefObject } from 'react'
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Provider } from 'react-redux'
 import { IntlProvider } from 'react-intl'
 import { createStore, combineReducers } from 'redux'
@@ -6,12 +6,14 @@ import { createStore, combineReducers } from 'redux'
 // scratchfoundation/scratch-paint per the user's own explicit choice —
 // see this component's own doc comment for the integration seam and the
 // AGPL-3.0 licensing note that comes with it).
-import ScratchPaintEditor, { ScratchPaintReducer } from '../vendor/scratch-paint/index.js'
+import ScratchPaintEditor, { ScratchPaintReducer, setOnionSkin, setOverSkin } from '../vendor/scratch-paint/index.js'
 // @ts-expect-error — plain JS (no declaration file), same reasoning as the
 // scratch-paint import above.
 import { PaintToolPalette } from './PaintToolPalette.jsx'
 // @ts-expect-error — no declaration file for this fork.
 import paper from '@scratch/paper'
+import { BLANK_PNG, celAt, onionSkin, renderFrame, renderLayers, stack, withLive, type PaintCel, type PaintSession } from '../paint/session'
+import { PaintFrameStrip } from './PaintFrameStrip'
 
 /** Every one of scratch-paint's ~17 tool-mode containers (`SelectMode`/
  * `BrushMode`/etc., mounted invisibly by `paint-editor.jsx` — see that
@@ -123,15 +125,32 @@ if (paper?.Tool?.prototype && !paper.Tool.prototype.__an1mbyt3PatchedRemove) {
  * state (`useState<HTMLDivElement | null>`) since both this component and
  * `TopToolbar` need it and are true siblings.
  */
-/** The latest artwork scratch-paint reported (`onUpdateImage`), in whichever
- * mode it's in: vector mode gives an SVG string, bitmap mode an `ImageData`.
- * "Save as Resource" (`App.tsx`) reads this. */
-export type PaintImage = { isVector: true; svg: string } | { isVector: false; bitmap: ImageData }
+/** The latest artwork scratch-paint reported (`onUpdateImage`) for the cel
+ * being edited — a vector SVG or a bitmap `ImageData`, plus its rotation
+ * center. "Save as Resource" (`App.tsx`) merges it into the session. */
+export type PaintImage = PaintCel
 
-/** What scratch-paint should load: a drawing reopened from Resources, or a
- * blank canvas. Changing `id` is what makes scratch-paint clear and load
- * `image` (its own `imageId` contract — see `containers/paint-editor.jsx`). */
-export type PaintLoad = { id: string; image: string | null; format: 'svg' | 'png' }
+/** What scratch-paint should load. Changing `id` is what makes scratch-paint
+ * clear and load `image` (its own `imageId` contract — see
+ * `containers/paint-editor.jsx`); `center` is the image's rotation center,
+ * which is what keeps every frame registered on the same spot. */
+type PaintLoad = { id: string; image: string | null; format: 'svg' | 'png'; center: [number, number] | null }
+
+function imageDataUrl(data: ImageData): string {
+  const canvas = document.createElement('canvas')
+  canvas.width = data.width
+  canvas.height = data.height
+  canvas.getContext('2d')!.putImageData(data, 0, 0)
+  return canvas.toDataURL('image/png')
+}
+
+/** The scratch-paint load for `cel` — a blank one keeps the editor in the
+ * mode it was in (`blankFormat`). */
+function loadFor(cel: PaintCel | null, id: string, blankFormat: 'svg' | 'png'): PaintLoad {
+  if (!cel) return { id, image: blankFormat === 'png' ? BLANK_PNG : null, format: blankFormat, center: null }
+  if (cel.kind === 'svg') return { id, image: cel.svg, format: 'svg', center: cel.center }
+  return { id, image: cel.kind === 'image' ? cel.dataUrl : imageDataUrl(cel.bitmap), format: 'png', center: cel.center }
+}
 
 /** Encodes a bitmap-mode drawing (`ImageData`) as PNG bytes, for saving it
  * as a bitmap Drawing resource. */
@@ -172,7 +191,9 @@ export function PaintAssetEditor({
   visible,
   actionBarTarget,
   imageRef,
-  load,
+  session,
+  sessionKey,
+  onSessionChange,
   name,
   onNameChange,
   onClose,
@@ -195,13 +216,138 @@ export function PaintAssetEditor({
    * "Save as Resource" handler, triggered from `TopToolbar`, reads it), this
    * component only ever writes to it. `null` until something is drawn. */
   imageRef: RefObject<PaintImage | null>
-  /** What to load — see `PaintLoad`. */
-  load: PaintLoad
+  /** The frames × layers being drawn (`paint/session.ts`); `App.tsx` owns it
+   * (Save reads it). The cel being edited lives in scratch-paint — its
+   * latest export is `imageRef`, folded into the session (`withLive`)
+   * whenever another cel is opened. */
+  session: PaintSession
+  /** Changes when a different drawing is opened / a new one started:
+   * reloads the current cel. */
+  sessionKey: string
+  onSessionChange: (session: PaintSession) => void
   name: string
   onNameChange: (name: string) => void
   onClose: () => void
 }) {
   const store = useMemo(() => createStore(combineReducers({ scratchPaint: ScratchPaintReducer })), [])
+
+  // ---- Frames: which cel scratch-paint has loaded ----
+  const loads = useRef(0)
+  // The mode of the last cel touched, so a blank frame opens in it too.
+  const lastFormat = useRef<'svg' | 'png'>('svg')
+  const [load, setLoad] = useState<PaintLoad>(() => loadFor(celAt(session, session.currentLayer, session.currentFrame), `${sessionKey}-0`, 'svg'))
+  const [liveVersion, setLiveVersion] = useState(0)
+  useEffect(() => {
+    // A different drawing (or New): open its current cel.
+    const cel = celAt(session, session.currentLayer, session.currentFrame)
+    imageRef.current = cel
+    setLoad(loadFor(cel, `${sessionKey}-${++loads.current}`, lastFormat.current))
+    // Only when the drawing itself changes — frame switches load below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionKey])
+
+  /** Store the cel being edited, apply `change`, open the resulting cel. */
+  const switchTo = (change: (committed: PaintSession) => PaintSession, reload = true) => {
+    const next = change(withLive(session, imageRef.current))
+    onSessionChange(next)
+    if (!reload) return
+    const cel = celAt(next, next.currentLayer, next.currentFrame)
+    imageRef.current = cel
+    setLoad(loadFor(cel, `${sessionKey}-${++loads.current}`, lastFormat.current))
+  }
+  const eachLayer = (s: PaintSession, edit: (cels: (PaintCel | null)[]) => (PaintCel | null)[]): PaintSession['layers'] => s.layers.map((layer) => ({ ...layer, cels: edit([...layer.cels]) }))
+  const frameActions = {
+    select: (frame: number) => frame !== session.currentFrame && switchTo((s) => ({ ...s, currentFrame: frame })),
+    selectCel: (layer: number, frame: number) =>
+      (layer !== session.currentLayer || frame !== session.currentFrame) && switchTo((s) => ({ ...s, currentLayer: layer, currentFrame: frame })),
+    add: () =>
+      switchTo((s) => ({ ...s, layers: eachLayer(s, (cels) => (cels.splice(s.currentFrame + 1, 0, null), cels)), frameCount: s.frameCount + 1, currentFrame: s.currentFrame + 1 })),
+    duplicate: () =>
+      switchTo((s) => ({ ...s, layers: eachLayer(s, (cels) => (cels.splice(s.currentFrame + 1, 0, cels[s.currentFrame] ?? null), cels)), frameCount: s.frameCount + 1, currentFrame: s.currentFrame + 1 })),
+    remove: () =>
+      session.frameCount > 1 &&
+      switchTo((s) => ({ ...s, layers: eachLayer(s, (cels) => (cels.splice(s.currentFrame, 1), cels)), frameCount: s.frameCount - 1, currentFrame: Math.min(s.currentFrame, s.frameCount - 2) })),
+    // The cel being edited moves along with its frame: no reload needed.
+    move: (delta: -1 | 1) =>
+      switchTo((s) => {
+        const to = s.currentFrame + delta
+        if (to < 0 || to >= s.frameCount) return s
+        return { ...s, layers: eachLayer(s, (cels) => ([cels[s.currentFrame], cels[to]] = [cels[to], cels[s.currentFrame]], cels)), currentFrame: to }
+      }, false),
+  }
+
+  /** Rename / show-hide / opacity: no reload (the cel being edited stays). */
+  const setLayer = (index: number, patch: Partial<PaintSession['layers'][number]>) => {
+    const committed = withLive(session, imageRef.current)
+    onSessionChange({ ...committed, layers: committed.layers.map((layer, i) => (i === index ? { ...layer, ...patch } : layer)) })
+  }
+  const layerActions = {
+    add: () =>
+      switchTo((s) => {
+        const layers = [...s.layers]
+        layers.splice(s.currentLayer + 1, 0, { name: `Layer ${s.layers.length + 1}`, visible: true, opacity: 1, cels: Array.from({ length: s.frameCount }, () => null) })
+        return { ...s, layers, currentLayer: s.currentLayer + 1 }
+      }),
+    remove: () =>
+      session.layers.length > 1 &&
+      switchTo((s) => {
+        const layers = s.layers.filter((_, i) => i !== s.currentLayer)
+        return { ...s, layers, currentLayer: Math.min(s.currentLayer, layers.length - 1) }
+      }),
+    // The cel being edited moves with its layer: no reload.
+    move: (delta: -1 | 1) =>
+      switchTo((s) => {
+        const to = s.currentLayer + delta
+        if (to < 0 || to >= s.layers.length) return s
+        const layers = [...s.layers]
+        ;[layers[s.currentLayer], layers[to]] = [layers[to], layers[s.currentLayer]]
+        return { ...s, layers, currentLayer: to }
+      }, false),
+  }
+
+  // `,` / `.` step through frames (Flash / Aseprite muscle memory).
+  useEffect(() => {
+    if (!visible) return
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.key === ',' && session.currentFrame > 0) frameActions.select(session.currentFrame - 1)
+      else if (e.key === '.' && session.currentFrame < session.frameCount - 1) frameActions.select(session.currentFrame + 1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
+  // What's shown around the cel being drawn: under it, the onion skin
+  // (neighbouring frames, tinted) and this frame's lower layers; over it,
+  // this frame's higher layers. All reference only — never exported.
+  useEffect(() => {
+    if (!visible) {
+      setOnionSkin(null)
+      setOverSkin(null)
+      return
+    }
+    let cancelled = false
+    const f = session.currentFrame
+    const l = session.currentLayer
+    ;(async () => {
+      let onion: HTMLCanvasElement | null = null
+      if (session.onion && session.frameCount > 1) {
+        const previous = f > 0 ? await renderFrame(session, f - 1) : null
+        const next = f < session.frameCount - 1 ? await renderFrame(session, f + 1) : null
+        onion = onionSkin(previous, next)
+      }
+      const below = await renderLayers(session, f, 0, l - 1)
+      const above = await renderLayers(session, f, l + 1, session.layers.length - 1)
+      if (cancelled) return
+      setOnionSkin(stack(onion, below))
+      setOverSkin(above)
+    })().catch((err) => console.warn('onion skin failed', err))
+    return () => {
+      cancelled = true
+    }
+  }, [visible, session, load.id])
 
   // paper.js's own `PaperCanvas.componentDidMount` calls `paper.setup(canvas)`
   // exactly once, measuring the canvas's real pixel size at that instant —
@@ -224,7 +370,8 @@ export function PaintAssetEditor({
   }, [visible])
 
   return (
-    <div className={visible ? 'absolute inset-0 bg-canvas' : 'hidden'}>
+    // `select-none`: drags on the canvas otherwise select (and tint) page text.
+    <div className={visible ? 'absolute inset-0 select-none bg-canvas' : 'hidden'}>
       {hasBeenVisible && (
         <PaintErrorBoundary onClose={onClose}>
           <Provider store={store}>
@@ -233,6 +380,8 @@ export function PaintAssetEditor({
                 imageFormat={load.format}
                 imageId={load.id}
                 image={load.image ?? undefined}
+                rotationCenterX={load.center?.[0]}
+                rotationCenterY={load.center?.[1]}
                 rtl={false}
                 zoomLevelId="an1mbyt3-paint"
                 // `UpdateImageHOC`'s real call signature (`hocs/update-image-hoc.jsx`,
@@ -248,14 +397,37 @@ export function PaintAssetEditor({
                 // miss without devtools open) marked it as rejected.
                 // Bitmap mode passes an `ImageData` (`handleUpdateBitmap`) —
                 // kept too, so bitmap drawings can be saved (as PNGs).
-                onUpdateImage={(isVector: boolean, image: string | ImageData) => {
-                  imageRef.current = isVector ? { isVector: true, svg: image as string } : { isVector: false, bitmap: image as ImageData }
+                // The center args are the image's rotation center — kept per cel
+                // so frames stay registered (`paint/session.ts`).
+                onUpdateImage={(isVector: boolean, image: string | ImageData, centerX?: number, centerY?: number) => {
+                  const center: [number, number] | null = typeof centerX === 'number' && typeof centerY === 'number' ? [centerX, centerY] : null
+                  imageRef.current = isVector ? { kind: 'svg', svg: image as string, center } : { kind: 'bitmap', bitmap: image as ImageData, center }
+                  lastFormat.current = isVector ? 'svg' : 'png'
+                  setLiveVersion((v) => v + 1)
                 }}
                 onUpdateName={onNameChange}
                 name={name}
                 actionBarTarget={actionBarTarget}
               />
               <PaintToolPalette />
+              <PaintFrameStrip
+                session={session}
+                live={imageRef.current}
+                liveVersion={liveVersion}
+                onSelectCel={frameActions.selectCel}
+                onAddFrame={frameActions.add}
+                onDuplicateFrame={frameActions.duplicate}
+                onDeleteFrame={() => frameActions.remove()}
+                onMoveFrame={frameActions.move}
+                onSetFps={(fps) => onSessionChange({ ...session, fps })}
+                onToggleOnion={() => onSessionChange({ ...session, onion: !session.onion })}
+                onAddLayer={layerActions.add}
+                onDeleteLayer={() => layerActions.remove()}
+                onMoveLayer={layerActions.move}
+                onRenameLayer={(layer, name) => setLayer(layer, { name })}
+                onSetLayerVisible={(layer, visible) => setLayer(layer, { visible })}
+                onSetLayerOpacity={(layer, opacity) => setLayer(layer, { opacity })}
+              />
             </IntlProvider>
           </Provider>
         </PaintErrorBoundary>

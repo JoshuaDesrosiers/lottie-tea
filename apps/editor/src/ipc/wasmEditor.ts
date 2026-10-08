@@ -1791,3 +1791,23 @@ export function drawingSvg(editor: WasmEditor, drawing: OpaqueId): string | null
 export function placeDrawing(editor: WasmEditor, artboard: OpaqueId, drawing: OpaqueId, parent: OpaqueId | null, x: number, y: number): AddNodeResult {
   return editor.place_drawing(artboard, drawing, parent, x, y) as AddNodeResult
 }
+
+/** Saves a frames × layers drawing (Paint's frame strip) as a new Drawing resource. */
+export function addAnimatedDrawing(editor: WasmEditor, name: string, value: unknown): DrawingResult {
+  return editor.add_animated_drawing(name, value) as DrawingResult
+}
+
+/** Re-saves a drawing as frames × layers. */
+export function updateAnimatedDrawing(editor: WasmEditor, drawing: OpaqueId, value: unknown): DocumentSummary {
+  return editor.update_animated_drawing(drawing, value) as DocumentSummary
+}
+
+/** A bitmap cel's PNG as a new image asset; returns its id. */
+export async function addDrawingCelImage(editor: WasmEditor, name: string, png: Uint8Array): Promise<OpaqueId> {
+  return (await editor.add_drawing_cel_image(name, png)) as OpaqueId
+}
+
+/** A drawing's full content (`an1mbyt3_core::DrawingContent` as JSON). */
+export function drawingContent(editor: WasmEditor, drawing: OpaqueId): unknown {
+  return editor.drawing_content(drawing)
+}

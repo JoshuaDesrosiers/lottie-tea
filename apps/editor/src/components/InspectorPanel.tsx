@@ -71,6 +71,7 @@ import {
   UiHtmlFields,
   Rigidbody3DFields,
   Collider3DFields,
+  FlipbookFields,
   ScreenFields,
 } from './ComponentFields'
 import { defaultComponent } from '../ipc/wasmEditor'
@@ -796,6 +797,10 @@ function BehaviorsFields({
       case 'Collider3D': {
         const { kind: _k, ...config } = behavior
         return <Collider3DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Collider3D', ...c })} />
+      }
+      case 'Flipbook': {
+        const { kind: _k, ...config } = behavior
+        return <FlipbookFields config={config} frameCount={artboard?.nodes.filter((n) => n.parent && n.parent.idx === node.id.idx && n.parent.version === node.id.version).length ?? 0} onChange={(c) => replaceAt(index, { kind: 'Flipbook', ...c })} />
       }
       case 'UiHtml': {
         const { kind: _k, ...config } = behavior

@@ -2085,6 +2085,7 @@ pub enum NodeBehaviorDto {
     UiHtml(an1mbyt3_core::UiHtml),
     Rigidbody3D(an1mbyt3_core::Rigidbody3D),
     Collider3D(an1mbyt3_core::Collider3D),
+    Flipbook(an1mbyt3_core::Flipbook),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2123,6 +2124,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::UiHtml(c) => NodeBehaviorDto::UiHtml(c.clone()),
             an1mbyt3_core::NodeBehavior::Rigidbody3D(c) => NodeBehaviorDto::Rigidbody3D(*c),
             an1mbyt3_core::NodeBehavior::Collider3D(c) => NodeBehaviorDto::Collider3D(*c),
+            an1mbyt3_core::NodeBehavior::Flipbook(f) => NodeBehaviorDto::Flipbook(*f),
         }
     }
 }
@@ -2163,6 +2165,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::UiHtml(c) => an1mbyt3_core::NodeBehavior::UiHtml(c),
             NodeBehaviorDto::Rigidbody3D(c) => an1mbyt3_core::NodeBehavior::Rigidbody3D(c),
             NodeBehaviorDto::Collider3D(c) => an1mbyt3_core::NodeBehavior::Collider3D(c),
+            NodeBehaviorDto::Flipbook(f) => an1mbyt3_core::NodeBehavior::Flipbook(f),
         }
     }
 }
@@ -2394,8 +2397,12 @@ pub struct MaterialSummary {
 pub struct DrawingSummary {
     pub id: an1mbyt3_core::DrawingId,
     pub name: String,
-    /// `"Vector"` or `"Bitmap"`.
+    /// `"Vector"`, `"Bitmap"` (stills from before frames existed) or
+    /// `"Animation"` (frames × layers — what Paint saves now).
     pub kind: &'static str,
+    /// Frames and layers (1 / 1 for the older stills).
+    pub frame_count: u32,
+    pub layer_count: u32,
     /// A bitmap drawing's image asset (its thumbnail, and what placing it
     /// adds); `None` for vector drawings.
     pub image: Option<an1mbyt3_core::ImageId>,
@@ -2482,11 +2489,12 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
         drawings: document
             .drawings()
             .map(|(id, d)| {
-                let (kind, image) = match &d.content {
-                    an1mbyt3_core::DrawingContent::Vector { .. } => ("Vector", None),
-                    an1mbyt3_core::DrawingContent::Bitmap { image } => ("Bitmap", Some(*image)),
+                let (kind, image, frame_count, layer_count) = match &d.content {
+                    an1mbyt3_core::DrawingContent::Vector { .. } => ("Vector", None, 1, 1),
+                    an1mbyt3_core::DrawingContent::Bitmap { image } => ("Bitmap", Some(*image), 1, 1),
+                    an1mbyt3_core::DrawingContent::Animation(a) => ("Animation", None, a.frame_count, a.layers.len() as u32),
                 };
-                DrawingSummary { id, name: d.name.clone(), kind, image }
+                DrawingSummary { id, name: d.name.clone(), kind, image, frame_count, layer_count }
             })
             .collect(),
         models: document.models().map(|(id, m)| ModelSummary { id, name: m.name.clone() }).collect(),

@@ -102,7 +102,7 @@ pub use easing::Easing;
 pub use font_asset::FontAsset;
 pub use gradient::{GradientDef, GradientKind, GradientStop};
 pub use ids::{AnimationId, ArtboardId, ComponentId, DrawingId, FontId, ImageId, AudioId, MaterialId, ModelId, NodeId, PrefabId, ScriptId, SpriteGroupId, StateMachineId};
-pub use drawing::{DrawingAsset, DrawingContent};
+pub use drawing::{DrawingAnimation, DrawingAsset, DrawingCel, DrawingCelContent, DrawingContent, DrawingLayer, Flipbook};
 pub use prefab::{has_node_refs, ref_uid, remap_node_refs, uid_ref, PrefabDefinition, PrefabLink, PrefabNode};
 pub use image_asset::{ImageAsset, ImageFilterMode, ImageProcessing};
 pub use keyframe::{Keyframe, Lerp, Track};
