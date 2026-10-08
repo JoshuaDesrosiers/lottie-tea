@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { renderCel, renderFrame, thumbnail, type PaintCel, type PaintSession } from '../paint/session'
+import { renderCel, renderFrame, type PaintCel, type PaintSession } from '../paint/session'
 import { Slider } from './Slider'
 
 /**
@@ -48,7 +48,7 @@ export function PaintFrameStrip({
   onSetLayerVisible: (layer: number, visible: boolean) => void
   onSetLayerOpacity: (layer: number, opacity: number) => void
 }) {
-  const [celThumbs, setCelThumbs] = useState<(string | null)[][]>([])
+  const [celThumbs, setCelThumbs] = useState<(HTMLCanvasElement | null)[][]>([])
   const [playing, setPlaying] = useState(false)
   const [previewFrame, setPreviewFrame] = useState(0)
   const [renaming, setRenaming] = useState<number | null>(null)
@@ -59,33 +59,39 @@ export function PaintFrameStrip({
   const celOf = (layer: number, frame: number): PaintCel | null =>
     layer === session.currentLayer && frame === session.currentFrame ? live ?? session.layers[layer]?.cels[frame] ?? null : session.layers[layer]?.cels[frame] ?? null
 
-  // Cel thumbnails, and every frame composited for the preview.
+  // Cel thumbnails (the cached art-board canvases, drawn small by
+  // `CelThumb` — no PNG encoding), and the frames composited for the
+  // preview: just the current one, or every frame while it plays. Deferred
+  // a moment, so it never runs in the same task as a stroke ending (and
+  // rapid strokes only redraw once).
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
-      const thumbs: (string | null)[][] = []
+    const timer = window.setTimeout(async () => {
+      const thumbs: (HTMLCanvasElement | null)[][] = []
       for (let l = 0; l < session.layers.length; l++) {
-        const row: (string | null)[] = []
+        const row: (HTMLCanvasElement | null)[] = []
         for (let f = 0; f < session.frameCount; f++) {
           const cel = celOf(l, f)
-          row.push(cel ? thumbnail(await renderCel(cel), 56) : null)
+          row.push(cel ? await renderCel(cel) : null)
         }
         thumbs.push(row)
       }
       const rendered: HTMLCanvasElement[] = []
       for (let f = 0; f < session.frameCount; f++) {
-        rendered.push(await renderFrame(session, f, f === session.currentFrame ? { layer: session.currentLayer, cel: celOf(session.currentLayer, f) } : undefined))
+        if (!playing && f !== session.currentFrame) continue
+        rendered[f] = await renderFrame(session, f, f === session.currentFrame ? { layer: session.currentLayer, cel: celOf(session.currentLayer, f) } : undefined)
       }
       if (cancelled) return
       frames.current = rendered
       setCelThumbs(thumbs)
       setPreviewVersion((v) => v + 1)
-    })().catch((err) => console.warn('timeline thumbnails failed', err))
+    }, 60)
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, live, liveVersion])
+  }, [session, live, liveVersion, playing])
 
   // The looping preview.
   useEffect(() => {
@@ -239,7 +245,7 @@ export function PaintFrameStrip({
                             className={`block overflow-hidden rounded border-2 ${selected ? 'border-accent' : f === session.currentFrame ? 'border-accent/30' : 'border-transparent hover:border-overlay/30'}`}
                             title={`${layer.name} · frame ${f + 1}`}
                           >
-                            <div className={`h-[33px] w-11 ${checker} ${layer.visible ? '' : 'opacity-40'}`}>{thumb && <img src={thumb} alt="" className="h-full w-full" draggable={false} />}</div>
+                            <div className={`h-[33px] w-11 ${checker} ${layer.visible ? '' : 'opacity-40'}`}>{thumb && <CelThumb source={thumb} />}</div>
                           </button>
                         </td>
                       )
@@ -254,4 +260,16 @@ export function PaintFrameStrip({
       </div>
     </div>
   )
+}
+
+/** A cel's art-board canvas drawn small (cheap: no image encoding). */
+function CelThumb({ source }: { source: HTMLCanvasElement }) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const context = canvas.current?.getContext('2d')
+    if (!context) return
+    context.clearRect(0, 0, 88, 66)
+    context.drawImage(source, 0, 0, 88, 66)
+  })
+  return <canvas ref={canvas} width={88} height={66} className="h-full w-full" />
 }

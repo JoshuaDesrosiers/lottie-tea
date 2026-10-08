@@ -904,7 +904,10 @@ function App() {
         // `render()` directly with its own per-export-frame time — skip this
         // loop's own call entirely (but still reschedule) so the two don't
         // fight over the same canvas.
-        if (exportingRef.current || demoLoadingRef.current) {
+        // Paint mode covers the scene entirely: don't spend every frame
+        // rendering a canvas nobody can see (it competed with painting).
+        if (exportingRef.current || demoLoadingRef.current || modeRef.current === 'Paint') {
+          lastTime = null
           rafHandle = requestAnimationFrame(frame)
           return
         }
@@ -3575,7 +3578,10 @@ function App() {
       const drag = dragRef.current
       dragRef.current = null
       setDragTranslation(null)
-      setSnapGuides({ x: null, y: null })
+      // Unchanged state must stay the same object: this runs on *every*
+      // mouseup anywhere (Paint strokes too), and a fresh `{ x: null, y: null }`
+      // re-rendered the whole App each time — the lag after every brush stroke.
+      setSnapGuides((guides) => (guides.x === null && guides.y === null ? guides : { x: null, y: null }))
       const editor = editorRef.current
       const artboard = drag && findArtboard(drag.artboardId)
       if (!drag || !editor || !artboard) return

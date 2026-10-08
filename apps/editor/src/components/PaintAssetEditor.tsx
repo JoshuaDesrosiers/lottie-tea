@@ -1,4 +1,4 @@
-import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Provider } from 'react-redux'
 import { IntlProvider } from 'react-intl'
 import { createStore, combineReducers } from 'redux'
@@ -382,14 +382,26 @@ export function PaintAssetEditor({
     if (visible) setHasBeenVisible(true)
   }, [visible])
 
-  return (
-    // `select-none`: drags on the canvas otherwise select (and tint) page text.
-    <div className={visible ? 'absolute inset-0 select-none bg-canvas' : 'hidden'}>
-      {hasBeenVisible && (
-        <PaintErrorBoundary onClose={onClose}>
-          <Provider store={store}>
-            <IntlProvider locale="en" defaultLocale="en" messages={{}}>
-              <ScratchPaintEditor
+  // scratch-paint's exports for the cel being edited (its rotation center
+  // too — kept per cel so frames stay registered, `paint/session.ts`).
+  // `UpdateImageHOC` calls this as `(isVector, image, centerX, centerY)`;
+  // bitmap mode passes an `ImageData`. Stable, and it only *schedules* the
+  // timeline refresh: re-rendering anything in the same task as the stroke
+  // ending is what made the next stroke lag.
+  const liveTimer = useRef(0)
+  const handleUpdateImage = useCallback((isVector: boolean, image: string | ImageData, centerX?: number, centerY?: number) => {
+    const center: [number, number] | null = typeof centerX === 'number' && typeof centerY === 'number' ? [centerX, centerY] : null
+    imageRef.current = isVector ? { kind: 'svg', svg: image as string, center } : { kind: 'bitmap', bitmap: image as ImageData, center }
+    lastFormat.current = isVector ? 'svg' : 'png'
+    window.clearTimeout(liveTimer.current)
+    liveTimer.current = window.setTimeout(() => setLiveVersion((v) => v + 1), 180)
+  }, [imageRef])
+  // Memoized: state changes here (timeline thumbnails, onion skin, view
+  // aids) must not re-render scratch-paint's whole component tree — in
+  // React's dev build that alone was ~90 ms per stroke.
+  const scratchEditor = useMemo(
+    () => (
+      <ScratchPaintEditor
                 imageFormat={load.format}
                 imageId={load.id}
                 image={load.image ?? undefined}
@@ -412,16 +424,23 @@ export function PaintAssetEditor({
                 // kept too, so bitmap drawings can be saved (as PNGs).
                 // The center args are the image's rotation center — kept per cel
                 // so frames stay registered (`paint/session.ts`).
-                onUpdateImage={(isVector: boolean, image: string | ImageData, centerX?: number, centerY?: number) => {
-                  const center: [number, number] | null = typeof centerX === 'number' && typeof centerY === 'number' ? [centerX, centerY] : null
-                  imageRef.current = isVector ? { kind: 'svg', svg: image as string, center } : { kind: 'bitmap', bitmap: image as ImageData, center }
-                  lastFormat.current = isVector ? 'svg' : 'png'
-                  setLiveVersion((v) => v + 1)
-                }}
+                onUpdateImage={handleUpdateImage}
                 onUpdateName={onNameChange}
                 name={name}
                 actionBarTarget={actionBarTarget}
-              />
+      />
+    ),
+    [load, name, actionBarTarget, onNameChange, handleUpdateImage],
+  )
+
+  return (
+    // `select-none`: drags on the canvas otherwise select (and tint) page text.
+    <div className={visible ? 'absolute inset-0 select-none bg-canvas' : 'hidden'}>
+      {hasBeenVisible && (
+        <PaintErrorBoundary onClose={onClose}>
+          <Provider store={store}>
+            <IntlProvider locale="en" defaultLocale="en" messages={{}}>
+              {scratchEditor}
               <PaintToolPalette target={toolsTarget} />
               <PaintCanvasBar store={store} view={view} onChange={setView} below={<PaintBrushBar store={store} />} />
               <PaintFrameStrip
