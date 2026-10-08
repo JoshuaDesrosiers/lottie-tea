@@ -117,7 +117,10 @@ class PaperCanvas extends React.Component {
         // an1mbyt3: same zoom id = another frame / layer of the same drawing:
         // keep the view exactly where it is (otherwise a pending first-load
         // "zoom to fit" fires on the next frame and the canvas jumps).
-        if (oldZoomLevelId === newZoomLevelId && paper.view) {
+        // (Only once the view has been set up: right after mount a first
+        // fit is still pending, and freezing the uninitialized view there
+        // left the canvas showing nothing.)
+        if (oldZoomLevelId === newZoomLevelId && paper.view && this.shouldZoomToFit === false) {
             this.shouldZoomToFit = paper.view.matrix.clone();
         }
         if (oldZoomLevelId && oldZoomLevelId !== newZoomLevelId) {

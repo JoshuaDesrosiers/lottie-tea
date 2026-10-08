@@ -6,15 +6,16 @@ import { createStore, combineReducers } from 'redux'
 // scratchfoundation/scratch-paint per the user's own explicit choice —
 // see this component's own doc comment for the integration seam and the
 // AGPL-3.0 licensing note that comes with it).
-import ScratchPaintEditor, { ScratchPaintReducer, setOnionSkin, setOverSkin } from '../vendor/scratch-paint/index.js'
+import ScratchPaintEditor, { ScratchPaintReducer, setOnionSkin, setOverSkin, setPickSource, startEyeDropper } from '../vendor/scratch-paint/index.js'
 // @ts-expect-error — plain JS (no declaration file), same reasoning as the
 // scratch-paint import above.
 import { PaintToolPalette } from './PaintToolPalette.jsx'
 // @ts-expect-error — no declaration file for this fork.
 import paper from '@scratch/paper'
-import { BLANK_PNG, celAt, onionSkin, renderFrame, renderLayers, stack, withLive, type PaintCel, type PaintSession } from '../paint/session'
+import { BLANK_PNG, celAt, gridCanvas, onionSkin, referenceCanvas, renderFrame, renderLayers, stack, withLive, type PaintCel, type PaintSession } from '../paint/session'
 import { PaintFrameStrip } from './PaintFrameStrip'
 import { PaintBrushBar } from './PaintBrushBar'
+import { DEFAULT_VIEW, PaintCanvasBar, type PaintView } from './PaintCanvasBar'
 
 /** Every one of scratch-paint's ~17 tool-mode containers (`SelectMode`/
  * `BrushMode`/etc., mounted invisibly by `paint-editor.jsx` — see that
@@ -238,6 +239,8 @@ export function PaintAssetEditor({
   const lastFormat = useRef<'svg' | 'png'>('svg')
   const [load, setLoad] = useState<PaintLoad>(() => loadFor(celAt(session, session.currentLayer, session.currentFrame), `${sessionKey}-0`, 'svg'))
   const [liveVersion, setLiveVersion] = useState(0)
+  // Grid / reference image: view aids, not part of the drawing.
+  const [view, setView] = useState<PaintView>(DEFAULT_VIEW)
   useEffect(() => {
     // A different drawing (or New): open its current cel.
     const cel = celAt(session, session.currentLayer, session.currentFrame)
@@ -313,7 +316,8 @@ export function PaintAssetEditor({
       const target = e.target as HTMLElement | null
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
       if (e.ctrlKey || e.metaKey || e.altKey) return
-      if (e.key === ',' && session.currentFrame > 0) frameActions.select(session.currentFrame - 1)
+      if (e.key === 'i' || e.key === 'I') startEyeDropper(store, e.shiftKey)
+      else if (e.key === ',' && session.currentFrame > 0) frameActions.select(session.currentFrame - 1)
       else if (e.key === '.' && session.currentFrame < session.frameCount - 1) frameActions.select(session.currentFrame + 1)
     }
     window.addEventListener('keydown', onKey)
@@ -327,6 +331,7 @@ export function PaintAssetEditor({
     if (!visible) {
       setOnionSkin(null)
       setOverSkin(null)
+      setPickSource(null)
       return
     }
     let cancelled = false
@@ -342,13 +347,17 @@ export function PaintAssetEditor({
       const below = await renderLayers(session, f, 0, l - 1)
       const above = await renderLayers(session, f, l + 1, session.layers.length - 1)
       if (cancelled) return
-      setOnionSkin(stack(onion, below))
-      setOverSkin(above)
+      const reference = view.reference && view.referenceVisible ? referenceCanvas(view.reference.image, view.referenceOpacity) : null
+      setOnionSkin(stack(reference, stack(onion, below)))
+      setOverSkin(stack(above, view.grid ? gridCanvas(view.gridSize) : null))
+      // The eyedropper also picks from the reference and the other layers
+      // (not the tinted onion skin).
+      setPickSource(stack(view.reference && view.referenceVisible ? referenceCanvas(view.reference.image, 1) : null, stack(below, above)))
     })().catch((err) => console.warn('onion skin failed', err))
     return () => {
       cancelled = true
     }
-  }, [visible, session, load.id])
+  }, [visible, session, load.id, view])
 
   // paper.js's own `PaperCanvas.componentDidMount` calls `paper.setup(canvas)`
   // exactly once, measuring the canvas's real pixel size at that instant —
@@ -412,6 +421,7 @@ export function PaintAssetEditor({
               />
               <PaintToolPalette />
               <PaintBrushBar store={store} />
+              <PaintCanvasBar store={store} view={view} onChange={setView} />
               <PaintFrameStrip
                 session={session}
                 live={imageRef.current}

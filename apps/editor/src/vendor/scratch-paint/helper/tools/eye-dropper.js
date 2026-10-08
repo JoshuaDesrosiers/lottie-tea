@@ -1,5 +1,6 @@
 import paper from '@scratch/paper';
-import {createCanvas, getRaster, getBackgroundGuideLayer} from '../layer';
+import {createCanvas, getRaster, getBackgroundGuideLayer, getPickSource} from '../layer';
+import {CENTER} from '../view';
 
 const LOUPE_RADIUS = 20;
 const ZOOM_SCALE = 3;
@@ -21,14 +22,36 @@ class EyeDropperTool extends paper.Tool {
         this.colorCanvas = createCanvas(canvas.width * ZOOM_SCALE, canvas.height * ZOOM_SCALE);
         const colorCanvasContext = this.colorCanvas.getContext('2d');
 
+        // an1mbyt3: also sample the reference image / other layers (under the
+        // art being edited), rasterized the same way as the content.
+        let pickRaster3x = null;
+        const pickSource = getPickSource();
+        if (pickSource) {
+            const source = new paper.Raster({insert: false});
+            source.setImage(pickSource);
+            source.position = CENTER;
+            pickRaster3x = source.rasterize(72 * ZOOM_SCALE * paper.view.zoom, false /* insert */, paper.view.bounds);
+        }
+
         backgroundRaster3x.onLoad = () => {
             bufferCanvasContext.drawImage(backgroundRaster3x.canvas, 0, 0);
-            contentRaster3x.onLoad = () => {
-                colorCanvasContext.drawImage(contentRaster3x.canvas, 0, 0);
-                bufferCanvasContext.drawImage(this.colorCanvas, 0, 0);
-                this.bufferLoaded = true;
+            const drawContent = () => {
+                contentRaster3x.onLoad = () => {
+                    colorCanvasContext.drawImage(contentRaster3x.canvas, 0, 0);
+                    bufferCanvasContext.drawImage(this.colorCanvas, 0, 0);
+                    this.bufferLoaded = true;
+                };
+                if (contentRaster3x.loaded) contentRaster3x.onLoad();
             };
-            if (contentRaster3x.loaded) contentRaster3x.onLoad();
+            if (pickRaster3x) {
+                pickRaster3x.onLoad = () => {
+                    colorCanvasContext.drawImage(pickRaster3x.canvas, 0, 0);
+                    drawContent();
+                };
+                if (pickRaster3x.loaded) pickRaster3x.onLoad();
+            } else {
+                drawContent();
+            }
         };
 
         this.onMouseDown = this.handleMouseDown;

@@ -40,14 +40,17 @@ const Box = props => {
         className,
         componentRef,
         direction,
-        element,
+        // an1mbyt3: React 19 ignores `defaultProps` on function components,
+        // so the defaults have to live here (a <Box> with no `element` used
+        // to render `undefined` and crash Paint — e.g. the eyedropper's UI).
+        element = 'div',
         grow,
         height,
         justifyContent,
         width,
         wrap,
         shrink,
-        style,
+        style = {},
         ...componentProps
     } = props;
     return React.createElement(element, {

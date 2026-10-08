@@ -58,8 +58,20 @@ const setOnionSkin = function (canvas) {
     const layer = _getLayer('isOnionLayer');
     if (layer) {
         _fillOnionLayer(layer);
-        if (paper.view) paper.view.update();
+        if (paper.view) paper.view.requestUpdate(); // deferred: a synchronous draw here can run before a canvas resize and leave paper thinking it is up to date
     }
+};
+
+// ---- an1mbyt3: what the eyedropper may also pick from ----
+// The reference image and the frame's other layers (art-board sized), so
+// colors can be picked from what you're tracing / the rest of the drawing,
+// not just the layer being edited. Not shown anywhere.
+let pickCanvas = null;
+const setPickSource = function (canvas) {
+    pickCanvas = canvas;
+};
+const getPickSource = function () {
+    return pickCanvas;
 };
 
 // ---- an1mbyt3: layers above the one being edited ----
@@ -93,7 +105,7 @@ const setOverSkin = function (canvas) {
     const layer = _getLayer('isOverLayer');
     if (layer) {
         _fillOverLayer(layer);
-        if (paper.view) paper.view.update();
+        if (paper.view) paper.view.requestUpdate(); // deferred: a synchronous draw here can run before a canvas resize and leave paper thinking it is up to date
     }
 };
 
@@ -448,5 +460,7 @@ export {
     setGuideItem,
     setOnionSkin,
     setOverSkin,
+    setPickSource,
+    getPickSource,
     setupLayers
 };

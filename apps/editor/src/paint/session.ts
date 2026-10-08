@@ -218,6 +218,43 @@ export function onionSkin(previous: HTMLCanvasElement | null, next: HTMLCanvasEl
   return canvas
 }
 
+/** A grid over the art board every `size` working units (2 per SVG unit),
+ * the center lines a little stronger — drawn over the artwork as a guide. */
+export function gridCanvas(size: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = ART_WIDTH
+  canvas.height = ART_HEIGHT
+  const context = canvas.getContext('2d')!
+  // The art board is shown at about half scale, so lines are 2 units wide
+  // to land on ~1 screen pixel.
+  const line = (x0: number, y0: number, x1: number, y1: number, strong: boolean) => {
+    context.strokeStyle = strong ? 'rgba(70, 80, 170, 0.55)' : 'rgba(70, 80, 170, 0.28)'
+    context.lineWidth = strong ? 3 : 2
+    context.beginPath()
+    context.moveTo(x0, y0)
+    context.lineTo(x1, y1)
+    context.stroke()
+  }
+  for (let x = ART_WIDTH / 2 % size; x <= ART_WIDTH; x += size) line(x, 0, x, ART_HEIGHT, Math.abs(x - ART_WIDTH / 2) < 0.5)
+  for (let y = ART_HEIGHT / 2 % size; y <= ART_HEIGHT; y += size) line(0, y, ART_WIDTH, y, Math.abs(y - ART_HEIGHT / 2) < 0.5)
+  return canvas
+}
+
+/** A reference image to trace over: fitted inside the art board (aspect
+ * kept), at `opacity`. */
+export function referenceCanvas(image: HTMLImageElement, opacity: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = ART_WIDTH
+  canvas.height = ART_HEIGHT
+  const context = canvas.getContext('2d')!
+  const scale = Math.min(ART_WIDTH / image.naturalWidth, ART_HEIGHT / image.naturalHeight)
+  const w = image.naturalWidth * scale
+  const h = image.naturalHeight * scale
+  context.globalAlpha = opacity
+  context.drawImage(image, (ART_WIDTH - w) / 2, (ART_HEIGHT - h) / 2, w, h)
+  return canvas
+}
+
 /** A small data-URL thumbnail of an art-board canvas, cropped to the art
  * board's middle (scratch-paint's visible area). */
 export function thumbnail(source: HTMLCanvasElement, width = 96): string {
