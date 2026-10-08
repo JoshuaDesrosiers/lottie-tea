@@ -975,6 +975,18 @@ function CodeArea({ value, onCommit, rows, placeholder }: { value: string; onCom
   const commit = () => {
     if (draft !== value) onCommit(draft)
   }
+  // Clicking the canvas deselects the node, which removes this box before
+  // its blur ever fires — commit a pending edit on the way out instead of
+  // losing it.
+  const pending = useRef({ draft, value, onCommit })
+  pending.current = { draft, value, onCommit }
+  useEffect(
+    () => () => {
+      const { draft, value, onCommit } = pending.current
+      if (draft !== value) onCommit(draft)
+    },
+    [],
+  )
   return (
     <textarea
       value={draft}
