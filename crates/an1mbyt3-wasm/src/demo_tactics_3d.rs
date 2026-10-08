@@ -321,9 +321,74 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
     // ---- First person: your rifle and its muzzle flash, on the camera ----
     let cam3d = document.artboard(scene).and_then(|a| a.node_ids().find(|id| a.node(*id).is_some_and(|n| n.id == "cam3d"))).expect("camera added above");
     let view_gun = Transform3D { position: Vec3::new(0.22, -0.2, -0.5), rotation_degrees: Vec3::new(0.0, 4.0, 0.0), scale: Vec3::splat(0.3) };
-    add_node(document, inverses, scene, with_id(node3d("View Rifle", Some(cam3d), view_gun, model_mesh(rifle, None, None)), "viewGun"));
+    let view_rifle = add_node(document, inverses, scene, with_id(node3d("View Rifle", Some(cam3d), view_gun, model_mesh(rifle, None, None)), "viewGun"));
+    add_view_arms(document, inverses, scene, view_rifle);
     let flash = Mesh3D { primitive: Primitive3D::Sphere { radius: 0.05, segments: 10, rings: 6 }, color: [1.0, 0.85, 0.45, 1.0], shininess: 0.0, unlit: true, material: None, animation: None, animation_loop: true, animation_overlay: None };
     add_node(document, inverses, scene, with_id(hidden(node3d("Muzzle Flash", Some(cam3d), Transform3D::at(Vec3::new(0.205, -0.165, -0.76)), Node3DContent::Mesh(flash))), "muzzleFlash"));
+}
+
+/// First-person hands and forearms holding the view rifle — built from
+/// primitives in the rifle's own units (its model is 1.31 long down −Z,
+/// grip at the back, handguard in front; the rifle node is scaled 0.3, so
+/// 1 unit ≈ 0.3 m). Children of the rifle, so they kick and bob with it.
+/// Valorant-style: dark tactical gloves, rolled-up sleeves in the attacker
+/// teal, a strip of wrist between them.
+fn add_view_arms(document: &mut Document, inverses: &mut Vec<Command>, scene: ArtboardId, rifle: NodeId) {
+    const GLOVE: [f32; 4] = [0.14, 0.14, 0.17, 1.0];
+    const KNUCKLE: [f32; 4] = [0.2, 0.2, 0.24, 1.0];
+    const SKIN: [f32; 4] = [0.82, 0.6, 0.47, 1.0];
+    const SLEEVE: [f32; 4] = [0.16, 0.38, 0.42, 1.0];
+    const CUFF: [f32; 4] = [0.1, 0.25, 0.28, 1.0];
+    let arms = add_node(document, inverses, scene, node3d("View Arms", Some(rifle), Transform3D::default(), Node3DContent::Empty));
+    // A capsule-ish limb from `a` to `b`: a cylinder plus rounded ends.
+    let limb = |document: &mut Document, inverses: &mut Vec<Command>, name: &str, a: Vec3, b: Vec3, radius: f32, color: [f32; 4], caps: bool| {
+        let d = b - a;
+        let mut t = Transform3D::at((a + b) / 2.0);
+        t.set_rotation(glam::Quat::from_rotation_arc(Vec3::Y, d.normalize_or_zero()));
+        add_node(document, inverses, scene, node3d(name, Some(arms), t, mesh(Primitive3D::Cylinder { radius, height: d.length(), segments: 14 }, color, None)));
+        if caps {
+            for (end, p) in [("A", a), ("B", b)] {
+                add_node(document, inverses, scene, node3d(&format!("{name} {end}"), Some(arms), Transform3D::at(p), mesh(Primitive3D::Sphere { radius, segments: 12, rings: 8 }, color, None)));
+            }
+        }
+    };
+    let block = |document: &mut Document, inverses: &mut Vec<Command>, name: &str, at: Vec3, size: Vec3, tilt: Vec3, color: [f32; 4]| {
+        let t = Transform3D { position: at, rotation_degrees: tilt, scale: Vec3::ONE };
+        add_node(document, inverses, scene, node3d(name, Some(arms), t, mesh(Primitive3D::Cube { size }, color, None)));
+    };
+
+    // ---- Right hand: a fist around the pistol grip (behind the magazine) ----
+    let grip = Vec3::new(0.0, -0.24, 0.36);
+    block(document, inverses, "R Palm", grip + Vec3::new(0.035, 0.0, 0.05), Vec3::new(0.2, 0.26, 0.2), Vec3::new(-12.0, 0.0, 0.0), GLOVE);
+    for i in 0..4 {
+        // Fingers curled around the front of the grip, stacked downward.
+        let y = grip.y + 0.08 - i as f32 * 0.07;
+        limb(document, inverses, &format!("R Finger {}", i + 1), Vec3::new(0.1, y, -0.06 + grip.z + 0.0), Vec3::new(-0.09, y, -0.07 + grip.z), 0.034, GLOVE, true);
+        add_node(document, inverses, scene, node3d(&format!("R Knuckle {}", i + 1), Some(arms), Transform3D::at(Vec3::new(0.1, y, grip.z - 0.02)), mesh(Primitive3D::Sphere { radius: 0.038, segments: 10, rings: 6 }, KNUCKLE, None)));
+    }
+    // Trigger finger along the guard, thumb over the top of the stock.
+    limb(document, inverses, "R Trigger Finger", Vec3::new(0.09, -0.11, 0.3), Vec3::new(0.085, -0.1, 0.12), 0.03, GLOVE, true);
+    limb(document, inverses, "R Thumb", Vec3::new(0.1, -0.12, 0.42), Vec3::new(0.07, -0.02, 0.28), 0.034, GLOVE, true);
+    // Wrist and forearm back toward the camera (down and to the right).
+    let r_wrist = grip + Vec3::new(0.06, -0.12, 0.2);
+    let r_elbow = Vec3::new(0.55, -0.95, 1.55);
+    limb(document, inverses, "R Wrist", grip + Vec3::new(0.04, -0.05, 0.12), r_wrist, 0.085, SKIN, false);
+    limb(document, inverses, "R Cuff", r_wrist, r_wrist + (r_elbow - r_wrist) * 0.12, 0.11, CUFF, false);
+    limb(document, inverses, "R Sleeve", r_wrist + (r_elbow - r_wrist) * 0.1, r_elbow, 0.13, SLEEVE, false);
+
+    // ---- Left hand: cupping the handguard from below, fingers up the near side ----
+    let guard = Vec3::new(0.0, -0.17, -0.34);
+    block(document, inverses, "L Palm", guard + Vec3::new(-0.02, -0.04, 0.0), Vec3::new(0.24, 0.1, 0.26), Vec3::new(0.0, 0.0, -10.0), GLOVE);
+    for i in 0..4 {
+        let z = guard.z - 0.1 + i as f32 * 0.066;
+        limb(document, inverses, &format!("L Finger {}", i + 1), Vec3::new(0.095, -0.17, z), Vec3::new(0.1, -0.02, z - 0.01), 0.031, GLOVE, true);
+    }
+    limb(document, inverses, "L Thumb", Vec3::new(-0.1, -0.17, guard.z + 0.08), Vec3::new(-0.1, -0.04, guard.z - 0.06), 0.032, GLOVE, true);
+    let l_wrist = guard + Vec3::new(-0.12, -0.12, 0.14);
+    let l_elbow = Vec3::new(-0.95, -1.05, 1.1);
+    limb(document, inverses, "L Wrist", guard + Vec3::new(-0.06, -0.07, 0.07), l_wrist, 0.08, SKIN, false);
+    limb(document, inverses, "L Cuff", l_wrist, l_wrist + (l_elbow - l_wrist) * 0.12, 0.105, CUFF, false);
+    limb(document, inverses, "L Sleeve", l_wrist + (l_elbow - l_wrist) * 0.1, l_elbow, 0.125, SLEEVE, false);
 }
 
 /// Agents' model scale: Kenney's characters are 2.7 units tall.
