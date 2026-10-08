@@ -9272,6 +9272,46 @@ impl WasmEditor {
         self.document.instance() as f64
     }
 
+    /// A cheap fingerprint of everything the document summary could show
+    /// changing without an edit: the document revision (any edit), the
+    /// active animation / state machine, and the shown scene's live pose
+    /// (every node's transform, visibility, z and fill — what a live
+    /// preview animates). The live panel refresh only rebuilds the summary
+    /// (tens of ms on a big project) when this changes. Folded into 52
+    /// bits so it survives the trip through a JS number exactly.
+    pub fn summary_fingerprint(&self) -> f64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut mix = |v: u64| {
+            h ^= v;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        };
+        mix(self.document.revision() as u64);
+        mix(self.document.instance() as u64);
+        mix(self.active_animation.map_or(u64::MAX, |id| slotmap::Key::data(&id).as_ffi()));
+        mix(self.active_state_machine.map_or(u64::MAX, |id| slotmap::Key::data(&id).as_ffi()));
+        if let Some(artboard) = self.current_artboard_id().and_then(|id| self.document.artboard(id)) {
+            for id in artboard.node_ids() {
+                let Some(node) = artboard.node(id) else { continue };
+                let t = &node.transform;
+                for v in [t.translation.x, t.translation.y, t.rotation, t.scale.x, t.scale.y, t.anchor.x, t.anchor.y, node.z_index] {
+                    mix(v.to_bits() as u64);
+                }
+                mix(node.visible as u64);
+                if let Some(c) = node_fill_color(node) {
+                    for v in c {
+                        mix(v.to_bits() as u64);
+                    }
+                }
+                if let NodeKind::Node3D(n3) = &node.kind {
+                    for v in n3.transform.position.to_array().into_iter().chain(n3.transform.rotation_degrees.to_array()).chain(n3.transform.scale.to_array()) {
+                        mix(v.to_bits() as u64);
+                    }
+                }
+            }
+        }
+        (h & ((1u64 << 52) - 1)) as f64
+    }
+
     /// See `Document::revision` — the frontend's unsaved-changes tracking.
     pub fn document_revision(&self) -> f64 {
         self.document.revision() as f64

@@ -832,6 +832,7 @@ function App() {
     // and the JSON it was built from (an identical one isn't pushed again).
     let lastUiSync = 0
     let lastSummaryJson = ''
+    let lastFingerprint = -1
     // How long the last live document refresh took (fetch + React commit
     // kick-off) — the refresh interval scales with it, see below.
     let uiSyncCost = 0
@@ -982,10 +983,16 @@ function App() {
               // panel 8x a second for an unchanged scene is wasted work
               // (and in React's dev build it piled up memory until the
               // WebView crashed).
-              const json = editorRef.current.document_summary_json()
-              if (json !== lastSummaryJson) {
-                lastSummaryJson = json
-                setDoc(JSON.parse(json) as DocumentSummary)
+              // A fingerprint first (microseconds): building the summary
+              // itself costs tens of ms on a big project.
+              const fingerprint = editorRef.current.summary_fingerprint()
+              if (fingerprint !== lastFingerprint) {
+                lastFingerprint = fingerprint
+                const json = editorRef.current.document_summary_json()
+                if (json !== lastSummaryJson) {
+                  lastSummaryJson = json
+                  setDoc(JSON.parse(json) as DocumentSummary)
+                }
               }
               lastUiSync = now
               uiSyncCost = performance.now() - refreshStart
