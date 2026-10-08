@@ -22,6 +22,19 @@ if (import.meta.env.DEV) {
   } catch {
     // Read-only in some hosts: then React keeps using it.
   }
+  try {
+    // React 19's "Performance Tracks" also deep-diff every re-rendered
+    // component's changed props to log them (`logComponentRender`). With a
+    // Paint session in props (bitmap cels hold `ImageData` — millions of
+    // pixel values) that walk took *seconds* after every brush stroke and
+    // froze the whole editor. React only does any of it when both
+    // `console.timeStamp` and `performance.measure` exist at load time, so
+    // hiding `console.timeStamp` switches the tracks off (dev only —
+    // production builds never had them).
+    ;(console as unknown as { timeStamp?: unknown }).timeStamp = undefined
+  } catch {
+    // Read-only: the tracks stay on.
+  }
   setInterval(() => {
     performance.clearMeasures()
     performance.clearMarks()

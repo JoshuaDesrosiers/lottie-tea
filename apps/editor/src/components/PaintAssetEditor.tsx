@@ -32,6 +32,28 @@ import { DEFAULT_VIEW, PaintCanvasBar, type PaintView } from './PaintCanvasBar'
  * `paper-canvas.jsx`'s own hardened `paper.remove()` call, just for the
  * *other* half of paper.js's teardown surface this integration exercises.
  */
+/** Off-screen 2D canvases default to `willReadFrequently` (CPU-backed).
+ *
+ * scratch-paint reads its bitmap back after every stroke — it clones the
+ * raster (`getSubRaster`, a new paper.js canvas each time), scans it for its
+ * bounds, takes the `ImageData`, and the undo snapshot encodes it to PNG.
+ * On a GPU-backed canvas each of those is a GPU readback, and in WebView2,
+ * with the engine's WebGPU rendering on the same GPU, a readback could wait
+ * *seconds* — the stall after every bitmap stroke, which froze everything
+ * (even switching modes). CPU-backed canvases read back instantly.
+ *
+ * Only canvases not in the document at their first `getContext` (the
+ * scratch work / thumbnail / onion canvases) are affected; on-screen ones —
+ * paper's visible view, the WebGPU scene — keep GPU acceleration. */
+if (typeof HTMLCanvasElement !== 'undefined' && !(HTMLCanvasElement.prototype as unknown as { __an1ReadFrequently?: boolean }).__an1ReadFrequently) {
+  const getContext = HTMLCanvasElement.prototype.getContext
+  HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, options?: Record<string, unknown>) {
+    if (type === '2d' && !this.isConnected && !(options && 'willReadFrequently' in options)) options = { ...options, willReadFrequently: true }
+    return (getContext as (this: HTMLCanvasElement, type: string, options?: unknown) => RenderingContext | null).call(this, type, options)
+  } as typeof HTMLCanvasElement.prototype.getContext
+  ;(HTMLCanvasElement.prototype as unknown as { __an1ReadFrequently?: boolean }).__an1ReadFrequently = true
+}
+
 if (paper?.Tool?.prototype && !paper.Tool.prototype.__an1mbyt3PatchedRemove) {
   const originalRemove = paper.Tool.prototype.remove
   paper.Tool.prototype.remove = function patchedRemove(...args: unknown[]) {
