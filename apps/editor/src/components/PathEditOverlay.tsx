@@ -72,13 +72,66 @@ function startPointOf(path: Path, index: number): Point | null {
  * behaviour of every vector tool (Illustrator, Figma, Rive). A closed
  * shape's start/end vertex (`coincidentEnd`) moves as one point. Dragging a
  * handle only ever moves that one handle. */
-function movePathPoint(path: Path, ref: PointRef, next: Point): Path {
+/** The other handle at the same vertex as handle `ref` — the one on the
+ * neighbouring segment — and that vertex. `null` if the vertex has no
+ * second handle (a corner next to a straight segment, an open end). */
+function linkedHandle(path: Path, ref: PointRef): { vertex: Point; ref: PointRef; point: Point } | null {
+  const handleOf = (index: number, field: 'control1' | 'control2'): { ref: PointRef; point: Point } | null => {
+    const c = path.commands[index]
+    return c?.kind === 'CubicTo' ? { ref: { commandIndex: index, field }, point: c.value[field] } : null
+  }
+  if (ref.field === 'control1') {
+    const vertex = startPointOf(path, ref.commandIndex)
+    if (!vertex) return null
+    const before = path.commands[ref.commandIndex - 1]
+    const other = before?.kind === 'MoveTo' ? handleOf(coincidentEnd(path, ref.commandIndex - 1), 'control2') : handleOf(ref.commandIndex - 1, 'control2')
+    return other && { vertex, ...other }
+  }
+  if (ref.field === 'control2') {
+    const command = path.commands[ref.commandIndex]
+    if (command?.kind !== 'CubicTo') return null
+    const { move } = subpathAt(path, ref.commandIndex)
+    const other = path.commands[ref.commandIndex + 1]?.kind === 'CubicTo' ? handleOf(ref.commandIndex + 1, 'control1') : coincidentEnd(path, move) === ref.commandIndex ? handleOf(move + 1, 'control1') : null
+    return other && { vertex: command.value.to, ...other }
+  }
+  return null
+}
+
+function movePathPoint(path: Path, ref: PointRef, next: Point, breakTangent = false): Path {
   const commands = [...path.commands]
   const command = commands[ref.commandIndex]
   if (!command) return path
 
   if (ref.field !== 'point') {
-    commands[ref.commandIndex] = command.kind === 'CubicTo' ? { kind: 'CubicTo', value: { ...command.value, [ref.field]: next } } : command
+    if (command.kind !== 'CubicTo') return path
+    const previous = command.value[ref.field]
+    commands[ref.commandIndex] = { kind: 'CubicTo', value: { ...command.value, [ref.field]: next } }
+    // A *smooth* point's two handles stay on one line through it (each
+    // keeping its own length): dragging one swings the other around, the way
+    // every pen tool behaves — moving only one kinked the curve (and its
+    // outline) at the point. A corner's handles stay independent; hold Alt
+    // to break a smooth point into a corner while dragging.
+    const linked = breakTangent ? null : linkedHandle(path, ref)
+    if (linked) {
+      const ax = previous.x - linked.vertex.x
+      const ay = previous.y - linked.vertex.y
+      const bx = linked.point.x - linked.vertex.x
+      const by = linked.point.y - linked.vertex.y
+      const la = Math.hypot(ax, ay)
+      const lb = Math.hypot(bx, by)
+      const nx = next.x - linked.vertex.x
+      const ny = next.y - linked.vertex.y
+      const ln = Math.hypot(nx, ny)
+      if (la > EPSILON && lb > EPSILON && ln > EPSILON && (ax * bx + ay * by) / (la * lb) < -0.995) {
+        const other = commands[linked.ref.commandIndex]
+        if (other.kind === 'CubicTo') {
+          commands[linked.ref.commandIndex] = {
+            kind: 'CubicTo',
+            value: { ...other.value, [linked.ref.field]: { x: linked.vertex.x - (nx / ln) * lb, y: linked.vertex.y - (ny / ln) * lb } },
+          }
+        }
+      }
+    }
     return { commands }
   }
 
@@ -482,7 +535,7 @@ export function PathEditOverlay({
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!dragging) return
-    const next = movePathPoint(path, dragging, clientToLocal(e.clientX, e.clientY))
+    const next = movePathPoint(path, dragging, clientToLocal(e.clientX, e.clientY), e.altKey)
     setLivePath(next)
     onPreviewPath(next)
   }
