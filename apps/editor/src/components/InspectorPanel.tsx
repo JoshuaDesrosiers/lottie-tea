@@ -32,6 +32,7 @@ import type { ScreenSettings,
   ScriptFieldKind,
   ScriptFieldValue,
   ShadowCasterConfig,
+  PathCommand,
   Stroke,
   StrokeCap,
   StrokeJoin,
@@ -190,6 +191,27 @@ function Slider({ min, max, step, value, onChange }: { min: number; max: number;
       />
     </div>
   )
+}
+
+/** A path's distinct vertices: every anchor, except that a closed subpath's
+ * last point sitting exactly on its start is the same vertex (SVG closes
+ * curved shapes that way). */
+function pathPointCount(path: { commands: PathCommand[] }): number {
+  let count = 0
+  let start: { x: number; y: number } | null = null
+  let last: { x: number; y: number } | null = null
+  for (const c of path.commands) {
+    if (c.kind === 'Close') {
+      if (start && last && last !== start && Math.abs(last.x - start.x) < 1e-3 && Math.abs(last.y - start.y) < 1e-3) count--
+      start = last = null
+      continue
+    }
+    const point = c.kind === 'CubicTo' ? c.value.to : c.value
+    if (c.kind === 'MoveTo') start = point
+    last = point
+    count++
+  }
+  return count
 }
 
 /** The Inspector's Stroke section — an outline for a `Shape` node, mirroring
@@ -1813,6 +1835,8 @@ export function InspectorPanel({
   onSetClipChildren,
   onSetShapeImage,
   onSetStroke,
+  onEditPath,
+  editingPath,
   onReplayParticleSystem,
   onResizeTilemap,
   onSetTilemapCellSize,
@@ -1895,6 +1919,11 @@ export function InspectorPanel({
   onSetShapeImage: (value: OpaqueId | null) => void
   /** `Shape` nodes only — the Stroke section, `WasmEditor::set_shape_stroke`. */
   onSetStroke: (value: Stroke | null) => void
+  /** `Shape` nodes: enter (or leave) on-canvas point editing for this
+   * shape — the same mode double-clicking it enters. */
+  onEditPath: (editing: boolean) => void
+  /** Whether that point editing is active for this node. */
+  editingPath: boolean
   /** `ParticleSystem` nodes only — the whole Particle System section,
    * `WasmEditor::set_particle_system`. */
   onSetParticleSystem: (value: ParticleSystemConfig) => void
@@ -2073,9 +2102,34 @@ export function InspectorPanel({
 
   const { translation, rotation, scale, anchor } = node.transform
 
+  // A vector shape's own look — fill, outline, and its points — comes first:
+  // it's what a shape is edited for. (It used to sit below the Canvas
+  // settings, Id, Classes, transform and Motion Path — far enough down to
+  // read as missing.) The Canvas settings show when nothing is selected.
+  const shapeSection = node.kind === 'Shape' && (
+    <div className="flex flex-col gap-2 border-b border-panel-border/60 pb-2">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-ink-dim">Shape</span>
+      {node.fillColor !== null && <FillField node={node} onSetFillColor={onSetFillColor} onSetGradient={onSetGradient} />}
+      <StrokeField stroke={node.stroke} onChange={onSetStroke} />
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-ink-dim">Path</span>
+        <span className="flex-1 text-[11px] tabular-nums text-ink-dim">
+          {node.path ? `${pathPointCount(node.path)} points` : ''}
+        </span>
+        <button
+          onClick={() => onEditPath(!editingPath)}
+          title="Move, add (click the outline) and delete (Delete key) points; double-click a point to make it smooth or a corner. Same as double-clicking the shape."
+          className={`rounded px-2 py-1 text-[11px] ${editingPath ? 'bg-accent text-white' : 'bg-overlay/10 text-ink hover:bg-overlay/20'}`}
+        >
+          {editingPath ? 'Done' : 'Edit Points'}
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex flex-col gap-2">
-      {canvasSection}
+      {shapeSection}
       <div className="flex flex-col gap-1">
         <span className="text-[11px] text-ink-dim">Id</span>
         <IdField value={node.elementId} onCommit={onSetElementId} />
@@ -2202,7 +2256,7 @@ export function InspectorPanel({
         </div>
       )}
 
-      {node.fillColor !== null && node.kind !== 'Node3D' && <FillField node={node} onSetFillColor={onSetFillColor} onSetGradient={onSetGradient} />}
+      {node.fillColor !== null && node.kind !== 'Node3D' && node.kind !== 'Shape' && <FillField node={node} onSetFillColor={onSetFillColor} onSetGradient={onSetGradient} />}
 
       {node.kind === 'Shape' && editor && (
         <div className="flex flex-col gap-1">
@@ -2211,7 +2265,6 @@ export function InspectorPanel({
         </div>
       )}
 
-      {node.kind === 'Shape' && <StrokeField stroke={node.stroke} onChange={onSetStroke} />}
 
       {node.kind === 'Tilemap' && node.tilemap !== null && (
         <TilemapFields config={node.tilemap} onResize={onResizeTilemap} onSetCellSize={onSetTilemapCellSize} />

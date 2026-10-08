@@ -4236,6 +4236,8 @@ function App() {
                 onSetClipChildren={handleSetClipChildren}
                 onSetShapeImage={handleSetShapeImage}
                 onSetStroke={handleSetStroke}
+                editingPath={!!selection && !!pathEditNodeId && idsEqual(pathEditNodeId, selection.nodeId)}
+                onEditPath={(editing) => setPathEditNodeId(editing && selection ? selection.nodeId : null)}
                 onSetParticleSystem={handleSetParticleSystem}
                 onReplayParticleSystem={handleReplayParticleSystem}
                 onSetTranslation={handleSetTranslation}

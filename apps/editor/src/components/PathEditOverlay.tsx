@@ -26,25 +26,59 @@ function cubicPoint(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Poin
   }
 }
 
+const EPSILON = 1e-3
+
+function samePoint(a: Point | null, b: Point | null): boolean {
+  return !!a && !!b && Math.abs(a.x - b.x) < EPSILON && Math.abs(a.y - b.y) < EPSILON
+}
+
+/** The subpath containing command `index`: its `MoveTo` index, the index of
+ * its `Close` (`-1` if it's open), and its last point-carrying command. */
+function subpathAt(path: Path, index: number): { move: number; close: number; last: number } {
+  let move = index
+  while (move > 0 && path.commands[move].kind !== 'MoveTo') move--
+  let end = move + 1
+  while (end < path.commands.length && path.commands[end].kind !== 'MoveTo' && path.commands[end].kind !== 'Close') end++
+  const close = path.commands[end]?.kind === 'Close' ? end : -1
+  return { move, close, last: end - 1 }
+}
+
+/** A closed subpath whose last explicit point sits exactly on its start (how
+ * SVG/scratch-paint close a curved shape: `... C ... start Z`). That start
+ * is *one* vertex drawn twice — the `MoveTo` and the last command — so the
+ * editor shows, drags and curves them as one. Returns the last command's
+ * index, or `-1`. */
+function coincidentEnd(path: Path, moveIndex: number): number {
+  const { move, close, last } = subpathAt(path, moveIndex)
+  if (close < 0 || last <= move) return -1
+  return samePoint(pointOf(path.commands[move]), pointOf(path.commands[last])) ? last : -1
+}
+
+/** The anchor command `index` starts from (its segment's first point). */
+function startPointOf(path: Path, index: number): Point | null {
+  for (let i = index - 1; i >= 0; i--) {
+    const command = path.commands[i]
+    if (command.kind === 'Close') return null
+    const point = pointOf(command)
+    if (point) return point
+  }
+  return null
+}
+
 /** Moves one draggable point/handle to `next`, returning the whole updated
- * `Path` — the anchor case (`field === 'point'`) also shifts this command's
- * own `control2` (if it's a `CubicTo`) and the *next* command's `control1`
- * (if that one is a `CubicTo`) by the same delta, so the handles either
- * side of a moved anchor follow it and keep their relative offset instead
- * of staying pinned in place — the "drag a vertex, its handles come with
- * it" behavior every standard vector tool (Illustrator, Figma, Rive) uses.
- * Dragging a handle directly (`control1`/`control2`) only ever moves that
- * one handle — handles never drag each other. */
-function movePathPoint(path: Path, ref: PointRef, next: { x: number; y: number }): Path {
+ * `Path`. Moving an anchor also shifts the handles on either side of it (its
+ * own command's `control2` and the next command's `control1`) by the same
+ * delta, so they follow it — the "drag a vertex, its handles come with it"
+ * behaviour of every vector tool (Illustrator, Figma, Rive). A closed
+ * shape's start/end vertex (`coincidentEnd`) moves as one point. Dragging a
+ * handle only ever moves that one handle. */
+function movePathPoint(path: Path, ref: PointRef, next: Point): Path {
   const commands = [...path.commands]
   const command = commands[ref.commandIndex]
   if (!command) return path
 
   if (ref.field !== 'point') {
-    commands[ref.commandIndex] =
-      command.kind === 'CubicTo'
-        ? { kind: 'CubicTo', value: { ...command.value, [ref.field]: next } }
-        : command
+    commands[ref.commandIndex] = command.kind === 'CubicTo' ? { kind: 'CubicTo', value: { ...command.value, [ref.field]: next } } : command
     return { commands }
   }
 
@@ -52,111 +86,148 @@ function movePathPoint(path: Path, ref: PointRef, next: { x: number; y: number }
   if (!previous) return path
   const dx = next.x - previous.x
   const dy = next.y - previous.y
-
-  commands[ref.commandIndex] =
-    command.kind === 'CubicTo'
-      ? { kind: 'CubicTo', value: { ...command.value, to: next, control2: { x: command.value.control2.x + dx, y: command.value.control2.y + dy } } }
-      : command.kind === 'LineTo'
-        ? { kind: 'LineTo', value: next }
-        : { kind: 'MoveTo', value: next }
-
-  const after = commands[ref.commandIndex + 1]
-  if (after?.kind === 'CubicTo') {
-    commands[ref.commandIndex + 1] = { kind: 'CubicTo', value: { ...after.value, control1: { x: after.value.control1.x + dx, y: after.value.control1.y + dy } } }
+  const shiftAnchor = (index: number) => {
+    const c = commands[index]
+    if (c.kind === 'CubicTo') commands[index] = { kind: 'CubicTo', value: { ...c.value, to: { x: c.value.to.x + dx, y: c.value.to.y + dy }, control2: { x: c.value.control2.x + dx, y: c.value.control2.y + dy } } }
+    else if (c.kind === 'LineTo') commands[index] = { kind: 'LineTo', value: { x: c.value.x + dx, y: c.value.y + dy } }
+    else if (c.kind === 'MoveTo') commands[index] = { kind: 'MoveTo', value: { x: c.value.x + dx, y: c.value.y + dy } }
+    const after = commands[index + 1]
+    if (after?.kind === 'CubicTo') commands[index + 1] = { kind: 'CubicTo', value: { ...after.value, control1: { x: after.value.control1.x + dx, y: after.value.control1.y + dy } } }
   }
-
+  shiftAnchor(ref.commandIndex)
+  if (command.kind === 'MoveTo') {
+    const end = coincidentEnd(path, ref.commandIndex)
+    if (end >= 0) shiftAnchor(end)
+  }
   return { commands }
 }
 
-/** Seeds a `CubicTo` from `from` to `to` with both handles a third and
- * two-thirds of the way along the straight line between them — so the
- * curve starts out visually identical to the line it replaces, ready to be
- * dragged into shape. */
-function seedCubic(from: Point, to: Point): PathCommand {
-  return {
-    kind: 'CubicTo',
-    value: {
-      control1: { x: from.x + (to.x - from.x) / 3, y: from.y + (to.y - from.y) / 3 },
-      control2: { x: from.x + ((to.x - from.x) * 2) / 3, y: from.y + ((to.y - from.y) * 2) / 3 },
-      to,
-    },
-  }
+/** If the subpath around vertex `index` is closed by an *implicit* straight
+ * edge (`Close` back to a start the last point isn't on — a rectangle's
+ * fourth side), makes that edge an explicit `LineTo(start)` so it can be
+ * split or curved like any other. Indices before the `Close` don't move. */
+function materializeClosingEdge(path: Path, index: number): Path {
+  const { move, close, last } = subpathAt(path, index)
+  if (close < 0 || last <= move) return path
+  const start = pointOf(path.commands[move])
+  if (!start || samePoint(start, pointOf(path.commands[last]))) return path
+  const commands = [...path.commands]
+  commands.splice(close, 0, { kind: 'LineTo', value: start })
+  return { commands }
 }
 
-/** Double-clicking an anchor toggles whether *both* segments meeting at it
- * — the incoming one (this command, ending here) and the outgoing one (the
- * next command, starting here) — are straight or curved, the standard
- * pen-tool "convert anchor point" action. This is deliberately symmetric:
- * a vertex's two handles belong to two *different* segments (the curve
- * arriving and the curve leaving), one on each side of the point, not two
- * handles both belonging to the same one-sided segment — giving it a
- * handle on only one side is what made a moved anchor look like "one
- * handle follows, the other doesn't," since there was nothing on the other
- * side to move. If the two sides disagree (e.g. a track built by dragging
- * before this fix left one curved and one straight), curves whichever
- * side(s) are still straight rather than no-op'ing; only straightens both
- * once every side touching this vertex is already curved — so one
- * double-click always visibly does something. `MoveTo`'s point has no
- * incoming segment, and the point before a `Close` has no outgoing one
- * (`Close` carries no handles to give it) — each side is simply skipped
- * when it doesn't exist. */
-function toggleBezierAt(path: Path, commandIndex: number): Path {
-  const command = path.commands[commandIndex]
-  const point = command ? pointOf(command) : null
-  if (!command || !point) return path
+/** Is the cubic's `handle` effectively on its own chord (so the segment is
+ * still visually straight there)? */
+function onChord(from: Point, to: Point, handle: Point): boolean {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const length = Math.hypot(dx, dy)
+  if (length < EPSILON) return samePoint(handle, from)
+  return Math.abs(((handle.x - from.x) * dy - (handle.y - from.y) * dx) / length) < 0.01 * length + EPSILON
+}
 
-  const previous = pointOf(path.commands[commandIndex - 1] ?? { kind: 'Close' })
-  const hasIncoming = previous !== null && (command.kind === 'LineTo' || command.kind === 'CubicTo')
+/** Double-clicking an anchor toggles it between a **corner** and a **smooth**
+ * point — the pen tool's "convert anchor point":
+ *
+ * - corner → smooth: both handles at the vertex are pulled out along the
+ *   line through its two neighbours (mirrored, each a third of its own
+ *   segment's length), so the shape immediately rounds off there — the
+ *   Illustrator/Figma behaviour. Straight segments touching the vertex become
+ *   curves (their far ends stay corners).
+ * - smooth → corner: both handles at the vertex retract onto it; a segment
+ *   left with no real curve at all becomes a straight `LineTo` again.
+ *
+ * Works at a closed shape's start vertex too (its incoming segment is the
+ * closing edge, made explicit first). */
+function toggleBezierAt(input: Path, vertexIndex: number): Path {
+  // Only the start and last vertices touch the closing edge.
+  const around = subpathAt(input, vertexIndex)
+  let path = vertexIndex === around.move || vertexIndex === around.last ? materializeClosingEdge(input, vertexIndex) : input
+  const vertexCommand = path.commands[vertexIndex]
+  const vertex = vertexCommand ? pointOf(vertexCommand) : null
+  if (!vertexCommand || !vertex) return input
 
-  const next = path.commands[commandIndex + 1]
-  const nextPoint = next ? pointOf(next) : null
-  const hasOutgoing = next !== undefined && nextPoint !== null && (next.kind === 'LineTo' || next.kind === 'CubicTo')
+  // The segment arriving at the vertex, and the one leaving it.
+  const { move } = subpathAt(path, vertexIndex)
+  let incoming = vertexCommand.kind === 'LineTo' || vertexCommand.kind === 'CubicTo' ? vertexIndex : -1
+  let outgoing = ['LineTo', 'CubicTo'].includes(path.commands[vertexIndex + 1]?.kind ?? '') ? vertexIndex + 1 : -1
+  const end = coincidentEnd(path, move)
+  if (vertexIndex === move && end >= 0) incoming = end
+  if (vertexIndex === end) outgoing = ['LineTo', 'CubicTo'].includes(path.commands[move + 1]?.kind ?? '') ? move + 1 : -1
+  if (incoming < 0 && outgoing < 0) return input
 
-  if (!hasIncoming && !hasOutgoing) return path
-
-  const makeCurved = (hasIncoming && command.kind !== 'CubicTo') || (hasOutgoing && next!.kind !== 'CubicTo')
+  const from = incoming >= 0 ? startPointOf(path, incoming) : null
+  const nextCommand = outgoing >= 0 ? path.commands[outgoing] : null
+  const to = nextCommand ? pointOf(nextCommand) : null
+  const handleIn = incoming >= 0 && path.commands[incoming].kind === 'CubicTo' ? (path.commands[incoming] as Extract<PathCommand, { kind: 'CubicTo' }>).value.control2 : null
+  const handleOut = nextCommand?.kind === 'CubicTo' ? nextCommand.value.control1 : null
+  const smooth = (handleIn && !samePoint(handleIn, vertex)) || (handleOut && !samePoint(handleOut, vertex))
 
   const commands = [...path.commands]
-  if (hasIncoming) {
-    commands[commandIndex] = makeCurved
-      ? command.kind === 'LineTo'
-        ? seedCubic(previous!, point)
-        : command
-      : command.kind === 'CubicTo'
-        ? { kind: 'LineTo', value: command.value.to }
-        : command
+  const asCubic = (index: number, segmentFrom: Point): Extract<PathCommand, { kind: 'CubicTo' }>['value'] => {
+    const c = commands[index]
+    if (c.kind === 'CubicTo') return { ...c.value }
+    const target = pointOf(c)!
+    // A straight segment as a cubic with both handles on its own ends.
+    return { control1: segmentFrom, control2: target, to: target }
   }
-  if (hasOutgoing) {
-    commands[commandIndex + 1] = makeCurved
-      ? next!.kind === 'LineTo'
-        ? seedCubic(point, nextPoint!)
-        : next!
-      : next!.kind === 'CubicTo'
-        ? { kind: 'LineTo', value: next!.value.to }
-        : next!
+
+  if (smooth) {
+    // → corner.
+    if (incoming >= 0 && from && commands[incoming].kind === 'CubicTo') {
+      const value = { ...asCubic(incoming, from), control2: vertex }
+      commands[incoming] = samePoint(value.control1, from) || onChord(from, vertex, value.control1) ? { kind: 'LineTo', value: vertex } : { kind: 'CubicTo', value }
+    }
+    if (outgoing >= 0 && to && commands[outgoing].kind === 'CubicTo') {
+      const value = { ...asCubic(outgoing, vertex), control1: vertex }
+      commands[outgoing] = samePoint(value.control2, to) || onChord(vertex, to, value.control2) ? { kind: 'LineTo', value: to } : { kind: 'CubicTo', value }
+    }
+  } else {
+    // → smooth: tangent along the neighbours (or the one neighbour there is).
+    const a = from ?? vertex
+    const b = to ?? vertex
+    let tx = b.x - a.x
+    let ty = b.y - a.y
+    const length = Math.hypot(tx, ty)
+    if (length < EPSILON) return input
+    tx /= length
+    ty /= length
+    if (incoming >= 0 && from) {
+      const reach = Math.hypot(vertex.x - from.x, vertex.y - from.y) / 3
+      commands[incoming] = { kind: 'CubicTo', value: { ...asCubic(incoming, from), control2: { x: vertex.x - tx * reach, y: vertex.y - ty * reach } } }
+    }
+    if (outgoing >= 0 && to) {
+      const reach = Math.hypot(to.x - vertex.x, to.y - vertex.y) / 3
+      commands[outgoing] = { kind: 'CubicTo', value: { ...asCubic(outgoing, vertex), control1: { x: vertex.x + tx * reach, y: vertex.y + ty * reach } } }
+    }
   }
-  return { commands }
+  path = { commands }
+  return path
 }
 
 /** One drawable segment of a path — a `LineTo` or `CubicTo` command paired
  * with the anchor it starts from (the previous command's own point), which
  * the command itself doesn't carry. `commandIndex` is this segment's owning
  * command, the same addressing `movePathPoint`/`toggleBezierAt` use.
- * `MoveTo` contributes no segment (it starts one); `Close` contributes none
- * either (no handles to carry a curve, same scope limit `toggleBezierAt`
- * documents) — clicking near a closing edge to add a point isn't supported
- * in this first pass. */
+ * `MoveTo` contributes no segment (it starts one). A `Close` whose last
+ * point isn't already on the start contributes the implicit straight
+ * closing edge (`close`) — a rectangle's fourth side is as clickable as the
+ * other three (it used to be skipped, so a click there inserted the new
+ * point on whichever *other* side was nearest). */
 type Segment =
   | { kind: 'line'; commandIndex: number; from: Point; to: Point }
+  | { kind: 'close'; commandIndex: number; from: Point; to: Point }
   | { kind: 'cubic'; commandIndex: number; from: Point; control1: Point; control2: Point; to: Point }
 
 function pathSegments(path: Path): Segment[] {
   const segments: Segment[] = []
   let previous: Point | null = null
+  let start: Point | null = null
   for (let i = 0; i < path.commands.length; i++) {
     const command = path.commands[i]
     if (command.kind === 'MoveTo') {
       previous = command.value
+      start = command.value
     } else if (command.kind === 'LineTo' && previous) {
       segments.push({ kind: 'line', commandIndex: i, from: previous, to: command.value })
       previous = command.value
@@ -164,6 +235,7 @@ function pathSegments(path: Path): Segment[] {
       segments.push({ kind: 'cubic', commandIndex: i, from: previous, control1: command.value.control1, control2: command.value.control2, to: command.value.to })
       previous = command.value.to
     } else if (command.kind === 'Close') {
+      if (previous && start && !samePoint(previous, start)) segments.push({ kind: 'close', commandIndex: i, from: previous, to: start })
       previous = null
     }
   }
@@ -176,7 +248,7 @@ function pathSegments(path: Path): Segment[] {
  * for a `cubic` (good enough to place a new vertex by eye; not meant to be
  * pixel-exact). */
 function closestOnSegment(segment: Segment, target: Point): { t: number; point: Point; distance: number } {
-  if (segment.kind === 'line') {
+  if (segment.kind === 'line' || segment.kind === 'close') {
     const dx = segment.to.x - segment.from.x
     const dy = segment.to.y - segment.from.y
     const lengthSq = dx * dx + dy * dy
@@ -228,6 +300,12 @@ function insertPointOnSegment(path: Path, segment: Segment, t: number): Path {
     commands.splice(segment.commandIndex, 1, { kind: 'LineTo', value: point }, { kind: 'LineTo', value: segment.to })
     return { commands }
   }
+  if (segment.kind === 'close') {
+    // The new vertex goes just before the `Close`; the closing edge then
+    // runs from it back to the start.
+    commands.splice(segment.commandIndex, 0, { kind: 'LineTo', value: lerpPoint(segment.from, segment.to, t) })
+    return { commands }
+  }
 
   const { from: p0, control1: p1, control2: p2, to: p3 } = segment
   const a = lerpPoint(p0, p1, t)
@@ -264,6 +342,8 @@ function insertPointOnSegment(path: Path, segment: Segment, t: number): Path {
  * shorter path) — a deliberate simplification, not an oversight. */
 function deleteAnchorAt(path: Path, index: number): Path {
   const commands = [...path.commands]
+  const end = path.commands[index]?.kind === 'MoveTo' ? coincidentEnd(path, index) : -1
+  if (end >= 0) commands.splice(end, 1)
   commands.splice(index, 1)
   if (commands.length > 0 && commands[0].kind !== 'MoveTo') {
     const point = pointOf(commands[0])
@@ -514,6 +594,9 @@ export function PathEditOverlay({
         {path.commands.map((command, index) => {
           const point = pointOf(command)
           if (!point) return null
+          // A closed shape's last point that duplicates its start is the
+          // same vertex as the `MoveTo` — drawn (and dragged) once, there.
+          const duplicateEnd = command.kind !== 'MoveTo' && coincidentEnd(path, subpathAt(path, index).move) === index
           const p = localToScreen(point.x, point.y)
           const isDraggingPoint = dragging?.commandIndex === index && dragging.field === 'point'
           const isSelected = selectedAnchor === index
@@ -534,10 +617,11 @@ export function PathEditOverlay({
           )
 
           if (command.kind !== 'CubicTo') {
+            if (duplicateEnd) return null
             return (
               <g key={index}>
                 {command.kind === 'LineTo' && (
-                  <title>Double-click to curve this segment</title>
+                  <title>Double-click a point to switch it between smooth and corner</title>
                 )}
                 {anchorPoint}
               </g>
@@ -546,11 +630,17 @@ export function PathEditOverlay({
 
           const c1 = localToScreen(command.value.control1.x, command.value.control1.y)
           const c2 = localToScreen(command.value.control2.x, command.value.control2.y)
+          // `control1` is the handle of the segment's *start* anchor (the
+          // previous point), `control2` of its end anchor — each line goes to
+          // its own anchor (both used to go to the end, which made every
+          // curve's first handle look attached to the wrong point).
+          const startAnchor = startPointOf(path, index)
+          const s0 = startAnchor ? localToScreen(startAnchor.x, startAnchor.y) : p
           const isDraggingC1 = dragging?.commandIndex === index && dragging.field === 'control1'
           const isDraggingC2 = dragging?.commandIndex === index && dragging.field === 'control2'
           return (
             <g key={index}>
-              <line x1={c1.x} y1={c1.y} x2={p.x} y2={p.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />
+              <line x1={c1.x} y1={c1.y} x2={s0.x} y2={s0.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />
               <line x1={c2.x} y1={c2.y} x2={p.x} y2={p.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />
               <circle
                 cx={c1.x}
@@ -572,8 +662,8 @@ export function PathEditOverlay({
                 className="pointer-events-auto cursor-grab active:cursor-grabbing"
                 onPointerDown={(e) => startDrag(e, { commandIndex: index, field: 'control2' })}
               />
-              {anchorPoint}
-              <title>Double-click to straighten this segment</title>
+              {!duplicateEnd && anchorPoint}
+              <title>Double-click a point to switch it between smooth and corner</title>
             </g>
           )
         })}
