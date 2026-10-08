@@ -955,6 +955,8 @@ export interface DocumentSummary {
   scripts: ScriptDefinitionSummary[]
   /** Every non-deleted prefab — the Resources panel's Prefabs folder. */
   prefabs: PrefabSummary[]
+  /** Every saved Paint-mode drawing (Resources ▸ Drawings). */
+  drawings: DrawingSummary[]
   /** Every non-deleted material — the Shader tab and the Material component. */
   materials: MaterialSummary[]
   /** Every imported 3D model (glTF / GLB). */
@@ -1264,6 +1266,22 @@ export interface MaterialStatus {
 }
 
 /** One prefab asset (`an1mbyt3_core::PrefabDefinition`). */
+/** One saved Paint-mode drawing — see `an1mbyt3_core::drawing`. The SVG
+ * itself isn't in the summary (`drawingSvg` reads it on demand). */
+export interface DrawingSummary {
+  id: OpaqueId
+  name: string
+  kind: 'Vector' | 'Bitmap'
+  /** A bitmap drawing's image asset; `null` for vector drawings. */
+  image: OpaqueId | null
+}
+
+/** Result of `addDrawing` / `addBitmapDrawing`. */
+export interface DrawingResult {
+  document: DocumentSummary
+  drawing: OpaqueId
+}
+
 export interface PrefabSummary {
   id: OpaqueId
   name: string

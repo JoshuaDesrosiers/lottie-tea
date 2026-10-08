@@ -17,7 +17,7 @@ import { GradientHandle } from './components/GradientHandle'
 import { PathEditOverlay } from './components/PathEditOverlay'
 import { TilemapPaintOverlay } from './components/TilemapPaintOverlay'
 import { TilePalettePanel } from './components/TilePalettePanel'
-import { PaintAssetEditor } from './components/PaintAssetEditor'
+import { imageDataToPng, PaintAssetEditor, type PaintImage, type PaintLoad } from './components/PaintAssetEditor'
 import { StateMachineDock } from './components/StateMachineDock'
 import { LocalErrorBoundary } from './components/LocalErrorBoundary'
 import { TimelinePanel, type TimelinePanelHandle } from './components/TimelinePanel'
@@ -42,6 +42,15 @@ import {
   renamePrefab,
   revertPrefabInstance,
   unpackPrefabInstance,
+  addDrawing,
+  addBitmapDrawing,
+  updateDrawing,
+  updateBitmapDrawing,
+  renameDrawing,
+  deleteDrawing,
+  drawingSvg,
+  placeDrawing,
+  getImageSource,
 } from './ipc/wasmEditor'
 import { SceneSwitcher } from './components/SceneSwitcher'
 import type {
@@ -456,12 +465,23 @@ function App() {
   // its action bar (`paintActionBarTarget`) is a portal `TopToolbar` itself
   // renders (merged into its own row), rather than a prop either component
   // could just own independently: both are true siblings that need the
-  // same live DOM node. `paintDrawingName`/`paintSvgRef` are the costume
-  // name and latest exported SVG "Save as Resource" (triggered from
-  // `TopToolbar`, since its own Save button lives there now) reads.
+  // same live DOM node. `paintDrawingName`/`paintImageRef` are the drawing's
+  // name and latest artwork "Save as Resource" (triggered from `TopToolbar`,
+  // since its own Save button lives there now) reads; `editingDrawing` is
+  // the Drawing resource being edited (re-saving updates it instead of
+  // adding a copy), `paintLoad` what scratch-paint should load.
   const [paintActionBarTarget, setPaintActionBarTarget] = useState<HTMLDivElement | null>(null)
   const [paintDrawingName, setPaintDrawingName] = useState('New Drawing')
-  const paintSvgRef = useRef('')
+  const paintImageRef = useRef<PaintImage | null>(null)
+  const [editingDrawing, setEditingDrawing] = useState<OpaqueId | null>(null)
+  const [paintLoad, setPaintLoad] = useState<PaintLoad>({ id: 'blank-0', image: null, format: 'svg' })
+  // A short message over the canvas (e.g. why a save didn't happen).
+  const [notice, setNotice] = useState<string | null>(null)
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 3500)
+    return () => window.clearTimeout(timer)
+  }, [notice])
   // One-shot flag: "Load Demo Scene" sets this so the freshly-mounted
   // `TimelinePanel` (the bottom dock opens to its Animate tab as part of
   // loading the demo) starts playing the "Liftoff" animation immediately,
@@ -1936,86 +1956,90 @@ function App() {
     setSelection({ artboardId: artboard.id, nodeId: result.newNode })
   }
 
-  /** `PaintAssetEditor`'s "Save as Resource" — the SVG scratch-paint just
-   * produced goes through the *already-existing* `import_svg` (the Shapes
-   * menu's own "Import SVG" path), then, if it imported as exactly one
-   * `Shape` node, `add_component` snapshots that node into a reusable
-   * `ComponentDefinition` (`Command::AddComponent` — copies the path/fill
-   * color, doesn't touch the original node) and the temporary node is
-   * deleted, leaving only the definition behind in the Components panel's
-   * library. A drawing that imports as more than one node (multiple
-   * colors/shapes/text — `add_component` only accepts a single `Shape`
-   * today) is left as plain document nodes instead of a component — a
-   * real, honest scope limit of this integration pass, not a silent drop:
-   * the content is still there, just not yet wrapped as a named resource.
+  /** `PaintAssetEditor`'s "Save as Resource": saves the painting as a
+   * Drawing resource (`an1mbyt3_core::drawing`) — the whole drawing, every
+   * stroke and color, kept as scratch-paint's own SVG (vector mode) or a
+   * PNG (bitmap mode). It shows up in Resources ▸ Drawings, from where it
+   * can be placed (drag / double-click "Place in Scene") or reopened here.
+   * Saving a drawing that was opened from Resources updates it in place.
    *
-   * `svg`'s own shape/size is guarded before it ever reaches wasm: scratch-
-   * paint's own `onUpdateImage` doc comment says the value can be "either
-   * an SVG string or an ImageData" (bitmap mode) — passing anything but a
-   * plain SVG string into `import_svg` (a real Rust XML parser) is already
-   * wrong, but a hand-verified *worse* failure mode is a pathologically
-   * large string (a bitmap drawing's raster data embedded as inline
-   * base64, easily megabytes) crashing wasm-bindgen's own string-marshaling
-   * with a hard `memory access out of bounds` trap — not a catchable JS
-   * error, an actual wasm fault. Refusing anything that isn't a
-   * reasonably-sized, XML-shaped string here is what keeps that from ever
-   * reaching wasm at all, regardless of which exact internal limit it
-   * would've hit. */
+   * (It used to turn the drawing into a Component, which holds exactly one
+   * path and one color — so anything with a second stroke, i.e. nearly
+   * every drawing, silently saved nothing.)
+   *
+   * The SVG's size is still guarded before it reaches wasm: a pathologically
+   * large string once crashed wasm-bindgen's string marshaling with a hard
+   * `memory access out of bounds` trap, not a catchable error. */
   const handleSaveDrawingAsResource = () => {
-    const artboard = artboards[0]
-    const svg = paintSvgRef.current
-    const looksLikeSvg = typeof svg === 'string' && svg.trimStart().startsWith('<')
-    const MAX_SVG_BYTES = 4 * 1024 * 1024 // 4 MB — generous for any real vector drawing; a bitmap-mode export this size is the crash this guards against, not a drawing worth importing as-is anyway.
-    if (!editorRef.current || !artboard || !svg || !looksLikeSvg || svg.length > MAX_SVG_BYTES) {
-      if (svg && (!looksLikeSvg || svg.length > MAX_SVG_BYTES)) {
-        console.error(`Save as Resource: drawing isn't a plain SVG or is too large to import safely (${typeof svg === 'string' ? svg.length : typeof svg} bytes/type) — skipped.`)
+    const editor = editorRef.current
+    if (!editor) return
+    const painted = paintImageRef.current
+    const name = paintDrawingName.trim() || 'Drawing'
+    const MAX_SVG_BYTES = 4 * 1024 * 1024
+    ;(async () => {
+      if (!painted) throw new Error('Draw something first.')
+      let next: DocumentSummary
+      let saved = editingDrawing
+      if (painted.isVector) {
+        if (!painted.svg.trimStart().startsWith('<') || painted.svg.length > MAX_SVG_BYTES) throw new Error("This drawing can't be saved (not a plain SVG, or too large).")
+        if (saved) next = updateDrawing(editor, saved, painted.svg)
+        else {
+          const result = addDrawing(editor, name, painted.svg)
+          next = result.document
+          saved = result.drawing
+        }
+      } else {
+        const png = await imageDataToPng(painted.bitmap)
+        if (saved) next = await updateBitmapDrawing(editor, saved, png)
+        else {
+          const result = await addBitmapDrawing(editor, name, png)
+          next = result.document
+          saved = result.drawing
+        }
       }
-      setMode('Design')
-      return
-    }
-    const imported = importSvg(editorRef.current, artboard.id, svg)
-    setDoc(imported.document)
-    // `imported.newNodes` is every node the import created, not just
-    // top-level ones — `insert_imported_node` (editor.rs) pushes a `Group`
-    // *and* every one if its recursively-inserted children onto the same
-    // flat list. scratch-paint's own SVG export wraps even a single drawn
-    // shape in at least one `<g>` (its own "layer" convention), so
-    // `newNodes.length === 1` (the original, naive check here) was never
-    // actually true for real scratch-paint content — a real, hand-verified
-    // bug: "Save as Resource" silently never created a component for
-    // anything drawn, every single time. Filtering for nodes of `kind
-    // 'Shape'` specifically (ignoring the wrapper `Group`(s) around it) is
-    // what `add_component` (`editor.rs`) actually needs — it only accepts a
-    // single `Shape` node, never a `Group`.
-    const importedArtboard = imported.document.artboards.find((a) => idsEqual(a.id, artboard.id))
-    const importedShapeIds = imported.newNodes.filter((nodeId) => importedArtboard?.nodes.find((n) => idsEqual(n.id, nodeId))?.kind === 'Shape')
-    if (importedShapeIds.length === 1) {
-      const [shapeId] = importedShapeIds
-      setDoc(addComponent(editorRef.current, artboard.id, shapeId, paintDrawingName || 'Drawing'))
-      // `add_component`'s own storage is still the same component-library
-      // backing the Components panel edits (variants/reuse need a real
-      // definition to attach to) — but the Resources panel's own
-      // "Drawings" section now browses that same list directly (see
-      // `ResourcesPanel.tsx`), so a saved drawing shows up exactly where
-      // its own name suggests. Switching to that tab makes the result
-      // visible immediately instead of leaving the save indistinguishable
-      // from having silently failed.
+      if (saved && next.drawings.find((d) => idsEqual(d.id, saved))?.name !== name) next = renameDrawing(editor, saved, name)
+      setEditingDrawing(saved)
+      setDoc(next)
+      setNotice(`Saved "${name}" to Resources ▸ Drawings`)
       setBottomDockTab('Resources')
       setBottomDockOpen(true)
-      // Only clean up the temporary imported subtree once componentizing
-      // actually succeeded — a multi-shape drawing (`importedShapeIds.length
-      // !== 1`, `add_component` only accepts a single `Shape`) intentionally
-      // falls through *without* deleting anything below, leaving the
-      // imported artwork visible as plain nodes on the artboard instead of
-      // vanishing with nothing to show for it — the documented scope limit
-      // of this integration pass. `imported.newNodes` already lists a
-      // parent before its children (insertion order), so the entries whose
-      // `parent` is `null` are the real top-level root(s) to delete (a
-      // `Group`'s children go with it, same as any other delete).
-      const topLevelImportedIds = imported.newNodes.filter((nodeId) => importedArtboard?.nodes.find((n) => idsEqual(n.id, nodeId))?.parent === null)
-      topLevelImportedIds.forEach((nodeId) => setDoc(deleteNode(editorRef.current!, artboard.id, nodeId)))
+      setMode('Design')
+    })().catch((err) => {
+      console.error('Save as Resource failed', err)
+      setNotice(`Couldn't save the drawing: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }
+
+  /** Paint toolbar "New": a blank canvas that saves as a new drawing. */
+  const handleNewDrawing = () => {
+    setEditingDrawing(null)
+    paintImageRef.current = null
+    setPaintDrawingName('New Drawing')
+    setPaintLoad({ id: `blank-${Date.now()}`, image: null, format: 'svg' })
+    setMode('Paint')
+  }
+
+  /** Resources ▸ Drawings "Edit in Paint" (double-click): reopens a drawing
+   * in Paint; saving then updates it. */
+  const handleEditDrawing = (drawingId: OpaqueId) => {
+    const editor = editorRef.current
+    const drawing = doc?.drawings.find((d) => idsEqual(d.id, drawingId))
+    if (!editor || !drawing) return
+    let load: PaintLoad
+    if (drawing.kind === 'Vector') {
+      load = { id: `drawing-${drawingId.idx}-${Date.now()}`, image: drawingSvg(editor, drawingId), format: 'svg' }
+    } else {
+      if (!drawing.image) return
+      const bytes = getImageSource(editor, drawing.image)
+      let binary = ''
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+      load = { id: `drawing-${drawingId.idx}-${Date.now()}`, image: `data:image/png;base64,${btoa(binary)}`, format: 'png' }
     }
-    setMode('Design')
+    paintImageRef.current = null
+    setEditingDrawing(drawingId)
+    setPaintDrawingName(drawing.name)
+    setPaintLoad(load)
+    setMode('Paint')
   }
 
   /** Shapes menu's "Import SVG" action — opens a native file picker, reads
@@ -2678,6 +2702,10 @@ function App() {
         if (result.node) selectSingle(artboard.id, result.node)
       } else if (asset.kind === 'image') {
         const result = addImageNode(editor, artboard.id, null, asset.id, world.x, world.y)
+        setDoc(result.document)
+        selectSingle(artboard.id, result.newNode)
+      } else if (asset.kind === 'drawing') {
+        const result = placeDrawing(editor, artboard.id, asset.id, null, world.x, world.y)
         setDoc(result.document)
         selectSingle(artboard.id, result.newNode)
       } else {
@@ -4046,7 +4074,8 @@ function App() {
       <PaintAssetEditor
         visible={mode === 'Paint'}
         actionBarTarget={paintActionBarTarget}
-        svgRef={paintSvgRef}
+        imageRef={paintImageRef}
+        load={paintLoad}
         name={paintDrawingName}
         onNameChange={setPaintDrawingName}
         onClose={() => setMode('Design')}
@@ -4151,7 +4180,13 @@ function App() {
         onAddBone={handleAddBone}
         onPaintActionBarTargetChange={setPaintActionBarTarget}
         onSaveDrawing={handleSaveDrawingAsResource}
+        onNewDrawing={handleNewDrawing}
       />
+      {notice && (
+        <div className="pointer-events-none fixed left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg border border-panel-border bg-panel px-3 py-1.5 text-xs text-ink shadow-2xl backdrop-blur-panel">
+          {notice}
+        </div>
+      )}
 
       {mode !== 'Playground' && (() => {
         const panelContent: Record<PanelKey, { title: string; content: React.ReactNode }> = {
@@ -4427,7 +4462,11 @@ function App() {
               onImportImage={handleImportImage}
               onPlacePrefab={handlePlacePrefab}
               onPlaceImage={(id) => handlePlaceAssetAt({ kind: 'image', id }, null)}
-              onPlaceDrawing={handleAddInstance}
+              onPlaceDrawing={(id) => handlePlaceAssetAt({ kind: 'drawing', id }, null)}
+              onPlaceComponent={handleAddInstance}
+              onEditDrawing={handleEditDrawing}
+              onRenameDrawing={(id, name) => editorRef.current && setDoc(renameDrawing(editorRef.current, id, name))}
+              onDeleteDrawing={(id) => editorRef.current && setDoc(deleteDrawing(editorRef.current, id))}
               onRenamePrefab={(id, name) => editorRef.current && setDoc(renamePrefab(editorRef.current, id, name))}
               onDeletePrefab={(id) => editorRef.current && setDoc(deletePrefab(editorRef.current, id))}
               onOpenScene={handleSelectScene}

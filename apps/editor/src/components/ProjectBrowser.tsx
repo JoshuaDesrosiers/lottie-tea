@@ -14,18 +14,18 @@
  * drop and places the prefab / image there.
  */
 import { useEffect, useMemo, useState, type DragEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
-import type { ComponentDefinitionSummary, DocumentSummary, ImageAssetSummary, OpaqueId, ProjectFileListing } from '../ipc/document'
+import type { ComponentDefinitionSummary, DocumentSummary, DrawingSummary, ImageAssetSummary, OpaqueId, ProjectFileListing } from '../ipc/document'
 import type { ProjectEntry } from '../ipc/nativeFile'
-import { projectFileIndex, type WasmEditor } from '../ipc/wasmEditor'
+import { drawingSvg, projectFileIndex, type WasmEditor } from '../ipc/wasmEditor'
 import { AssetThumbnail } from './ResourcesPanel'
 import { ChevronDownIcon, ImageIcon } from './icons'
 
 /** `dataTransfer` type for a tile dragged onto the canvas: JSON `{ kind, id }`. */
 export const ASSET_DRAG_MIME = 'application/x-an1mbyt3-asset'
 
-export type DraggedAsset = { kind: 'prefab' | 'image' | 'drawing'; id: OpaqueId }
+export type DraggedAsset = { kind: 'prefab' | 'image' | 'drawing' | 'component'; id: OpaqueId }
 
-type ItemKind = 'scene' | 'prefab' | 'image' | 'audio' | 'model' | 'drawing' | 'file'
+type ItemKind = 'scene' | 'prefab' | 'image' | 'audio' | 'model' | 'drawing' | 'component' | 'file'
 
 interface BrowserItem {
   /** Project-relative, `/`-separated. */
@@ -56,12 +56,44 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+/** Resources ▸ Drawings: saved Paint drawings, plus (older) single-shape
+ * components made by the previous "Save as Resource". Paths carry the id so
+ * two drawings with the same name stay distinct tiles. */
+function drawingItems(doc: DocumentSummary): BrowserItem[] {
+  return [
+    ...doc.drawings.map((d) => ({ path: `Assets/Drawings/${d.name}#${d.id.idx}`, name: d.name, kind: 'drawing' as const, id: d.id, size: null })),
+    ...doc.components.map((c) => ({ path: `Assets/Drawings/${c.name}#c${c.id.idx}`, name: c.name, kind: 'component' as const, id: c.id, size: null })),
+  ]
+}
+
+/** A vector drawing's thumbnail: its own SVG, drawn by the browser. */
+function DrawingThumbnail({ editor, drawing }: { editor: WasmEditor; drawing: DrawingSummary }) {
+  const url = useMemo(() => {
+    if (drawing.kind !== 'Vector') return null
+    try {
+      const svg = drawingSvg(editor, drawing.id)
+      return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : null
+    } catch {
+      return null
+    }
+    // The summary object changes when the drawing does (re-save, rename).
+  }, [editor, drawing])
+  if (drawing.kind === 'Bitmap' && drawing.image) {
+    return (
+      <div className="scale-150">
+        <AssetThumbnail editor={editor} image={drawing.image} />
+      </div>
+    )
+  }
+  return url ? <img src={url} alt="" className="h-10 w-10 object-contain" draggable={false} /> : <KindGlyph kind="drawing" name={drawing.name} />
+}
+
 /** Items for a folder-less document: the layout a save would produce. */
 function virtualItems(doc: DocumentSummary, index: ProjectFileListing[]): BrowserItem[] {
   const items: BrowserItem[] = index
     .filter((f) => f.asset)
     .map((f) => ({ path: f.path, name: fileName(f.path), kind: f.asset!.kind, id: f.asset!.id, size: null }))
-  for (const component of doc.components) items.push({ path: `Assets/Drawings/${component.name}`, name: component.name, kind: 'drawing', id: component.id, size: null })
+  items.push(...drawingItems(doc))
   return items
 }
 
@@ -99,6 +131,10 @@ export function ProjectBrowser({
   onPlacePrefab,
   onPlaceImage,
   onPlaceDrawing,
+  onPlaceComponent,
+  onEditDrawing,
+  onRenameDrawing,
+  onDeleteDrawing,
   onRenamePrefab,
   onDeletePrefab,
   onOpenScene,
@@ -118,7 +154,13 @@ export function ProjectBrowser({
   onImportImage: () => void
   onPlacePrefab: (id: OpaqueId) => void
   onPlaceImage: (id: OpaqueId) => void
+  /** A saved Paint drawing: place it / reopen it in Paint / rename / delete. */
   onPlaceDrawing: (id: OpaqueId) => void
+  onEditDrawing: (id: OpaqueId) => void
+  onRenameDrawing: (id: OpaqueId, name: string) => void
+  onDeleteDrawing: (id: OpaqueId) => void
+  /** An older single-shape drawing (a component): place an instance. */
+  onPlaceComponent: (id: OpaqueId) => void
   onRenamePrefab: (id: OpaqueId, name: string) => void
   onDeletePrefab: (id: OpaqueId) => void
   onOpenScene: (id: OpaqueId) => void
@@ -155,7 +197,7 @@ export function ProjectBrowser({
       return { path: entry.path, name: fileName(entry.path), kind: asset ? asset.kind : 'file', id: asset?.id ?? null, size: entry.size }
     })
     for (const [path, asset] of byPath) if (!seen.has(path)) out.push({ path, name: fileName(path), kind: asset.kind, id: asset.id, size: null })
-    for (const component of doc.components) out.push({ path: `Assets/Drawings/${component.name}`, name: component.name, kind: 'drawing', id: component.id, size: null })
+    out.push(...drawingItems(doc))
     return out
   }, [doc, index, projectFolder, projectFiles])
 
@@ -184,6 +226,7 @@ export function ProjectBrowser({
 
   const images = useMemo(() => new Map((doc?.images ?? []).map((i) => [`${i.id.idx}:${i.id.version}`, i])), [doc])
   const components = useMemo(() => new Map((doc?.components ?? []).map((c) => [`${c.id.idx}:${c.id.version}`, c])), [doc])
+  const drawings = useMemo(() => new Map((doc?.drawings ?? []).map((d) => [`${d.id.idx}:${d.id.version}`, d])), [doc])
 
   // Folder contents (or search results across everything).
   const q = query.trim().toLowerCase()
@@ -197,14 +240,15 @@ export function ProjectBrowser({
     if (item.kind === 'scene') onOpenScene(item.id)
     else if (item.kind === 'prefab') onPlacePrefab(item.id)
     else if (item.kind === 'image') onPlaceImage(item.id)
-    else if (item.kind === 'drawing') onPlaceDrawing(item.id)
+    else if (item.kind === 'drawing') onEditDrawing(item.id)
+    else if (item.kind === 'component') onPlaceComponent(item.id)
   }
   const select = (item: BrowserItem) => {
     setSelectedPath(item.path)
     if (item.kind === 'image' && item.id) onSelectAsset(item.id)
   }
   const dragStart = (event: DragEvent, item: BrowserItem) => {
-    if (!item.id || (item.kind !== 'prefab' && item.kind !== 'image' && item.kind !== 'drawing')) {
+    if (!item.id || (item.kind !== 'prefab' && item.kind !== 'image' && item.kind !== 'drawing' && item.kind !== 'component')) {
       event.preventDefault()
       return
     }
@@ -261,6 +305,10 @@ export function ProjectBrowser({
       )
     }
     if (item.kind === 'drawing' && item.id) {
+      const drawing = drawings.get(`${item.id.idx}:${item.id.version}`)
+      if (drawing) return <DrawingThumbnail editor={editor} drawing={drawing} />
+    }
+    if (item.kind === 'component' && item.id) {
       const c: ComponentDefinitionSummary | undefined = components.get(`${item.id.idx}:${item.id.version}`)
       if (c) {
         const [r, g, b, a] = c.defaultFillColor
@@ -366,14 +414,20 @@ export function ProjectBrowser({
                 image?.width && image?.height ? `${image.width}×${image.height}` : null,
                 item.size !== null ? formatSize(item.size) : null,
                 prefab ? `${prefab.nodeCount} nodes — script: ctx.spawn('${prefab.name}', x, y)` : null,
-                item.kind === 'scene' ? 'Double-click to open' : item.kind === 'prefab' || item.kind === 'image' || item.kind === 'drawing' ? 'Double-click or drag into the scene to place' : null,
+                item.kind === 'scene'
+                  ? 'Double-click to open'
+                  : item.kind === 'drawing'
+                    ? 'Drag into the scene to place — double-click to edit in Paint'
+                    : item.kind === 'prefab' || item.kind === 'image' || item.kind === 'component'
+                      ? 'Double-click or drag into the scene to place'
+                      : null,
               ]
                 .filter(Boolean)
                 .join('\n')
               return (
                 <div
                   key={item.path}
-                  draggable={item.kind === 'prefab' || item.kind === 'image' || item.kind === 'drawing'}
+                  draggable={item.kind === 'prefab' || item.kind === 'image' || item.kind === 'drawing' || item.kind === 'component'}
                   onDragStart={(e) => dragStart(e, item)}
                   onClick={() => select(item)}
                   onDoubleClick={() => open(item)}
@@ -386,14 +440,16 @@ export function ProjectBrowser({
                   className={`flex cursor-default flex-col items-center gap-1 rounded-md p-1.5 text-center ${selected ? 'bg-accent/15' : 'hover:bg-overlay/5'}`}
                 >
                   <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded bg-overlay/5 text-ink-dim">{thumbnail(item)}</span>
-                  {renaming === item.path && prefab ? (
+                  {renaming === item.path && item.id && (prefab || item.kind === 'drawing') ? (
                     <input
                       autoFocus
-                      defaultValue={prefab.name}
+                      defaultValue={item.name}
                       onBlur={(e) => {
                         setRenaming(null)
                         const name = e.target.value.trim()
-                        if (name && name !== prefab.name) onRenamePrefab(prefab.id, name)
+                        if (!name || name === item.name || !item.id) return
+                        if (prefab) onRenamePrefab(prefab.id, name)
+                        else onRenameDrawing(item.id, name)
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
@@ -419,8 +475,11 @@ export function ProjectBrowser({
         >
           {[
             menu.item.kind === 'scene' && { label: 'Open Scene', run: () => open(menu.item) },
-            (menu.item.kind === 'prefab' || menu.item.kind === 'image' || menu.item.kind === 'drawing') && { label: 'Place in Scene', run: () => open(menu.item) },
-            menu.item.kind === 'prefab' && { label: 'Rename', run: () => setRenaming(menu.item.path) },
+            menu.item.kind === 'drawing' && menu.item.id && { label: 'Edit in Paint', run: () => onEditDrawing(menu.item.id!) },
+            menu.item.kind === 'drawing' && menu.item.id && { label: 'Place in Scene', run: () => onPlaceDrawing(menu.item.id!) },
+            (menu.item.kind === 'prefab' || menu.item.kind === 'image' || menu.item.kind === 'component') && { label: 'Place in Scene', run: () => open(menu.item) },
+            (menu.item.kind === 'prefab' || menu.item.kind === 'drawing') && { label: 'Rename', run: () => setRenaming(menu.item.path) },
+            menu.item.kind === 'drawing' && menu.item.id && { label: 'Delete Drawing', run: () => onDeleteDrawing(menu.item.id!) },
             menu.item.kind === 'prefab' && menu.item.id && { label: 'Delete Prefab', run: () => onDeletePrefab(menu.item.id!) },
             projectFolder && { label: 'Show in Explorer', run: onShowInExplorer },
           ]

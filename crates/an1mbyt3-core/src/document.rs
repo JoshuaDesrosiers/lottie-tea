@@ -51,6 +51,12 @@ pub struct Document {
     /// Imported sounds — see `crate::audio_asset`.
     #[serde(default)]
     audio: SlotMap<crate::AudioId, crate::AudioAsset>,
+    /// Saved Paint-mode drawings — see `crate::drawing`. Keep this the
+    /// *last* serialized field: `.teab` files written before it existed end
+    /// right before it, and `an1mbyt3_format`'s loader pads such a file with
+    /// empty-map bytes (see `teab::from_teab_bytes`).
+    #[serde(default)]
+    drawings: SlotMap<crate::DrawingId, crate::DrawingAsset>,
     #[serde(skip)]
     undo_stack: Vec<Command>,
     #[serde(skip)]
@@ -151,6 +157,24 @@ impl Document {
 
     pub(crate) fn prefab_mut(&mut self, id: PrefabId) -> Option<&mut PrefabDefinition> {
         self.prefabs.get_mut(id)
+    }
+
+    pub fn add_drawing(&mut self, drawing: crate::DrawingAsset) -> crate::DrawingId {
+        self.drawings.insert(drawing)
+    }
+
+    /// Resolves deleted drawings too (undo needs to reach them).
+    pub fn drawing(&self, id: crate::DrawingId) -> Option<&crate::DrawingAsset> {
+        self.drawings.get(id)
+    }
+
+    pub(crate) fn drawing_mut(&mut self, id: crate::DrawingId) -> Option<&mut crate::DrawingAsset> {
+        self.drawings.get_mut(id)
+    }
+
+    /// Every non-deleted drawing, for the Resources panel.
+    pub fn drawings(&self) -> impl Iterator<Item = (crate::DrawingId, &crate::DrawingAsset)> {
+        self.drawings.iter().filter(|(_, d)| !d.deleted)
     }
 
     /// Every non-deleted prefab, for the Resources panel.

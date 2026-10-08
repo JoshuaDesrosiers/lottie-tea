@@ -123,6 +123,30 @@ if (paper?.Tool?.prototype && !paper.Tool.prototype.__an1mbyt3PatchedRemove) {
  * state (`useState<HTMLDivElement | null>`) since both this component and
  * `TopToolbar` need it and are true siblings.
  */
+/** The latest artwork scratch-paint reported (`onUpdateImage`), in whichever
+ * mode it's in: vector mode gives an SVG string, bitmap mode an `ImageData`.
+ * "Save as Resource" (`App.tsx`) reads this. */
+export type PaintImage = { isVector: true; svg: string } | { isVector: false; bitmap: ImageData }
+
+/** What scratch-paint should load: a drawing reopened from Resources, or a
+ * blank canvas. Changing `id` is what makes scratch-paint clear and load
+ * `image` (its own `imageId` contract — see `containers/paint-editor.jsx`). */
+export type PaintLoad = { id: string; image: string | null; format: 'svg' | 'png' }
+
+/** Encodes a bitmap-mode drawing (`ImageData`) as PNG bytes, for saving it
+ * as a bitmap Drawing resource. */
+export async function imageDataToPng(data: ImageData): Promise<Uint8Array> {
+  const canvas = document.createElement('canvas')
+  canvas.width = data.width
+  canvas.height = data.height
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('no 2D canvas available')
+  context.putImageData(data, 0, 0)
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+  if (!blob) throw new Error('PNG encoding failed')
+  return new Uint8Array(await blob.arrayBuffer())
+}
+
 class PaintErrorBoundary extends Component<{ children: ReactNode; onClose: () => void }, { error: Error | null }> {
   state = { error: null as Error | null }
   static getDerivedStateFromError(error: Error) {
@@ -147,7 +171,8 @@ class PaintErrorBoundary extends Component<{ children: ReactNode; onClose: () =>
 export function PaintAssetEditor({
   visible,
   actionBarTarget,
-  svgRef,
+  imageRef,
+  load,
   name,
   onNameChange,
   onClose,
@@ -166,10 +191,12 @@ export function PaintAssetEditor({
    * a portal. `App.tsx` owns this state (it has to be visible to both this
    * component and `TopToolbar`, true siblings). */
   actionBarTarget: HTMLDivElement | null
-  /** Where the latest exported SVG is kept — `App.tsx` owns this too (its
-   * own "Save as Resource" handler, triggered from `TopToolbar`, reads it),
-   * this component only ever writes to it. */
-  svgRef: RefObject<string>
+  /** Where the latest artwork is kept — `App.tsx` owns this too (its own
+   * "Save as Resource" handler, triggered from `TopToolbar`, reads it), this
+   * component only ever writes to it. `null` until something is drawn. */
+  imageRef: RefObject<PaintImage | null>
+  /** What to load — see `PaintLoad`. */
+  load: PaintLoad
   name: string
   onNameChange: (name: string) => void
   onClose: () => void
@@ -203,7 +230,9 @@ export function PaintAssetEditor({
           <Provider store={store}>
             <IntlProvider locale="en" defaultLocale="en" messages={{}}>
               <ScratchPaintEditor
-                imageFormat="svg"
+                imageFormat={load.format}
+                imageId={load.id}
+                image={load.image ?? undefined}
                 rtl={false}
                 zoomLevelId="an1mbyt3-paint"
                 // `UpdateImageHOC`'s real call signature (`hocs/update-image-hoc.jsx`,
@@ -217,8 +246,10 @@ export function PaintAssetEditor({
                 // string — "Save as Resource" silently had nothing real to
                 // import, every time, and only a `console.error` (easy to
                 // miss without devtools open) marked it as rejected.
-                onUpdateImage={(isVector: boolean, image: string) => {
-                  if (isVector) svgRef.current = image
+                // Bitmap mode passes an `ImageData` (`handleUpdateBitmap`) —
+                // kept too, so bitmap drawings can be saved (as PNGs).
+                onUpdateImage={(isVector: boolean, image: string | ImageData) => {
+                  imageRef.current = isVector ? { isVector: true, svg: image as string } : { isVector: false, bitmap: image as ImageData }
                 }}
                 onUpdateName={onNameChange}
                 name={name}

@@ -878,6 +878,36 @@ fn preset_shape_path(kind: &str) -> Result<Path, JsValue> {
 /// `inverses`/`new_nodes`. Returns the id assigned to `imported` itself, so
 /// a `Group` arm can resolve its own `mask_index` against its children's
 /// freshly assigned ids once they're all inserted.
+/// Refuses an SVG that wouldn't place as anything (the same importer
+/// `place_drawing` uses) — see `add_drawing`.
+fn check_drawing_svg(svg: &str) -> Result<(), JsValue> {
+    let nodes = an1mbyt3_svg::import_svg(svg).map_err(|err| JsValue::from_str(&format!("drawing isn't a readable SVG: {err}")))?;
+    if imported_bounds(&nodes).is_none() {
+        return Err(JsValue::from_str("the drawing is empty — draw something first"));
+    }
+    Ok(())
+}
+
+/// The union of every imported shape's path bounds (`None` if there are no
+/// shapes at all).
+fn imported_bounds(nodes: &[an1mbyt3_svg::ImportedNode]) -> Option<(Vec2, Vec2)> {
+    let mut out: Option<(Vec2, Vec2)> = None;
+    for node in nodes {
+        let bounds = match node {
+            an1mbyt3_svg::ImportedNode::Shape { path, .. } if !path.commands.is_empty() => Some(path.bounds()),
+            an1mbyt3_svg::ImportedNode::Shape { .. } => None,
+            an1mbyt3_svg::ImportedNode::Group { children, .. } => imported_bounds(children),
+        };
+        if let Some((min, max)) = bounds {
+            out = Some(match out {
+                Some((a, b)) => (a.min(min), b.max(max)),
+                None => (min, max),
+            });
+        }
+    }
+    out
+}
+
 fn insert_imported_node(
     document: &mut Document,
     artboard: ArtboardId,
@@ -5178,6 +5208,136 @@ impl WasmEditor {
         let prefab_id: an1mbyt3_core::PrefabId = parse_id(prefab)?;
         self.document.apply(Command::SetPrefabDeleted { prefab: prefab_id, value: true });
         self.document_summary()
+    }
+
+    // ---- Drawings (Paint mode's "Save as Resource", see `an1mbyt3_core::drawing`) ----
+
+    /// Saves a vector drawing (scratch-paint's SVG export) as a new Drawing
+    /// resource. Validates that the SVG actually imports first, so a
+    /// drawing that could never be placed is refused up front instead of
+    /// failing later. Undoable. Returns `{ document, drawing }`.
+    pub fn add_drawing(&mut self, name: String, svg: String) -> Result<JsValue, JsValue> {
+        check_drawing_svg(&svg)?;
+        let inverse = self.document.apply(Command::AddDrawing {
+            drawing: an1mbyt3_core::DrawingAsset { name, content: an1mbyt3_core::DrawingContent::Vector { svg }, deleted: false },
+        });
+        let Command::SetDrawingDeleted { drawing, .. } = inverse else { unreachable!("AddDrawing's inverse is SetDrawingDeleted") };
+        to_js_value(&crate::dto::DrawingResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), drawing })
+    }
+
+    /// Saves a bitmap-mode drawing (PNG bytes) as a new Drawing resource,
+    /// backed by a new image asset (see `DrawingContent::Bitmap`). The
+    /// drawing itself is undoable; the image asset, like every imported
+    /// image, is not (undo leaves an unused image behind, harmlessly).
+    /// Returns `{ document, drawing }`.
+    pub async fn add_bitmap_drawing(&mut self, name: String, png: &[u8]) -> Result<JsValue, JsValue> {
+        let image = self.add_drawing_image(&name, png).await?;
+        let inverse = self.document.apply(Command::AddDrawing {
+            drawing: an1mbyt3_core::DrawingAsset { name, content: an1mbyt3_core::DrawingContent::Bitmap { image }, deleted: false },
+        });
+        let Command::SetDrawingDeleted { drawing, .. } = inverse else { unreachable!("AddDrawing's inverse is SetDrawingDeleted") };
+        to_js_value(&crate::dto::DrawingResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), drawing })
+    }
+
+    /// Re-saves an existing drawing from Paint (vector). Undoable. Copies
+    /// already placed in scenes are plain nodes and don't change; placing
+    /// it again uses the new artwork.
+    pub fn update_drawing(&mut self, drawing: JsValue, svg: String) -> Result<JsValue, JsValue> {
+        let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
+        check_drawing_svg(&svg)?;
+        let mut value = self.document.drawing(drawing_id).ok_or_else(|| JsValue::from_str("update_drawing: unknown drawing"))?.clone();
+        value.content = an1mbyt3_core::DrawingContent::Vector { svg };
+        self.document.apply(Command::SetDrawing { drawing: drawing_id, value: Box::new(value) });
+        self.document_summary()
+    }
+
+    /// Re-saves an existing drawing from Paint (bitmap): a new image asset
+    /// (so undo can restore the previous one). Undoable.
+    pub async fn update_bitmap_drawing(&mut self, drawing: JsValue, png: &[u8]) -> Result<JsValue, JsValue> {
+        let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
+        let mut value = self.document.drawing(drawing_id).ok_or_else(|| JsValue::from_str("update_bitmap_drawing: unknown drawing"))?.clone();
+        let image = self.add_drawing_image(&value.name, png).await?;
+        value.content = an1mbyt3_core::DrawingContent::Bitmap { image };
+        self.document.apply(Command::SetDrawing { drawing: drawing_id, value: Box::new(value) });
+        self.document_summary()
+    }
+
+    pub fn rename_drawing(&mut self, drawing: JsValue, name: String) -> Result<JsValue, JsValue> {
+        let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
+        let mut value = self.document.drawing(drawing_id).ok_or_else(|| JsValue::from_str("rename_drawing: unknown drawing"))?.clone();
+        value.name = name;
+        self.document.apply(Command::SetDrawing { drawing: drawing_id, value: Box::new(value) });
+        self.document_summary()
+    }
+
+    pub fn delete_drawing(&mut self, drawing: JsValue) -> Result<JsValue, JsValue> {
+        let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
+        self.document.apply(Command::SetDrawingDeleted { drawing: drawing_id, value: true });
+        self.document_summary()
+    }
+
+    /// A vector drawing's SVG (to reopen it in Paint); `null` for bitmap
+    /// drawings (their PNG is the image asset `DrawingSummary::image`).
+    pub fn drawing_svg(&self, drawing: JsValue) -> Result<Option<String>, JsValue> {
+        let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
+        let value = self.document.drawing(drawing_id).ok_or_else(|| JsValue::from_str("drawing_svg: unknown drawing"))?;
+        Ok(match &value.content {
+            an1mbyt3_core::DrawingContent::Vector { svg } => Some(svg.clone()),
+            an1mbyt3_core::DrawingContent::Bitmap { .. } => None,
+        })
+    }
+
+    /// Places a drawing in a scene, centred at `(x, y)` in `parent`'s space
+    /// (`null` = scene root) — dragging it from Resources, or its "Place"
+    /// action. A vector drawing becomes one Group named after it, holding
+    /// the imported shapes (plain nodes: edit freely); a bitmap one becomes
+    /// an Image node. One undo step. Returns `{ document, newNode }`.
+    pub fn place_drawing(&mut self, artboard: JsValue, drawing: JsValue, parent: JsValue, x: f32, y: f32) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
+        let parent_id: Option<NodeId> = parse_id(parent)?;
+        let value = self.document.drawing(drawing_id).filter(|d| !d.deleted).ok_or_else(|| JsValue::from_str("place_drawing: unknown drawing"))?.clone();
+        let svg = match value.content {
+            an1mbyt3_core::DrawingContent::Bitmap { image } => {
+                let image_js = to_js_value(&image)?;
+                let parent_js = to_js_value(&parent_id)?;
+                let artboard_js = to_js_value(&artboard_id)?;
+                return self.add_image_node(artboard_js, parent_js, image_js, x, y);
+            }
+            an1mbyt3_core::DrawingContent::Vector { svg } => svg,
+        };
+        let nodes = an1mbyt3_svg::import_svg(&svg).map_err(|err| JsValue::from_str(&format!("place_drawing: {err}")))?;
+        // The imported paths sit wherever scratch-paint's canvas put them;
+        // a root Group positioned so the drawing's centre lands on (x, y),
+        // with its pivot moved to that centre (rotating/scaling the placed
+        // drawing then turns it in place).
+        let (min, max) = imported_bounds(&nodes).unwrap_or((Vec2::ZERO, Vec2::ZERO));
+        let centre = (min + max) / 2.0;
+        let mut root = Node::new(value.name.clone(), parent_id, NodeKind::Group(Default::default()));
+        root.transform.translation = Vec2::new(x, y) - centre;
+        root.transform = root.transform.with_anchor_preserving_world(centre);
+        let mut inverses = Vec::new();
+        let inverse = Command::AddNode { artboard: artboard_id, node: root }.apply(&mut self.document);
+        let Command::SetDeleted { node: root_id, .. } = inverse else { unreachable!("Command::AddNode's inverse is always a SetDeleted") };
+        inverses.push(inverse);
+        let mut new_nodes = vec![root_id];
+        for node in nodes {
+            insert_imported_node(&mut self.document, artboard_id, node, Some(root_id), &mut inverses, &mut new_nodes);
+        }
+        inverses.reverse();
+        self.document.commit_batch(inverses);
+        to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node: root_id })
+    }
+
+    /// A drawing's PNG as a new (baked) image asset named after it.
+    async fn add_drawing_image(&mut self, name: &str, png: &[u8]) -> Result<an1mbyt3_core::ImageId, JsValue> {
+        if an1mbyt3_image::png_dimensions(png).is_err() {
+            return Err(JsValue::from_str("bitmap drawing: not a PNG"));
+        }
+        self.document.touch();
+        let image = self.document.add_image(an1mbyt3_core::ImageAsset { name: format!("{name}.png"), source: png.to_vec(), processing: Default::default(), file: None });
+        self.bake_and_cache_image(image).await;
+        Ok(image)
     }
 
     pub fn rename_prefab(&mut self, prefab: JsValue, name: String) -> Result<JsValue, JsValue> {

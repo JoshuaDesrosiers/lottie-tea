@@ -23,6 +23,7 @@ import type { ScreenSettings,
   ProjectFileListing,
   AddArtboardResult,
   AddNodeResult,
+  DrawingResult,
   Blend1DDef,
   BlendMode,
   CameraConfig,
@@ -1749,4 +1750,44 @@ export function setImageFile(editor: WasmEditor, image: OpaqueId, path: string |
 /** Places an existing image asset as a sprite centered at `(x, y)` (drag from Resources). */
 export function addImageNode(editor: WasmEditor, artboard: OpaqueId, parent: OpaqueId | null, image: OpaqueId, x: number, y: number): AddNodeResult {
   return editor.add_image_node(artboard, parent, image, x, y) as AddNodeResult
+}
+
+// ---- Drawings (Paint mode's "Save as Resource", `an1mbyt3_core::drawing`) ----
+
+/** Saves a vector drawing (scratch-paint's SVG) as a new Drawing resource. Throws if the SVG is empty/unreadable. */
+export function addDrawing(editor: WasmEditor, name: string, svg: string): DrawingResult {
+  return editor.add_drawing(name, svg) as DrawingResult
+}
+
+/** Saves a bitmap-mode drawing (PNG bytes) as a new Drawing resource. */
+export async function addBitmapDrawing(editor: WasmEditor, name: string, png: Uint8Array): Promise<DrawingResult> {
+  return (await editor.add_bitmap_drawing(name, png)) as DrawingResult
+}
+
+/** Re-saves an existing drawing's vector artwork. */
+export function updateDrawing(editor: WasmEditor, drawing: OpaqueId, svg: string): DocumentSummary {
+  return editor.update_drawing(drawing, svg) as DocumentSummary
+}
+
+/** Re-saves an existing drawing as a bitmap. */
+export async function updateBitmapDrawing(editor: WasmEditor, drawing: OpaqueId, png: Uint8Array): Promise<DocumentSummary> {
+  return (await editor.update_bitmap_drawing(drawing, png)) as DocumentSummary
+}
+
+export function renameDrawing(editor: WasmEditor, drawing: OpaqueId, name: string): DocumentSummary {
+  return editor.rename_drawing(drawing, name) as DocumentSummary
+}
+
+export function deleteDrawing(editor: WasmEditor, drawing: OpaqueId): DocumentSummary {
+  return editor.delete_drawing(drawing) as DocumentSummary
+}
+
+/** A vector drawing's SVG (to reopen it in Paint / draw a thumbnail); `null` for bitmap drawings. */
+export function drawingSvg(editor: WasmEditor, drawing: OpaqueId): string | null {
+  return (editor.drawing_svg(drawing) as string | undefined) ?? null
+}
+
+/** Places a drawing centred at `(x, y)` in `parent`'s space: a Group of its shapes (vector) or an Image node (bitmap). */
+export function placeDrawing(editor: WasmEditor, artboard: OpaqueId, drawing: OpaqueId, parent: OpaqueId | null, x: number, y: number): AddNodeResult {
+  return editor.place_drawing(artboard, drawing, parent, x, y) as AddNodeResult
 }

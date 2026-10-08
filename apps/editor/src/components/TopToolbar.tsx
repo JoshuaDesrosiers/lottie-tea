@@ -495,6 +495,7 @@ export function TopToolbar({
   onAddBone,
   onPaintActionBarTargetChange,
   onSaveDrawing,
+  onNewDrawing,
   sceneSwitcher,
 }: {
   mode: Mode
@@ -554,6 +555,8 @@ export function TopToolbar({
    * true sibling like this toolbar. */
   onPaintActionBarTargetChange: (el: HTMLDivElement | null) => void
   onSaveDrawing: () => void
+  /** Paint mode "New": start a blank drawing (saves as a new resource). */
+  onNewDrawing: () => void
   /** `App.tsx`'s own `SceneSwitcher`, rendered right after the mode
    * buttons — passed in as a ready-built node (not a pile of scene props)
    * since every piece of scene state already lives in `App.tsx`. */
@@ -599,8 +602,15 @@ export function TopToolbar({
           <div className="ml-auto flex flex-1 items-center gap-3">
             <div ref={onPaintActionBarTargetChange} className="flex flex-1 items-center gap-3 empty:hidden" />
             <button
+              onClick={onNewDrawing}
+              title="New drawing (the current one stays in Resources if you saved it)"
+              className="h-6 rounded-md px-2 text-[11px] text-ink-dim hover:bg-overlay/8 hover:text-ink"
+            >
+              New
+            </button>
+            <button
               onClick={onSaveDrawing}
-              title="Save as Resource"
+              title="Save as Resource (Resources ▸ Drawings)"
               className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-white hover:bg-accent/90"
             >
               <SaveIcon />

@@ -61,6 +61,10 @@ new_key_type! {
     /// instantiate any prefab.
     pub struct PrefabId;
 
+    /// Identifies one saved Paint-mode drawing ([`crate::DrawingAsset`])
+    /// within a [`crate::Document`] — document-level like `ImageId`.
+    pub struct DrawingId;
+
     /// Identifies one reusable [`crate::Material`] within a [`crate::Document`]
     /// — same document-level-asset shape as `ImageId`/`FontId`: a material is
     /// saved once and referenced by any number of `SpriteRendererBehavior`s,

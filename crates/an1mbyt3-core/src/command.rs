@@ -399,6 +399,14 @@ pub enum Command {
     /// Replaces a prefab's whole definition (Apply-to-prefab, rename).
     /// Inverse: the previous definition.
     SetPrefab { prefab: PrefabId, value: Box<PrefabDefinition> },
+    /// Inserts a new [`crate::DrawingAsset`] (Paint mode's "Save as
+    /// Resource"). Inverse: `SetDrawingDeleted { value: true }`.
+    AddDrawing { drawing: crate::DrawingAsset },
+    /// Soft-deletes / restores a drawing. Inverse: the previous value.
+    SetDrawingDeleted { drawing: crate::DrawingId, value: bool },
+    /// Replaces a drawing wholesale (re-saved from Paint, renamed). Inverse:
+    /// the previous value.
+    SetDrawing { drawing: crate::DrawingId, value: Box<crate::DrawingAsset> },
     /// Replaces one node's whole data in place — prefab sync/instantiate
     /// (copying a prefab node's kind, behaviors, links…) in one undoable
     /// step. The node keeps its current `parent` and `deleted` flag no
@@ -1193,6 +1201,20 @@ impl Command {
                 let target = document.prefab_mut(prefab).expect("Command: prefab not found");
                 let previous = std::mem::replace(target, *value);
                 Command::SetPrefab { prefab, value: Box::new(previous) }
+            }
+            Command::AddDrawing { drawing } => {
+                let drawing = document.add_drawing(drawing);
+                Command::SetDrawingDeleted { drawing, value: true }
+            }
+            Command::SetDrawingDeleted { drawing, value } => {
+                let target = &mut document.drawing_mut(drawing).expect("Command: drawing not found").deleted;
+                let previous = std::mem::replace(target, value);
+                Command::SetDrawingDeleted { drawing, value: previous }
+            }
+            Command::SetDrawing { drawing, value } => {
+                let target = document.drawing_mut(drawing).expect("Command: drawing not found");
+                let previous = std::mem::replace(target, *value);
+                Command::SetDrawing { drawing, value: Box::new(previous) }
             }
             Command::ReplaceNode { artboard, node, value } => {
                 let target = document.node_mut(artboard, node);

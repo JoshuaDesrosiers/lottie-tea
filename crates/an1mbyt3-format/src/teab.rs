@@ -114,12 +114,36 @@ impl std::error::Error for TeabLoadError {
     }
 }
 
+/// How many trailing empty collections `load_teab` will pad an older file
+/// with (one per `Document` field added since it was written).
+const MAX_TRAILING_PAD: usize = 8;
+
 /// Decodes `bytes` (the contents of a `.teab` file) back into a [`Document`]
 /// — DEFLATE-decompresses first, then decodes the resulting postcard bytes.
+///
+/// **Older files.** postcard isn't self-describing, so a file written before
+/// a trailing `#[serde(default)]` `Document` field was added simply ends
+/// where that field would start, and decoding fails with "unexpected end".
+/// `Document` is the last thing in the payload and every field appended so
+/// far is a `SlotMap` (an empty one encodes as the single byte `0x00`), so
+/// such a file is retried with up to [`MAX_TRAILING_PAD`] zero bytes
+/// appended: it then decodes with those newer collections empty, exactly
+/// what `#[serde(default)]` gives JSON (`.tea`) files. (First needed for
+/// `Document::drawings`, so crash-recovery snapshots and exports from
+/// before it still open.)
 pub fn load_teab(bytes: &[u8]) -> Result<Document, TeabLoadError> {
-    let decompressed = decompress(bytes).map_err(TeabLoadError::Decompression)?;
-    let versioned: VersionedDocument =
-        postcard::from_bytes(&decompressed).map_err(TeabLoadError::Postcard)?;
+    let mut decompressed = decompress(bytes).map_err(TeabLoadError::Decompression)?;
+    let mut padded = 0;
+    let versioned: VersionedDocument = loop {
+        match postcard::from_bytes(&decompressed) {
+            Ok(versioned) => break versioned,
+            Err(postcard::Error::DeserializeUnexpectedEnd) if padded < MAX_TRAILING_PAD => {
+                decompressed.push(0);
+                padded += 1;
+            }
+            Err(err) => return Err(TeabLoadError::Postcard(err)),
+        }
+    };
     check_schema_version(versioned.schema_version).map_err(TeabLoadError::UnsupportedSchemaVersion)?;
     Ok(versioned.document)
 }
@@ -157,6 +181,28 @@ mod tests {
             ));
         }
         document
+    }
+
+    /// A file written before `Document::drawings` existed ends one byte
+    /// early (no empty-map `0x00` for it) — it must still load, with no
+    /// drawings, and a drawing must survive a normal round trip.
+    #[test]
+    fn loads_files_from_before_drawings_existed() {
+        let mut document = sample_document();
+        let raw = postcard::to_allocvec(&VersionedDocument::wrap(&document)).unwrap();
+        assert_eq!(raw.last(), Some(&0), "an empty trailing SlotMap encodes as one 0x00 byte");
+        let old_file = compress(&raw[..raw.len() - 1]).unwrap();
+        let loaded = load_teab(&old_file).expect("an older file still loads");
+        assert_eq!(loaded.drawings().count(), 0);
+        assert_eq!(loaded.artboards().count(), document.artboards().count());
+
+        let drawing = document.add_drawing(an1mbyt3_core::DrawingAsset {
+            name: "Tree".into(),
+            content: an1mbyt3_core::DrawingContent::Vector { svg: "<svg/>".into() },
+            deleted: false,
+        });
+        let loaded = load_teab(&save_teab(&document).unwrap()).unwrap();
+        assert_eq!(loaded.drawing(drawing).map(|d| d.name.as_str()), Some("Tree"));
     }
 
     #[test]

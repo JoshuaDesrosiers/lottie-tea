@@ -2346,6 +2346,10 @@ pub struct DocumentSummary {
     pub scripts: Vec<ScriptDefinitionSummary>,
     /// Every non-deleted prefab — the Resources panel's Prefabs folder.
     pub prefabs: Vec<PrefabSummary>,
+    /// Every saved Paint-mode drawing — the Resources panel's Drawings
+    /// folder. (The SVG itself isn't included — it can be large and this
+    /// summary is rebuilt often; `WasmEditor::drawing_svg` reads it.)
+    pub drawings: Vec<DrawingSummary>,
     /// Every non-deleted material — the Shader tab's picker and the
     /// Material component's dropdown.
     pub materials: Vec<MaterialSummary>,
@@ -2382,6 +2386,27 @@ pub struct MaterialSummary {
     pub name: String,
     /// `"ShaderGraph"`, `"Color"` or `"Textured"`.
     pub kind: &'static str,
+}
+
+/// One saved drawing in the Resources panel.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DrawingSummary {
+    pub id: an1mbyt3_core::DrawingId,
+    pub name: String,
+    /// `"Vector"` or `"Bitmap"`.
+    pub kind: &'static str,
+    /// A bitmap drawing's image asset (its thumbnail, and what placing it
+    /// adds); `None` for vector drawings.
+    pub image: Option<an1mbyt3_core::ImageId>,
+}
+
+/// Result of `add_drawing` / `add_bitmap_drawing`.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DrawingResult {
+    pub document: DocumentSummary,
+    pub drawing: an1mbyt3_core::DrawingId,
 }
 
 /// One prefab in the Resources panel.
@@ -2454,6 +2479,16 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
             .collect(),
         scripts: document.scripts().map(|(id, def)| summarize_script(id, def)).collect(),
         prefabs: document.prefabs().map(|(id, def)| PrefabSummary { id, name: def.name.clone(), node_count: def.nodes.len() as u32 }).collect(),
+        drawings: document
+            .drawings()
+            .map(|(id, d)| {
+                let (kind, image) = match &d.content {
+                    an1mbyt3_core::DrawingContent::Vector { .. } => ("Vector", None),
+                    an1mbyt3_core::DrawingContent::Bitmap { image } => ("Bitmap", Some(*image)),
+                };
+                DrawingSummary { id, name: d.name.clone(), kind, image }
+            })
+            .collect(),
         models: document.models().map(|(id, m)| ModelSummary { id, name: m.name.clone() }).collect(),
         audio: document.audio_assets().map(|(id, a)| AudioSummary { id, name: a.name.clone(), byte_length: a.source.len() as u32, file: a.file.clone() }).collect(),
         materials: document
