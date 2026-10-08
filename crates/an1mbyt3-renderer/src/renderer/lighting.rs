@@ -140,13 +140,40 @@ pub(super) struct LightingResources {
     shadow_off_pipeline: wgpu::RenderPipeline,
     composite_pipeline: wgpu::RenderPipeline,
     light_uniform_layout: wgpu::BindGroupLayout,
-    shadow_uniform_layout: wgpu::BindGroupLayout,
     mask_layout: wgpu::BindGroupLayout,
     composite_layout: wgpu::BindGroupLayout,
     mask_sampler: wgpu::Sampler,
     /// Bound as the sprite texture for non-Sprite lights (the layout always
     /// has a group 2).
     white_texture: GpuImageTexture,
+    /// GPU buffers reused frame to frame — see [`LightingFrameBuffers`].
+    frame: std::cell::RefCell<LightingFrameBuffers>,
+}
+
+/// The lighting stage's per-frame GPU data, kept alive and rewritten with
+/// `queue.write_buffer` each frame instead of re-created.
+///
+/// It used to allocate, per light per frame, a vertex buffer for its shadow
+/// volumes, another for its quad, and a uniform buffer + bind group per
+/// light pass (twice for volumetric lights). `createBuffer` /
+/// `createBindGroup` are real JS -> GPU-process round trips on the web, and
+/// a big lit scene (Sunset Tactics) spent ~3% of every frame in them.
+///
+/// Safe to rewrite each frame because `draw_lighting` runs once per command
+/// encoder and every write lands in the queue before that encoder's submit;
+/// each light pass reads its own uniform slot / vertex range, never one a
+/// later light overwrote.
+struct LightingFrameBuffers {
+    /// World -> clip, shared by every shadow draw this frame.
+    shadow_uniform: wgpu::Buffer,
+    shadow_bind: wgpu::BindGroup,
+    /// One `LightUniforms` buffer + bind group per light pass drawn this
+    /// frame (grown on demand, never shrunk).
+    light_slots: Vec<(wgpu::Buffer, wgpu::BindGroup)>,
+    /// Every vertex the frame draws (caster fans, each light's shadow
+    /// volumes and quad) in one buffer: `None` until the first lit frame,
+    /// regrown to the next power of two when a frame needs more.
+    vertices: Option<wgpu::Buffer>,
 }
 
 /// The size-dependent lighting targets, rebuilt with the other post targets.
@@ -351,7 +378,21 @@ pub(super) fn build_lighting_resources(device: &wgpu::Device, queue: &wgpu::Queu
         }),
     };
 
+    let shadow_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("an1mbyt3 shadow mvp"),
+        size: std::mem::size_of::<[[f32; 4]; 4]>() as u64,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    let shadow_bind = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("an1mbyt3 shadow bind group"),
+        layout: &shadow_uniform_layout,
+        entries: &[wgpu::BindGroupEntry { binding: 0, resource: shadow_uniform.as_entire_binding() }],
+    });
+    let frame = std::cell::RefCell::new(LightingFrameBuffers { shadow_uniform, shadow_bind, light_slots: Vec::new(), vertices: None });
+
     LightingResources {
+        frame,
         light_additive_pipeline,
         light_alpha_pipeline,
         light_max_pipeline,
@@ -359,7 +400,6 @@ pub(super) fn build_lighting_resources(device: &wgpu::Device, queue: &wgpu::Queu
         shadow_off_pipeline,
         composite_pipeline,
         light_uniform_layout,
-        shadow_uniform_layout,
         mask_layout,
         composite_layout,
         mask_sampler,
@@ -453,17 +493,10 @@ impl Renderer {
         clear_pass(encoder, &targets.additive_view, lighting.ambient_additive);
         clear_pass(encoder, &targets.volumetric_view, [0.0; 3]);
 
+        let mut frame = res.frame.borrow_mut();
+        let frame = &mut *frame;
         // World -> clip, shared by every shadow draw this frame.
-        let shadow_uniform = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("an1mbyt3 shadow mvp"),
-            contents: bytemuck::bytes_of(&build_mvp(Affine2::IDENTITY, viewport_size, camera).to_cols_array_2d()),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
-        let shadow_bind = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("an1mbyt3 shadow bind group"),
-            layout: &res.shadow_uniform_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: shadow_uniform.as_entire_binding() }],
-        });
+        self.queue.write_buffer(&frame.shadow_uniform, 0, bytemuck::bytes_of(&build_mvp(Affine2::IDENTITY, viewport_size, camera).to_cols_array_2d()));
         let mask_bind = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("an1mbyt3 shadow mask bind group"),
             layout: &res.mask_layout,
@@ -473,9 +506,19 @@ impl Renderer {
             ],
         });
 
+        // ---- Prepare: every vertex and uniform of the frame, up front ----
+        // (so they upload as one vertex write + one write per uniform slot
+        // before any pass is encoded).
+        //
         // Caster polygons, triangulated once: those that keep their own
         // surface lit (cleared back to 0 after the volumes) and those that
         // shadow themselves (written to 1).
+        let mut vertices: Vec<[f32; 2]> = Vec::new();
+        let mut push = |data: &[[f32; 2]]| -> std::ops::Range<u32> {
+            let start = vertices.len() as u32;
+            vertices.extend_from_slice(data);
+            start..vertices.len() as u32
+        };
         let mut clear_own = Vec::new();
         let mut shade_own = Vec::new();
         for caster in lighting.casters {
@@ -485,58 +528,25 @@ impl Renderer {
                 fan_triangles(&caster.outline, &mut clear_own);
             }
         }
-        let vertex_buffer = |data: &[[f32; 2]]| {
-            self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("an1mbyt3 lighting vertices"),
-                contents: bytemuck::cast_slice(data),
-                usage: wgpu::BufferUsages::VERTEX,
-            })
-        };
-        let clear_own_buffer = (!clear_own.is_empty()).then(|| vertex_buffer(&clear_own));
-        let shade_own_buffer = (!shade_own.is_empty()).then(|| vertex_buffer(&shade_own));
+        let clear_own_range = push(&clear_own);
+        let shade_own_range = push(&shade_own);
 
+        /// One light, ready to encode.
+        struct PreparedLight<'t> {
+            shadows: bool,
+            /// Vertex ranges in the frame's shared vertex buffer.
+            volumes: std::ops::Range<u32>,
+            quad: std::ops::Range<u32>,
+            sprite_bind: &'t GpuImageTexture,
+            /// (target map, uniforms, overlap: 0 = additive, 1 = alpha
+            /// blend, 2 = max) — the light itself, plus its volumetric glow.
+            passes: Vec<(&'t wgpu::TextureView, LightUniforms, u8)>,
+        }
+        let mut prepared: Vec<PreparedLight<'_>> = Vec::with_capacity(lighting.lights.len());
         for light in lighting.lights {
             let affine = light.transform.to_affine2();
             let light_pos = affine.translation;
 
-            // ---- Shadow mask ----
-            let volumes = light.shadows.map(|_| shadow_volume_triangles(lighting.casters, light_pos)).unwrap_or_default();
-            let volume_buffer = (!volumes.is_empty()).then(|| vertex_buffer(&volumes));
-            {
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("an1mbyt3 shadow mask"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &targets.shadow_mask_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
-                        depth_slice: None,
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
-                if light.shadows.is_some() {
-                    pass.set_bind_group(0, &shadow_bind, &[]);
-                    if let Some(buffer) = &volume_buffer {
-                        pass.set_pipeline(&res.shadow_on_pipeline);
-                        pass.set_vertex_buffer(0, buffer.slice(..));
-                        pass.draw(0..volumes.len() as u32, 0..1);
-                    }
-                    if let Some(buffer) = &clear_own_buffer {
-                        pass.set_pipeline(&res.shadow_off_pipeline);
-                        pass.set_vertex_buffer(0, buffer.slice(..));
-                        pass.draw(0..clear_own.len() as u32, 0..1);
-                    }
-                    if let Some(buffer) = &shade_own_buffer {
-                        pass.set_pipeline(&res.shadow_on_pipeline);
-                        pass.set_vertex_buffer(0, buffer.slice(..));
-                        pass.draw(0..shade_own.len() as u32, 0..1);
-                    }
-                }
-            }
-
-            // ---- Light quad ----
             let (min, max, kind, sprite_bind) = match &light.shape {
                 LightShape::Spot { outer_radius, .. } => {
                     let r = outer_radius.max(1.0);
@@ -557,8 +567,11 @@ impl Renderer {
                 }
                 LightShape::Sprite { texture, size } => (-*size * 0.5, *size * 0.5, 3.0, *texture),
             };
-            let quad = [[min.x, min.y], [max.x, min.y], [max.x, max.y], [min.x, min.y], [max.x, max.y], [min.x, max.y]];
-            let quad_buffer = vertex_buffer(&quad);
+            let volumes = match light.shadows {
+                Some(_) => push(&shadow_volume_triangles(lighting.casters, light_pos)),
+                None => 0..0,
+            };
+            let quad = push(&[[min.x, min.y], [max.x, min.y], [max.x, max.y], [min.x, min.y], [max.x, max.y], [min.x, max.y]]);
 
             let mut uniforms = LightUniforms {
                 mvp: build_mvp(affine, viewport_size, camera).to_cols_array_2d(),
@@ -594,18 +607,107 @@ impl Renderer {
                 LightShape::Sprite { .. } => {}
             }
 
-            // 0 = additive, 1 = alpha blend, 2 = max.
-            let draw_light = |encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, uniforms: &LightUniforms, overlap: u8| {
-                let buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("an1mbyt3 light uniforms"),
-                    contents: bytemuck::bytes_of(uniforms),
-                    usage: wgpu::BufferUsages::UNIFORM,
+            let map = if light.additive_blend_style { &targets.additive_view } else { &targets.multiply_view };
+            let overlap = if light.max_overlap {
+                2
+            } else if light.alpha_blend_overlap {
+                1
+            } else {
+                0
+            };
+            let mut passes = vec![(map, uniforms, overlap)];
+            if let Some(volumetric) = light.volumetric {
+                let mut glow = uniforms;
+                glow.color = [light.color[0] * volumetric.intensity, light.color[1] * volumetric.intensity, light.color[2] * volumetric.intensity, 0.0];
+                glow.shadow[0] = if light.shadows.is_some() { volumetric.shadow_strength.clamp(0.0, 1.0) } else { 0.0 };
+                passes.push((&targets.volumetric_view, glow, if light.max_overlap { 2 } else { 0 }));
+            }
+            prepared.push(PreparedLight { shadows: light.shadows.is_some(), volumes, quad, sprite_bind, passes });
+        }
+
+        // ---- Upload ----
+        let vertex_bytes: &[u8] = bytemuck::cast_slice(&vertices);
+        if !vertex_bytes.is_empty() {
+            if frame.vertices.as_ref().is_none_or(|b| b.size() < vertex_bytes.len() as u64) {
+                frame.vertices = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("an1mbyt3 lighting vertices"),
+                    size: (vertex_bytes.len() as u64).next_power_of_two().max(4096),
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }));
+            }
+            self.queue.write_buffer(frame.vertices.as_ref().expect("just ensured"), 0, vertex_bytes);
+        }
+        let pass_count: usize = prepared.iter().map(|p| p.passes.len()).sum();
+        while frame.light_slots.len() < pass_count {
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("an1mbyt3 light uniforms"),
+                size: std::mem::size_of::<LightUniforms>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let bind = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("an1mbyt3 light bind group"),
+                layout: &res.light_uniform_layout,
+                entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }],
+            });
+            frame.light_slots.push((buffer, bind));
+        }
+        let mut slot = 0;
+        for light in &prepared {
+            for (_, uniforms, _) in &light.passes {
+                self.queue.write_buffer(&frame.light_slots[slot].0, 0, bytemuck::bytes_of(uniforms));
+                slot += 1;
+            }
+        }
+
+        // ---- Encode ----
+        // `range` (in vertices) as a slice of the shared vertex buffer.
+        let vertex_slice = |range: &std::ops::Range<u32>| {
+            let stride = std::mem::size_of::<[f32; 2]>() as u64;
+            frame.vertices.as_ref().map(|b| b.slice(range.start as u64 * stride..range.end as u64 * stride))
+        };
+        let mut slot = 0;
+        for light in &prepared {
+            // ---- Shadow mask ----
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("an1mbyt3 shadow mask"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &targets.shadow_mask_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
                 });
-                let bind = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("an1mbyt3 light bind group"),
-                    layout: &res.light_uniform_layout,
-                    entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }],
-                });
+                if light.shadows {
+                    pass.set_bind_group(0, &frame.shadow_bind, &[]);
+                    for (range, pipeline) in [
+                        (&light.volumes, &res.shadow_on_pipeline),
+                        (&clear_own_range, &res.shadow_off_pipeline),
+                        (&shade_own_range, &res.shadow_on_pipeline),
+                    ] {
+                        if range.is_empty() {
+                            continue;
+                        }
+                        if let Some(slice) = vertex_slice(range) {
+                            pass.set_pipeline(pipeline);
+                            pass.set_vertex_buffer(0, slice);
+                            pass.draw(0..range.len() as u32, 0..1);
+                        }
+                    }
+                }
+            }
+
+            // ---- Light quad (and its volumetric glow) ----
+            for (target, _, overlap) in &light.passes {
+                let bind = &frame.light_slots[slot].1;
+                slot += 1;
+                let Some(quad) = vertex_slice(&light.quad) else { continue };
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("an1mbyt3 light"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -624,28 +726,11 @@ impl Renderer {
                     2 => &res.light_max_pipeline,
                     _ => &res.light_additive_pipeline,
                 });
-                pass.set_bind_group(0, &bind, &[]);
+                pass.set_bind_group(0, bind, &[]);
                 pass.set_bind_group(1, &mask_bind, &[]);
-                pass.set_bind_group(2, &sprite_bind.bind_group, &[]);
-                pass.set_vertex_buffer(0, quad_buffer.slice(..));
+                pass.set_bind_group(2, &light.sprite_bind.bind_group, &[]);
+                pass.set_vertex_buffer(0, quad);
                 pass.draw(0..6, 0..1);
-            };
-
-            let map = if light.additive_blend_style { &targets.additive_view } else { &targets.multiply_view };
-            let overlap = if light.max_overlap {
-                2
-            } else if light.alpha_blend_overlap {
-                1
-            } else {
-                0
-            };
-            draw_light(encoder, map, &uniforms, overlap);
-
-            if let Some(volumetric) = light.volumetric {
-                let mut glow = uniforms;
-                glow.color = [light.color[0] * volumetric.intensity, light.color[1] * volumetric.intensity, light.color[2] * volumetric.intensity, 0.0];
-                glow.shadow[0] = if light.shadows.is_some() { volumetric.shadow_strength.clamp(0.0, 1.0) } else { 0.0 };
-                draw_light(encoder, &targets.volumetric_view, &glow, if light.max_overlap { 2 } else { 0 });
             }
         }
 
