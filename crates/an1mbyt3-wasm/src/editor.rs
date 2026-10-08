@@ -41,7 +41,7 @@ use web_sys::HtmlCanvasElement;
 use glam::Vec2;
 use an1mbyt3_core::{
     Animation, AnimationId, ArtboardId, BoneNode, Command, ComponentDefinition, ComponentId, ComponentInstance,
-    ComponentVariant, ConditionDef, Document, FontAsset, FontId, GroupNode,
+    ComponentVariant, Document, FontAsset, FontId, GroupNode,
     InputDef, InputKind, KeyframeValue, Lerp, Node, NodeId, NodeKind, Path, PathCommand, PlaybackDirection, PostEffectLayer, ProgramDef,
     PropertyKind, PropertyTrack, ScriptDefinition, ScriptId, ShapeNode, StateDef, StateMachineDef, TextNode, Track, TransitionDef,
 };
@@ -70,49 +70,49 @@ struct TextMeshCache {
     bounds: (Vec2, Vec2),
 }
 
-/// Same demo content `apps/editor/src-tauri`'s (now-removed) `document_state::build_demo_document`
-/// used to seed the native `DocumentState` with — ported here since this is
-/// where the document actually lives now. Real file-open (loading a real
-/// `.tea`/`.teab` file's bytes into a `Document`, via `an1mbyt3_format`) is
-/// separate, later work; this is only the "nothing opened yet" starting
-/// content, same scope this had natively. Returns the "Square" node's id and
-/// a starting empty `Animation`'s id too — every artboard gets at least one
-/// so the Timeline's animation dropdown never starts genuinely empty, the
-/// same way a fresh project in most animation tools starts with one
-/// composition/timeline already.
-fn build_demo_document() -> (Document, NodeId, AnimationId) {
+/// The "nothing opened yet" starting document: one 640x480 "Main" scene
+/// holding only a Main Camera (set as the scene's camera) — nothing to
+/// delete before starting real work. It also gets one empty
+/// "Animation 1" (not a scene node), so the Timeline's animation dropdown
+/// never starts genuinely empty, the way a fresh project in most animation
+/// tools starts with one timeline already.
+fn build_start_document() -> (Document, AnimationId) {
     let mut document = Document::new();
     let artboard_id = document.add_artboard(an1mbyt3_core::Artboard::new("Main", 640.0, 480.0));
     let artboard = document.artboard_mut(artboard_id).unwrap();
-    let square_id = artboard.add_node(Node::new(
-        "Square",
-        None,
-        NodeKind::Shape(ShapeNode { path: Path::rect(160.0, 160.0), fill_color: [0.85, 0.2, 0.35, 1.0], blend_mode: Default::default(), gradient: None, image: None, stroke: None }),
-    ));
-    artboard.add_node(Node::new(
-        "Accent",
-        None,
-        NodeKind::Shape(ShapeNode { path: Path::rect(80.0, 80.0), fill_color: [0.3, 0.6, 0.9, 1.0], blend_mode: Default::default(), gradient: None, image: None, stroke: None }),
-    ));
-    // A live, visibly-emitting example in the demo scene itself (every
-    // default stays at `ParticleSystemNode::default()` — the actual
-    // "does this work at all" smoke test, not hand-tuned for this specific
-    // demo) — offset well clear of "Square"/"Accent" so it's never hidden
-    // behind them.
-    let mut particle_node = Node::with_components("Particle System", None, vec![an1mbyt3_core::NodeBehavior::ParticleSystem(an1mbyt3_core::ParticleSystemNode::default())]);
-    particle_node.transform.translation = Vec2::new(-220.0, 0.0);
-    artboard.add_node(particle_node);
-    // Every new scene starts the way Unity's URP 2D template does: a Main
-    // Camera and a Global Light 2D (so the scene is lit, and lights you add
-    // later behave like Unity's from the start).
-    let (camera, light) = default_scene_nodes();
+    let (camera, _) = default_scene_nodes();
     let camera_id = artboard.add_node(camera);
-    artboard.add_node(light);
     let animation_id = artboard.add_animation(Animation::new("Animation 1"));
     // `Command::apply` directly (not `Document::apply`): starting content,
     // not an undoable edit.
     Command::SetActiveCamera { artboard: artboard_id, value: Some(camera_id) }.apply(&mut document);
-    (document, square_id, animation_id)
+    (document, animation_id)
+}
+
+/// A live-preview `StateMachine` for a document that has none yet (the
+/// start document): one state on `animation`, built from a definition that
+/// is *not* added to the document — `WasmEditor::state_machine` can't be
+/// empty (a runtime layer needs a state), and `active_state_machine: None`
+/// keeps every authoring path from treating this as a real machine. The
+/// first real state machine replaces it via `refresh_state_machine_preview`.
+fn placeholder_state_machine(artboard: &an1mbyt3_core::Artboard, animation: AnimationId) -> StateMachine {
+    let def = StateMachineDef {
+        name: String::new(),
+        inputs: Vec::new(),
+        states: vec![StateDef {
+            name: "Entry".into(),
+            animation,
+            loop_mode: LoopMode::Once,
+            transitions: Vec::new(),
+            position: Vec2::ZERO,
+            blend: None,
+            program: None,
+        }],
+        initial_state: "Entry".into(),
+        layers: Vec::new(),
+        deleted: false,
+    };
+    StateMachine::from_definition(&def, artboard)
 }
 
 /// Converts every node still using a legacy component *kind* (Camera /
@@ -134,7 +134,7 @@ pub(crate) fn migrate_document(document: &mut Document) {
 }
 
 /// The Main Camera + Global Light 2D every new scene starts with — see
-/// `build_demo_document` and `WasmEditor::add_artboard`.
+/// `build_start_document` (camera only) and `WasmEditor::add_artboard`.
 fn default_scene_nodes() -> (Node, Node) {
     let camera = Node::with_components("Main Camera", None, vec![an1mbyt3_core::NodeBehavior::Camera(an1mbyt3_core::CameraNode::default())]);
     let light = Node::with_components("Global Light 2D", None, vec![an1mbyt3_core::NodeBehavior::Light2D(an1mbyt3_core::Light2DNode::global())]);
@@ -148,86 +148,6 @@ fn default_text_font(document: &mut Document) -> FontId {
         return id;
     }
     document.add_font(FontAsset { name: "Russo One".into(), data: GEOMETRY_DASH_FONT_BYTES.to_vec() })
-}
-
-/// The editor's State Machine preview tab needs *something* real to preview
-/// — a two-state Idle/Active machine driving the demo document's "Square"
-/// node, same shape as `an1mbyt3-renderer`'s `state_machine` example: both
-/// states reference one shared, saved `Animation` (Phase 10's reversed
-/// `TransitionDef`), one transition plays it forward, the other backward, so
-/// no hand-mirrored animation is needed. Saves that animation and the state
-/// machine definition onto `artboard` (`add_animation`/`add_state_machine`)
-/// before building the live instance from them — proving this demo state
-/// machine is genuine saved content, not hand-built Rust structs
-/// disconnected from anything a `.tea`/`.teab` could carry (see
-/// `an1mbyt3_core::state_machine`'s module doc for the full Phase 8
-/// reasoning). `WasmEditor::state_machine_active` gates whether this
-/// actually drives the node (see `render`'s doc comment) — Design-mode
-/// editing is completely unaffected until the editor's State Machine tab is
-/// actually selected.
-fn build_demo_state_machine(artboard: &mut an1mbyt3_core::Artboard, square_id: NodeId) -> (an1mbyt3_core::StateMachineId, StateMachine) {
-    let ease = Easing::CubicBezier { x1: 0.42, y1: 0.0, x2: 0.58, y2: 1.0 };
-
-    let mut shared_animation = Animation::new("Idle/Active");
-    shared_animation.duration = 0.6;
-    shared_animation.tracks.push((
-        square_id,
-        PropertyTrack::Translation(Track::new(vec![
-            Keyframe::new(0.0, Vec2::new(-160.0, 0.0), ease),
-            Keyframe::new(0.6, Vec2::new(160.0, 0.0), ease),
-        ])),
-    ));
-    shared_animation.tracks.push((
-        square_id,
-        PropertyTrack::FillColor(Track::new(vec![
-            Keyframe::new(0.0, [0.85, 0.2, 0.35, 1.0], Easing::Linear),
-            Keyframe::new(0.6, [0.3, 0.6, 0.9, 1.0], Easing::Linear),
-        ])),
-    ));
-    let shared_animation_id = artboard.add_animation(shared_animation);
-
-    let def = StateMachineDef {
-        name: "Main".into(),
-        inputs: vec![InputDef { name: "toggle".into(), kind: InputKind::Trigger }],
-        states: vec![
-            StateDef {
-                name: "Idle".into(),
-                animation: shared_animation_id,
-                loop_mode: LoopMode::Once,
-                transitions: vec![TransitionDef {
-                    to: "Active".into(),
-                    condition: ConditionDef::Trigger { input: "toggle".into() },
-                    direction: PlaybackDirection::Forward,
-                    duration_seconds: 0.0,
-                    interruptible: true,
-                }],
-                position: Vec2::ZERO,
-                blend: None,
-                program: None,
-            },
-            StateDef {
-                name: "Active".into(),
-                animation: shared_animation_id,
-                loop_mode: LoopMode::Once,
-                transitions: vec![TransitionDef {
-                    to: "Idle".into(),
-                    condition: ConditionDef::Trigger { input: "toggle".into() },
-                    direction: PlaybackDirection::Reverse,
-                    duration_seconds: 0.0,
-                    interruptible: true,
-                }],
-                position: Vec2::new(220.0, 0.0),
-                blend: None,
-                program: None,
-            },
-        ],
-        initial_state: "Idle".into(),
-        layers: Vec::new(),
-        deleted: false,
-    };
-    let state_machine_id = artboard.add_state_machine(def);
-
-    (state_machine_id, StateMachine::from_definition(artboard.state_machine(state_machine_id).unwrap(), artboard))
 }
 
 /// A hand-authored upward-pointing triangle (base flush with the local
@@ -1854,7 +1774,7 @@ pub struct WasmEditor {
     /// — session state, not saved document content (the animations
     /// themselves are; which one happens to be selected in the dropdown
     /// right now isn't). `None` only if every animation on the artboard was
-    /// deleted; `build_demo_document`/`add_animation` otherwise keep this
+    /// deleted; `build_start_document`/`add_animation` otherwise keep this
     /// populated.
     active_animation: Option<AnimationId>,
     /// Which artboard ("Scene") the editor is currently showing/editing —
@@ -2305,10 +2225,10 @@ impl WasmEditor {
         // can read frames back with their alpha; every normal frame clears
         // opaque, so the editor looks the same.
         let renderer = Renderer::new_transparent(&instance, surface, width, height).await;
-        let (mut document, square_id, animation_id) = build_demo_document();
+        let (mut document, animation_id) = build_start_document();
         migrate_document(&mut document);
-        let artboard_id = document.artboards().next().map(|(id, _)| id).expect("build_demo_document always creates one artboard");
-        let (state_machine_id, state_machine) = build_demo_state_machine(document.artboard_mut(artboard_id).unwrap(), square_id);
+        let artboard_id = document.artboards().next().map(|(id, _)| id).expect("build_start_document always creates one artboard");
+        let state_machine = placeholder_state_machine(document.artboard(artboard_id).unwrap(), animation_id);
 
         let pointer_position = Rc::new(Cell::new((0.0f32, 0.0f32)));
         let pointer_position_for_listener = Rc::clone(&pointer_position);
@@ -2342,7 +2262,7 @@ impl WasmEditor {
             state_machine_programs_enabled: false,
             active_animation: Some(animation_id),
             active_artboard: None,
-            active_state_machine: Some(state_machine_id),
+            active_state_machine: None,
             scrub_time: 0.0,
             animate_mode_active: false,
             design_pose_snapshot: None,
@@ -3542,7 +3462,7 @@ impl WasmEditor {
     /// whatever it was previously showing rather than this method needing
     /// `state_machine` to become an `Option` just to express "nothing to
     /// preview right now" (a document with zero state machines is rare in
-    /// practice — `build_demo_document`/every authoring path here always
+    /// practice — every authoring path here always
     /// creates at least one — and the stale instance left behind is
     /// harmless: `StateMachine::apply` already silently no-ops against
     /// missing content, per its own doc comment).
