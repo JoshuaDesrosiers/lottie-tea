@@ -1967,6 +1967,12 @@ pub struct WasmEditor {
     /// unchanged graph is never recompiled) and the pipeline, or the
     /// compile error the Shader tab shows. Synced every frame in `render`.
     material_gpu: HashMap<an1mbyt3_core::MaterialId, (String, Result<an1mbyt3_renderer::GpuMaterial, String>)>,
+    /// `(document instance, revision)` of the last `sync_materials` /
+    /// `material3d` check: materials only change through commands, so
+    /// while this matches, re-generating every graph's WGSL (per frame,
+    /// and per 3D mesh) to compare it with the cache is skipped.
+    materials_checked_at: Option<(u64, u64)>,
+    material3d_checked_at: HashMap<an1mbyt3_core::MaterialId, (u64, u64)>,
     /// Seconds since the editor started — shader graphs' `Time`.
     shader_clock: f32,
     /// Uploaded 3D primitive meshes, keyed by their exact parameters
@@ -2351,6 +2357,8 @@ impl WasmEditor {
             image_bindings: HashMap::new(),
             image_cache: HashMap::new(),
             material_gpu: HashMap::new(),
+            materials_checked_at: None,
+            material3d_checked_at: HashMap::new(),
             shader_clock: 0.0,
             mesh3d_cache: HashMap::new(),
             material_gpu_3d: HashMap::new(),
@@ -6390,8 +6398,23 @@ impl WasmEditor {
     /// A shader-graph material compiled for the 3D pass (cached by WGSL);
     /// `None` if it isn't a graph or failed to compile.
     fn material3d(&mut self, id: an1mbyt3_core::MaterialId) -> Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>> {
-        let an1mbyt3_core::MaterialKind::ShaderGraph(graph) = &self.document.material(id).filter(|m| !m.deleted)?.kind else { return None };
-        let wgsl = an1mbyt3_core::compile_wgsl(graph).ok()?;
+        let stamp = (self.document.instance(), self.document.revision());
+        if self.material3d_checked_at.get(&id) == Some(&stamp) {
+            if let Some((_, compiled)) = self.material_gpu_3d.get(&id) {
+                return compiled.as_ref().ok().cloned();
+            }
+        }
+        self.material3d_checked_at.insert(id, stamp);
+        // A missing / non-graph / uncompilable material drops its cache entry,
+        // so the revision-stamp fast path above can't serve a stale shader.
+        let wgsl = match self.document.material(id).filter(|m| !m.deleted).map(|m| &m.kind) {
+            Some(an1mbyt3_core::MaterialKind::ShaderGraph(graph)) => an1mbyt3_core::compile_wgsl(graph).ok(),
+            _ => None,
+        };
+        let Some(wgsl) = wgsl else {
+            self.material_gpu_3d.remove(&id);
+            return None;
+        };
         if let Some((cached, compiled)) = self.material_gpu_3d.get(&id) {
             if *cached == wgsl {
                 return compiled.as_ref().ok().cloned();
@@ -7111,6 +7134,11 @@ impl WasmEditor {
     /// Recompiles every shader-graph material whose generated WGSL changed
     /// since last time, and forgets deleted ones.
     fn sync_materials(&mut self) {
+        let stamp = (self.document.instance(), self.document.revision());
+        if self.materials_checked_at == Some(stamp) {
+            return;
+        }
+        self.materials_checked_at = Some(stamp);
         let live: Vec<(an1mbyt3_core::MaterialId, Result<String, String>)> = self
             .document
             .materials()
