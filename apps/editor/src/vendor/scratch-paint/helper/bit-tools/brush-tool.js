@@ -1,6 +1,7 @@
 import paper from '@scratch/paper';
 import {getRaster, getGuideLayer} from '../layer';
 import {forEachLinePoint, getBrushMark} from '../bitmap';
+import {brushSettings, currentPressure, getPresetMark} from '../an1-brush';
 
 /**
  * Tool for drawing with the bitmap brush and eraser
@@ -36,17 +37,57 @@ class BrushTool extends paper.Tool {
         this.size = Math.max(1, ~~size);
         this.tmpCanvas = getBrushMark(this.size, this.color, this.isEraser || !this.color);
     }
-    // Draw a brush mark at the given point
+    // Draw a brush mark at the given point.
+    // an1mbyt3: the stamp follows the brush preset and pen pressure
+    // (`an1-brush.js`); soft / spray presets stamp with spacing so strokes
+    // build up evenly.
     draw (x, y) {
-        const roundedUpRadius = Math.ceil(this.size / 2);
+        const erasing = this.isEraser || !this.color;
+        const preset = brushSettings.preset;
+        const size = Math.max(1, Math.round(this.size * currentPressure()));
+        if (preset === 'soft' || preset === 'spray') {
+            const spacing = Math.max(1, size * (preset === 'soft' ? 0.18 : 0.35));
+            if (this.lastStamp && Math.hypot(x - this.lastStamp.x, y - this.lastStamp.y) < spacing) return;
+            this.lastStamp = {x, y};
+        }
+        const roundedUpRadius = Math.ceil(size / 2);
         const context = getRaster().getContext('2d');
-        if (this.isEraser || !this.color) {
+        if (erasing) {
             context.globalCompositeOperation = 'destination-out';
         }
-        getRaster().drawImage(this.tmpCanvas, new paper.Point(~~x - roundedUpRadius, ~~y - roundedUpRadius));
-        if (this.isEraser || !this.color) {
+        let mark;
+        if (preset === 'spray') {
+            mark = document.createElement('canvas');
+            mark.width = roundedUpRadius * 2;
+            mark.height = roundedUpRadius * 2;
+            const dots = mark.getContext('2d');
+            dots.fillStyle = erasing ? 'white' : this.color;
+            const count = Math.max(2, Math.round(size * size / 30));
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.sqrt(Math.random()) * size / 2;
+                dots.fillRect(~~(roundedUpRadius + Math.cos(angle) * distance), ~~(roundedUpRadius + Math.sin(angle) * distance), 1, 1);
+            }
+        } else if (preset === 'round') {
+            mark = size === this.size ? this.tmpCanvas : getBrushMark(size, this.color, erasing);
+        } else {
+            mark = getPresetMark(preset, size, erasing ? 'white' : this.color, getBrushMark);
+        }
+        getRaster().drawImage(mark, new paper.Point(~~x - roundedUpRadius, ~~y - roundedUpRadius));
+        if (erasing) {
             context.globalCompositeOperation = 'source-over';
         }
+    }
+    // an1mbyt3: the stabilizer — the brush tip trails the cursor by
+    // `brushSettings.smoothing` (0 = exactly on it).
+    stabilized (point) {
+        const smoothing = Math.min(0.95, Math.max(0, brushSettings.smoothing || 0));
+        if (!this.smoothed || smoothing === 0) {
+            this.smoothed = point;
+            return point;
+        }
+        this.smoothed = this.smoothed.add(point.subtract(this.smoothed).multiply(1 - smoothing));
+        return this.smoothed;
     }
     updateCursorIfNeeded () {
         if (!this.size) {
@@ -86,22 +127,27 @@ class BrushTool extends paper.Tool {
             this.cursorPreview.remove();
         }
 
+        this.smoothed = event.point;
+        this.lastStamp = null;
         this.draw(event.point.x, event.point.y);
         this.lastPoint = event.point;
     }
     handleMouseDrag (event) {
         if (event.event.button > 0 || !this.active) return; // only first mouse button
 
-        forEachLinePoint(this.lastPoint, event.point, this.draw.bind(this));
-        this.lastPoint = event.point;
+        const point = this.stabilized(event.point);
+        forEachLinePoint(this.lastPoint, point, this.draw.bind(this));
+        this.lastPoint = point;
     }
     handleMouseUp (event) {
         if (event.event.button > 0 || !this.active) return; // only first mouse button
 
+        // Catch the stabilized tip up with where the stroke ended.
         forEachLinePoint(this.lastPoint, event.point, this.draw.bind(this));
         this.onUpdateImage();
 
         this.lastPoint = null;
+        this.smoothed = null;
         this.active = false;
 
         this.updateCursorIfNeeded();

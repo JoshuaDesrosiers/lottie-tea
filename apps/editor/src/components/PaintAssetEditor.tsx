@@ -14,6 +14,7 @@ import { PaintToolPalette } from './PaintToolPalette.jsx'
 import paper from '@scratch/paper'
 import { BLANK_PNG, celAt, onionSkin, renderFrame, renderLayers, stack, withLive, type PaintCel, type PaintSession } from '../paint/session'
 import { PaintFrameStrip } from './PaintFrameStrip'
+import { PaintBrushBar } from './PaintBrushBar'
 
 /** Every one of scratch-paint's ~17 tool-mode containers (`SelectMode`/
  * `BrushMode`/etc., mounted invisibly by `paint-editor.jsx` — see that
@@ -410,6 +411,7 @@ export function PaintAssetEditor({
                 actionBarTarget={actionBarTarget}
               />
               <PaintToolPalette />
+              <PaintBrushBar store={store} />
               <PaintFrameStrip
                 session={session}
                 live={imageRef.current}

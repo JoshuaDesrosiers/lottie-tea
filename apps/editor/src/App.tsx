@@ -4074,7 +4074,7 @@ function App() {
         onNameChange={setPaintDrawingName}
         onClose={() => setMode('Design')}
       />
-      {mode !== 'Playground' && (
+      {mode !== 'Playground' && mode !== 'Paint' && (
         <IconRail
           componentsOpen={panelVisible.components}
           onToggleComponents={() => setPanelVisible((v) => ({ ...v, components: !v.components }))}
@@ -4182,7 +4182,7 @@ function App() {
         </div>
       )}
 
-      {mode !== 'Playground' && (() => {
+      {mode !== 'Playground' && mode !== 'Paint' && (() => {
         const panelContent: Record<PanelKey, { title: string; content: React.ReactNode }> = {
           layers: {
             title: 'Layers',
