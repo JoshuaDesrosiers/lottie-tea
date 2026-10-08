@@ -698,30 +698,40 @@ export function PathEditOverlay({
           const s0 = startAnchor ? localToScreen(startAnchor.x, startAnchor.y) : p
           const isDraggingC1 = dragging?.commandIndex === index && dragging.field === 'control1'
           const isDraggingC2 = dragging?.commandIndex === index && dragging.field === 'control2'
+          // A handle retracted onto its own anchor (a corner, e.g. right
+          // after double-clicking a smooth point) has zero length: it's not
+          // drawn, like in every pen tool — it used to leave a stray handle
+          // circle sitting on the corner. (Still shown while being dragged.)
+          const showC1 = isDraggingC1 || !samePoint(command.value.control1, startAnchor)
+          const showC2 = isDraggingC2 || !samePoint(command.value.control2, command.value.to)
           return (
             <g key={index}>
-              <line x1={c1.x} y1={c1.y} x2={s0.x} y2={s0.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />
-              <line x1={c2.x} y1={c2.y} x2={p.x} y2={p.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />
-              <circle
-                cx={c1.x}
-                cy={c1.y}
-                r={3.5}
-                fill={isDraggingC1 ? ACCENT : HANDLE_FILL}
-                stroke={ACCENT}
-                strokeWidth={1.25}
-                className="pointer-events-auto cursor-grab active:cursor-grabbing"
-                onPointerDown={(e) => startDrag(e, { commandIndex: index, field: 'control1' })}
-              />
-              <circle
-                cx={c2.x}
-                cy={c2.y}
-                r={3.5}
-                fill={isDraggingC2 ? ACCENT : HANDLE_FILL}
-                stroke={ACCENT}
-                strokeWidth={1.25}
-                className="pointer-events-auto cursor-grab active:cursor-grabbing"
-                onPointerDown={(e) => startDrag(e, { commandIndex: index, field: 'control2' })}
-              />
+              {showC1 && <line x1={c1.x} y1={c1.y} x2={s0.x} y2={s0.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />}
+              {showC2 && <line x1={c2.x} y1={c2.y} x2={p.x} y2={p.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />}
+              {showC1 && (
+                <circle
+                  cx={c1.x}
+                  cy={c1.y}
+                  r={3.5}
+                  fill={isDraggingC1 ? ACCENT : HANDLE_FILL}
+                  stroke={ACCENT}
+                  strokeWidth={1.25}
+                  className="pointer-events-auto cursor-grab active:cursor-grabbing"
+                  onPointerDown={(e) => startDrag(e, { commandIndex: index, field: 'control1' })}
+                />
+              )}
+              {showC2 && (
+                <circle
+                  cx={c2.x}
+                  cy={c2.y}
+                  r={3.5}
+                  fill={isDraggingC2 ? ACCENT : HANDLE_FILL}
+                  stroke={ACCENT}
+                  strokeWidth={1.25}
+                  className="pointer-events-auto cursor-grab active:cursor-grabbing"
+                  onPointerDown={(e) => startDrag(e, { commandIndex: index, field: 'control2' })}
+                />
+              )}
               {!duplicateEnd && anchorPoint}
               <title>Double-click a point to switch it between smooth and corner</title>
             </g>
