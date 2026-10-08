@@ -1977,7 +1977,7 @@ pub struct WasmEditor {
     shader_clock: f32,
     /// Uploaded 3D primitive meshes, keyed by their exact parameters
     /// (`format!("{primitive:?}")`) — every cube of the same size shares one.
-    mesh3d_cache: HashMap<String, std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>>,
+    mesh3d_cache: HashMap<Mesh3DKey, std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>>,
     /// Shader-graph materials compiled for the 3D pass (keyed like
     /// `material_gpu`, by the generated WGSL).
     material_gpu_3d: HashMap<an1mbyt3_core::MaterialId, (String, Result<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>, String>)>,
@@ -6357,7 +6357,7 @@ impl WasmEditor {
     /// An uploaded 3D mesh for `primitive` (shared by every node using the
     /// exact same parameters).
     fn mesh3d(&mut self, primitive: &an1mbyt3_core::Primitive3D) -> std::rc::Rc<an1mbyt3_renderer::GpuMesh3D> {
-        let key = format!("{primitive:?}");
+        let key = mesh3d_key(primitive);
         if let Some(gpu) = self.mesh3d_cache.get(&key) {
             return std::rc::Rc::clone(gpu);
         }
@@ -6368,7 +6368,7 @@ impl WasmEditor {
 
     /// The scene view's floor grid: 1 m lines over 60 m, every 5th brighter.
     fn grid_mesh(&mut self) -> std::rc::Rc<an1mbyt3_renderer::GpuMesh3D> {
-        if let Some(gpu) = self.mesh3d_cache.get("grid") {
+        if let Some(gpu) = self.mesh3d_cache.get(&GRID_MESH_KEY) {
             return std::rc::Rc::clone(gpu);
         }
         let mut m = an1mbyt3_geometry::Mesh3DData::default();
@@ -6391,7 +6391,7 @@ impl WasmEditor {
             }
         }
         let gpu = std::rc::Rc::new(self.renderer.upload_mesh_3d(&m));
-        self.mesh3d_cache.insert("grid".into(), std::rc::Rc::clone(&gpu));
+        self.mesh3d_cache.insert(GRID_MESH_KEY, std::rc::Rc::clone(&gpu));
         gpu
     }
 
@@ -9461,4 +9461,27 @@ fn to_js_value<T: serde::Serialize>(value: &T) -> Result<JsValue, JsValue> {
     value
         .serialize(&serde_wasm_bindgen::Serializer::new().serialize_missing_as_null(true).serialize_maps_as_objects(true))
         .map_err(|err| JsValue::from_str(&format!("failed to serialize value for the frontend: {err}")))
+}
+
+/// `mesh3d_cache` key: a primitive's variant plus its parameters' exact
+/// bits. (It used to be `format!("{primitive:?}")` — formatting floats as
+/// text for every mesh, every frame, showed up in big-scene profiles.)
+type Mesh3DKey = (u8, [u32; 4]);
+
+/// The scene view's floor grid (not a primitive).
+const GRID_MESH_KEY: Mesh3DKey = (u8::MAX, [0; 4]);
+
+fn mesh3d_key(primitive: &an1mbyt3_core::Primitive3D) -> Mesh3DKey {
+    use an1mbyt3_core::Primitive3D as P;
+    match *primitive {
+        P::Cube { size } => (0, [size.x.to_bits(), size.y.to_bits(), size.z.to_bits(), 0]),
+        P::Sphere { radius, segments, rings } => (1, [radius.to_bits(), segments, rings, 0]),
+        P::Plane { size, subdivisions } => (2, [size.to_bits(), subdivisions, 0, 0]),
+        P::Cylinder { radius, height, segments } => (3, [radius.to_bits(), height.to_bits(), segments, 0]),
+        P::Cone { radius, height, segments } => (4, [radius.to_bits(), height.to_bits(), segments, 0]),
+        P::Torus { radius, tube, segments, sides } => (5, [radius.to_bits(), tube.to_bits(), segments, sides]),
+        // Models draw through `model_draws`; their primitive mesh doesn't
+        // depend on which model it is.
+        P::Model { .. } => (6, [0; 4]),
+    }
 }
