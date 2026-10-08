@@ -37,8 +37,13 @@ export function TilemapPaintOverlay({
     const unrotatedY = -dx * sinR + dy * cosR
     return { x: unrotatedX / scale.x + anchor.x, y: unrotatedY / scale.y + anchor.y }
   }
-  const clientToCell = (clientX: number, clientY: number) => {
-    const rect = containerRef.current?.getBoundingClientRect()
+  // `box`: this overlay's own element (it fills the canvas). The shared
+  // `containerRef` belongs to `TransformHandles`, which isn't mounted while
+  // painting — it was null here, so cursor positions weren't offset by the
+  // canvas's position and painting landed off target whenever the canvas
+  // doesn't start at the window's top-left (docked panels).
+  const clientToCell = (clientX: number, clientY: number, box: Element | null) => {
+    const rect = (box ?? containerRef.current)?.getBoundingClientRect()
     const world = screenToWorld(clientX - (rect?.left ?? 0), clientY - (rect?.top ?? 0), camera, canvasSize)
     const local = worldToLocal(world.x, world.y)
     const totalWidth = tilemap.mapWidth * tilemap.cellSize
@@ -50,7 +55,7 @@ export function TilemapPaintOverlay({
   }
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    const cell = clientToCell(e.clientX, e.clientY)
+    const cell = clientToCell(e.clientX, e.clientY, e.currentTarget)
     if (!cell) return
     e.preventDefault()
     onSetTile(selectedNode.id, cell.x, cell.y, e.button === 2 ? null : selectedTile)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { screenToWorld, worldToScreen, type Camera, type CanvasSize } from '../camera'
 import type { NodeSummary, Path, PathCommand } from '../ipc/document'
@@ -465,6 +465,13 @@ export function PathEditOverlay({
   const [dragging, setDragging] = useState<PointRef | null>(null)
   const [livePath, setLivePath] = useState<Path | null>(null)
   const [selectedAnchor, setSelectedAnchor] = useState<number | null>(null)
+  // This overlay's own root (it fills the canvas): what cursor positions are
+  // measured against. The shared `containerRef` is `TransformHandles`'
+  // element, which is *unmounted* while points are edited — it was null, so
+  // nothing was subtracted and every drag landed offset by the canvas's own
+  // position (the docked Layers/toolbar width): a handle jumped hundreds of
+  // pixels the moment it was pressed.
+  const rootRef = useRef<HTMLDivElement>(null)
 
   // A selected anchor index is only meaningful for *this* node's own path —
   // reset it whenever path-edit mode switches to a different node (rather
@@ -528,7 +535,7 @@ export function PathEditOverlay({
     return worldToScreen(world.x, world.y, camera, canvasSize)
   }
   const clientToLocal = (clientX: number, clientY: number) => {
-    const rect = containerRef.current?.getBoundingClientRect()
+    const rect = (rootRef.current ?? containerRef.current)?.getBoundingClientRect()
     const world = screenToWorld(clientX - (rect?.left ?? 0), clientY - (rect?.top ?? 0), camera, canvasSize)
     return worldToLocal(world.x, world.y)
   }
@@ -614,7 +621,7 @@ export function PathEditOverlay({
   }
 
   return (
-    <div onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} className="pointer-events-none absolute inset-0">
+    <div ref={rootRef} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} className="pointer-events-none absolute inset-0">
       <svg className="absolute inset-0 h-full w-full overflow-visible">
         {outline && (
           <>
