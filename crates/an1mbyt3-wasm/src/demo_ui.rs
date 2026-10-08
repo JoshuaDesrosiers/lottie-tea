@@ -94,7 +94,7 @@ pub(crate) fn build_demo_ui(document: &mut Document) -> UiDemo {
     add_node(document, &mut inverses, scene, counter);
     let hint = with(
         text_node(Some(camera_id), "hint", "SOUND STARTS AFTER YOUR FIRST CLICK - SCROLL THE NOTES", font, 7.0, [0.55, 0.58, 0.7, 1.0], Vec2::ZERO),
-        NodeBehavior::UiAnchor(UiAnchor { anchor: Vec2::new(0.5, 0.0), offset: Vec2::new(0.0, 46.0) }),
+        NodeBehavior::UiAnchor(UiAnchor { anchor: Vec2::new(0.5, 0.0), offset: Vec2::new(0.0, 18.0) }),
     );
     add_node(document, &mut inverses, scene, hint);
 
@@ -117,7 +117,7 @@ pub(crate) fn build_demo_ui(document: &mut Document) -> UiDemo {
     }
 
     // Right: a settings panel.
-    let panel = with(rect("panel", Some(camera_id), Vec2::new(250.0, 250.0), [0.12, 0.13, 0.18, 0.9], Vec2::ZERO), NodeBehavior::UiAnchor(UiAnchor { anchor: Vec2::new(0.5, 0.5), offset: Vec2::new(120.0, -10.0) }));
+    let panel = with(rect("panel", Some(camera_id), Vec2::new(250.0, 250.0), [0.12, 0.13, 0.18, 0.9], Vec2::ZERO), NodeBehavior::UiAnchor(UiAnchor { anchor: Vec2::new(0.5, 0.5), offset: Vec2::new(120.0, 4.0) }));
     let panel_id = add_node(document, &mut inverses, scene, panel);
 
     // Volume slider (track + Fill + Handle).

@@ -3873,9 +3873,12 @@ function App() {
           title="Preview the layout on another screen size: UI Layouts, Anchors and Show When react (and a Responsive scene's camera frame resizes). Playground uses the real window."
           className="rounded-md bg-transparent px-1 py-1 text-[11px] text-ink-dim hover:bg-overlay/5 hover:text-ink"
         >
-          <option value="">Design size</option>
+          {/* Native option lists don't inherit the dark theme: colour them. */}
+          <option value="" className="bg-solid-panel text-ink">
+            Design size
+          </option>
           {SCREEN_PRESETS.map((p) => (
-            <option key={p.label} value={`${p.width}x${p.height}`}>
+            <option key={p.label} value={`${p.width}x${p.height}`} className="bg-solid-panel text-ink">
               {p.label} · {p.width}×{p.height}
             </option>
           ))}

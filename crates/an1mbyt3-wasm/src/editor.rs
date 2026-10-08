@@ -2087,6 +2087,9 @@ struct PoseEntry {
     light: Option<(f32, f32)>,
     /// A Rigidbody 2D's body type (a script may switch it for a ragdoll).
     body_type: Option<an1mbyt3_core::RigidbodyType2D>,
+    /// A Node3D's transform + content (3D physics, `ref.position3`,
+    /// `playAnimation3` all change it).
+    node3d: Option<an1mbyt3_core::Node3D>,
 }
 
 /// A skinned image's rest mesh + weights, for one binding.
@@ -2441,6 +2444,10 @@ impl WasmEditor {
                         },
                         light: n.light2d().map(|l| (l.intensity, l.outer_radius)),
                         body_type: n.rigidbody().map(|rb| rb.body_type),
+                        node3d: match &n.kind {
+                            NodeKind::Node3D(n3) => Some(*n3),
+                            _ => None,
+                        },
                     })
                 })
                 .collect(),
@@ -2485,6 +2492,9 @@ impl WasmEditor {
                     (NodeKind::Image(image), Some(id), _) => image.image = id,
                     (NodeKind::Text(text), _, Some(content)) => text.content = content,
                     _ => {}
+                }
+                if let (NodeKind::Node3D(n3), Some(saved)) = (&mut node.kind, entry.node3d) {
+                    *n3 = saved;
                 }
             }
         }
