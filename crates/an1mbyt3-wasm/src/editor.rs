@@ -3501,6 +3501,13 @@ impl WasmEditor {
         to_js_value(&summarize_document(&self.document, self.active_animation, self.active_state_machine))
     }
 
+    /// The same summary as JSON text — for the live panel refresh, which
+    /// compares it with the previous one and skips re-rendering the whole
+    /// editor when nothing changed (most frames of a live preview).
+    pub fn document_summary_json(&self) -> Result<String, JsValue> {
+        serde_json::to_string(&summarize_document(&self.document, self.active_animation, self.active_state_machine)).map_err(|err| JsValue::from_str(&format!("document summary failed: {err}")))
+    }
+
     /// Re-samples the active animation's tracks (if any) into their target
     /// nodes' transforms/fill colors at `self.scrub_time` — shared by
     /// `set_scrub_time` (an explicit scrub) and `undo`/`redo` (so undoing a

@@ -828,8 +828,10 @@ function App() {
     // Raw movement since the last frame (`ctx.mouseDX/DY`) — keeps working
     // under pointer lock, where clientX/Y freeze.
     let mouseDelta = { x: 0, y: 0 }
-    // Last time the per-frame document summary was pushed into React state.
+    // Last time the per-frame document summary was pushed into React state,
+    // and the JSON it was built from (an identical one isn't pushed again).
     let lastUiSync = 0
+    let lastSummaryJson = ''
     // How long the last live document refresh took (fetch + React commit
     // kick-off) — the refresh interval scales with it, see below.
     let uiSyncCost = 0
@@ -856,6 +858,8 @@ function App() {
       if (cancelled) return
 
       editorRef.current = editor
+      // Development only: the live engine on `window`, for DevTools.
+      if (import.meta.env.DEV) (window as unknown as { __an1Editor?: unknown }).__an1Editor = editor
       if (canvasRef.current.parentElement) htmlOverlay.attach(canvasRef.current.parentElement, canvasRef.current)
       const initialSummary = getDocumentSummary(editor)
       setDoc(initialSummary)
@@ -974,7 +978,15 @@ function App() {
             // the panels just update less often.
             if (modeRef.current !== 'Playground' && now - lastUiSync > Math.max(120, uiSyncCost * 8)) {
               const refreshStart = performance.now()
-              setDoc(getDocumentSummary(editorRef.current))
+              // Only when something actually changed: re-rendering every
+              // panel 8x a second for an unchanged scene is wasted work
+              // (and in React's dev build it piled up memory until the
+              // WebView crashed).
+              const json = editorRef.current.document_summary_json()
+              if (json !== lastSummaryJson) {
+                lastSummaryJson = json
+                setDoc(JSON.parse(json) as DocumentSummary)
+              }
               lastUiSync = now
               uiSyncCost = performance.now() - refreshStart
             }
