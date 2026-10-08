@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Slider } from './Slider'
 import type { Store } from 'redux'
 // @ts-expect-error — vendored JS, not typed (see PaintAssetEditor).
 import { currentColors, setPaintColor, startEyeDropper } from '../vendor/scratch-paint/index.js'
@@ -56,7 +57,7 @@ const SHORTCUTS: [string, string][] = [
  * palette (click = fill, right-click = outline, + saves the current fill,
  * Alt-click removes), the eyedropper, and the shortcut list.
  */
-export function PaintCanvasBar({ store, view, onChange }: { store: Store; view: PaintView; onChange: (view: PaintView) => void }) {
+export function PaintCanvasBar({ store, view, onChange, below }: { store: Store; view: PaintView; onChange: (view: PaintView) => void; /** Shown under the bar (the brush settings). */ below?: ReactNode }) {
   const [palette, setPalette] = useState<string[]>(loadPalette)
   const [showKeys, setShowKeys] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -75,8 +76,10 @@ export function PaintCanvasBar({ store, view, onChange }: { store: Store; view: 
   const button = (active = false) => `h-6 rounded-md px-2 text-[11px] ${active ? 'bg-accent text-white' : 'text-ink-dim hover:bg-overlay/10 hover:text-ink'}`
   const divider = <span className="h-4 w-px bg-overlay/15" />
   return (
-    <div className="pointer-events-auto absolute right-4 top-24 z-20 flex flex-col items-end gap-1">
-      <div className="flex items-center gap-1.5 rounded-xl border border-panel-border bg-panel px-2 py-1.5 shadow-2xl">
+    <>
+    {/* Top centre: view aids + tools, the brush settings under them. */}
+    <div className="pointer-events-none absolute left-1/2 top-24 z-20 flex -translate-x-1/2 flex-col items-center gap-1">
+      <div className="pointer-events-auto flex items-center gap-1.5 rounded-xl border border-panel-border bg-panel px-2 py-1.5 shadow-2xl">
         {/* Grid */}
         <button onClick={() => onChange({ ...view, grid: !view.grid })} className={button(view.grid)} title="Show a grid over the canvas (a guide — not part of the drawing)">
           Grid
@@ -113,15 +116,9 @@ export function PaintCanvasBar({ store, view, onChange }: { store: Store; view: 
             <button onClick={() => onChange({ ...view, referenceVisible: !view.referenceVisible })} className={button(view.referenceVisible)} title={`Reference: ${view.reference.name} — show / hide`}>
               Reference
             </button>
-            <input
-              type="range"
-              min={5}
-              max={100}
-              value={Math.round(view.referenceOpacity * 100)}
-              onChange={(e) => onChange({ ...view, referenceOpacity: Number(e.target.value) / 100 })}
-              className="w-16"
-              title={`Reference opacity ${Math.round(view.referenceOpacity * 100)}%`}
-            />
+            <div className="w-16" title={`Reference opacity ${Math.round(view.referenceOpacity * 100)}%`}>
+              <Slider min={0.05} max={1} step={0.01} value={view.referenceOpacity} onChange={(referenceOpacity) => onChange({ ...view, referenceOpacity })} />
+            </div>
             <button onClick={() => onChange({ ...view, reference: null })} className={button()} title="Remove the reference image">
               ✕
             </button>
@@ -141,8 +138,24 @@ export function PaintCanvasBar({ store, view, onChange }: { store: Store; view: 
         </button>
       </div>
 
-      {/* Palette */}
-      <div className="flex max-w-[22rem] flex-wrap items-center justify-end gap-1 rounded-xl border border-panel-border bg-panel px-2 py-1.5 shadow-2xl">
+      {below}
+      {showKeys && (
+        <div className="pointer-events-auto w-80 rounded-xl border border-panel-border bg-panel p-3 shadow-2xl">
+          <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-dim">Paint shortcuts</div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
+            {SHORTCUTS.map(([keys, what]) => (
+              <div key={keys} className="contents">
+                <dt className="whitespace-nowrap font-mono text-ink">{keys}</dt>
+                <dd className="text-ink-dim">{what}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+    </div>
+
+      {/* Palette: a vertical strip, centred on the right edge. */}
+      <div className="pointer-events-auto absolute right-4 top-1/2 z-20 flex max-h-[70%] -translate-y-1/2 flex-col items-center gap-1 overflow-y-auto rounded-xl border border-panel-border bg-panel px-1.5 py-2 shadow-2xl">
         {palette.map((color, i) => (
           <button
             key={`${color}-${i}`}
@@ -170,20 +183,6 @@ export function PaintCanvasBar({ store, view, onChange }: { store: Store; view: 
           +
         </button>
       </div>
-
-      {showKeys && (
-        <div className="w-80 rounded-xl border border-panel-border bg-panel p-3 shadow-2xl">
-          <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-dim">Paint shortcuts</div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[11px]">
-            {SHORTCUTS.map(([keys, what]) => (
-              <div key={keys} className="contents">
-                <dt className="whitespace-nowrap font-mono text-ink">{keys}</dt>
-                <dd className="text-ink-dim">{what}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      )}
-    </div>
+    </>
   )
 }

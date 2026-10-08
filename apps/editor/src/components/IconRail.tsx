@@ -56,6 +56,7 @@ export function IconRail({
   onToggleTheme,
   uiStyle,
   onToggleUiStyle,
+  paintToolsTarget,
 }: {
   componentsOpen: boolean
   onToggleComponents: () => void
@@ -89,6 +90,11 @@ export function IconRail({
    * it) — independent of dark/light. See `theme.ts`'s `UiStyle`. */
   uiStyle: UiStyle
   onToggleUiStyle: () => void
+  /** Paint mode: the rail keeps its place and look but shows Paint's tools
+   * instead of the panel toggles — they're rendered into this slot by
+   * `PaintToolPalette` (it lives inside scratch-paint's Redux store, so it
+   * portals in). Undefined outside Paint. */
+  paintToolsTarget?: (el: HTMLDivElement | null) => void
 }) {
   return (
     <div
@@ -98,6 +104,10 @@ export function IconRail({
       <RailButton>
         <CanvasIcon />
       </RailButton>
+      {paintToolsTarget ? (
+        <div ref={paintToolsTarget} className="flex flex-col items-center gap-2" />
+      ) : (
+        <>
       <RailButton active={layersOpen} onClick={onToggleLayers} title="Layers">
         <GroupKindIcon />
       </RailButton>
@@ -122,6 +132,8 @@ export function IconRail({
       <RailButton active={stateMachineOpen} onClick={onToggleStateMachine} title="State Machine">
         <GraphIcon />
       </RailButton>
+        </>
+      )}
       <div className="flex-1" />
       <RailButton>
         <MenuIcon />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { renderCel, renderFrame, thumbnail, type PaintCel, type PaintSession } from '../paint/session'
+import { Slider } from './Slider'
 
 /**
  * Paint mode's timeline (Aseprite / Flash style): one row per layer (top
@@ -223,15 +224,9 @@ export function PaintFrameStrip({
                             {layer.name}
                           </button>
                         )}
-                        <input
-                          type="range"
-                          min={0}
-                          max={100}
-                          value={Math.round(layer.opacity * 100)}
-                          onChange={(e) => onSetLayerOpacity(l, Number(e.target.value) / 100)}
-                          className="w-12 accent-[var(--color-accent,#7a8cff)]"
-                          title={`Opacity ${Math.round(layer.opacity * 100)}%`}
-                        />
+                        <div className="w-12 shrink-0" title={`Opacity ${Math.round(layer.opacity * 100)}%`}>
+                          <Slider min={0} max={1} step={0.01} value={layer.opacity} onChange={(opacity) => onSetLayerOpacity(l, opacity)} />
+                        </div>
                       </div>
                     </td>
                     {Array.from({ length: session.frameCount }, (_, f) => {

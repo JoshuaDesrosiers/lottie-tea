@@ -469,6 +469,8 @@ function App() {
   // the Drawing resource being edited (re-saving updates it instead of
   // adding a copy); `paintSession` its frames × layers (`paint/session.ts`).
   const [paintActionBarTarget, setPaintActionBarTarget] = useState<HTMLDivElement | null>(null)
+  // The icon rail's slot Paint's tools render into (Paint keeps Design's rail).
+  const [paintToolsTarget, setPaintToolsTarget] = useState<HTMLDivElement | null>(null)
   const [paintDrawingName, setPaintDrawingName] = useState('New Drawing')
   const paintImageRef = useRef<PaintImage | null>(null)
   const [editingDrawing, setEditingDrawing] = useState<OpaqueId | null>(null)
@@ -4070,12 +4072,14 @@ function App() {
         session={paintSession}
         sessionKey={paintSessionKey}
         onSessionChange={setPaintSession}
+        toolsTarget={mode === 'Paint' ? paintToolsTarget : null}
         name={paintDrawingName}
         onNameChange={setPaintDrawingName}
         onClose={() => setMode('Design')}
       />
-      {mode !== 'Playground' && mode !== 'Paint' && (
+      {mode !== 'Playground' && (
         <IconRail
+          paintToolsTarget={mode === 'Paint' ? setPaintToolsTarget : undefined}
           componentsOpen={panelVisible.components}
           onToggleComponents={() => setPanelVisible((v) => ({ ...v, components: !v.components }))}
           effectsOpen={panelVisible.effects}

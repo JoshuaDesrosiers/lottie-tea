@@ -196,6 +196,7 @@ export function PaintAssetEditor({
   session,
   sessionKey,
   onSessionChange,
+  toolsTarget,
   name,
   onNameChange,
   onClose,
@@ -227,6 +228,8 @@ export function PaintAssetEditor({
    * reloads the current cel. */
   sessionKey: string
   onSessionChange: (session: PaintSession) => void
+  /** The Design icon rail's slot for Paint's tools (see `IconRail`). */
+  toolsTarget: HTMLDivElement | null
   name: string
   onNameChange: (name: string) => void
   onClose: () => void
@@ -419,9 +422,8 @@ export function PaintAssetEditor({
                 name={name}
                 actionBarTarget={actionBarTarget}
               />
-              <PaintToolPalette />
-              <PaintBrushBar store={store} />
-              <PaintCanvasBar store={store} view={view} onChange={setView} />
+              <PaintToolPalette target={toolsTarget} />
+              <PaintCanvasBar store={store} view={view} onChange={setView} below={<PaintBrushBar store={store} />} />
               <PaintFrameStrip
                 session={session}
                 live={imageRef.current}

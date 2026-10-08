@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { changeMode } from '../vendor/scratch-paint/reducers/modes'
 import { changeFormat } from '../vendor/scratch-paint/reducers/format'
@@ -51,20 +52,25 @@ const BITMAP_TOOLS = [
  * only ever needs to dispatch the same action they're already listening
  * for, never touch paper.js directly itself.
  */
-export function PaintToolPalette() {
+/**
+ * `target`: the Design icon rail's tool slot (`IconRail`'s
+ * `paintToolsTarget`) — Paint uses the same left rail as Design, just with
+ * these tools. Without one it floats on the left as before.
+ */
+export function PaintToolPalette({ target }) {
   const dispatch = useDispatch()
   const mode = useSelector((state) => state.scratchPaint.mode)
   const format = useSelector((state) => state.scratchPaint.format)
   const tools = isBitmap(format) ? BITMAP_TOOLS : VECTOR_TOOLS
 
-  return (
-    <div className="absolute left-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-1 rounded-lg border border-panel-border bg-panel p-1.5 backdrop-blur-panel">
+  const palette = (
+    <div className={target ? 'contents' : 'absolute left-2 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-1 rounded-lg border border-panel-border bg-panel p-1.5 backdrop-blur-panel'}>
       {tools.map((tool) => (
         <button
           key={tool.mode}
           title={tool.label}
           onClick={() => dispatch(changeMode(tool.mode))}
-          className={`flex h-9 w-9 items-center justify-center rounded-md transition-colors ${
+          className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
             mode === tool.mode ? 'bg-accent/15' : 'hover:bg-overlay/5'
           }`}
         >
@@ -84,7 +90,7 @@ export function PaintToolPalette() {
           <img src={tool.icon} draggable={false} className="h-5 w-5" style={{ filter: 'brightness(0) invert(var(--icon-invert))', opacity: mode === tool.mode ? 1 : 0.6 }} />
         </button>
       ))}
-      <div className="my-1 h-px w-full bg-panel-border" />
+      <div className="my-1 h-px w-6 bg-panel-border" />
       {/* Vector<->Bitmap format toggle — a plain `changeFormat` dispatch is
           enough: `containers/paint-editor.jsx`'s own `componentDidUpdate`
           (unrelated to this component, already wired) reacts to
@@ -94,10 +100,11 @@ export function PaintToolPalette() {
       <button
         title={isBitmap(format) ? 'Convert to Vector' : 'Convert to Bitmap'}
         onClick={() => dispatch(changeFormat(isBitmap(format) ? Formats.VECTOR : Formats.BITMAP))}
-        className="flex h-9 w-9 items-center justify-center rounded-md text-[10px] font-semibold text-ink-dim transition-colors hover:bg-overlay/5 hover:text-ink"
+        className="flex h-9 w-9 items-center justify-center rounded-lg text-[10px] font-semibold text-ink-dim transition-colors hover:bg-overlay/5 hover:text-ink"
       >
         {isBitmap(format) ? 'VEC' : 'BMP'}
       </button>
     </div>
   )
+  return target ? createPortal(palette, target) : palette
 }
