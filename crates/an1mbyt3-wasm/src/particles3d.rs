@@ -361,6 +361,47 @@ impl Particles3D {
         }
     }
 
+    /// The nearest of `id`'s live particles a ray hits (`dir` normalized):
+    /// its distance along the ray. Each particle counts as a ball the size
+    /// it's drawn (a fluid blob's visible part is about half its splat),
+    /// trail points included — so clicking the effect you *see* in the 3D
+    /// view selects its emitter, not whatever node sits at its centre.
+    pub fn ray_hit(&self, id: NodeId, cfg: &ParticleSystem3D, world: Mat4, origin: Vec3, dir: Vec3) -> Option<f32> {
+        let e = self.emitters.get(&id)?;
+        let (scale, _, _) = world.to_scale_rotation_translation();
+        let scale = ((scale.x.abs() + scale.y.abs() + scale.z.abs()) / 3.0).max(0.0001);
+        // Visible radius as a share of the drawn size: a fluid blob shows
+        // about a quarter of its splat, a soft glow less than a crisp dot.
+        let share = if cfg.fluid { 0.25 } else { 0.3 + 0.2 * cfg.hardness.clamp(0.0, 1.0) };
+        let mut best: Option<f32> = None;
+        for p in &e.particles {
+            let t = p.age / p.life;
+            // Faint wisps (smoke) don't catch clicks meant for what's behind.
+            if cfg.color_at(t)[3] < 0.35 {
+                continue;
+            }
+            let radius = (cfg.size_at(t) * scale * share).max(0.03);
+            for c in std::iter::once(p.position).chain(p.trail.iter().copied()) {
+                let along = (c - origin).dot(dir);
+                if along <= 0.0 {
+                    continue;
+                }
+                let miss = (origin + dir * along).distance_squared(c);
+                if miss <= radius * radius {
+                    // A fluid blob is drawn merged into its neighbours (and
+                    // hidden behind solid meshes it wraps): count it at its
+                    // centre, so a solid thing it surrounds — an eye inside
+                    // an ink body — still wins a click on itself.
+                    let hit = if cfg.fluid { along } else { along - (radius * radius - miss).sqrt() };
+                    if best.is_none_or(|b| hit < b) {
+                        best = Some(hit);
+                    }
+                }
+            }
+        }
+        best
+    }
+
     /// Live particle count (the profiler / tests).
     #[allow(dead_code)]
     pub fn count(&self, id: NodeId) -> usize {
@@ -433,6 +474,16 @@ mod tests {
         }
         // Late (t > 0.95): exactly on the world point.
         assert!(sim.emitters[&node()].particles.iter().all(|p| p.position.distance(Vec3::new(0.0, 5.0, 0.0)) < 1e-3));
+    }
+
+    #[test]
+    fn rays_hit_live_particles() {
+        let cfg = ParticleSystem3D { burst: 1, rate: 0.0, shape: Emitter3DShape::Point, swirl: 0.0, turbulence: 0.0, lifetime: 10.0, size_start: 0.5, size_end: 0.5, color_start: [1.0; 4], color_mid: [1.0; 4], color_end: [1.0; 4], hardness: 1.0, ..Default::default() };
+        let mut sim = Particles3D::default();
+        sim.step(node(), &cfg, Mat4::IDENTITY, 0.01);
+        let hit = sim.ray_hit(node(), &cfg, Mat4::IDENTITY, Vec3::new(0.0, 0.0, 10.0), Vec3::NEG_Z).expect("hits the particle at the origin");
+        assert!((hit - 9.75).abs() < 0.01, "{hit}");
+        assert!(sim.ray_hit(node(), &cfg, Mat4::IDENTITY, Vec3::new(3.0, 0.0, 10.0), Vec3::NEG_Z).is_none());
     }
 
     #[test]

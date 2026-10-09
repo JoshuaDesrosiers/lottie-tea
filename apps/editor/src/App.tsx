@@ -1589,7 +1589,16 @@ function App() {
     artboardId: activeArtboard?.id ?? null,
     nodes: activeArtboard?.nodes ?? [],
     selectedId: selection?.nodeId ?? null,
-    onSelect: (node) => setSelection(node && activeArtboard ? { artboardId: activeArtboard.id, nodeId: node } : null),
+    // Same as clicking the row in Layers: the Inspector *and* the Layers
+    // highlight move together (setting only `selection` left Layers
+    // highlighting the previous node).
+    onSelect: (node) => {
+      if (node && activeArtboard) selectSingle(activeArtboard.id, node)
+      else {
+        setSelection(null)
+        setMultiSelectedIds([])
+      }
+    },
     onCommit: (node, value) => {
       if (editorRef.current && activeArtboard) setDoc(setNode3D(editorRef.current, activeArtboard.id, node, value))
     },

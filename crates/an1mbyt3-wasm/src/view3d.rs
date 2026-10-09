@@ -140,6 +140,12 @@ pub fn ray_aabb(origin: Vec3, dir: Vec3, min: Vec3, max: Vec3) -> Option<f32> {
 /// The nearest Node3D under a world ray (tested in each node's local space,
 /// so rotated / scaled nodes pick by their real box).
 pub fn pick(artboard: &Artboard, origin: Vec3, dir: Vec3, model_bounds: &dyn Fn(an1mbyt3_core::ModelId) -> Option<(Vec3, Vec3)>) -> Option<NodeId> {
+    pick_with_distance(artboard, origin, dir, model_bounds).map(|(_, id)| id)
+}
+
+/// [`pick`], plus how far along the ray the hit is (so other hits — live
+/// particles — can be compared against it). Planes score `t + 1e6`.
+pub fn pick_with_distance(artboard: &Artboard, origin: Vec3, dir: Vec3, model_bounds: &dyn Fn(an1mbyt3_core::ModelId) -> Option<(Vec3, Vec3)>) -> Option<(f32, NodeId)> {
     let mut best: Option<(f32, NodeId)> = None;
     for id in artboard.node_ids() {
         if artboard.is_effectively_deleted(id) {
@@ -166,7 +172,7 @@ pub fn pick(artboard: &Artboard, origin: Vec3, dir: Vec3, model_bounds: &dyn Fn(
             }
         }
     }
-    best.map(|(_, id)| id)
+    best
 }
 
 /// Gizmo handles: the three axes and the centre (move on the ground plane).

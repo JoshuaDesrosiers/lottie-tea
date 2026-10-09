@@ -7321,6 +7321,19 @@ impl WasmEditor {
             NodeKind::Node3D(n) => n.content,
             _ => return None,
         })));
+        // A selected particle emitter's box shows its effect's extent (its
+        // node is an empty pivot; the particles are what you see).
+        let selected_extent = self.view3d_selected.and_then(|id| {
+            artboard.node(id)?.behaviors.iter().find_map(|e| match &e.behavior {
+                an1mbyt3_core::NodeBehavior::ParticleSystem3D(p) => {
+                    let spread = if p.shape == an1mbyt3_core::Emitter3DShape::Point { 0.0 } else { p.radius + p.thickness };
+                    // A fluid blob shows about a quarter of its splat size.
+                    let blob = p.size_start.max(p.size_end) * if p.fluid { 0.25 } else { 0.5 };
+                    Some(Vec3::splat((spread + blob).max(0.15)))
+                }
+                _ => None,
+            })
+        });
         let model_bounds = self.model_bounds_map();
         if camera.is_none() && !editor_view {
             self.renderer.set_scene_3d(None);
@@ -7427,7 +7440,10 @@ impl WasmEditor {
             }
             if let Some((world, content)) = selected {
                 // Selection box (orange, over everything).
-                let (min, max) = crate::view3d::local_bounds_with(&content, &|m| model_bounds.get(&m).copied());
+                let (min, max) = match selected_extent {
+                    Some(half) => (-half, half),
+                    None => crate::view3d::local_bounds_with(&content, &|m| model_bounds.get(&m).copied()),
+                };
                 let thickness = cam.gizmo_scale(world.transform_point3(Vec3::ZERO)) * 0.012;
                 for (a, b) in crate::view3d::box_edges(world, min, max) {
                     draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&cube), crate::view3d::bar_between(a, b, thickness), [1.0, 0.6, 0.15, 1.0]) });
@@ -7542,7 +7558,28 @@ impl WasmEditor {
         let Some(a) = self.document.artboard(artboard_id) else { return to_js_value(&Pick { handle: None, node: None }) };
         let (o, d) = self.view3d_camera.ray(point, viewport);
         let bounds = self.model_bounds_map();
-        to_js_value(&Pick { handle: None, node: crate::view3d::pick(a, o, d, &|m| bounds.get(&m).copied()) })
+        let mut best = crate::view3d::pick_with_distance(a, o, d, &|m| bounds.get(&m).copied());
+        // Particle effects are picked by their live particles (what you
+        // see), not by their empty node's little marker box.
+        for id in a.node_ids() {
+            if a.is_effectively_deleted(id) || !crate::view3d::visible_chain(a, id) {
+                continue;
+            }
+            let Some(node) = a.node(id) else { continue };
+            let Some(cfg) = node.behaviors.iter().find_map(|e| match &e.behavior {
+                an1mbyt3_core::NodeBehavior::ParticleSystem3D(p) if e.enabled => Some(p),
+                _ => None,
+            }) else {
+                continue;
+            };
+            let Some(world) = a.world_matrix_3d(id) else { continue };
+            if let Some(t) = self.particles3d.ray_hit(id, cfg, world, o, d) {
+                if best.is_none_or(|(b, _)| t < b) {
+                    best = Some((t, id));
+                }
+            }
+        }
+        to_js_value(&Pick { handle: None, node: best.map(|(_, id)| id) })
     }
 
     /// Hover feedback: highlights the gizmo handle under `(x, y)`, or
