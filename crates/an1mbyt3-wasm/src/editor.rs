@@ -3051,7 +3051,15 @@ impl WasmEditor {
         // now alive. See `an1mbyt3_runtime::particle_sim`'s own module doc
         // for the simulation itself.
         if self.particle_mesh.is_none() {
-            self.particle_mesh = Some(self.renderer.upload_mesh(&tessellate_path(&an1mbyt3_core::Path::ellipse(1.0, 1.0))));
+            // Tessellated big, then shrunk to the unit disc: lyon's flattening
+            // tolerance is absolute, so a 1-unit ellipse came out as an
+            // octagon — visibly so on large particles (smoke puffs).
+            let mut disc = tessellate_path(&an1mbyt3_core::Path::ellipse(64.0, 64.0));
+            for p in &mut disc.positions {
+                p[0] /= 64.0;
+                p[1] /= 64.0;
+            }
+            self.particle_mesh = Some(self.renderer.upload_mesh(&disc));
         }
         let artboard = self.document.artboard(artboard_id).unwrap();
         for node_id in artboard.node_ids() {
@@ -8930,6 +8938,15 @@ impl WasmEditor {
     /// dig / build / fly, hotbar + creative inventory in HTML.
     pub async fn load_voxel_demo(&mut self) -> Result<JsValue, JsValue> {
         let demo = crate::demo_voxel::build_demo_voxel(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
+    /// The + menu's Demos → "Toon Explosion" — a cartoon explosion from
+    /// layered particle systems (smoke, fire, outlines, sparks, debris,
+    /// shockwave) plus a starburst flash, comic words and screen shake.
+    pub async fn load_boom_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_boom::build_demo_boom(&mut self.document);
         migrate_document(&mut self.document);
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }

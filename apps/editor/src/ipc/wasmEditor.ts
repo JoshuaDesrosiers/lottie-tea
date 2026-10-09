@@ -191,6 +191,11 @@ export async function loadVoxelDemo(editor: WasmEditor): Promise<AddArtboardResu
   return (await editor.load_voxel_demo()) as AddArtboardResult
 }
 
+/** Demos → "Toon Explosion" (layered particle explosion). */
+export async function loadBoomDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_boom_demo()) as AddArtboardResult
+}
+
 /** Demos → "Physics 3D Lab". */
 export async function loadPhysics3DDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_physics3d_demo()) as AddArtboardResult

@@ -99,6 +99,7 @@ function ShapesMenu({
   onLoadResponsiveDemo,
   onLoadHtmlDemo,
   onLoadPhysics3DDemo,
+  onLoadBoomDemo,
   onLoadVoxelDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
@@ -152,6 +153,7 @@ function ShapesMenu({
   onLoadResponsiveDemo: () => void
   onLoadHtmlDemo: () => void
   onLoadPhysics3DDemo: () => void
+  onLoadBoomDemo: () => void
   onLoadVoxelDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
@@ -253,6 +255,7 @@ function ShapesMenu({
         { kind: 'item', label: 'Responsive Layout', icon: <SparkleIcon />, onSelect: onLoadResponsiveDemo },
         { kind: 'item', label: 'HTML UI Lab', icon: <SparkleIcon />, onSelect: onLoadHtmlDemo },
         { kind: 'item', label: 'Physics 3D Lab', icon: <SparkleIcon />, onSelect: onLoadPhysics3DDemo },
+        { kind: 'item', label: 'Toon Explosion', icon: <SparkleIcon />, onSelect: onLoadBoomDemo },
         { kind: 'item', label: 'Voxel Craft', icon: <SparkleIcon />, onSelect: onLoadVoxelDemo },
         { kind: 'item', label: 'Sunset Tactics (5v5)', icon: <SparkleIcon />, onSelect: onLoadTacticsDemo },
         { kind: 'item', label: 'Raycaster FPS', icon: <SparkleIcon />, onSelect: onLoadFpsDemo },
@@ -493,6 +496,7 @@ export function TopToolbar({
   onLoadResponsiveDemo,
   onLoadHtmlDemo,
   onLoadPhysics3DDemo,
+  onLoadBoomDemo,
   onLoadVoxelDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
@@ -547,6 +551,7 @@ export function TopToolbar({
   onLoadResponsiveDemo: () => void
   onLoadHtmlDemo: () => void
   onLoadPhysics3DDemo: () => void
+  onLoadBoomDemo: () => void
   onLoadVoxelDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
@@ -652,6 +657,7 @@ export function TopToolbar({
               onLoadResponsiveDemo={onLoadResponsiveDemo}
               onLoadHtmlDemo={onLoadHtmlDemo}
               onLoadPhysics3DDemo={onLoadPhysics3DDemo}
+              onLoadBoomDemo={onLoadBoomDemo}
               onLoadVoxelDemo={onLoadVoxelDemo}
               onLoadTacticsDemo={onLoadTacticsDemo}
               onLoadPhysicsDemo={onLoadPhysicsDemo}
