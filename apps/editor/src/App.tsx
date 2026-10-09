@@ -4019,10 +4019,12 @@ function App() {
       {cameraFrames.map((frame) => (
         <div
           key={frame.key}
-          className={`pointer-events-none absolute rounded-[1px] border ${frame.isMain ? 'border-amber-400/80' : 'border-amber-400/35 border-dashed'}`}
+          // Light mode: a brighter, more orange frame (amber reads muddy on
+          // the pale canvas).
+          className={`pointer-events-none absolute rounded-[1px] ${theme === 'light' ? (frame.isMain ? 'border-2 border-orange-500' : 'border border-dashed border-orange-500/60') : frame.isMain ? 'border border-amber-400/80' : 'border border-dashed border-amber-400/35'}`}
           style={{ left: frame.left, top: frame.top, width: frame.width, height: frame.height }}
         >
-          <span className="absolute -top-4 left-0 whitespace-nowrap text-[10px] text-amber-400/80">
+          <span className={`absolute -top-4 left-0 whitespace-nowrap text-[10px] ${theme === 'light' ? 'font-semibold text-orange-600' : 'text-amber-400/80'}`}>
             {frame.name}
             {frame.isMain ? ' · main' : ''}
           </span>
@@ -4072,7 +4074,7 @@ function App() {
       {cameraFrames.map((frame) => (
         <div
           key={`${frame.key}-icon`}
-          className="pointer-events-none absolute flex items-center justify-center rounded-md border border-amber-400/80 bg-amber-400/15 text-amber-500"
+          className={`pointer-events-none absolute flex items-center justify-center rounded-md border ${theme === 'light' ? 'border-orange-500 bg-orange-100 text-orange-600 shadow-sm' : 'border-amber-400/80 bg-amber-400/15 text-amber-500'}`}
           style={{ left: frame.iconLeft, top: frame.iconTop, width: frame.iconSize, height: frame.iconSize }}
         >
           <CameraKindIcon />
