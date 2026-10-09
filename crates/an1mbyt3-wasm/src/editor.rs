@@ -1288,6 +1288,9 @@ fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard,
     if node.trail().is_some() {
         draws.extend(trail_draws(editor, node_id));
     }
+    if node.cloth().is_some() {
+        draws.extend(cloth_draws(editor, node_id));
+    }
     if let Some(config) = node.liquid() {
         draws.extend(liquid_draws(editor, artboard, node_id, config));
     }
@@ -1396,6 +1399,32 @@ fn particle_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artbo
                 texture: None,
                 material: None,
             }
+        })
+        .collect()
+}
+
+/// A Cloth 2D's fabric (world space, textured), then its shade overlays:
+/// folds, creases and backs darkened, stretched spots lightened.
+fn cloth_draws<'a>(editor: &'a WasmEditor, node_id: NodeId) -> Vec<DrawCall<'a>> {
+    let Some(gpu) = editor.cloth_gpu.get(&node_id) else { return Vec::new() };
+    let s = gpu.shading.clamp(0.0, 1.0);
+    let tints = [[1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.05, 0.16 * s], [0.0, 0.0, 0.05, 0.32 * s], [0.0, 0.0, 0.05, 0.48 * s], [1.0, 1.0, 1.0, 0.06 * s]];
+    gpu.meshes
+        .iter()
+        .zip(gpu.bindings.iter())
+        .zip(tints)
+        .enumerate()
+        .filter_map(|(i, ((mesh, binding), fill_color))| {
+            Some(DrawCall {
+                mesh: mesh.as_ref()?,
+                binding,
+                transform: an1mbyt3_core::Transform2D::default(),
+                fill_color,
+                blend_mode: BlendMode::Normal,
+                gradient: None,
+                texture: (i == 0).then_some(&gpu.texture),
+                material: None,
+            })
         })
         .collect()
 }
@@ -2059,6 +2088,10 @@ pub struct WasmEditor {
     /// frame — the points move), its uniform slot, and its baked gradient
     /// texture (rebaked only when the gradient/texture changes).
     trail_gpu: HashMap<NodeId, TrailGpu>,
+    /// Cloth 2D: each cloth's live simulation (Playground only; rebuilt at
+    /// rest otherwise) and its GPU meshes / texture — see `ClothGpu`.
+    cloth_sims: HashMap<NodeId, an1mbyt3_runtime::ClothSim>,
+    cloth_gpu: HashMap<NodeId, ClothGpu>,
     /// Live Rigidbody 2D / Collider 2D simulation for the scene Playground
     /// is running — `(scene, world)`. Built on the first Playground frame,
     /// dropped on leaving Playground or switching scenes (stopping
@@ -2241,6 +2274,52 @@ struct CameraFrame {
     crop: Option<Vec2>,
 }
 
+/// See `WasmEditor::cloth_gpu`: the fabric mesh and its four shade
+/// overlays (folds, creases, backs, highlights — rebuilt every frame), one draw
+/// binding each, and the fabric texture (rebaked when its look changes).
+struct ClothGpu {
+    meshes: [Option<GpuMesh>; 5],
+    bindings: [DrawBinding; 5],
+    texture: an1mbyt3_renderer::GpuImageTexture,
+    texture_key: ClothTextureKey,
+    shading: f32,
+}
+
+/// What a cloth's texture was baked from.
+type ClothTextureKey = ([u32; 4], an1mbyt3_core::ClothPatternKind, [u32; 4], u32, Option<an1mbyt3_core::ImageId>);
+
+fn cloth_texture_key(c: &an1mbyt3_core::Cloth2D) -> ClothTextureKey {
+    (c.color.map(f32::to_bits), c.pattern, c.pattern_color.map(f32::to_bits), c.pattern_count, c.image)
+}
+
+/// The fabric texture: the image if there is one, else the colour with its
+/// pattern and a faint woven texture (so flat cloth doesn't look plastic).
+fn bake_cloth_texture(c: &an1mbyt3_core::Cloth2D, image: Option<(Vec<u8>, u32, u32)>) -> (Vec<u8>, u32, u32) {
+    if let Some(image) = image {
+        return image;
+    }
+    const SIZE: u32 = 128;
+    let to_byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    let count = c.pattern_count.max(1) as f32;
+    let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let (u, v) = ((x as f32 + 0.5) / SIZE as f32, (y as f32 + 0.5) / SIZE as f32);
+            let second = match c.pattern {
+                an1mbyt3_core::ClothPatternKind::Solid => false,
+                an1mbyt3_core::ClothPatternKind::HorizontalStripes => (v * count) as u32 % 2 == 1,
+                an1mbyt3_core::ClothPatternKind::VerticalStripes => (u * count) as u32 % 2 == 1,
+                an1mbyt3_core::ClothPatternKind::Checker => ((u * count) as u32 + (v * count) as u32) % 2 == 1,
+            };
+            let base = if second { c.pattern_color } else { c.color };
+            // Weave: alternating threads a few percent lighter / darker.
+            let weave = if (x / 2 + y / 2) % 2 == 0 { 1.04 } else { 0.96 };
+            rgba.extend([to_byte(base[0] * weave), to_byte(base[1] * weave), to_byte(base[2] * weave), to_byte(base[3])]);
+        }
+    }
+    (rgba, SIZE, SIZE)
+}
+
 /// See `WasmEditor::trail_gpu`.
 struct TrailGpu {
     mesh: Option<GpuMesh>,
@@ -2382,6 +2461,8 @@ impl WasmEditor {
             alpha_bounds_cache: std::cell::RefCell::new(HashMap::new()),
             crop_bars: None,
             trail_gpu: HashMap::new(),
+            cloth_sims: HashMap::new(),
+            cloth_gpu: HashMap::new(),
             physics: None,
             physics3d: None,
         })
@@ -2531,6 +2612,8 @@ impl WasmEditor {
         if entering_playground || leaving_playground {
             self.flipbook_clocks.clear();
             self.environment_3d = None;
+            // Cloth starts hanging at rest every time play starts / stops.
+            self.cloth_sims.clear();
         }
         if entering_playground {
             self.runtime_spawned.clear();
@@ -3135,6 +3218,60 @@ impl WasmEditor {
             }
             if let Some(gpu) = self.trail_gpu.get_mut(&node_id) {
                 gpu.mesh = mesh;
+            }
+        }
+
+        // Cloth 2D pre-pass: step each cloth (Playground; otherwise it hangs
+        // at rest), rebuild its fabric + shade meshes and (re)bake its
+        // texture if its look changed.
+        let artboard = self.document.artboard(artboard_id).unwrap();
+        let cloths: Vec<(NodeId, an1mbyt3_core::Cloth2D, an1mbyt3_core::Transform2D)> = artboard
+            .node_ids()
+            .filter(|id| !artboard.is_effectively_deleted(*id))
+            .filter_map(|id| artboard.node(id)?.cloth().map(|cloth| (id, *cloth, artboard.world_transform(id))))
+            .collect();
+        let live_cloths: std::collections::HashSet<NodeId> = cloths.iter().map(|(id, _, _)| *id).collect();
+        self.cloth_sims.retain(|id, _| live_cloths.contains(id));
+        self.cloth_gpu.retain(|id, _| live_cloths.contains(id));
+        for (node_id, config, world) in cloths {
+            let (sin, cos) = world.rotation.sin_cos();
+            let to_world = move |p: Vec2| {
+                let s = p * world.scale;
+                world.translation + Vec2::new(s.x * cos - s.y * sin, s.x * sin + s.y * cos)
+            };
+            let mesh = if self.playground_active {
+                let sim = self.cloth_sims.entry(node_id).or_insert_with(|| an1mbyt3_runtime::ClothSim::new(&config, &to_world));
+                if !sim.matches(&config) {
+                    *sim = an1mbyt3_runtime::ClothSim::new(&config, &to_world);
+                }
+                sim.step(&config, &to_world, delta_seconds);
+                an1mbyt3_runtime::build_cloth_mesh(sim)
+            } else {
+                an1mbyt3_runtime::build_cloth_mesh(&an1mbyt3_runtime::ClothSim::new(&config, &to_world))
+            };
+            let key = cloth_texture_key(&config);
+            if self.cloth_gpu.get(&node_id).is_none_or(|gpu| gpu.texture_key != key) {
+                let image = config.image.and_then(|id| self.document.image(id)).and_then(|asset| an1mbyt3_image::decode_to_rgba(&asset.source).ok());
+                let (pixels, width, height) = bake_cloth_texture(&config, image);
+                let texture = self.renderer.upload_texture(width, height, &pixels, an1mbyt3_core::ImageFilterMode::Linear);
+                match self.cloth_gpu.get_mut(&node_id) {
+                    Some(gpu) => {
+                        gpu.texture = texture;
+                        gpu.texture_key = key;
+                    }
+                    None => {
+                        let bindings = std::array::from_fn(|_| self.renderer.create_draw_binding());
+                        self.cloth_gpu.insert(node_id, ClothGpu { meshes: [None, None, None, None, None], bindings, texture, texture_key: key, shading: 0.0 });
+                    }
+                }
+            }
+            let upload = |renderer: &an1mbyt3_renderer::Renderer, indices: &[u32]| {
+                (!indices.is_empty()).then(|| renderer.upload_mesh(&an1mbyt3_geometry::Mesh { positions: mesh.positions.clone(), indices: indices.to_vec(), uvs: mesh.uvs.clone() }))
+            };
+            let meshes = [upload(&self.renderer, &mesh.indices), upload(&self.renderer, &mesh.folds), upload(&self.renderer, &mesh.creases), upload(&self.renderer, &mesh.backs), upload(&self.renderer, &mesh.highlights)];
+            if let Some(gpu) = self.cloth_gpu.get_mut(&node_id) {
+                gpu.meshes = meshes;
+                gpu.shading = config.shading;
             }
         }
 
@@ -3976,6 +4113,8 @@ impl WasmEditor {
         self.physics = None;
         self.physics3d = None;
         self.trail_gpu.clear();
+        self.cloth_sims.clear();
+        self.cloth_gpu.clear();
         self.active_animation = self.document.artboard(artboard_id).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
         self.scrub_time = 0.0;
@@ -5984,6 +6123,7 @@ impl WasmEditor {
             "Rigidbody3D" => B::Rigidbody3D(an1mbyt3_core::Rigidbody3D::default()),
             "Collider3D" => B::Collider3D(an1mbyt3_core::Collider3D::default()),
             "Flipbook" => B::Flipbook(an1mbyt3_core::Flipbook::default()),
+            "Cloth2D" => B::Cloth2D(an1mbyt3_core::Cloth2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -7452,6 +7592,56 @@ impl WasmEditor {
             n.transform.rotation_degrees = glam::Vec3::new(values[3], values[4], values[5]);
             n.transform.scale = glam::Vec3::new(values[6], values[7], values[8]);
         }
+        Ok(())
+    }
+
+    /// Script API (`ref.grabCloth(x, y, radius)`): takes hold of the cloth's
+    /// free point nearest the world point (within `radius`). `false` if
+    /// there's none there (or the cloth isn't simulating yet).
+    pub fn cloth_grab(&mut self, node: JsValue, x: f32, y: f32, radius: f32) -> Result<bool, JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        Ok(self.cloth_sims.get_mut(&node_id).is_some_and(|sim| sim.grab(Vec2::new(x, y), radius)))
+    }
+
+    /// Script API (`ref.dragCloth(x, y)`): moves the held point.
+    pub fn cloth_drag(&mut self, node: JsValue, x: f32, y: f32) -> Result<(), JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        if let Some(sim) = self.cloth_sims.get_mut(&node_id) {
+            sim.drag(Vec2::new(x, y));
+        }
+        Ok(())
+    }
+
+    /// Script API (`ref.releaseCloth()`): lets go.
+    pub fn cloth_release(&mut self, node: JsValue) -> Result<(), JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        if let Some(sim) = self.cloth_sims.get_mut(&node_id) {
+            sim.release();
+        }
+        Ok(())
+    }
+
+    /// Script API (`ref.tearCloth(x, y, radius)`): cuts the threads around
+    /// a world point; returns how many were cut.
+    pub fn cloth_tear(&mut self, node: JsValue, x: f32, y: f32, radius: f32) -> Result<u32, JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        Ok(self.cloth_sims.get_mut(&node_id).map_or(0, |sim| sim.tear(Vec2::new(x, y), radius) as u32))
+    }
+
+    /// Script API (`ref.setClothWind(x, y)` / `ref.setClothWind(null)`):
+    /// overrides the authored wind until play stops.
+    pub fn cloth_wind(&mut self, node: JsValue, wind: Option<Vec<f32>>) -> Result<(), JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        if let Some(sim) = self.cloth_sims.get_mut(&node_id) {
+            sim.wind_override = wind.filter(|w| w.len() == 2).map(|w| Vec2::new(w[0], w[1]));
+        }
+        Ok(())
+    }
+
+    /// Script API (`ref.resetCloth()`): mends it — back to hanging at rest.
+    pub fn cloth_reset(&mut self, node: JsValue) -> Result<(), JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        self.cloth_sims.remove(&node_id);
         Ok(())
     }
 
@@ -9016,6 +9206,14 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// The + menu's Demos → "Cloth Lab" — the Cloth 2D component: a flag,
+    /// a curtain, a banner, a tearable sheet and a caped hero.
+    pub async fn load_cloth_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_cloth::build_demo_cloth(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     /// The + menu's Demos → "Physics 3D Lab" — Rigidbody 3D / Collider 3D:
     /// a crate pyramid, a ramp, a trigger zone and a click-to-fire cannon.
     pub async fn load_physics3d_demo(&mut self) -> Result<JsValue, JsValue> {
@@ -9610,6 +9808,8 @@ impl WasmEditor {
         self.physics = None;
         self.physics3d = None;
         self.trail_gpu.clear();
+        self.cloth_sims.clear();
+        self.cloth_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
@@ -9775,6 +9975,8 @@ impl WasmEditor {
         self.physics = None;
         self.physics3d = None;
         self.trail_gpu.clear();
+        self.cloth_sims.clear();
+        self.cloth_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
@@ -9858,6 +10060,8 @@ impl WasmEditor {
         self.physics = None;
         self.physics3d = None;
         self.trail_gpu.clear();
+        self.cloth_sims.clear();
+        self.cloth_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();

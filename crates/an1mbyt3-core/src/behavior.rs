@@ -103,6 +103,9 @@ pub enum NodeBehavior {
     /// Shows one child at a time on a clock — see [`crate::Flipbook`].
     /// (Appended last.)
     Flipbook(crate::Flipbook),
+    /// Soft fabric: flags, curtains, capes — see [`crate::Cloth2D`].
+    /// (Appended last.)
+    Cloth2D(crate::Cloth2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

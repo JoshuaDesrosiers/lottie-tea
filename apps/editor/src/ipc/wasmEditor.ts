@@ -201,6 +201,11 @@ export async function loadLanDemo(editor: WasmEditor): Promise<AddArtboardResult
   return (await editor.load_lan_demo()) as AddArtboardResult
 }
 
+/** Demos → "Cloth Lab" (Cloth 2D). */
+export async function loadClothDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_cloth_demo()) as AddArtboardResult
+}
+
 /** Demos → "Physics 3D Lab". */
 export async function loadPhysics3DDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_physics3d_demo()) as AddArtboardResult

@@ -1182,6 +1182,29 @@ export interface UiHtmlConfig {
 }
 
 /** A 3D physics body (`an1mbyt3_core::Rigidbody3D`). */
+/** `an1mbyt3_core::Cloth2D` — soft fabric: flags, curtains, capes. */
+export type ClothPin = 'TopEdge' | 'TopCorners' | 'LeftEdge' | 'None'
+export type ClothPatternKind = 'Solid' | 'HorizontalStripes' | 'VerticalStripes' | 'Checker'
+export interface Cloth2DConfig {
+  width: number
+  height: number
+  columns: number
+  rows: number
+  pin: ClothPin
+  color: [number, number, number, number]
+  pattern: ClothPatternKind
+  patternColor: [number, number, number, number]
+  patternCount: number
+  image: OpaqueId | null
+  gravity: number
+  wind: Vec2Tuple
+  turbulence: number
+  stiffness: number
+  damping: number
+  tearStretch: number
+  shading: number
+}
+
 /** `an1mbyt3_core::Flipbook` — shows one child at a time on a clock. */
 export interface FlipbookConfig {
   fps: number
@@ -1390,6 +1413,7 @@ export type NodeBehavior =
   | ({ kind: 'Rigidbody3D' } & Rigidbody3DConfig)
   | ({ kind: 'Collider3D' } & Collider3DConfig)
   | ({ kind: 'Flipbook' } & FlipbookConfig)
+  | ({ kind: 'Cloth2D' } & Cloth2DConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

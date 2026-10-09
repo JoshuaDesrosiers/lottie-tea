@@ -99,6 +99,7 @@ function ShapesMenu({
   onLoadResponsiveDemo,
   onLoadHtmlDemo,
   onLoadPhysics3DDemo,
+  onLoadClothDemo,
   onLoadLanDemo,
   onLoadBoomDemo,
   onLoadVoxelDemo,
@@ -154,6 +155,7 @@ function ShapesMenu({
   onLoadResponsiveDemo: () => void
   onLoadHtmlDemo: () => void
   onLoadPhysics3DDemo: () => void
+  onLoadClothDemo: () => void
   onLoadLanDemo: () => void
   onLoadBoomDemo: () => void
   onLoadVoxelDemo: () => void
@@ -257,6 +259,7 @@ function ShapesMenu({
         { kind: 'item', label: 'Responsive Layout', icon: <SparkleIcon />, onSelect: onLoadResponsiveDemo },
         { kind: 'item', label: 'HTML UI Lab', icon: <SparkleIcon />, onSelect: onLoadHtmlDemo },
         { kind: 'item', label: 'Physics 3D Lab', icon: <SparkleIcon />, onSelect: onLoadPhysics3DDemo },
+        { kind: 'item', label: 'Cloth Lab', icon: <SparkleIcon />, onSelect: onLoadClothDemo },
         { kind: 'item', label: 'LAN Party (multiplayer)', icon: <SparkleIcon />, onSelect: onLoadLanDemo },
         { kind: 'item', label: 'Toon Explosion', icon: <SparkleIcon />, onSelect: onLoadBoomDemo },
         { kind: 'item', label: 'Voxel Craft', icon: <SparkleIcon />, onSelect: onLoadVoxelDemo },
@@ -499,6 +502,7 @@ export function TopToolbar({
   onLoadResponsiveDemo,
   onLoadHtmlDemo,
   onLoadPhysics3DDemo,
+  onLoadClothDemo,
   onLoadLanDemo,
   onLoadBoomDemo,
   onLoadVoxelDemo,
@@ -555,6 +559,7 @@ export function TopToolbar({
   onLoadResponsiveDemo: () => void
   onLoadHtmlDemo: () => void
   onLoadPhysics3DDemo: () => void
+  onLoadClothDemo: () => void
   onLoadLanDemo: () => void
   onLoadBoomDemo: () => void
   onLoadVoxelDemo: () => void
@@ -662,6 +667,7 @@ export function TopToolbar({
               onLoadResponsiveDemo={onLoadResponsiveDemo}
               onLoadHtmlDemo={onLoadHtmlDemo}
               onLoadPhysics3DDemo={onLoadPhysics3DDemo}
+              onLoadClothDemo={onLoadClothDemo}
               onLoadLanDemo={onLoadLanDemo}
               onLoadBoomDemo={onLoadBoomDemo}
               onLoadVoxelDemo={onLoadVoxelDemo}

@@ -262,6 +262,14 @@ impl Node {
         })
     }
 
+    /// The node's enabled Cloth 2D, if any.
+    pub fn cloth(&self) -> Option<&crate::Cloth2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Cloth2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// The node's enabled Audio Source, if any.
     pub fn audio_source(&self) -> Option<&crate::AudioSource> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

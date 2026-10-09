@@ -438,6 +438,14 @@ export class ScriptHost {
         setVoxels: (node, blocks) => flushed(() => setVoxels(editor, artboardId, node, blocks)),
         setVoxel: (node, x, y, z, block) => flushed(() => setVoxel(editor, artboardId, node, x, y, z, block)),
         setVoxelChunk: (node, cx, cz, blocks) => flushed(() => setVoxelChunk(editor, artboardId, node, cx, cz, blocks)),
+        cloth: {
+          grab: (node, x, y, radius) => flushed(() => editor.cloth_grab(node, x, y, radius)),
+          drag: (node, x, y) => flushed(() => editor.cloth_drag(node, x, y)),
+          release: (node) => flushed(() => editor.cloth_release(node)),
+          tear: (node, x, y, radius) => flushed(() => editor.cloth_tear(node, x, y, radius)),
+          wind: (node, wind) => flushed(() => editor.cloth_wind(node, wind ? Float32Array.from(wind) : undefined)),
+          reset: (node) => flushed(() => editor.cloth_reset(node)),
+        },
         unloadVoxelChunk: (node, cx, cz) => flushed(() => unloadVoxelChunk(editor, artboardId, node, cx, cz)),
         playSound: (name, options) => {
           const id = this.soundId(editor, name)

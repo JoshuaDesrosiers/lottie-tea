@@ -154,6 +154,15 @@ export interface ScriptContext {
   setVoxels(node: OpaqueId, blocks: Uint8Array): void
   /** Block worlds: set one block — see `ref.setVoxel`. */
   setVoxel(node: OpaqueId, x: number, y: number, z: number, block: number): boolean
+  /** Cloth 2D — see `ref.grabCloth` etc. */
+  cloth: {
+    grab(node: OpaqueId, x: number, y: number, radius: number): boolean
+    drag(node: OpaqueId, x: number, y: number): void
+    release(node: OpaqueId): void
+    tear(node: OpaqueId, x: number, y: number, radius: number): number
+    wind(node: OpaqueId, wind: [number, number] | null): void
+    reset(node: OpaqueId): void
+  }
   /** Streamed block worlds: load / drop a chunk — see `ref.setVoxelChunk`. */
   setVoxelChunk(node: OpaqueId, cx: number, cz: number, blocks: Uint8Array): void
   unloadVoxelChunk(node: OpaqueId, cx: number, cz: number): void
@@ -471,6 +480,20 @@ export interface ComponentRef {
   setVoxelChunk(cx: number, cz: number, blocks: Uint8Array | number[]): void
   /** **Streamed block worlds**: drop a loaded chunk (and its meshes). */
   unloadVoxelChunk(cx: number, cz: number): void
+  /** **Cloth 2D**: take hold of the cloth's free point nearest world
+   * `(x, y)` (within `radius`, default 40). `false` if none is there. Then
+   * `dragCloth(x, y)` each frame and `releaseCloth()`. */
+  grabCloth(x: number, y: number, radius?: number): boolean
+  dragCloth(x: number, y: number): void
+  releaseCloth(): void
+  /** **Cloth 2D**: cut the threads around world `(x, y)` (radius default
+   * 12) — drag it along the mouse to slice. Returns how many were cut. */
+  tearCloth(x: number, y: number, radius?: number): number
+  /** **Cloth 2D**: blow with this wind instead of the authored one (`null`
+   * = back to authored). */
+  setClothWind(x: number | null, y?: number): void
+  /** **Cloth 2D**: mend it — back to hanging at rest. */
+  resetCloth(): void
   /** Nodes with an **Audio Source**: play its clip (with its volume / pitch
    * / loop / spatial settings; `options` override volume and pitch), or
    * stop what it's playing. */
@@ -822,6 +845,30 @@ function makeComponentRefFromState(
     setVoxels: {
       enumerable: false,
       value: (blocks: Uint8Array | number[]) => ctx.setVoxels(node.id, blocks instanceof Uint8Array ? blocks : Uint8Array.from(blocks)),
+    },
+    grabCloth: {
+      enumerable: false,
+      value: (x: number, y: number, radius = 40) => ctx.cloth.grab(node.id, x, y, radius),
+    },
+    dragCloth: {
+      enumerable: false,
+      value: (x: number, y: number) => ctx.cloth.drag(node.id, x, y),
+    },
+    releaseCloth: {
+      enumerable: false,
+      value: () => ctx.cloth.release(node.id),
+    },
+    tearCloth: {
+      enumerable: false,
+      value: (x: number, y: number, radius = 12) => ctx.cloth.tear(node.id, x, y, radius),
+    },
+    setClothWind: {
+      enumerable: false,
+      value: (x: number | null, y = 0) => ctx.cloth.wind(node.id, x === null ? null : [x, y]),
+    },
+    resetCloth: {
+      enumerable: false,
+      value: () => ctx.cloth.reset(node.id),
     },
     setVoxelChunk: {
       enumerable: false,

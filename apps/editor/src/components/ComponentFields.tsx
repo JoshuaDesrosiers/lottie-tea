@@ -41,6 +41,9 @@ import type {
   OpaqueId,
   SpriteSkin2DConfig,
   Liquid2DConfig,
+  Cloth2DConfig,
+  ClothPin,
+  ClothPatternKind,
   PhysicsMaterial2DConfig,
   PolygonCollider2DConfig,
   Rigidbody2DConfig,
@@ -51,6 +54,7 @@ import { Dropdown, NumberField } from './InspectorPanel'
 import { PlusIcon, TrashIcon } from './icons'
 import { ColorSwatch } from './ColorPicker'
 import { ImageAssetPicker } from './ImageAssetPicker'
+import { Slider } from './Slider'
 
 /**
  * Unity-style component editors that aren't big enough for their own file
@@ -1088,6 +1092,79 @@ export function ScreenFields({ screen, onChange }: { screen: ScreenSettings; onC
   )
 }
 
+const CLOTH_PINS: [ClothPin, string][] = [['TopEdge', 'Top edge (curtain)'], ['TopCorners', 'Top corners (sag)'], ['LeftEdge', 'Left edge (flag)'], ['None', 'Nothing (falls)']]
+const CLOTH_PATTERNS: [ClothPatternKind, string][] = [['Solid', 'Solid'], ['HorizontalStripes', 'Stripes across'], ['VerticalStripes', 'Stripes down'], ['Checker', 'Checker']]
+
+/** Cloth 2D — soft fabric pinned along an edge, in gravity and gusty wind.
+ * It hangs at rest while designing and comes alive in Playground. */
+export function Cloth2DFields({ config, onChange, images, editor }: UiAssets & { config: Cloth2DConfig; onChange: (value: Cloth2DConfig) => void }) {
+  const update = (patch: Partial<Cloth2DConfig>) => onChange({ ...config, ...patch })
+  const select = <T extends string>(value: T, options: [T, string][], set: (v: T) => void) => (
+    <select value={value} onChange={(e) => set(e.target.value as T)} className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
+      {options.map(([v, label]) => (
+        <option key={v} value={v}>
+          {label}
+        </option>
+      ))}
+    </select>
+  )
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Size" title="The cloth at rest, centred on this node (a flag starts at the node and hangs to the right).">
+        <VecFields value={[config.width, config.height]} min={1} onChange={([width, height]) => update({ width, height })} />
+      </Row>
+      <Row label="Detail" title="Points across and down. More = smoother folds, more to simulate.">
+        <VecFields value={[config.columns, config.rows]} min={2} onChange={([columns, rows]) => update({ columns: clamp(Math.round(columns), 2, 64), rows: clamp(Math.round(rows), 2, 64) })} />
+      </Row>
+      <Row label="Pinned" title="Which points are nailed down — they follow this node as it moves.">
+        {select(config.pin, CLOTH_PINS, (pin) => update({ pin }))}
+      </Row>
+      <Row label="Color" title="The fabric's colour (used when there's no image).">
+        <ColorSwatch value={config.color} onChange={(color) => update({ color })} />
+      </Row>
+      <Row label="Pattern" title="Woven-in stripes or checks in a second colour.">
+        {select(config.pattern, CLOTH_PATTERNS, (pattern) => update({ pattern }))}
+      </Row>
+      {config.pattern !== 'Solid' && (
+        <>
+          <Row label="2nd color">
+            <ColorSwatch value={config.patternColor} onChange={(patternColor) => update({ patternColor })} />
+          </Row>
+          <Row label="Bands" title="How many stripes / squares across the cloth.">
+            <NumberField label="" value={config.patternCount} step={1} onCommit={(v) => update({ patternCount: clamp(Math.round(v), 1, 32) })} />
+          </Row>
+        </>
+      )}
+      {editor ? (
+        <Row label="Image" title="Printed on the cloth instead of the colour — a flag, a banner, a poster.">
+          <ImageAssetPicker editor={editor} images={images} value={config.image} onChange={(image) => update({ image })} />
+        </Row>
+      ) : null}
+      <Row label="Gravity" title="Downward pull (units / s²).">
+        <NumberField label="" value={config.gravity} step={50} onCommit={(v) => update({ gravity: clamp(v, -3000, 3000) })} />
+      </Row>
+      <Row label="Wind" title="Steady wind (units / s²): +x blows right, +y up.">
+        <VecFields value={config.wind} onChange={(wind) => update({ wind })} />
+      </Row>
+      <Row label="Gusts" title="0 = steady wind, 1 = gusty, 2 = wild.">
+        <Slider value={config.turbulence} min={0} max={2} step={0.05} onChange={(turbulence) => update({ turbulence })} />
+      </Row>
+      <Row label="Stiffness" title="Relaxation passes per step: higher = less stretchy, costlier.">
+        <NumberField label="" value={config.stiffness} step={1} onCommit={(v) => update({ stiffness: clamp(Math.round(v), 1, 30) })} />
+      </Row>
+      <Row label="Damping" title="How quickly motion dies down: 0 = floaty silk, 3 = heavy wet canvas.">
+        <NumberField label="" value={config.damping} step={0.1} onCommit={(v) => update({ damping: clamp(v, 0, 10) })} />
+      </Row>
+      <Row label="Tears at" title="Threads snap when stretched past this many times their length (0 = never by stretching; scripts can still cut it). Try 1.8.">
+        <NumberField label="×" value={config.tearStretch} step={0.1} onCommit={(v) => update({ tearStretch: v <= 1 ? 0 : clamp(v, 1.05, 10) })} />
+      </Row>
+      <Row label="Shading" title="How strongly folds and creases are shaded.">
+        <Slider value={config.shading} min={0} max={1} step={0.05} onChange={(shading) => update({ shading })} />
+      </Row>
+    </div>
+  )
+}
+
 export function Liquid2DFields({ config, onChange }: { config: Liquid2DConfig; onChange: (value: Liquid2DConfig) => void }) {
   const update = (patch: Partial<Liquid2DConfig>) => onChange({ ...config, ...patch })
   const count = Math.max(1, Math.floor(config.size[0] / config.particleSpacing)) * Math.max(1, Math.floor(config.size[1] / config.particleSpacing))
@@ -1160,17 +1237,18 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   Rigidbody3D: 'Rigidbody 3D',
   Collider3D: 'Collider 3D',
   Flipbook: 'Flipbook',
+  Cloth2D: 'Cloth 2D',
   UiSlider: 'UI Slider',
   UiScrollbar: 'UI Scrollbar',
   UiScrollView: 'UI Scroll View',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
-  { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D'] },
+  { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D', 'Cloth2D'] },
   { title: 'Physics 3D', kinds: ['Rigidbody3D', 'Collider3D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
   { title: 'Audio', kinds: ['AudioSource'] },

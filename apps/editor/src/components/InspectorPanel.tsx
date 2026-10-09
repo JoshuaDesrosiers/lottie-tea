@@ -73,6 +73,7 @@ import {
   Rigidbody3DFields,
   Collider3DFields,
   FlipbookFields,
+  Cloth2DFields,
   ScreenFields,
 } from './ComponentFields'
 import { defaultComponent } from '../ipc/wasmEditor'
@@ -716,6 +717,10 @@ function BehaviorsFields({
         const isBone = (id: OpaqueId | null) => !!id && nodes.some((n) => n.kind === 'Bone' && idsEqualLocal(n.id, id))
         const roots = nodes.filter((n) => n.kind === 'Bone' && !isBone(n.parent))
         return <SpriteSkin2DFields config={config} rootBones={roots} onChange={(c) => replaceAt(index, { kind: 'SpriteSkin2D', ...c })} onRebind={onBindSkin} />
+      }
+      case 'Cloth2D': {
+        const { kind: _k, ...config } = behavior
+        return <Cloth2DFields config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'Cloth2D', ...c })} />
       }
       case 'Liquid2D': {
         const { kind: _k, ...config } = behavior
