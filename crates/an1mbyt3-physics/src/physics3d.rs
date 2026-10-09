@@ -213,6 +213,13 @@ fn build_shape(artboard: &Artboard, id: NodeId, collider: &Collider3D, scale: Ve
                     let (b, v) = cuboid(Vec3::new(2.0 * (radius + tube), 2.0 * tube, 2.0 * (radius + tube)));
                     (b, collider.offset, v)
                 }
+                // A block world's collision is the game script's job (its
+                // blocks aren't in the document); this box is only its extent.
+                Primitive3D::Voxels { width, height, depth } => {
+                    let size = Vec3::new(width as f32, height as f32, depth as f32);
+                    let (b, v) = cuboid(size);
+                    (b, collider.offset + size * 0.5, v)
+                }
                 Primitive3D::Model { model } => {
                     let (min, max) = model_bounds(model).unwrap_or((Vec3::splat(-0.5), Vec3::splat(0.5)));
                     let (b, v) = cuboid(max - min);

@@ -80,6 +80,7 @@ mod demo_ui;
 mod demo_responsive;
 mod demo_html;
 mod demo_physics3d;
+mod demo_voxel;
 mod view3d;
 mod demo_tactics_3d;
 mod demo_tactics;

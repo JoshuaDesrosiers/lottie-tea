@@ -52,6 +52,9 @@ pub fn primitive_mesh(primitive: &Primitive3D) -> Mesh3DData {
         Primitive3D::Torus { radius, tube, segments, sides } => torus(radius, tube, segments.clamp(3, 256), sides.clamp(3, 256)),
         // Imported models carry their own meshes (`parse_gltf`).
         Primitive3D::Model { .. } => Mesh3DData::default(),
+        // Block worlds are meshed from their runtime blocks
+        // (`voxel::mesh_voxel_region`), not from the primitive alone.
+        Primitive3D::Voxels { .. } => Mesh3DData::default(),
     }
 }
 

@@ -983,6 +983,7 @@ export type Primitive3D =
   | { shape: 'Cylinder'; radius: number; height: number; segments: number }
   | { shape: 'Cone'; radius: number; height: number; segments: number }
   | { shape: 'Torus'; radius: number; tube: number; segments: number; sides: number }
+  | { shape: 'Voxels'; width: number; height: number; depth: number }
   | { shape: 'Model'; model: OpaqueId }
 
 export type Node3DContent =

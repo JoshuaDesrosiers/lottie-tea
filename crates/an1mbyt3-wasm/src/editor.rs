@@ -1992,6 +1992,17 @@ pub struct WasmEditor {
     /// The built-in material textured model meshes draw with (Sample
     /// Texture × Tint), compiled once.
     textured_material_3d: Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>,
+    /// Block worlds' runtime blocks and their meshed regions, by the
+    /// `Primitive3D::Voxels` node (scripts fill them; see `VoxelWorld`).
+    voxel_worlds: HashMap<NodeId, VoxelWorld>,
+    /// The block atlas texture and the material block worlds draw with
+    /// (`an1mbyt3_geometry::voxel`), made on first use.
+    voxel_atlas_gpu: Option<an1mbyt3_renderer::GpuImageTexture>,
+    voxel_material_3d: Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>,
+    /// A script's 3D environment override (`ctx.setEnvironment3`): fog
+    /// colour, fog density and sky ambient. Cleared entering / leaving
+    /// Playground, so it never outlives the game that set it.
+    environment_3d: Option<([f32; 3], f32, [f32; 3])>,
     /// This frame's `delta_seconds` (advances the animation clocks).
     frame_delta: f32,
     /// Live cursor position in raw canvas-pixel coordinates, updated by
@@ -2355,6 +2366,10 @@ impl WasmEditor {
             anim_clocks: HashMap::new(),
             flipbook_clocks: HashMap::new(),
             textured_material_3d: None,
+            voxel_worlds: HashMap::new(),
+            voxel_atlas_gpu: None,
+            voxel_material_3d: None,
+            environment_3d: None,
             frame_delta: 0.0,
             pointer_position,
             pointer_listener,
@@ -2515,6 +2530,7 @@ impl WasmEditor {
         //   snapshot was taken aren't rolled back by Playground's restore.
         if entering_playground || leaving_playground {
             self.flipbook_clocks.clear();
+            self.environment_3d = None;
         }
         if entering_playground {
             self.runtime_spawned.clear();
@@ -6912,6 +6928,10 @@ impl WasmEditor {
                 self.model_draws(node_id, model_id, model, &mesh, material, delta, &mut draws);
                 continue;
             }
+            if let Primitive3D::Voxels { width, height, depth } = mesh.primitive {
+                self.voxel_draws(node_id, [width, height, depth], model, &mesh, &mut draws);
+                continue;
+            }
             draws.push(MeshDraw3D { shininess: mesh.shininess, unlit: mesh.unlit, material, ..MeshDraw3D::new(self.mesh3d(&mesh.primitive), model, mesh.color) });
         }
         let aspect = (self.canvas_width.max(1) as f32) / (self.canvas_height.max(1) as f32);
@@ -6996,9 +7016,9 @@ impl WasmEditor {
             clear_color: clear,
             sun_direction,
             sun_color,
-            ambient: Vec3::new(0.3, 0.33, 0.4),
-            fog_color: clear.map_or(Vec3::splat(0.5), |c| Vec3::new(c[0], c[1], c[2])),
-            fog_density: 0.0,
+            ambient: self.environment_3d.map_or(Vec3::new(0.3, 0.33, 0.4), |(_, _, a)| Vec3::from(a)),
+            fog_color: self.environment_3d.map_or_else(|| clear.map_or(Vec3::splat(0.5), |c| Vec3::new(c[0], c[1], c[2])), |(c, _, _)| Vec3::from(c)),
+            fog_density: self.environment_3d.map_or(0.0, |(_, d, _)| d),
             point_lights: points,
             draws,
         }));
@@ -7424,6 +7444,88 @@ impl WasmEditor {
             n.transform.scale = glam::Vec3::new(values[6], values[7], values[8]);
         }
         Ok(())
+    }
+
+    /// Script API (`ctx.setEnvironment3`): the 3D pass's fog (colour +
+    /// exponential-squared density, 0 = none) and sky ambient light, until
+    /// Playground stops; a negative density clears the override.
+    pub fn set_environment_3d(&mut self, fog_r: f32, fog_g: f32, fog_b: f32, fog_density: f32, ambient_r: f32, ambient_g: f32, ambient_b: f32) {
+        self.environment_3d = (fog_density >= 0.0).then_some(([fog_r, fog_g, fog_b], fog_density, [ambient_r, ambient_g, ambient_b]));
+    }
+
+    /// The `Primitive3D::Voxels` size of `node` (a block world), if it is one.
+    fn voxel_size(&self, artboard_id: ArtboardId, node_id: NodeId) -> Option<[u32; 3]> {
+        match &self.document.artboard(artboard_id)?.node(node_id)?.kind {
+            NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Mesh(an1mbyt3_core::Mesh3D { primitive: an1mbyt3_core::Primitive3D::Voxels { width, height, depth }, .. }), .. }) => Some([*width, *height, *depth]),
+            _ => None,
+        }
+    }
+
+    /// Script API (`ref.setVoxels(bytes)`): replaces a block world's blocks
+    /// wholesale — one byte per block, x fastest, then z, then y (index =
+    /// `x + width * (z + depth * y)`), block ids from
+    /// `an1mbyt3_geometry::voxel::BLOCKS`. Short input leaves the rest air.
+    /// Runtime state, not a document edit (no undo, not saved).
+    pub fn voxels_set(&mut self, artboard: JsValue, node: JsValue, blocks: Vec<u8>) -> Result<(), JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let size = self.voxel_size(artboard_id, node_id).ok_or_else(|| JsValue::from_str("setVoxels: not a block world (Voxels mesh)"))?;
+        let mut world = VoxelWorld::new(size);
+        let n = blocks.len().min(world.grid.blocks.len());
+        world.grid.blocks[..n].copy_from_slice(&blocks[..n]);
+        self.voxel_worlds.insert(node_id, world);
+        Ok(())
+    }
+
+    /// Script API (`ref.setVoxel(x, y, z, block)`): sets one block (0 =
+    /// air) and re-meshes just the regions it touches. `false` outside the
+    /// world.
+    pub fn voxel_set(&mut self, artboard: JsValue, node: JsValue, x: i32, y: i32, z: i32, block: u8) -> Result<bool, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let size = self.voxel_size(artboard_id, node_id).ok_or_else(|| JsValue::from_str("setVoxel: not a block world (Voxels mesh)"))?;
+        let world = self.voxel_worlds.entry(node_id).or_insert_with(|| VoxelWorld::new(size));
+        Ok(world.set(x, y, z, block))
+    }
+
+    /// One draw per non-empty meshed region of a block world, re-meshing
+    /// the regions edited since last frame.
+    fn voxel_draws(&mut self, node_id: NodeId, size: [u32; 3], world_matrix: glam::Mat4, mesh: &an1mbyt3_core::Mesh3D, draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>) {
+        if self.voxel_material_3d.is_none() {
+            // (Validated by a renderer test, so this can't fail at runtime.)
+            let Ok(material) = self.renderer.compile_material_3d(an1mbyt3_geometry::VOXEL_MATERIAL_WGSL) else { return };
+            self.voxel_material_3d = Some(std::rc::Rc::new(material));
+        }
+        if self.voxel_atlas_gpu.is_none() {
+            let (w, h, rgba) = an1mbyt3_geometry::voxel_atlas();
+            self.voxel_atlas_gpu = Some(self.renderer.upload_texture_wrapped(w, h, &rgba, an1mbyt3_renderer::ImageFilterMode::Nearest, false));
+        }
+        let world = self.voxel_worlds.entry(node_id).or_insert_with(|| VoxelWorld::new(size));
+        // The node was resized: start over with an empty world that size.
+        if [world.grid.width, world.grid.height, world.grid.depth] != size {
+            *world = VoxelWorld::new(size);
+        }
+        for region in std::mem::take(&mut world.dirty) {
+            let min = [region[0] * VOXEL_REGION, region[1] * VOXEL_REGION, region[2] * VOXEL_REGION];
+            let max = [min[0] + VOXEL_REGION, min[1] + VOXEL_REGION, min[2] + VOXEL_REGION];
+            let data = an1mbyt3_geometry::mesh_voxel_region(&world.grid, min, max);
+            if data.indices.is_empty() {
+                world.regions.remove(&region);
+            } else {
+                world.regions.insert(region, std::rc::Rc::new(self.renderer.upload_mesh_3d(&data)));
+            }
+        }
+        let material = self.voxel_material_3d.clone();
+        let texture = self.voxel_atlas_gpu.clone();
+        for gpu in world.regions.values() {
+            draws.push(an1mbyt3_renderer::MeshDraw3D {
+                shininess: mesh.shininess,
+                unlit: mesh.unlit,
+                material: material.clone(),
+                texture: texture.clone(),
+                ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(gpu), world_matrix, mesh.color)
+            });
+        }
     }
 
     /// Recompiles every shader-graph material whose generated WGSL changed
@@ -8823,6 +8925,15 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// The + menu's Demos → "Voxel Craft" — a Minetest-style block sandbox:
+    /// a generated block world (`Primitive3D::Voxels`), first-person
+    /// dig / build / fly, hotbar + creative inventory in HTML.
+    pub async fn load_voxel_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_voxel::build_demo_voxel(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     /// The + menu's Demos → "Physics 3D Lab" — Rigidbody 3D / Collider 3D:
     /// a crate pyramid, a ramp, a trigger zone and a click-to-fire cannon.
     pub async fn load_physics3d_demo(&mut self) -> Result<JsValue, JsValue> {
@@ -9763,6 +9874,61 @@ fn to_js_value<T: serde::Serialize>(value: &T) -> Result<JsValue, JsValue> {
 /// text for every mesh, every frame, showed up in big-scene profiles.)
 type Mesh3DKey = (u8, [u32; 4]);
 
+/// Block worlds are meshed in cubes of this many blocks a side, so one
+/// edit re-meshes a few thousand blocks, not the whole world.
+const VOXEL_REGION: u32 = 16;
+
+/// A block world's runtime state (`WasmEditor::voxel_worlds`): its blocks,
+/// the uploaded mesh of every non-empty region, and which regions need
+/// re-meshing before the next draw.
+struct VoxelWorld {
+    grid: an1mbyt3_geometry::VoxelGrid,
+    regions: HashMap<[u32; 3], std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>>,
+    dirty: std::collections::HashSet<[u32; 3]>,
+}
+
+impl VoxelWorld {
+    /// An empty (all air) world; every region starts dirty so a fresh one
+    /// is fully meshed on its first draw.
+    fn new(size: [u32; 3]) -> Self {
+        let mut world = Self { grid: an1mbyt3_geometry::VoxelGrid::new(size[0], size[1], size[2]), regions: HashMap::new(), dirty: Default::default() };
+        let count = |n: u32| n.div_ceil(VOXEL_REGION);
+        for y in 0..count(size[1]) {
+            for z in 0..count(size[2]) {
+                for x in 0..count(size[0]) {
+                    world.dirty.insert([x, y, z]);
+                }
+            }
+        }
+        world
+    }
+
+    /// Sets a block and marks every region whose mesh it can change: its
+    /// own, plus the neighbours it borders (their faces and AO look one
+    /// block across the seam). `false` outside the world.
+    fn set(&mut self, x: i32, y: i32, z: i32, block: u8) -> bool {
+        let before = self.grid.get(x, y, z);
+        if !self.grid.set(x, y, z, block) {
+            return false;
+        }
+        if before == block {
+            return true;
+        }
+        let r = VOXEL_REGION as i32;
+        for dy in -1..=1 {
+            for dz in -1..=1 {
+                for dx in -1..=1 {
+                    let (px, py, pz) = (x + dx, y + dy, z + dz);
+                    if px >= 0 && py >= 0 && pz >= 0 {
+                        self.dirty.insert([(px / r) as u32, (py / r) as u32, (pz / r) as u32]);
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
 /// The scene view's floor grid (not a primitive).
 const GRID_MESH_KEY: Mesh3DKey = (u8::MAX, [0; 4]);
 
@@ -9778,5 +9944,7 @@ fn mesh3d_key(primitive: &an1mbyt3_core::Primitive3D) -> Mesh3DKey {
         // Models draw through `model_draws`; their primitive mesh doesn't
         // depend on which model it is.
         P::Model { .. } => (6, [0; 4]),
+        // Block worlds draw through `voxel_draws` (meshed per region).
+        P::Voxels { width, height, depth } => (7, [width, height, depth, 0]),
     }
 }

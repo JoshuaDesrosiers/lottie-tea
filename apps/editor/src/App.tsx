@@ -159,6 +159,7 @@ import {
   loadResponsiveDemo,
   loadHtmlDemo,
   loadPhysics3DDemo,
+  loadVoxelDemo,
   addNode3D,
   setNode3D,
   importModel,
@@ -252,7 +253,7 @@ import { useDockLayout, groupMemberKeys, type PanelKey } from './hooks/useDockLa
 import { isBoolean, isNumber, usePersistedState } from './hooks/persisted'
 import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_HEIGHT, TIMELINE_HEIGHT, TOP_CLEARANCE } from './layoutConstants'
 import { collectSnapTargets, snapTranslation } from './snapping'
-import { mouseToWorld, normalizeKeyName, PointerGestures, ScriptHost } from './game/scriptHost'
+import { mouseToWorld, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from './game/scriptHost'
 import { BoneGizmos } from './components/BoneGizmos'
 import { PerfMeter } from './game/perf'
 import { buildGameHtml } from './game/exportGame'
@@ -690,13 +691,16 @@ function App() {
       if (modeRef.current !== 'Playground') return
       gesturesRef.current.down(event)
       heldKeysRef.current.add('mouse')
+      syncMouseButtons(heldKeysRef.current, event)
       if (pointerLockArmedRef.current && document.pointerLockElement !== canvas) {
         void canvas.requestPointerLock()
       }
     }
     const onUp = (event: PointerEvent) => {
       if (heldKeysRef.current.has('mouse')) gesturesRef.current.up(event)
-      heldKeysRef.current.delete('mouse')
+      syncMouseButtons(heldKeysRef.current, event)
+      // "mouse" = any button: only let go once they're all up.
+      if (!event.buttons) heldKeysRef.current.delete('mouse')
     }
     canvas.addEventListener('pointerdown', onDown)
     window.addEventListener('pointerup', onUp)
@@ -863,6 +867,9 @@ function App() {
     const handleMouseMove = (event: PointerEvent) => {
       if (event.type === 'pointermove') mouseDelta = { x: mouseDelta.x + event.movementX, y: mouseDelta.y + event.movementY }
       mouseClient = { x: event.clientX, y: event.clientY }
+      // Chorded presses (a second button while one is held) only show up
+      // as a change in `buttons` on a move.
+      if (event.type === 'pointermove' && heldKeysRef.current.has('mouse')) syncMouseButtons(heldKeysRef.current, event)
     }
     window.addEventListener('pointermove', handleMouseMove)
     window.addEventListener('pointerdown', handleMouseMove)
@@ -2321,6 +2328,20 @@ function App() {
     if (!editor) return
     demoLoadingRef.current = true
     void load3DDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
+  const handleLoadVoxelDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadVoxelDemo(editor)
       .then((result) => {
         switchToScene(result.newArtboard, result.document)
         setMode('Playground')
@@ -4160,6 +4181,7 @@ function App() {
             onLoadResponsiveDemo={handleLoadResponsiveDemo}
             onLoadHtmlDemo={handleLoadHtmlDemo}
             onLoadPhysics3DDemo={handleLoadPhysics3DDemo}
+            onLoadVoxelDemo={handleLoadVoxelDemo}
             onLoadTacticsDemo={handleLoadTacticsDemo}
             onLoadPhysicsDemo={handleLoadPhysicsDemo}
         onAddText={handleAddText}

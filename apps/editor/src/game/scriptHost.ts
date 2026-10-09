@@ -54,6 +54,8 @@ import {
   previewBreakJoint,
   previewNode3DTransform,
   previewNode3DAnimation,
+  setVoxels,
+  setVoxel,
   setStateMachineBoolInput,
   setStateMachineEnumInput,
   setStateMachineNumberInput,
@@ -73,6 +75,18 @@ const NAMED_KEYS: Record<string, string> = {
 
 export function normalizeKeyName(key: string): string {
   return NAMED_KEYS[key] ?? key.toLowerCase()
+}
+
+/** Which mouse buttons are down, as held keys scripts see beside "mouse"
+ * (any button): "mouseleft", "mouseright", "mousemiddle". Read from the
+ * event's `buttons` mask, so pressing / releasing a second button while
+ * one is already held (which fires no pointerdown / pointerup) is caught
+ * by the next pointer event of any kind. */
+export function syncMouseButtons(keys: Set<string>, event: PointerEvent): void {
+  for (const [bit, name] of [[1, 'mouseleft'], [2, 'mouseright'], [4, 'mousemiddle']] as const) {
+    if (event.buttons & bit) keys.add(name)
+    else keys.delete(name)
+  }
 }
 
 /** A finished swipe: direction plus travel in CSS pixels (screen axes, +y down). */
@@ -404,6 +418,8 @@ export class ScriptHost {
         swipe: frame.gestures.swipe,
         mouseDX: frame.mouseDelta.x,
         mouseDY: frame.mouseDelta.y,
+        wheelX: frame.wheel?.x ?? 0,
+        wheelY: frame.wheel?.y ?? 0,
         pointerLocked: frame.pointerLocked,
         requestPointerLock: frame.requestPointerLock,
         exitPointerLock: frame.exitPointerLock,
@@ -413,6 +429,8 @@ export class ScriptHost {
         breakJoint: (node) => flushed(() => previewBreakJoint(editor, artboardId, node)),
         setTransform3D: (node, values) => flushed(() => previewNode3DTransform(editor, artboardId, node, values)),
         setAnimation3D: (node, clip, loop, overlay) => flushed(() => previewNode3DAnimation(editor, artboardId, node, clip, loop, overlay)),
+        setVoxels: (node, blocks) => flushed(() => setVoxels(editor, artboardId, node, blocks)),
+        setVoxel: (node, x, y, z, block) => flushed(() => setVoxel(editor, artboardId, node, x, y, z, block)),
         playSound: (name, options) => {
           const id = this.soundId(editor, name)
           if (!id) {
@@ -422,6 +440,12 @@ export class ScriptHost {
           return audio.play(editor, id, options)
         },
         playTone: (options) => audio.tone(options),
+        setEnvironment3: (options) => {
+          if (!options) return flushed(() => editor.set_environment_3d(0, 0, 0, -1, 0, 0, 0))
+          const fog = options.fog ?? [0.5, 0.5, 0.5]
+          const ambient = options.ambient ?? [0.3, 0.33, 0.4]
+          flushed(() => editor.set_environment_3d(fog[0], fog[1], fog[2], Math.max(0, options.fogDensity ?? 0), ambient[0], ambient[1], ambient[2]))
+        },
         stopAllSounds: () => audio.stopAll(),
         setMasterVolume: (volume) => audio.setMasterVolume(volume),
         playAudioSource: (node, options) => this.playSource(editor, nodes, node, options),

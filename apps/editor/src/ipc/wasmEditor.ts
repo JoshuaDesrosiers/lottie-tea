@@ -186,6 +186,11 @@ export async function loadLiquidDemo(editor: WasmEditor): Promise<AddArtboardRes
 }
 
 /** Demos → "UI & Sound Lab": UI anchors, a button stack, synthesized sounds. */
+/** Demos → "Voxel Craft" (a Minetest-style block sandbox). */
+export async function loadVoxelDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_voxel_demo()) as AddArtboardResult
+}
+
 /** Demos → "Physics 3D Lab". */
 export async function loadPhysics3DDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_physics3d_demo()) as AddArtboardResult
@@ -1090,6 +1095,16 @@ export function modelClips(editor: WasmEditor, model: OpaqueId): string[] {
 /** Untracked script write of a model mesh's animation (`ref.playAnimation3`). */
 export function previewNode3DAnimation(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, clip: string, loop: boolean, overlay: string): void {
   editor.preview_node3d_animation(artboard, node, clip, loop, overlay)
+}
+
+/** Script API: replace a block world's blocks (`ref.setVoxels`). */
+export function setVoxels(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, blocks: Uint8Array): void {
+  editor.voxels_set(artboard, node, blocks)
+}
+
+/** Script API: set one block of a block world (`ref.setVoxel`). */
+export function setVoxel(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, x: number, y: number, z: number, block: number): boolean {
+  return editor.voxel_set(artboard, node, x, y, z, block)
 }
 
 /** Untracked script write of a Node3D's transform (`ref.position3 = ...`). */

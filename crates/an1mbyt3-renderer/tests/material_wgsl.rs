@@ -42,3 +42,11 @@ fn every_node_kind_validates_with_every_input_type() {
         }
     }
 }
+
+/// The block-world material (`an1mbyt3_geometry::VOXEL_MATERIAL_WGSL`) links
+/// against the 3D pass: it reads the atlas, `uniforms.color` and the
+/// AO-carrying normal, and cuts out transparent texels with `discard`.
+#[test]
+fn voxel_material_validates_in_3d() {
+    Renderer::validate_material_3d(an1mbyt3_geometry::VOXEL_MATERIAL_WGSL).unwrap_or_else(|e| panic!("voxel material: {e}"));
+}

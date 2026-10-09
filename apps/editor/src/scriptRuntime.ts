@@ -116,6 +116,10 @@ export interface ScriptContext {
    * changing. */
   mouseDX: number
   mouseDY: number
+  /** Mouse-wheel movement since the previous frame (pixels; +Y = scrolled
+   * down / towards you). */
+  wheelX: number
+  wheelY: number
   /** True for the one frame after a tap or click: pressed and released
    * quickly without moving (works the same for mouse and touch). */
   tap: boolean
@@ -145,6 +149,10 @@ export interface ScriptContext {
   setTransform3D(node: OpaqueId, values: number[]): void
   /** Untracked model-mesh animation write — see `ref.playAnimation3`. */
   setAnimation3D(node: OpaqueId, clip: string, loop: boolean, overlay: string): void
+  /** Block worlds: replace every block — see `ref.setVoxels`. */
+  setVoxels(node: OpaqueId, blocks: Uint8Array): void
+  /** Block worlds: set one block — see `ref.setVoxel`. */
+  setVoxel(node: OpaqueId, x: number, y: number, z: number, block: number): boolean
   /** **Sound.** Plays an imported sound by name (`'jump'` or `'jump.wav'`):
    * `{ volume, pitch, loop, pan }`. Returns a handle (`stop()`,
    * `setVolume(v)`, `setPitch(p)`, `playing`) or `null` if there's no
@@ -155,6 +163,11 @@ export interface ScriptContext {
    * volume, attack, release, pan }` — `ctx.playTone({ freq: 880, to: 220,
    * duration: 0.2 })` is a laser zap. */
   playTone(options?: ToneOptions): SoundHandle | null
+  /** **3D environment** until Playground stops: distance fog (`fog` colour
+   * RGB 0..1, `fogDensity` ≈ 1 / the distance where things are mostly
+   * fogged; 0 = none) and the sky `ambient` light. `null` restores the
+   * defaults. Usually the fog matches the camera's clear colour. */
+  setEnvironment3(options: { fog?: [number, number, number]; fogDensity?: number; ambient?: [number, number, number] } | null): void
   /** Stops every sound playing. */
   stopAllSounds(): void
   /** The game's overall volume (0..1). */
@@ -430,6 +443,15 @@ export interface ComponentRef {
    * (`'holding-right-shoot'` while walking). Re-sending the same clips
    * doesn't restart them. */
   playAnimation3(name: string, options?: { loop?: boolean; overlay?: string }): void
+  /** **Block worlds** (a Voxels mesh): replace every block at once — one
+   * byte per block, x fastest, then z, then y (`x + width * (z + depth *
+   * y)`), 0 = air (block ids: grass 1, dirt 2, stone 3, … see the Voxels
+   * docs). Block `(x, y, z)` fills the unit cube from that corner in the
+   * node's local space. Runtime only: the world isn't saved in the scene. */
+  setVoxels(blocks: Uint8Array | number[]): void
+  /** **Block worlds**: set one block (0 = air); only the touched part of
+   * the world is re-meshed. `false` outside the world. */
+  setVoxel(x: number, y: number, z: number, block: number): boolean
   /** Nodes with an **Audio Source**: play its clip (with its volume / pitch
    * / loop / spatial settings; `options` override volume and pitch), or
    * stop what it's playing. */
@@ -777,6 +799,14 @@ function makeComponentRefFromState(
     stopAudio: {
       enumerable: false,
       value: () => ctx.stopAudioSource(node.id),
+    },
+    setVoxels: {
+      enumerable: false,
+      value: (blocks: Uint8Array | number[]) => ctx.setVoxels(node.id, blocks instanceof Uint8Array ? blocks : Uint8Array.from(blocks)),
+    },
+    setVoxel: {
+      enumerable: false,
+      value: (x: number, y: number, z: number, block: number) => ctx.setVoxel(node.id, Math.floor(x), Math.floor(y), Math.floor(z), block | 0),
     },
     playAnimation3: {
       enumerable: false,

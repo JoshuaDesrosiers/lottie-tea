@@ -77,6 +77,18 @@ pub enum Primitive3D {
     /// An imported glTF / GLB model (see [`crate::ModelAsset`]), drawn with
     /// its own meshes, textures and (optionally) one of its animations.
     Model { model: crate::ModelId },
+    /// A block world (Minecraft / Minetest style): `width × height × depth`
+    /// unit cubes, each one of the built-in block types
+    /// (`an1mbyt3_geometry::voxel::BLOCKS`). Unlike the other primitives
+    /// it is **not** centred: block `(x, y, z)` fills `[x, x+1] × [y, y+1] ×
+    /// [z, z+1]` in local space, so the node's position is the world's
+    /// corner.
+    ///
+    /// Only the size lives in the document. The blocks themselves are
+    /// runtime state a script fills in (`ref.setVoxels(bytes)`,
+    /// `ref.setVoxel(x, y, z, block)`) — a generated world is far too big
+    /// to save as nodes, and games regenerate it from a seed anyway.
+    Voxels { width: u32, height: u32, depth: u32 },
 }
 
 impl Primitive3D {
@@ -283,6 +295,7 @@ enum Primitive3DTagged {
     Cone { radius: f32, height: f32, segments: u32 },
     Torus { radius: f32, tube: f32, segments: u32, sides: u32 },
     Model { model: crate::ModelId },
+    Voxels { width: u32, height: u32, depth: u32 },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -295,6 +308,7 @@ enum Primitive3DPlain {
     Cone { radius: f32, height: f32, segments: u32 },
     Torus { radius: f32, tube: f32, segments: u32, sides: u32 },
     Model { model: crate::ModelId },
+    Voxels { width: u32, height: u32, depth: u32 },
 }
 
 binary_safe_tagged!(Primitive3D, Primitive3DTagged, Primitive3DPlain);

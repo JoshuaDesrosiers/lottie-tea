@@ -11,7 +11,7 @@ import { Dropdown, NumberField } from './InspectorPanel'
  * whole `Node3D` back (`set_node3d`, one undo step).
  */
 
-const PRIMITIVES: Primitive3D['shape'][] = ['Cube', 'Sphere', 'Plane', 'Cylinder', 'Cone', 'Torus']
+const PRIMITIVES: Primitive3D['shape'][] = ['Cube', 'Sphere', 'Plane', 'Cylinder', 'Cone', 'Torus', 'Voxels']
 
 /** A fresh primitive of `shape` with its default parameters (`Model` uses
  * the first imported model). */
@@ -31,6 +31,8 @@ function defaultPrimitive(shape: Primitive3D['shape'], firstModel: OpaqueId | nu
       return { shape, radius: 0.5, height: 1, segments: 32 }
     case 'Torus':
       return { shape, radius: 0.5, tube: 0.18, segments: 40, sides: 16 }
+    case 'Voxels':
+      return { shape, width: 32, height: 32, depth: 32 }
   }
 }
 
@@ -245,6 +247,16 @@ function PrimitiveParams({ primitive, onChange }: { primitive: Primitive3D; onCh
       )
     case 'Model':
       return null
+    case 'Voxels':
+      // A block world's size in blocks; its blocks come from a script
+      // (`ref.setVoxels` / `ref.setVoxel`).
+      return (
+        <Row label="Blocks (W / H / D)">
+          {num('W', primitive.width, 1, (width) => onChange({ ...primitive, width: Math.max(1, Math.round(width)) }))}
+          {num('H', primitive.height, 1, (height) => onChange({ ...primitive, height: Math.max(1, Math.round(height)) }))}
+          {num('D', primitive.depth, 1, (depth) => onChange({ ...primitive, depth: Math.max(1, Math.round(depth)) }))}
+        </Row>
+      )
     case 'Torus':
       return (
         <Row label="Radius / Tube">

@@ -25,7 +25,7 @@ import {
   setWasmBytes,
 } from '../ipc/wasmEditor'
 import type { ArtboardSummary, DocumentSummary, OpaqueId } from '../ipc/document'
-import { normalizeKeyName, PointerGestures, ScriptHost } from '../game/scriptHost'
+import { normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from '../game/scriptHost'
 import { PerfMeter } from '../game/perf'
 import { responsiveView } from '../game/screen'
 import { htmlOverlay } from '../game/htmlOverlay'
@@ -162,18 +162,25 @@ async function boot() {
   window.addEventListener('pointermove', (e) => {
     mouseDelta = { x: mouseDelta.x + e.movementX, y: mouseDelta.y + e.movementY }
     mouseClient = { x: e.clientX, y: e.clientY }
+    // Chorded presses only show up as a change in `buttons` on a move.
+    if (keys.has('mouse')) syncMouseButtons(keys, e)
   })
   canvas.addEventListener('pointerdown', (e) => {
     mouseClient = { x: e.clientX, y: e.clientY }
     gestures.down(e)
     keys.add('mouse')
+    syncMouseButtons(keys, e)
     if (pointerLockArmed && document.pointerLockElement !== canvas) void canvas.requestPointerLock()
   })
   window.addEventListener('pointerup', (e) => {
     if (keys.has('mouse')) gestures.up(e)
-    keys.delete('mouse')
+    syncMouseButtons(keys, e)
+    // "mouse" = any button: only let go once they're all up.
+    if (!e.buttons) keys.delete('mouse')
   })
-  window.addEventListener('pointercancel', () => keys.delete('mouse'))
+  window.addEventListener('pointercancel', () => {
+    for (const k of ['mouse', 'mouseleft', 'mouseright', 'mousemiddle']) keys.delete(k)
+  })
   canvas.addEventListener('contextmenu', (e) => e.preventDefault())
   // Wheel since the last frame (UI Scroll Views).
   let wheel = { x: 0, y: 0 }
