@@ -24,7 +24,9 @@
 //! life (`color_mid` in between, for a hot-core-then-cool-off look). In
 //! `Additive` mode particles add light (black is invisible); in `Alpha`
 //! mode they hide what's behind them (smoke, dust, dark matter). `stretch`
-//! smears each particle along its motion — streaks and ribbons.
+//! smears each particle along its motion into a streak; `trail_segments`
+//! turns it into a true ribbon that follows its curved path (tapering
+//! tendrils), and `hardness` makes the edges crisp (ink) instead of soft.
 //!
 //! The simulation itself lives in the editor / player (`an1mbyt3-wasm`'s
 //! `particles3d`); this is only the authored, saved description. Like
@@ -224,6 +226,25 @@ pub struct ParticleSystem3D {
     /// Extra behaviours (Converge, Attract, Repel, Drag), each with its own
     /// strength curve over particle life.
     pub behaviors: Vec<ParticleBehavior3D>,
+    /// 0 = soft, glowing blobs; 1 = crisp, solid shapes (ink, droplets).
+    pub hardness: f32,
+    /// Ribbon trails: each particle drags a tapering band through the last
+    /// `trail_time` seconds of its path, in this many segments (0 = no
+    /// trail, a round sprite). `size` is then the ribbon's width at its head.
+    pub trail_segments: u32,
+    pub trail_time: f32,
+    /// **Fluid**: draw all of this emitter's particles (and ribbons) as one
+    /// liquid surface — they merge where they touch (screen-space
+    /// metaballs). `color_start` is the liquid's colour; each particle's
+    /// colour alpha over life is how much liquid it adds.
+    pub fluid: bool,
+    /// The liquid's rim colour (alpha = strength) where its surface turns away.
+    pub fluid_edge: [f32; 4],
+    /// How much overlapping it takes to count as liquid: lower = fatter,
+    /// more merged; higher = thinner, more separate drops.
+    pub fluid_threshold: f32,
+    /// Wet highlight strength (0 = matte).
+    pub fluid_gloss: f32,
 }
 
 impl Default for ParticleSystem3D {
@@ -258,6 +279,13 @@ impl Default for ParticleSystem3D {
             local_space: true,
             seed: 7,
             behaviors: Vec::new(),
+            hardness: 0.0,
+            trail_segments: 0,
+            trail_time: 0.3,
+            fluid: false,
+            fluid_edge: [0.9, 0.2, 0.8, 0.8],
+            fluid_threshold: 0.5,
+            fluid_gloss: 0.6,
         }
     }
 }

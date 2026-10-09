@@ -7344,8 +7344,10 @@ impl WasmEditor {
         };
         let frustum = frustum_planes(projection * view);
 
-        // 3D particles: simulate, then camera-facing quads.
+        // 3D particles: simulate, then camera-facing quads (fluid emitters
+        // become their own liquid layer).
         let mut particles = Vec::new();
+        let mut fluids = Vec::new();
         {
             self.particles3d.sync_playing(self.playground_active);
             let live: std::collections::HashSet<NodeId> = emitters.iter().map(|(id, _, _)| *id).collect();
@@ -7354,7 +7356,16 @@ impl WasmEditor {
             let (right, up) = (camera_world.x_axis.truncate().normalize_or(Vec3::X), camera_world.y_axis.truncate().normalize_or(Vec3::Y));
             for (id, world, cfg) in &emitters {
                 self.particles3d.step(*id, cfg, *world, delta);
-                self.particles3d.quads(*id, cfg, *world, eye, right, up, &mut particles);
+                if cfg.fluid {
+                    // Density = each particle's alpha over life.
+                    let splat = an1mbyt3_core::ParticleSystem3D { blend: an1mbyt3_core::ParticleBlend3D::Alpha, intensity: 1.0, ..cfg.clone() };
+                    let mut quads = Vec::new();
+                    self.particles3d.quads(*id, &splat, *world, eye, right, up, &mut quads);
+                    let c = cfg.color_start;
+                    fluids.push(an1mbyt3_renderer::FluidLayer3D { quads, body: [c[0], c[1], c[2], 1.0], edge: cfg.fluid_edge, threshold: cfg.fluid_threshold.max(0.01), gloss: cfg.fluid_gloss.max(0.0) });
+                } else {
+                    self.particles3d.quads(*id, cfg, *world, eye, right, up, &mut particles);
+                }
             }
         }
         for (node_id, model, mesh) in meshes {
@@ -7449,6 +7460,7 @@ impl WasmEditor {
             point_lights: points,
             draws,
             particles,
+            fluids,
         }));
     }
 

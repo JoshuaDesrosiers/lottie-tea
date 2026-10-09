@@ -185,6 +185,11 @@ pub enum ShaderNodeKind {
     /// anything that should "look at" the viewer. On a flat sprite it fakes
     /// a sphere (centre 0, edge 1).
     ViewFresnel,
+    /// Where the surface faces, as seen from the camera, as a UV: (0.5,
+    /// 0.5) on the part pointing at you, the square's edge at the
+    /// silhouette. On a sphere it's a disc that always faces the viewer —
+    /// irises, pupils, targets that stare back. On a sprite: its UV.
+    FacingUv,
 }
 
 impl ShaderNodeKind {
@@ -236,6 +241,7 @@ impl ShaderNodeKind {
         Self::Grayscale,
         Self::Fresnel2D,
         Self::ViewFresnel,
+        Self::FacingUv,
         Self::Brick,
     ];
 
@@ -244,7 +250,7 @@ impl ShaderNodeKind {
         use ShaderNodeKind::*;
         match self {
             Output => "Output",
-            Uv | LocalPosition | Time | Tint | SampleTexture | FloatConstant | Vec2Constant | ColorConstant => "Input",
+            Uv | LocalPosition | Time | Tint | SampleTexture | FloatConstant | Vec2Constant | ColorConstant | FacingUv => "Input",
             Add | Subtract | Multiply | Divide | Min | Max | Power | Mix | Step | Smoothstep | OneMinus | Negate | Abs | Fract | Floor | Saturate | Sin | Cos | Remap
             | Posterize => "Math",
             Length | Distance | Dot | Split | Combine | MakeVec2 => "Vector",
@@ -259,7 +265,7 @@ impl ShaderNodeKind {
         const ZERO: [f32; 4] = [0.0; 4];
         match self {
             Output => const { &[port("Color", V4, ONE)] },
-            Uv | LocalPosition | Time | Tint | FloatConstant | Vec2Constant | ColorConstant => &[],
+            Uv | LocalPosition | Time | Tint | FloatConstant | Vec2Constant | ColorConstant | FacingUv => &[],
             SampleTexture => const { &[uv_port("UV")] },
             Add | Subtract => const { &[dynamic("A", 0.0), dynamic("B", 0.0)] },
             Multiply | Divide | Power => const { &[dynamic("A", 1.0), dynamic("B", 1.0)] },
@@ -302,7 +308,7 @@ impl ShaderNodeKind {
         use ShaderNodeKind::*;
         match self {
             Output => &[],
-            Uv | LocalPosition | Vec2Constant | MakeVec2 | TilingOffset | Panner | RotateUv | Twirl => const { &[out("UV", V2)] },
+            Uv | LocalPosition | Vec2Constant | MakeVec2 | TilingOffset | Panner | RotateUv | Twirl | FacingUv => const { &[out("UV", V2)] },
             Time => const { &[out("Time", F)] },
             Tint | ColorConstant => const { &[out("Color", V4)] },
             SampleTexture => const { &[out("RGBA", V4), out("A", F)] },
@@ -633,6 +639,7 @@ pub fn compile_wgsl(graph: &ShaderGraphDef) -> Result<String, ShaderGraphError> 
             // Each pass's glue defines `material_fresnel` (3D: real normal and
             // camera; 2D: a radial stand-in).
             ViewFresnel => vec![format!("material_fresnel(in, {})", arg(0))],
+            FacingUv => vec!["material_facing_uv(in)".to_string()],
             Brick => {
                 // Every other row shifts half a brick; each brick gets its own
                 // brightness from a hash of its cell.

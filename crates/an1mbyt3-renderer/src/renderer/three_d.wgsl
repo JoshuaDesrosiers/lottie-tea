@@ -23,6 +23,9 @@ struct Scene {
     point_pos: array<vec4<f32>, 8>,
     // rgb = colour * intensity.
     point_color: array<vec4<f32>, 8>,
+    // The camera's world right / up axes (xyz).
+    camera_right: vec4<f32>,
+    camera_up: vec4<f32>,
 };
 @group(0) @binding(0)
 var<uniform> scene: Scene;
@@ -147,12 +150,14 @@ struct ParticleIn {
     @location(0) position: vec3<f32>,
     @location(1) color: vec4<f32>,
     @location(2) uv: vec2<f32>,
+    @location(3) hardness: f32,
 };
 
 struct ParticleOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) color: vec4<f32>,
     @location(1) uv: vec2<f32>,
+    @location(2) hardness: f32,
 };
 
 @vertex
@@ -161,16 +166,33 @@ fn vs_particle(in: ParticleIn) -> ParticleOut {
     out.clip = scene.view_proj * vec4<f32>(in.position, 1.0);
     out.color = in.color;
     out.uv = in.uv;
+    out.hardness = in.hardness;
     return out;
+}
+
+// Fluid density splat: a smooth bump (no hard edge — the composite pass
+// draws the edge where the summed density crosses the threshold).
+// `color.a` scales how much this particle adds.
+@fragment
+fn fs_density(in: ParticleOut) -> @location(0) vec4<f32> {
+    let d = length(in.uv * 2.0 - vec2<f32>(1.0, 1.0));
+    let f = clamp(1.0 - d * d, 0.0, 1.0);
+    let k = f * f * in.color.a;
+    return vec4<f32>(k, k, k, k);
 }
 
 @fragment
 fn fs_particle(in: ParticleOut) -> @location(0) vec4<f32> {
     let d = length(in.uv * 2.0 - vec2<f32>(1.0, 1.0));
     let f = clamp(1.0 - d, 0.0, 1.0);
-    // Smooth falloff plus a brighter core: reads as glowing "stuff", not
-    // flat discs, and stacks into thick bands when many overlap.
+    // Soft: smooth falloff plus a brighter core — glowing "stuff" that
+    // stacks into thick bands when many overlap.
     let glow = f * f * (3.0 - 2.0 * f);
-    let core = f * f * f * 0.8;
-    return in.color * (glow + core);
+    let soft = glow + f * f * f * 0.8;
+    // Hard: a solid shape with an anti-aliased rim (ink, droplets), its
+    // edge sharper the harder it is.
+    let rim = max(fwidth(d) * 1.5, mix(0.6, 0.02, in.hardness));
+    let solid = 1.0 - smoothstep(1.0 - rim, 1.0, d);
+    let h = clamp(in.hardness, 0.0, 1.0);
+    return in.color * mix(soft, solid, h);
 }

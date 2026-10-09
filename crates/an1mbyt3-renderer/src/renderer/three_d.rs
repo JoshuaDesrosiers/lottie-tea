@@ -33,6 +33,11 @@ pub const MAX_POINT_LIGHTS: usize = 8;
 const DRAW_STRIDE: u64 = 256;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 const SHADER_SOURCE: &str = include_str!("three_d.wgsl");
+const FLUID_SHADER_SOURCE: &str = include_str!("fluid3d.wgsl");
+/// The fluid density buffer: one float channel's worth, blendable.
+const DENSITY_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+/// Bytes between fluid layers' uniforms (dynamic-offset alignment).
+const FLUID_STRIDE: u64 = 256;
 
 /// What a material's generated code needs beyond `three_d.wgsl` itself —
 /// the 3D side of the contract `an1mbyt3_core::shader_graph` documents.
@@ -51,6 +56,16 @@ var<uniform> material_globals: MaterialGlobals;
 
 fn material_uv(in: VertexOutput) -> vec2<f32> {
     return in.uv;
+}
+
+// The shader graph's Facing UV node: where the surface normal points, as
+// seen from the camera — (0.5, 0.5) on the part facing you, the edge of the
+// 0..1 square at the silhouette, +V downwards like texture UVs. On a sphere
+// this is a disc that always faces the viewer: draw an iris / pupil with
+// it and the eye stares at you from every angle.
+fn material_facing_uv(in: VertexOutput) -> vec2<f32> {
+    let n = normalize(in.normal);
+    return vec2<f32>(dot(n, scene.camera_right.xyz) * 0.5 + 0.5, 0.5 - dot(n, scene.camera_up.xyz) * 0.5);
 }
 
 // The shader graph's View Fresnel node: 0 where the surface faces the
@@ -111,17 +126,48 @@ pub enum Blend3D {
 /// One camera-facing particle quad (world space), ready to draw — built by
 /// whoever simulates the particles (the editor's `ParticleSystem3D`).
 ///
-/// `corners` go round the quad (UV `(0,0) (1,0) (1,1) (0,1)`); the shader
-/// draws a soft round glow across it. `color` is **premultiplied** linear
-/// RGBA: `rgb` is how much light it adds, `a` how much of what's behind it
-/// it hides — an additive particle is just `a = 0`, a smoky one `a ≈ rgb`
-/// weight, so both blend modes share one pipeline and one sorted pass.
+/// `corners` go round the quad; the shader draws a soft glow (or, with
+/// `hardness`, a crisp shape) across it. Colours are **premultiplied**
+/// linear RGBA: `rgb` is how much light it adds, `a` how much of what's
+/// behind it it hides — an additive particle is just `a = 0`, a smoky or
+/// inky one `a > 0`, so both blend modes share one pipeline and one
+/// sorted pass.
 #[derive(Debug, Clone, Copy)]
 pub struct ParticleQuad3D {
     pub corners: [[f32; 3]; 4],
-    pub color: [f32; 4],
+    /// Premultiplied colour per corner (ribbon segments fade along).
+    pub colors: [[f32; 4]; 4],
+    /// UV per corner. A sprite uses the full `0..1` square (a round blob);
+    /// a ribbon segment pins `u` to 0.5 so only the distance *across* it
+    /// shapes the edge (a band, not a chain of beads).
+    pub uvs: [[f32; 2]; 4],
+    /// 0 = soft glowing falloff, 1 = a crisp, solid edge (ink, droplets).
+    pub hardness: f32,
     /// Distance from the camera (sorting: farthest drawn first).
     pub depth: f32,
+}
+
+/// One **fluid** layer: particles drawn as a single liquid surface instead
+/// of individual sprites (screen-space metaballs). Each quad splats soft
+/// density (its colours' alpha = how much); where the summed density
+/// passes `threshold` the pixel is "inside" the liquid, shaded with `body`,
+/// a glossy highlight from the surface's slope, and `edge` (its alpha =
+/// strength) where the surface curves away. Touching particles merge,
+/// separating ones stretch into drips — ink, slime, water, lava.
+#[derive(Debug, Clone)]
+pub struct FluidLayer3D {
+    pub quads: Vec<ParticleQuad3D>,
+    /// Linear RGB, alpha = opacity.
+    pub body: [f32; 4],
+    pub edge: [f32; 4],
+    pub threshold: f32,
+    /// Highlight strength (0 = matte).
+    pub gloss: f32,
+}
+
+impl ParticleQuad3D {
+    /// The standard sprite UVs.
+    pub const SPRITE_UVS: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
 }
 
 /// One mesh to draw this frame.
@@ -183,6 +229,8 @@ pub struct Scene3D {
     /// Particle quads (any order — the pass sorts them, and interleaves
     /// them with see-through meshes by distance).
     pub particles: Vec<ParticleQuad3D>,
+    /// Fluid layers, composited over the scene after it (in order).
+    pub fluids: Vec<FluidLayer3D>,
 }
 
 #[repr(C)]
@@ -197,6 +245,9 @@ struct SceneUniforms {
     counts: [f32; 4],
     point_pos: [[f32; 4]; MAX_POINT_LIGHTS],
     point_color: [[f32; 4]; MAX_POINT_LIGHTS],
+    /// The camera's world right / up axes (materials' Facing UV).
+    camera_right: [f32; 4],
+    camera_up: [f32; 4],
 }
 
 #[repr(C)]
@@ -217,6 +268,16 @@ pub(crate) struct Resources3D {
     particle_pipeline: wgpu::RenderPipeline,
     /// (capacity in vertices, buffer) for this frame's particle quads.
     particle_vertices: RefCell<(u64, wgpu::Buffer)>,
+    /// Fluid: density splat + composite pipelines, their vertex buffer,
+    /// per-layer uniforms and the density target (rebuilt on resize).
+    density_pipeline: wgpu::RenderPipeline,
+    composite_pipeline: wgpu::RenderPipeline,
+    composite_layout: wgpu::BindGroupLayout,
+    fluid_vertices: RefCell<(u64, wgpu::Buffer)>,
+    fluid_uniforms: RefCell<(u64, wgpu::Buffer)>,
+    fluid_sampler: wgpu::Sampler,
+    /// (width, height, density view, composite bind group, uniform capacity it binds).
+    fluid_target: RefCell<Option<(u32, u32, wgpu::TextureView, wgpu::BindGroup, u64)>>,
     material_layout: wgpu::PipelineLayout,
     scene_buffer: wgpu::Buffer,
     scene_bind_group: wgpu::BindGroup,
@@ -313,8 +374,9 @@ fn mesh_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat, layout: &wg
     })
 }
 
-/// Floats per particle vertex: position xyz, premultiplied colour rgba, uv.
-const PARTICLE_FLOATS: usize = 9;
+/// Floats per particle vertex: position xyz, premultiplied colour rgba, uv,
+/// hardness.
+const PARTICLE_FLOATS: usize = 10;
 
 /// The particle pipeline: camera-facing quads with a soft round glow,
 /// premultiplied-alpha blending (so additive and smoky particles share it),
@@ -334,7 +396,7 @@ fn particle_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat, layout:
             buffers: &[Some(wgpu::VertexBufferLayout {
                 array_stride: (PARTICLE_FLOATS * 4) as u64,
                 step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4, 2 => Float32x2],
+                attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4, 2 => Float32x2, 3 => Float32],
             })],
         },
         primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
@@ -355,6 +417,87 @@ fn particle_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat, layout:
         multiview_mask: None,
         cache: None,
     })
+}
+
+/// Splats fluid particles' density, additively, depth-tested against the
+/// scene (so the liquid goes behind solid things) without writing depth.
+fn density_pipeline(device: &wgpu::Device, layout: &wgpu::PipelineLayout, module: &wgpu::ShaderModule) -> wgpu::RenderPipeline {
+    let add = wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add };
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("an1mbyt3 3D fluid density pipeline"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module,
+            entry_point: Some("vs_particle"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[Some(wgpu::VertexBufferLayout {
+                array_stride: (PARTICLE_FLOATS * 4) as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4, 2 => Float32x2, 3 => Float32],
+            })],
+        },
+        primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Less),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module,
+            entry_point: Some("fs_density"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState { format: DENSITY_FORMAT, blend: Some(wgpu::BlendState { color: add, alpha: add }), write_mask: wgpu::ColorWrites::ALL })],
+        }),
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
+/// Composites one fluid layer over the target (premultiplied alpha).
+fn composite_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat, layout: &wgpu::PipelineLayout, module: &wgpu::ShaderModule) -> wgpu::RenderPipeline {
+    let premultiplied = wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One, dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha, operation: wgpu::BlendOperation::Add };
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("an1mbyt3 3D fluid composite pipeline"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState { module, entry_point: Some("vs_fullscreen"), compilation_options: wgpu::PipelineCompilationOptions::default(), buffers: &[] },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        fragment: Some(wgpu::FragmentState {
+            module,
+            entry_point: Some("fs_composite"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState { format, blend: Some(wgpu::BlendState { color: premultiplied, alpha: premultiplied }), write_mask: wgpu::ColorWrites::ALL })],
+        }),
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
+fn fluid_uniform_buffer(device: &wgpu::Device, layers: u64) -> (u64, wgpu::Buffer) {
+    let layers = layers.max(4);
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("an1mbyt3 3D fluid uniforms"),
+        size: layers * FLUID_STRIDE,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    (layers, buffer)
+}
+
+/// Writes `quads` as particle-pipeline vertices.
+fn quad_vertices(quads: &[&ParticleQuad3D], data: &mut Vec<f32>) {
+    for q in quads {
+        for k in [0usize, 1, 2, 0, 2, 3] {
+            data.extend_from_slice(&q.corners[k]);
+            data.extend_from_slice(&q.colors[k]);
+            data.extend_from_slice(&q.uvs[k]);
+            data.push(q.hardness);
+        }
+    }
 }
 
 fn particle_buffer(device: &wgpu::Device, vertices: u64) -> (u64, wgpu::Buffer) {
@@ -403,6 +546,40 @@ impl Renderer {
             });
             let particle_pipeline = particle_pipeline(device, self.render_format, &particle_layout, &shader);
             let particle_vertices = RefCell::new(particle_buffer(device, 6 * 256));
+            let density_pipeline = density_pipeline(device, &particle_layout, &shader);
+            let fluid_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("an1mbyt3 3D fluid shader"), source: wgpu::ShaderSource::Wgsl(FLUID_SHADER_SOURCE.into()) });
+            let composite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("an1mbyt3 3D fluid composite layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: None },
+                        count: None,
+                    },
+                ],
+            });
+            let composite_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("an1mbyt3 3D fluid composite pipeline layout"),
+                bind_group_layouts: &[Some(&composite_layout)],
+                immediate_size: 0,
+            });
+            let composite_pipeline = composite_pipeline(device, self.render_format, &composite_pipeline_layout, &fluid_shader);
+            let fluid_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("an1mbyt3 3D fluid sampler"),
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            });
+            let fluid_vertices = RefCell::new(particle_buffer(device, 6 * 256));
+            let fluid_uniforms = RefCell::new(fluid_uniform_buffer(device, 4));
             let scene_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("an1mbyt3 3D scene uniforms"),
                 size: std::mem::size_of::<SceneUniforms>() as u64,
@@ -415,7 +592,15 @@ impl Renderer {
                 entries: &[wgpu::BindGroupEntry { binding: 0, resource: scene_buffer.as_entire_binding() }],
             });
             let draws = RefCell::new(draw_buffer(device, &draw_layout, 64));
-            Resources3D { pipeline, overlay_pipeline, transparent_pipeline, additive_pipeline, particle_pipeline, particle_vertices, material_layout, scene_buffer, scene_bind_group, draw_layout, draws, depth: RefCell::new(None) }
+            Resources3D {
+                density_pipeline,
+                composite_pipeline,
+                composite_layout,
+                fluid_vertices,
+                fluid_uniforms,
+                fluid_sampler,
+                fluid_target: RefCell::new(None),
+                pipeline, overlay_pipeline, transparent_pipeline, additive_pipeline, particle_pipeline, particle_vertices, material_layout, scene_buffer, scene_bind_group, draw_layout, draws, depth: RefCell::new(None) }
         })
     }
 
@@ -500,6 +685,9 @@ impl Renderer {
         let mut uniforms = SceneUniforms::zeroed();
         uniforms.view_proj = (scene.projection * scene.view).to_cols_array_2d();
         uniforms.camera_pos = scene.camera_position.extend(1.0).into();
+        let camera_world = scene.view.inverse();
+        uniforms.camera_right = camera_world.x_axis.truncate().normalize_or(Vec3::X).extend(0.0).into();
+        uniforms.camera_up = camera_world.y_axis.truncate().normalize_or(Vec3::Y).extend(0.0).into();
         uniforms.sun_dir = scene.sun_direction.normalize_or(Vec3::NEG_Y).extend(0.0).into();
         uniforms.sun_color = scene.sun_color.extend(0.0).into();
         uniforms.ambient = scene.ambient.extend(0.0).into();
@@ -565,7 +753,8 @@ impl Renderer {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: target, resolve_target: None, ops: wgpu::Operations { load, store: wgpu::StoreOp::Store }, depth_slice: None })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                 view: depth_view,
-                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }),
+                // Kept when fluid layers depth-test against it afterwards.
+                depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: if scene.fluids.is_empty() { wgpu::StoreOp::Discard } else { wgpu::StoreOp::Store } }),
                 stencil_ops: None,
             }),
             timestamp_writes: None,
@@ -582,12 +771,12 @@ impl Renderer {
                 *buf = particle_buffer(&self.device, needed.next_power_of_two());
             }
             let mut data: Vec<f32> = Vec::with_capacity(quads.len() * 6 * PARTICLE_FLOATS);
-            const UV: [[f32; 2]; 4] = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
             for q in &quads {
                 for k in [0usize, 1, 2, 0, 2, 3] {
                     data.extend_from_slice(&q.corners[k]);
-                    data.extend_from_slice(&q.color);
-                    data.extend_from_slice(&UV[k]);
+                    data.extend_from_slice(&q.colors[k]);
+                    data.extend_from_slice(&q.uvs[k]);
+                    data.push(q.hardness);
                 }
             }
             self.queue.write_buffer(&buf.1, 0, bytemuck::cast_slice(&data));
@@ -663,6 +852,108 @@ impl Renderer {
         for (i, d) in scene.draws.iter().enumerate() {
             if d.overlay && d.mesh.index_count > 0 {
                 draw_mesh(&mut pass, i, d, &mut bound);
+            }
+        }
+        drop(pass);
+
+        // 4. Fluid layers: splat density, then composite as one surface.
+        let fluids: Vec<&FluidLayer3D> = scene.fluids.iter().filter(|l| !l.quads.is_empty()).collect();
+        if !fluids.is_empty() {
+            // Every layer's vertices in one buffer, and each layer's uniforms.
+            let mut data: Vec<f32> = Vec::new();
+            let mut ranges = Vec::with_capacity(fluids.len());
+            for layer in &fluids {
+                let start = data.len() / PARTICLE_FLOATS;
+                let refs: Vec<&ParticleQuad3D> = layer.quads.iter().collect();
+                quad_vertices(&refs, &mut data);
+                ranges.push(start as u32..(data.len() / PARTICLE_FLOATS) as u32);
+            }
+            {
+                let mut buf = res.fluid_vertices.borrow_mut();
+                let needed = (data.len() / PARTICLE_FLOATS) as u64;
+                if needed > buf.0 {
+                    *buf = particle_buffer(&self.device, needed.next_power_of_two());
+                }
+                self.queue.write_buffer(&buf.1, 0, bytemuck::cast_slice(&data));
+                let mut uniforms = res.fluid_uniforms.borrow_mut();
+                if fluids.len() as u64 > uniforms.0 {
+                    *uniforms = fluid_uniform_buffer(&self.device, (fluids.len() as u64).next_power_of_two());
+                }
+                let mut bytes = vec![0u8; (fluids.len() as u64 * FLUID_STRIDE) as usize];
+                for (i, layer) in fluids.iter().enumerate() {
+                    let values: [f32; 16] = [
+                        layer.body[0], layer.body[1], layer.body[2], layer.body[3],
+                        layer.edge[0], layer.edge[1], layer.edge[2], layer.edge[3],
+                        layer.threshold, layer.threshold * 0.25, layer.gloss, 1.0 / width.max(1) as f32,
+                        1.0 / height.max(1) as f32, 0.0, 0.0, 0.0,
+                    ];
+                    let at = i * FLUID_STRIDE as usize;
+                    bytes[at..at + 64].copy_from_slice(bytemuck::cast_slice(&values));
+                }
+                self.queue.write_buffer(&uniforms.1, 0, &bytes);
+            }
+            // The density target, at the target's size (and its bind group).
+            {
+                let capacity = res.fluid_uniforms.borrow().0;
+                let mut target_ref = res.fluid_target.borrow_mut();
+                if target_ref.as_ref().is_none_or(|(w, h, _, _, cap)| *w != width || *h != height || *cap != capacity) {
+                    let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("an1mbyt3 3D fluid density"),
+                        size: wgpu::Extent3d { width: width.max(1), height: height.max(1), depth_or_array_layers: 1 },
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: DENSITY_FORMAT,
+                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                        view_formats: &[],
+                    });
+                    let view = texture.create_view(&Default::default());
+                    let uniforms = res.fluid_uniforms.borrow();
+                    let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("an1mbyt3 3D fluid composite bind group"),
+                        layout: &res.composite_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
+                            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&res.fluid_sampler) },
+                            wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &uniforms.1, offset: 0, size: wgpu::BufferSize::new(64) }) },
+                        ],
+                    });
+                    *target_ref = Some((width, height, view, bind_group, capacity));
+                }
+            }
+            let target_ref = res.fluid_target.borrow();
+            let (_, _, density_view, composite_group, _) = target_ref.as_ref().expect("created above");
+            let fluid_buf = res.fluid_vertices.borrow();
+            for (i, range) in ranges.into_iter().enumerate() {
+                {
+                    let mut splat = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("an1mbyt3 3D fluid density"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: density_view, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store }, depth_slice: None })],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: depth_view,
+                            depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }),
+                            stencil_ops: None,
+                        }),
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    splat.set_pipeline(&res.density_pipeline);
+                    splat.set_bind_group(0, &res.scene_bind_group, &[]);
+                    splat.set_vertex_buffer(0, fluid_buf.1.slice(..));
+                    splat.draw(range, 0..1);
+                }
+                let mut composite = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("an1mbyt3 3D fluid composite"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: target, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store }, depth_slice: None })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                composite.set_pipeline(&res.composite_pipeline);
+                composite.set_bind_group(0, composite_group, &[(i as u64 * FLUID_STRIDE) as u32]);
+                composite.draw(0..3, 0..1);
             }
         }
         true

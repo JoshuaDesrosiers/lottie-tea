@@ -21,7 +21,7 @@ use an1mbyt3_geometry::Mesh;
 
 mod lighting;
 mod three_d;
-pub use three_d::{Blend3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, MAX_POINT_LIGHTS};
+pub use three_d::{Blend3D, FluidLayer3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, MAX_POINT_LIGHTS};
 pub use lighting::{LightDraw, LightShadows, LightShape, LightVolumetric, Lighting, ShadowCasterShape, MAX_FREEFORM_POINTS};
 
 /// How many gradient stops `shader.wgsl` has room for — matches that
@@ -601,6 +601,12 @@ fn material_uv(in: VertexOutput) -> vec2<f32> {
     let size = max(bounds_max - bounds_min, vec2<f32>(0.0001, 0.0001));
     let normalized = (in.local_position - bounds_min) / size;
     return vec2<f32>(normalized.x, 1.0 - normalized.y);
+}
+
+// The Facing UV node on a flat sprite: just its UV (a sprite always faces
+// the camera).
+fn material_facing_uv(in: VertexOutput) -> vec2<f32> {
+    return material_uv(in);
 }
 
 // The View Fresnel node on a flat sprite: there's no surface normal in 2D,

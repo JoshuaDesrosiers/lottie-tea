@@ -1556,6 +1556,16 @@ export interface ParticleSystem3DConfig {
   localSpace: boolean
   seed: number
   behaviors: ParticleBehavior3D[]
+  /** 0 = soft glow, 1 = crisp solid shapes. */
+  hardness: number
+  /** Ribbon trails: segments (0 = off) over `trailTime` seconds. */
+  trailSegments: number
+  trailTime: number
+  /** Draw as one liquid surface (screen-space metaballs). */
+  fluid: boolean
+  fluidEdge: [number, number, number, number]
+  fluidThreshold: number
+  fluidGloss: number
 }
 
 /** Every addable Unity component kind (the Add Component menu). */

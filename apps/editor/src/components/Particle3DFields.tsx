@@ -360,12 +360,44 @@ export function ParticleSystem3DFields({ config, onChange, onBurst }: { config: 
         <Row label="Intensity">
           <SliderNum value={config.intensity} min={0} max={4} step={0.05} onChange={(intensity) => update({ intensity })} />
         </Row>
+        <Row label="Hardness" title="0: soft glowing blobs. 1: crisp, solid shapes — ink, droplets, tendrils.">
+          <SliderNum value={config.hardness} min={0} max={1} step={0.01} onChange={(hardness) => update({ hardness })} />
+        </Row>
+        <Row label="Trail segments" title="Ribbon trails: each particle drags a tapering band along its path (0 = off). Size becomes the ribbon's width.">
+          <SliderNum value={config.trailSegments} min={0} max={40} step={1} digits={0} onChange={(trailSegments) => update({ trailSegments: Math.round(trailSegments) })} />
+        </Row>
+        {config.trailSegments > 0 && (
+          <Row label="Trail length (s)">
+            <SliderNum value={config.trailTime} min={0.05} max={2} step={0.01} onChange={(trailTime) => update({ trailTime })} />
+          </Row>
+        )}
         <Row label="Stretch" title="Smears particles along their motion into streaks (seconds of travel).">
           <SliderNum value={config.stretch} min={0} max={0.5} step={0.005} onChange={(stretch) => update({ stretch })} />
         </Row>
         <Row label="Seed">
           <NumberField label="#" value={config.seed} onCommit={(v) => update({ seed: Math.max(0, Math.round(v)) })} />
         </Row>
+      </Section>
+
+      <Section title="Fluid">
+        <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Draw every particle (and ribbon) of this emitter as one liquid surface: they merge where they touch — ink, slime, water, lava.">
+          <input type="checkbox" checked={config.fluid} onChange={(e) => update({ fluid: e.target.checked })} />
+          Liquid surface (particles merge)
+        </label>
+        {config.fluid && (
+          <>
+            <p className="text-[10px] leading-snug text-ink-dim">The liquid is coloured by "Colour: birth"; each particle's alpha over life is how much liquid it adds.</p>
+            <Row label="Threshold" title="Lower: fatter, more merged liquid. Higher: thinner, separate drops.">
+              <SliderNum value={config.fluidThreshold} min={0.05} max={1.5} step={0.01} onChange={(fluidThreshold) => update({ fluidThreshold })} />
+            </Row>
+            <Row label="Gloss">
+              <SliderNum value={config.fluidGloss} min={0} max={2} step={0.05} onChange={(fluidGloss) => update({ fluidGloss })} />
+            </Row>
+            <Row label="Rim colour" title="Where the liquid's surface turns away (alpha = strength).">
+              <ColorSwatch value={config.fluidEdge} onChange={(fluidEdge) => update({ fluidEdge })} />
+            </Row>
+          </>
+        )}
       </Section>
 
       <Section title="Behaviours">

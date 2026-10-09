@@ -13,7 +13,7 @@
 //! makes swirls stable: a particle orbiting at 200°/s for two seconds is
 //! still exactly on its band, with no integration drift.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use glam::{Mat4, Quat, Vec3};
 use an1mbyt3_core::{Emitter3DShape, NodeId, ParticleBehaviorKind3D, ParticleBlend3D, ParticleSystem3D, PointSpace};
@@ -43,6 +43,10 @@ struct Particle {
     /// World-space push from Attract / Repel (and its velocity).
     push: Vec3,
     push_velocity: Vec3,
+    /// Past world positions, newest first (ribbon trails), and time since
+    /// the last one was recorded.
+    trail: VecDeque<Vec3>,
+    trail_clock: f32,
     /// World position last step, and world velocity (for `stretch`).
     position: Vec3,
     velocity: Vec3,
@@ -135,11 +139,54 @@ impl Emitter {
             birth: (!cfg.local_space).then_some(world),
             push: Vec3::ZERO,
             push_velocity: Vec3::ZERO,
+            trail: VecDeque::new(),
+            trail_clock: 0.0,
             position: Vec3::ZERO,
             velocity: Vec3::ZERO,
         };
         p.position = world.transform_point3(p.local());
         self.particles.push(p);
+    }
+}
+
+/// One particle's ribbon: head at its position, then its trail points.
+/// Its width swells from a point at the head to `size` mid-way and back to
+/// a point at the tail (`sin`-shaped, measured over the full `segments`
+/// so a young particle's short trail grows out of a sharp head) — a
+/// swooshing brush stroke, not a strip with square ends.
+fn ribbon(p: &Particle, segments: f32, size: f32, color: [f32; 4], hardness: f32, eye: Vec3, out: &mut Vec<ParticleQuad3D>) {
+    let points: Vec<Vec3> = std::iter::once(p.position).chain(p.trail.iter().copied()).collect();
+    if points.len() < 2 {
+        return;
+    }
+    // Each point's sideways direction, from the path through it (smooth
+    // joins at bends), facing the camera.
+    let sides: Vec<Vec3> = (0..points.len())
+        .map(|j| {
+            let before = points[j.saturating_sub(1)];
+            let after = points[(j + 1).min(points.len() - 1)];
+            let dir = (before - after).normalize_or(Vec3::Y);
+            (eye - points[j]).normalize_or(Vec3::Z).cross(dir).normalize_or(Vec3::X)
+        })
+        .collect();
+    let width = |j: usize| size * 0.5 * (std::f32::consts::PI * (j as f32 / segments).min(1.0)).sin().max(0.0).powf(0.7);
+    // A slight fade over the last third only, so the body stays solid.
+    let fade = |j: usize| (3.0 * (1.0 - j as f32 / segments)).clamp(0.0, 1.0);
+    let tint = |j: usize| color.map(|c| c * fade(j));
+    for j in 0..points.len() - 1 {
+        let (a, b) = (points[j], points[j + 1]);
+        if a.distance_squared(b) < 1e-10 {
+            continue;
+        }
+        let (wa, wb) = (sides[j] * width(j), sides[j + 1] * width(j + 1));
+        out.push(ParticleQuad3D {
+            corners: [(a - wa).to_array(), (b - wb).to_array(), (b + wb).to_array(), (a + wa).to_array()],
+            colors: [tint(j), tint(j + 1), tint(j + 1), tint(j)],
+            // u pinned to the middle: only "across" shapes the edge.
+            uvs: [[0.5, 0.0], [0.5, 0.0], [0.5, 1.0], [0.5, 1.0]],
+            hardness,
+            depth: ((a + b) * 0.5).distance(eye),
+        });
     }
 }
 
@@ -252,16 +299,32 @@ impl Particles3D {
                 p.velocity = (position - p.position) / dt;
             }
             p.position = position;
+            if cfg.trail_segments > 0 {
+                // A point every `trail_time / segments` seconds.
+                let interval = (cfg.trail_time / cfg.trail_segments as f32).max(0.001);
+                if p.trail.is_empty() {
+                    p.trail.push_front(position);
+                }
+                p.trail_clock += dt;
+                while p.trail_clock >= interval {
+                    p.trail_clock -= interval;
+                    p.trail.push_front(position);
+                }
+                p.trail.truncate(cfg.trail_segments as usize);
+            }
         }
         e.particles.retain(|p| p.age < p.life);
     }
 
     /// `id`'s particles as camera-facing quads (appended to `out`).
-    /// `right` / `up` are the camera's world axes.
+    /// `right` / `up` are the camera's world axes. With `trail_segments`,
+    /// each particle is a ribbon instead: one quad per trail segment,
+    /// tapering and fading from head to tail.
     pub fn quads(&self, id: NodeId, cfg: &ParticleSystem3D, world: Mat4, eye: Vec3, right: Vec3, up: Vec3, out: &mut Vec<ParticleQuad3D>) {
         let Some(e) = self.emitters.get(&id) else { return };
         let (scale, _, _) = world.to_scale_rotation_translation();
         let scale = ((scale.x.abs() + scale.y.abs() + scale.z.abs()) / 3.0).max(0.0001);
+        let hardness = cfg.hardness.clamp(0.0, 1.0);
         for p in &e.particles {
             let t = p.age / p.life;
             let size = cfg.size_at(t) * scale;
@@ -274,6 +337,10 @@ impl Particles3D {
             // Premultiplied: additive particles hide nothing (alpha 0).
             let color = [c[0] * k, c[1] * k, c[2] * k, if cfg.blend == ParticleBlend3D::Additive { 0.0 } else { a }];
             if color[0] + color[1] + color[2] + color[3] <= 0.0005 {
+                continue;
+            }
+            if cfg.trail_segments > 0 && !p.trail.is_empty() {
+                ribbon(p, cfg.trail_segments as f32, size, color, hardness, eye, out);
                 continue;
             }
             let half = size * 0.5;
@@ -290,7 +357,7 @@ impl Particles3D {
                 let (r, u) = (right * half, up * half);
                 [p.position - r - u, p.position + r - u, p.position + r + u, p.position - r + u]
             };
-            out.push(ParticleQuad3D { corners: corners.map(|c| c.to_array()), color, depth: p.position.distance(eye) });
+            out.push(ParticleQuad3D { corners: corners.map(|c| c.to_array()), colors: [color; 4], uvs: ParticleQuad3D::SPRITE_UVS, hardness, depth: p.position.distance(eye) });
         }
     }
 
@@ -376,6 +443,23 @@ mod tests {
         let mut out = Vec::new();
         sim.quads(node(), &cfg, Mat4::IDENTITY, Vec3::new(0.0, 0.0, 10.0), Vec3::X, Vec3::Y, &mut out);
         assert_eq!(out.len(), 5);
-        assert!(out.iter().all(|q| q.color[3] == 0.0 && q.color[0] > 0.0));
+        assert!(out.iter().all(|q| q.colors[0][3] == 0.0 && q.colors[0][0] > 0.0));
+    }
+
+    #[test]
+    fn trails_become_tapering_ribbons() {
+        let cfg = ParticleSystem3D { burst: 1, rate: 0.0, lifetime: 5.0, swirl: 180.0, trail_segments: 8, trail_time: 0.4, hardness: 1.0, ..Default::default() };
+        let mut sim = Particles3D::default();
+        for _ in 0..60 {
+            sim.step(node(), &cfg, Mat4::IDENTITY, 1.0 / 60.0);
+        }
+        let mut out = Vec::new();
+        sim.quads(node(), &cfg, Mat4::IDENTITY, Vec3::new(0.0, 10.0, 0.0), Vec3::X, Vec3::Z, &mut out);
+        // A full trail: the head + 8 recorded points = 8 segments.
+        assert!((7..=8).contains(&out.len()), "{}", out.len());
+        let width = |q: &ParticleQuad3D| Vec3::from(q.corners[0]).distance(Vec3::from(q.corners[3]));
+        let middle = &out[out.len() / 2];
+        assert!(width(middle) > width(&out[0]) && width(middle) > width(out.last().unwrap()), "pointed at both ends, widest mid-way");
+        assert!(out.iter().all(|q| q.hardness == 1.0 && q.uvs[0][0] == 0.5));
     }
 }
