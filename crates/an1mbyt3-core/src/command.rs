@@ -407,6 +407,13 @@ pub enum Command {
     /// Replaces a drawing wholesale (re-saved from Paint, renamed). Inverse:
     /// the previous value.
     SetDrawing { drawing: crate::DrawingId, value: Box<crate::DrawingAsset> },
+    /// Adds a scene property. Inverse: `SetPropertyDeleted { value: true }`.
+    AddProperty { property: crate::PropertyDef },
+    /// Soft-deletes / restores a property. Inverse: the previous value.
+    SetPropertyDeleted { property: crate::PropertyId, value: bool },
+    /// Replaces a property wholesale (rename, type, default). Inverse: the
+    /// previous value.
+    SetProperty { property: crate::PropertyId, value: Box<crate::PropertyDef> },
     /// Adds a code / markup file. Inverse: `SetTextFileDeleted { value: true }`.
     AddTextFile { file: crate::TextFile },
     /// Soft-deletes / restores a text file. Inverse: the previous value.
@@ -1222,6 +1229,20 @@ impl Command {
                 let target = document.drawing_mut(drawing).expect("Command: drawing not found");
                 let previous = std::mem::replace(target, *value);
                 Command::SetDrawing { drawing, value: Box::new(previous) }
+            }
+            Command::AddProperty { property } => {
+                let property = document.add_property(property);
+                Command::SetPropertyDeleted { property, value: true }
+            }
+            Command::SetPropertyDeleted { property, value } => {
+                let target = &mut document.property_mut(property).expect("Command: property not found").deleted;
+                let previous = std::mem::replace(target, value);
+                Command::SetPropertyDeleted { property, value: previous }
+            }
+            Command::SetProperty { property, value } => {
+                let target = document.property_mut(property).expect("Command: property not found");
+                let previous = std::mem::replace(target, *value);
+                Command::SetProperty { property, value: Box::new(previous) }
             }
             Command::AddTextFile { file } => {
                 let file = document.add_text_file(file);

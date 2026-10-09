@@ -6,6 +6,7 @@ import type { ScreenSettings,
   AudioSummary,
   TextFileSummary,
   DocumentSummary,
+  PropertySummary,
   Node3D,
   MaterialSummary,
   ArtboardSummary,
@@ -79,6 +80,7 @@ import {
   Tree2DFields,
   ScreenFields,
 } from './ComponentFields'
+import { PropertyBindingsFields, ScenePropertiesFields, UiEventsFields } from './EventFields'
 import { defaultComponent } from '../ipc/wasmEditor'
 import { ImageAssetPicker } from './ImageAssetPicker'
 import { ChevronDownIcon, CloseIcon, EditIcon, PlayIcon, TrashIcon } from './icons'
@@ -616,6 +618,8 @@ function BehaviorsFields({
   textFiles,
   onOpenFile,
   onDocumentChange,
+  properties,
+  sceneNames,
 }: {
   behaviors: NodeBehaviorEntry[]
   scripts: ScriptDefinitionSummary[]
@@ -639,6 +643,9 @@ function BehaviorsFields({
   /** Opens a file in the Code tab. */
   onOpenFile: (path: string) => void
   onDocumentChange: (doc: DocumentSummary) => void
+  /** Scene properties and scene names (On Click / Property Binding pickers). */
+  properties: PropertySummary[]
+  sceneNames: string[]
 }) {
   const [editingFieldsFor, setEditingFieldsFor] = useState<number | null>(null)
   // The "+ New Script..." inline create row — a real in-panel text field
@@ -728,6 +735,14 @@ function BehaviorsFields({
         const isBone = (id: OpaqueId | null) => !!id && nodes.some((n) => n.kind === 'Bone' && idsEqualLocal(n.id, id))
         const roots = nodes.filter((n) => n.kind === 'Bone' && !isBone(n.parent))
         return <SpriteSkin2DFields config={config} rootBones={roots} onChange={(c) => replaceAt(index, { kind: 'SpriteSkin2D', ...c })} onRebind={onBindSkin} />
+      }
+      case 'UiEvents': {
+        const { kind: _k, ...config } = behavior
+        return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
+      }
+      case 'PropertyBindings': {
+        const { kind: _k, ...config } = behavior
+        return <PropertyBindingsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'PropertyBindings', ...c })} />
       }
       case 'Tree2D': {
         const { kind: _k, ...config } = behavior
@@ -932,7 +947,10 @@ function BehaviorsFields({
           scripts={scripts.map((s) => ({ key: `${s.id.idx}:${s.id.version}`, name: s.name }))}
           onAdd={(kind) => {
             if (!editor) return
-            onChange([...behaviors, { behavior: defaultComponent(editor, kind), enabled: true }])
+            const added = [...behaviors, { behavior: defaultComponent(editor, kind), enabled: true }]
+            // A Button comes with its On Click list, like Unity's.
+            if (kind === 'UiButton' && !behaviors.some((b) => b.behavior.kind === 'UiEvents')) added.push({ behavior: defaultComponent(editor, 'UiEvents'), enabled: true })
+            onChange(added)
           }}
           onAddScript={(key) => {
             const script = scripts.find((s) => `${s.id.idx}:${s.id.version}` === key)
@@ -1860,6 +1878,8 @@ export function InspectorPanel({
   textFiles,
   onOpenFile,
   onDocumentChange,
+  properties,
+  sceneNames,
   onDelete,
   artboard,
   onSetArtboardSize,
@@ -2014,6 +2034,9 @@ export function InspectorPanel({
   textFiles: TextFileSummary[]
   onOpenFile: (path: string) => void
   onDocumentChange: (doc: DocumentSummary) => void
+  /** Every scene's properties, and every scene's name. */
+  properties: PropertySummary[]
+  sceneNames: string[]
   onDelete: () => void
   /** The active artboard, for the always-visible "Canvas" section below —
    * `null` only in the brief window before the wasm module/document has
@@ -2075,6 +2098,10 @@ export function InspectorPanel({
       </div>
       <ScreenFields screen={artboard.screen} onChange={onSetArtboardScreen} />
       <MainCameraField artboard={artboard} onChange={onSetMainCamera} />
+      <div className="flex flex-col gap-1 border-t border-panel-border/60 pt-2">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-ink-dim">Properties</span>
+        <ScenePropertiesFields editor={editor} artboard={artboard} properties={properties} onDocumentChange={onDocumentChange} />
+      </div>
     </div>
   )
 
@@ -2301,6 +2328,8 @@ export function InspectorPanel({
         textFiles={textFiles}
         onOpenFile={onOpenFile}
         onDocumentChange={onDocumentChange}
+        properties={properties}
+        sceneNames={sceneNames}
       />
 
       <button

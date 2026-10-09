@@ -69,6 +69,10 @@ new_key_type! {
     /// [`crate::Document`] — document-level like `ImageId`.
     pub struct TextFileId;
 
+    /// Identifies one scene property ([`crate::PropertyDef`]) within a
+    /// [`crate::Document`].
+    pub struct PropertyId;
+
     /// Identifies one reusable [`crate::Material`] within a [`crate::Document`]
     /// — same document-level-asset shape as `ImageId`/`FontId`: a material is
     /// saved once and referenced by any number of `SpriteRendererBehavior`s,

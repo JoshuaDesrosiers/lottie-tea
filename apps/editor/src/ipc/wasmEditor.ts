@@ -1117,6 +1117,20 @@ export function previewNode3DAnimation(editor: WasmEditor, artboard: OpaqueId, n
   editor.preview_node3d_animation(artboard, node, clip, loop, overlay)
 }
 
+// ---- Scene properties (Rive view models) ----
+
+export function addProperty(editor: WasmEditor, artboard: OpaqueId, name: string, kind: string): DocumentSummary {
+  return editor.add_property(artboard, name, kind) as DocumentSummary
+}
+
+export function updateProperty(editor: WasmEditor, property: OpaqueId, name: string, kind: string, value: string): DocumentSummary {
+  return editor.update_property(property, name, kind, value) as DocumentSummary
+}
+
+export function deleteProperty(editor: WasmEditor, property: OpaqueId): DocumentSummary {
+  return editor.delete_property(property) as DocumentSummary
+}
+
 // ---- Code files (the Code tab) ----
 
 /** New file at `path` (made unique if taken). Undoable. */

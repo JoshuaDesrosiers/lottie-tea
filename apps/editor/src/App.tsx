@@ -259,6 +259,8 @@ import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_H
 import { collectSnapTargets, snapTranslation } from './snapping'
 import { gameConsole, installAsyncErrorCapture, type ConsoleOrigin } from './game/console'
 import { ConsoleBadge, ConsoleErrorPill, ConsolePanel, consoleClearOnPlay } from './components/ConsolePanel'
+import { sceneProps, setPropertyDefs } from './game/props'
+import { resetFunctions } from './game/events'
 import { setProjectFiles } from './game/projectFiles'
 import { CodeWorkspace, type CodeLocation } from './components/CodeWorkspace'
 import { gameNet } from './game/net'
@@ -423,7 +425,10 @@ function App() {
   /** What the Code tab should open next (a Console link, an Inspector button). */
   const [codeRequest, setCodeRequest] = useState<(CodeLocation & { nonce: number }) | null>(null)
   // Code files reach the runtime (HTML UI, scripts) through `projectFiles`.
-  useEffect(() => setProjectFiles(doc?.textFiles), [doc])
+  useEffect(() => {
+    setProjectFiles(doc?.textFiles)
+    setPropertyDefs(doc?.properties)
+  }, [doc])
   // The latest document for the mount-once render loop (scene list/names).
   const docRef = useRef(doc)
   docRef.current = doc
@@ -696,6 +701,9 @@ function App() {
       // (their code may be fixed), and the Console starts fresh if asked.
       gameConsole.resetBroken()
       if (consoleClearOnPlay()) gameConsole.clear()
+      // Properties back to their defaults, script functions re-registered.
+      sceneProps.reset()
+      resetFunctions()
     }
     if (mode !== 'Playground') {
       pointerLockArmedRef.current = false
@@ -4417,6 +4425,8 @@ function App() {
                 textFiles={doc?.textFiles ?? []}
                 onOpenFile={handleOpenFile}
                 onDocumentChange={setDoc}
+                properties={doc?.properties ?? []}
+                sceneNames={allArtboards.map((a) => a.name)}
                 onEditMaterial={(id) => {
                   setShaderMaterialId(id)
                   setBottomDockTab('Shader')

@@ -1407,13 +1407,15 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   Flipbook: 'Flipbook',
   Cloth2D: 'Cloth 2D',
   Tree2D: 'Tree 2D',
+  UiEvents: 'On Click (Events)',
+  PropertyBindings: 'Property Binding',
   UiSlider: 'UI Slider',
   UiScrollbar: 'UI Scrollbar',
   UiScrollView: 'UI Scroll View',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
@@ -1425,6 +1427,7 @@ const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Animation', kinds: ['Flipbook'] },
   { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiHtml'] },
   { title: 'Layout', kinds: ['UiLayout', 'UiLayoutItem', 'UiShowWhen'] },
+  { title: 'Events & Data', kinds: ['UiEvents', 'PropertyBindings'] },
 ]
 
 /**

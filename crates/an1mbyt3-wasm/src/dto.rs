@@ -2088,6 +2088,8 @@ pub enum NodeBehaviorDto {
     Flipbook(an1mbyt3_core::Flipbook),
     Cloth2D(an1mbyt3_core::Cloth2D),
     Tree2D(an1mbyt3_core::Tree2D),
+    UiEvents(an1mbyt3_core::UiEvents),
+    PropertyBindings(an1mbyt3_core::PropertyBindings),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2129,6 +2131,8 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::Flipbook(f) => NodeBehaviorDto::Flipbook(*f),
             an1mbyt3_core::NodeBehavior::Cloth2D(c) => NodeBehaviorDto::Cloth2D(*c),
             an1mbyt3_core::NodeBehavior::Tree2D(t) => NodeBehaviorDto::Tree2D(*t),
+            an1mbyt3_core::NodeBehavior::UiEvents(e) => NodeBehaviorDto::UiEvents(e.clone()),
+            an1mbyt3_core::NodeBehavior::PropertyBindings(b) => NodeBehaviorDto::PropertyBindings(b.clone()),
         }
     }
 }
@@ -2172,6 +2176,8 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::Flipbook(f) => an1mbyt3_core::NodeBehavior::Flipbook(f),
             NodeBehaviorDto::Cloth2D(c) => an1mbyt3_core::NodeBehavior::Cloth2D(c),
             NodeBehaviorDto::Tree2D(t) => an1mbyt3_core::NodeBehavior::Tree2D(t),
+            NodeBehaviorDto::UiEvents(e) => an1mbyt3_core::NodeBehavior::UiEvents(e),
+            NodeBehaviorDto::PropertyBindings(b) => an1mbyt3_core::NodeBehavior::PropertyBindings(b),
         }
     }
 }
@@ -2369,6 +2375,20 @@ pub struct DocumentSummary {
     /// Every code / markup file, with its text (the Code tab, `@file:`
     /// references in HTML UI and scripts), in path order.
     pub text_files: Vec<TextFileSummary>,
+    /// Every scene's properties (Rive view models).
+    pub properties: Vec<PropertySummary>,
+}
+
+/// One scene property.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PropertySummary {
+    pub id: an1mbyt3_core::PropertyId,
+    pub artboard: ArtboardId,
+    pub name: String,
+    pub kind: an1mbyt3_core::PropKind,
+    /// Its starting value as JSON.
+    pub default: String,
 }
 
 /// One code / markup file.
@@ -2519,6 +2539,7 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
             .collect(),
         models: document.models().map(|(id, m)| ModelSummary { id, name: m.name.clone() }).collect(),
         text_files: document.text_files().map(|(id, f)| TextFileSummary { id, path: f.path.clone(), text: f.text.clone(), extension: f.extension() }).collect(),
+        properties: document.properties().map(|(id, p)| PropertySummary { id, artboard: p.artboard, name: p.name.clone(), kind: p.kind, default: p.default.clone() }).collect(),
         audio: document.audio_assets().map(|(id, a)| AudioSummary { id, name: a.name.clone(), byte_length: a.source.len() as u32, file: a.file.clone() }).collect(),
         materials: document
             .materials()

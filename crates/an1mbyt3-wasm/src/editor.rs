@@ -5525,6 +5525,85 @@ impl WasmEditor {
         self.document_summary()
     }
 
+    /// Scene → Properties → Add: a new property on `artboard` (a unique
+    /// name made from `name`) of `kind` (`"Number"`, `"Bool"`, `"Text"`,
+    /// `"Color"`), with that kind's zero value. Undoable.
+    pub fn add_property(&mut self, artboard: JsValue, name: String, kind: String) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let kind: an1mbyt3_core::PropKind = serde_json::from_value(serde_json::Value::String(kind)).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let taken: Vec<String> = self.document.properties().filter(|(_, p)| p.artboard == artboard_id).map(|(_, p)| p.name.clone()).collect();
+        let base = if name.trim().is_empty() { "value".to_string() } else { name.trim().to_string() };
+        let mut unique = base.clone();
+        let mut n = 2;
+        while taken.contains(&unique) {
+            unique = format!("{base}{n}");
+            n += 1;
+        }
+        let default = match kind {
+            an1mbyt3_core::PropKind::Number => "0",
+            an1mbyt3_core::PropKind::Bool => "false",
+            an1mbyt3_core::PropKind::Text => "\"\"",
+            an1mbyt3_core::PropKind::Color => "[1,1,1,1]",
+        }
+        .to_string();
+        self.document.apply(Command::AddProperty { property: an1mbyt3_core::PropertyDef { artboard: artboard_id, name: unique, kind, default, deleted: false } });
+        self.document_summary()
+    }
+
+    /// Edits a property (name, kind, default JSON). Undoable. Fails on a
+    /// name another property of that scene has.
+    pub fn update_property(&mut self, property: JsValue, name: String, kind: String, default: String) -> Result<JsValue, JsValue> {
+        let id: an1mbyt3_core::PropertyId = parse_id(property)?;
+        let mut value = self.document.property(id).ok_or_else(|| JsValue::from_str("update_property: unknown property"))?.clone();
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return Err(JsValue::from_str("A property needs a name"));
+        }
+        if self.document.properties().any(|(other, p)| other != id && p.artboard == value.artboard && p.name == name) {
+            return Err(JsValue::from_str(&format!("This scene already has a property named {name}")));
+        }
+        value.name = name;
+        value.kind = serde_json::from_value(serde_json::Value::String(kind)).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        value.default = default;
+        self.document.apply(Command::SetProperty { property: id, value: Box::new(value) });
+        self.document_summary()
+    }
+
+    pub fn delete_property(&mut self, property: JsValue) -> Result<JsValue, JsValue> {
+        let id: an1mbyt3_core::PropertyId = parse_id(property)?;
+        self.document.apply(Command::SetPropertyDeleted { property: id, value: true });
+        self.document_summary()
+    }
+
+    /// Untracked runtime write of one component field (On Click "Set
+    /// component field", property bindings): the node's first enabled
+    /// `component` (kind name, e.g. `"Light2D"`), its camelCase `field` set
+    /// to `value` (JSON). Goes through the same JSON shape the Inspector
+    /// uses, so any field of any component works. `false` if the node has
+    /// no such component or the value doesn't fit the field.
+    pub fn preview_component_field(&mut self, artboard: JsValue, node: JsValue, component: &str, field: &str, value: &str) -> Result<bool, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let parsed: serde_json::Value = serde_json::from_str(value).unwrap_or_else(|_| serde_json::Value::String(value.to_string()));
+        let Some(target) = self.document.artboard_mut(artboard_id).and_then(|a| a.node_mut(node_id)) else { return Ok(false) };
+        for entry in target.behaviors.iter_mut().filter(|e| e.enabled) {
+            let dto = crate::dto::NodeBehaviorDto::from(&entry.behavior);
+            let Ok(mut json) = serde_json::to_value(&dto) else { continue };
+            if json.get("kind").and_then(|k| k.as_str()) != Some(component) {
+                continue;
+            }
+            let Some(object) = json.as_object_mut() else { return Ok(false) };
+            if !object.contains_key(field) {
+                return Ok(false);
+            }
+            object.insert(field.to_string(), parsed);
+            let Ok(next) = serde_json::from_value::<crate::dto::NodeBehaviorDto>(json) else { return Ok(false) };
+            entry.behavior = next.into();
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
     /// The Code tab's New File: adds a code / markup file at `path` (made
     /// unique with a number if taken) with `text`. Undoable. Returns the
     /// document summary.
@@ -6240,6 +6319,8 @@ impl WasmEditor {
             "Flipbook" => B::Flipbook(an1mbyt3_core::Flipbook::default()),
             "Cloth2D" => B::Cloth2D(an1mbyt3_core::Cloth2D::default()),
             "Tree2D" => B::Tree2D(an1mbyt3_core::Tree2D::default()),
+            "UiEvents" => B::UiEvents(an1mbyt3_core::UiEvents::default()),
+            "PropertyBindings" => B::PropertyBindings(an1mbyt3_core::PropertyBindings::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };

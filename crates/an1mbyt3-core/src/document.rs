@@ -60,6 +60,10 @@ pub struct Document {
     /// a file with empty-map bytes (see `teab::from_teab_bytes`).
     #[serde(default)]
     text_files: SlotMap<crate::TextFileId, crate::TextFile>,
+    /// Scenes' typed properties (Rive view models) — see `crate::events`.
+    /// After `text_files`, the newest trailing field (same padding note).
+    #[serde(default)]
+    properties: SlotMap<crate::PropertyId, crate::PropertyDef>,
     #[serde(skip)]
     undo_stack: Vec<Command>,
     #[serde(skip)]
@@ -223,6 +227,24 @@ impl Document {
     /// `value` itself (see [`crate::text_file::resolve_file_ref`]).
     pub fn resolve_text<'a>(&'a self, value: &'a str) -> Option<&'a str> {
         crate::text_file::resolve_file_ref(value, |path| self.text_files.values().find(|f| !f.deleted && f.path == path).map(|f| f.text.as_str()))
+    }
+
+    pub fn add_property(&mut self, property: crate::PropertyDef) -> crate::PropertyId {
+        self.properties.insert(property)
+    }
+
+    /// Resolves deleted properties too (undo needs to reach them).
+    pub fn property(&self, id: crate::PropertyId) -> Option<&crate::PropertyDef> {
+        self.properties.get(id)
+    }
+
+    pub(crate) fn property_mut(&mut self, id: crate::PropertyId) -> Option<&mut crate::PropertyDef> {
+        self.properties.get_mut(id)
+    }
+
+    /// Every non-deleted property of every scene, in creation order.
+    pub fn properties(&self) -> impl Iterator<Item = (crate::PropertyId, &crate::PropertyDef)> {
+        self.properties.iter().filter(|(_, p)| !p.deleted)
     }
 
     /// Every non-deleted prefab, for the Resources panel.

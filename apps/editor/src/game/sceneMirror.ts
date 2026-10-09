@@ -55,6 +55,8 @@ interface StaticNode {
   html: UiHtmlConfig | null
   /** Local bounds `[minX, minY, maxX, maxY]`. */
   bounds: [number, number, number, number]
+  /** Every component on the node. */
+  behaviors: NodeSummary['behaviors']
 }
 
 interface StaticScene {
@@ -108,8 +110,8 @@ class LiveNode {
     this.toggle = s.toggle ?? null
     this.html = s.html ?? null
     this.bounds = s.bounds ?? [0, 0, 0, 0]
-    // Only what scripts read (`ref.bodyType`): the Rigidbody 2D's type.
-    this.behaviors = s.bodyType ? ([{ enabled: true, behavior: { kind: 'Rigidbody2D', bodyType: s.bodyType } }] as unknown as NodeSummary['behaviors']) : []
+    // The node's components (`ref.bodyType`, On Click, Property Bindings).
+    this.behaviors = s.behaviors ?? []
   }
 
   private transformAt(offset: number): Transform2D {

@@ -24,6 +24,9 @@ import { gameStorage } from './storage'
 import { gameNet } from './net'
 import { resolveFileRef } from './projectFiles'
 import { gameConsole } from './console'
+import { coerce, formatProp, sceneProps } from './props'
+import { registerFunction, runActions } from './events'
+import type { PropertyBindingsConfig, UiEventsConfig } from '../ipc/document'
 import {
   deleteNode,
   duplicateNodes,
@@ -44,6 +47,8 @@ import {
   previewNodeAnchor,
   previewNodePath,
   previewNodeScale,
+  previewNodeRotation,
+  previewNodeTranslation,
   nodeLocalBounds,
   physics3dVelocity,
   physics3dAngularVelocity,
@@ -261,6 +266,11 @@ export class ScriptHost {
       : { panX: frame.camera.panX, panY: frame.camera.panY, pxPerWorld: frame.camera.zoom }
     const kinds = new Map((frame.machine?.inputs ?? []).map((i) => [i.name, i.kind]))
     htmlOverlay.update(items, overlayView, true, {
+      getProp: (name) => sceneProps.get(name),
+      setProp: (name, value) => {
+        if (!sceneProps.set(name, value)) gameConsole.add('warn', `HTML UI: data-prop="${name}" — this scene has no property "${name}"`, { scene: scene.name, kind: 'HTML UI' })
+      },
+      propsVersion: sceneProps.version,
       fireTrigger: (name) => fireTrigger(editor, name),
       setInput: (name, value) => {
         const kind = kinds.get(name)
@@ -358,9 +368,14 @@ export class ScriptHost {
     this.writes.target(editor, artboardId)
     this.updateAudio(frame, nodes)
     this.updateUi(frame, nodes)
+    // Properties, On Click actions and property bindings work without any
+    // script at all.
+    sceneProps.ensureScene(scene.id)
+    const eventScene = this.runEvents(frame, nodes)
+    this.applyBindings(frame, nodes)
     if (programs.length === 0) {
       this.writes.flush()
-      return null
+      return eventScene
     }
 
     let pendingScene: string | null = null
@@ -415,6 +430,8 @@ export class ScriptHost {
         globals: frame.globals,
         storage: gameStorage,
         net: gameNet,
+        props: sceneProps.proxy((name) => gameConsole.add('warn', `ctx.props.${name} — this scene has no property "${name}" (add it in the Inspector's Properties, with nothing selected)`, { scene: scene.name, state: program.state, layer: program.layer, kind: 'Script' })),
+        on: (name: string, fn: (arg?: unknown) => unknown) => registerFunction(name, fn),
         // Hot per-frame writes are queued and sent in one call (`writes`);
         // everything else flushes the queue first so engine state is
         // up to date before it's read or changed some other way.
@@ -513,7 +530,176 @@ export class ScriptHost {
       })
     }
     writes.flush()
-    return pendingScene
+    return pendingScene ?? eventScene
+  }
+
+  /** On Click: runs the events of every UI Button clicked this frame
+   * (`game/events.ts`). Returns a scene an action asked to load. */
+  private runEvents(frame: ScriptFrame, nodes: ScriptNode[]): string | null {
+    const { editor, scene } = frame
+    let loadScene: string | null = null
+    const byKey = new Map(nodes.map((n) => [`${n.id.idx}.${n.id.version}`, n]))
+    const find = (id: OpaqueId) => byKey.get(`${id.idx}.${id.version}`) ?? null
+    const kinds = new Map((frame.machine?.inputs ?? []).map((i) => [i.name, i.kind]))
+    for (const n of nodes) {
+      if (!n.button) continue
+      const events = n.behaviors.find((e) => e.enabled && e.behavior.kind === 'UiEvents')?.behavior as (UiEventsConfig & { kind: 'UiEvents' }) | undefined
+      if (!events || events.onClick.length === 0 || !this.ui.state(n.id).clicked) continue
+      const writes = this.writes
+      const has = (node: ScriptNode, component: string) => node.behaviors.some((e) => e.enabled && e.behavior.kind === component)
+      runActions(events.onClick, n.id, {
+        origin: { scene: scene.name, state: n.name },
+        nodeName: (id) => find(id)?.name ?? null,
+        isVisible: (id) => find(id)?.visible ?? false,
+        setVisible: (id, visible) => writes.push(4, id, visible ? 1 : 0),
+        setNodeField: (id, field, value) => {
+          const node = find(id)
+          if (!node) return false
+          const t = node.transform
+          const num = Number(value)
+          writes.flush()
+          switch (field) {
+            case 'x':
+              previewNodeTranslation(editor, scene.id, id, num, t.translation.y)
+              return true
+            case 'y':
+              previewNodeTranslation(editor, scene.id, id, t.translation.x, num)
+              return true
+            case 'rotation':
+              previewNodeRotation(editor, scene.id, id, num)
+              return true
+            case 'scaleX':
+              previewNodeScale(editor, scene.id, id, t.translation.x, t.translation.y, num, t.scale.y)
+              return true
+            case 'scaleY':
+              previewNodeScale(editor, scene.id, id, t.translation.x, t.translation.y, t.scale.x, num)
+              return true
+            case 'text':
+              previewTextContent(editor, scene.id, id, String(value ?? ''))
+              return true
+            case 'fillColor': {
+              const c = coerce('Color', value) as number[]
+              writes.push(6, id, c[0], c[1], c[2], c[3])
+              return true
+            }
+            case 'visible':
+              writes.push(4, id, value ? 1 : 0)
+              return true
+          }
+          return false
+        },
+        setComponentField: (id, component, field, value) => {
+          writes.flush()
+          return editor.preview_component_field(scene.id, id, component, field, value)
+        },
+        callMethod: (id, component, method, arg) => {
+          const node = find(id)
+          if (!node || !has(node, component)) return false
+          writes.flush()
+          const num = Number(arg)
+          switch (`${component}.${method}`) {
+            case 'ParticleSystem.emit':
+              emitParticles(editor, scene.id, id, Math.max(1, Math.round(Number.isFinite(num) && num > 0 ? num : 10)))
+              return true
+            case 'AudioSource.play':
+              this.playSource(editor, nodes, id)
+              return true
+            case 'AudioSource.stop':
+              audio.stopNodeSounds(`${id.idx}:${id.version}`)
+              return true
+            case 'Tree2D.shake':
+              editor.tree_shake(id, Number.isFinite(num) && num > 0 ? num : 1)
+              return true
+            case 'Tree2D.regrow':
+              editor.tree_regrow(id)
+              return true
+            case 'Cloth2D.reset':
+              editor.cloth_reset(id)
+              return true
+            case 'Rigidbody2D.impulse': {
+              const [x, y] = arg.split(',').map((v) => Number(v.trim()) || 0)
+              physicsAddForce(editor, scene.id, id, x ?? 0, y ?? 0, true)
+              return true
+            }
+            case 'UiToggle.toggle':
+              this.ui.set(id, { isOn: !this.ui.state(id).isOn })
+              return true
+          }
+          return false
+        },
+        fireTrigger: (input) => fireTrigger(editor, input),
+        setInput: (input, value) => {
+          const kind = kinds.get(input)
+          if (kind === 'Bool') setStateMachineBoolInput(editor, input, value === 'true' || value === '1')
+          else if (kind === 'Number') setStateMachineNumberInput(editor, input, Number(value))
+          else if (kind === 'Enum') setStateMachineEnumInput(editor, input, value)
+          else if (kind === 'Trigger') fireTrigger(editor, input)
+          else gameConsole.add('warn', `On Click: the state machine has no input "${input}"`, { scene: scene.name, kind: 'Event' })
+        },
+        loadScene: (name) => {
+          loadScene = name
+        },
+        playSound: (name) => {
+          const sound = this.soundId(editor, name)
+          if (sound) audio.play(editor, sound)
+          else gameConsole.add('warn', `On Click: no sound named "${name}"`, { scene: scene.name, kind: 'Event' })
+        },
+        setProperty: (property, value) => sceneProps.apply(property, value),
+      })
+    }
+    return loadScene
+  }
+
+  /** Last property version bindings were applied at (and the node set). */
+  private bindingsAt = ''
+
+  /** Property Binding components: when a property changes, push it into
+   * the bound node fields. */
+  private applyBindings(frame: ScriptFrame, nodes: ScriptNode[]): void {
+    const { editor, scene } = frame
+    const bound = nodes.filter((n) => n.behaviors.some((e) => e.enabled && e.behavior.kind === 'PropertyBindings'))
+    const key = `${sceneProps.version}|${bound.length}|${scene.id.idx}`
+    if (bound.length === 0 || key === this.bindingsAt) return
+    this.bindingsAt = key
+    const writes = this.writes
+    for (const n of bound) {
+      const config = n.behaviors.find((e) => e.enabled && e.behavior.kind === 'PropertyBindings')!.behavior as PropertyBindingsConfig & { kind: 'PropertyBindings' }
+      const t = n.transform
+      let pos: [number, number] | null = null
+      let scale: [number, number] | null = null
+      for (const b of config.bindings) {
+        if (!sceneProps.has(b.property)) continue
+        const raw = sceneProps.get(b.property)
+        const num = Number(raw) * (b.scale ?? 1) + (b.offset ?? 0)
+        const target = b.target
+        if (target === 'Text') {
+          const shown = typeof raw === 'number' && ((b.scale ?? 1) !== 1 || (b.offset ?? 0) !== 0) ? num : raw
+          writes.flush()
+          previewTextContent(editor, scene.id, n.id, formatProp(shown, b.format))
+        } else if (target === 'X') pos = [num, (pos ?? [t.translation.x, t.translation.y])[1]]
+        else if (target === 'Y') pos = [(pos ?? [t.translation.x, t.translation.y])[0], num]
+        else if (target === 'Rotation') {
+          writes.flush()
+          previewNodeRotation(editor, scene.id, n.id, num)
+        } else if (target === 'ScaleX') scale = [num, (scale ?? [t.scale.x, t.scale.y])[1]]
+        else if (target === 'ScaleY') scale = [(scale ?? [t.scale.x, t.scale.y])[0], num]
+        else if (target === 'Scale') scale = [num, num]
+        else if (target === 'Visible') writes.push(4, n.id, raw ? 1 : 0)
+        else if (target === 'FillColor') {
+          const c = coerce('Color', raw) as number[]
+          writes.push(6, n.id, c[0], c[1], c[2], c[3])
+        } else if (typeof target === 'object' && 'ComponentField' in target) {
+          writes.flush()
+          const value = typeof raw === 'number' ? num : raw
+          editor.preview_component_field(scene.id, n.id, target.ComponentField.component, target.ComponentField.field, JSON.stringify(value))
+        }
+      }
+      if (pos) writes.push(1, n.id, pos[0], pos[1])
+      if (scale) {
+        writes.flush()
+        previewNodeScale(editor, scene.id, n.id, pos?.[0] ?? t.translation.x, pos?.[1] ?? t.translation.y, scale[0], scale[1])
+      }
+    }
   }
 }
 

@@ -965,6 +965,8 @@ export interface DocumentSummary {
   audio: AudioSummary[]
   /** Project code / markup files (the Code tab, `@file:` references). */
   textFiles: TextFileSummary[]
+  /** Every scene's properties. */
+  properties: PropertySummary[]
 }
 
 // ---- 3D (mirrors `an1mbyt3_core::space3d`) ----
@@ -1184,6 +1186,51 @@ export interface UiHtmlConfig {
 }
 
 /** A 3D physics body (`an1mbyt3_core::Rigidbody3D`). */
+/** One On Click action (`an1mbyt3_core::ActionKind`, externally tagged). */
+export type ActionKind =
+  | 'ToggleVisible'
+  | { SetVisible: { visible: boolean } }
+  | { SetNodeField: { field: string; value: string } }
+  | { SetComponentField: { component: string; field: string; value: string } }
+  | { CallMethod: { component: string; method: string; arg: string } }
+  | { FireTrigger: { input: string } }
+  | { SetInput: { input: string; value: string } }
+  | { LoadScene: { scene: string } }
+  | { PlaySound: { sound: string } }
+  | { SetProperty: { property: string; value: string } }
+  | { CallFunction: { function: string; arg: string } }
+/** An action on a target node (`null` = the clicked node itself). */
+export interface EventAction {
+  target: OpaqueId | null
+  action: ActionKind
+}
+/** `an1mbyt3_core::UiEvents` — a node's On Click list. */
+export interface UiEventsConfig {
+  onClick: EventAction[]
+}
+/** What a property binding drives. */
+export type BindTarget = 'Text' | 'X' | 'Y' | 'Rotation' | 'ScaleX' | 'ScaleY' | 'Scale' | 'Visible' | 'FillColor' | { ComponentField: { component: string; field: string } }
+export interface PropertyBinding {
+  property: string
+  target: BindTarget
+  format: string
+  scale: number
+  offset: number
+}
+/** `an1mbyt3_core::PropertyBindings`. */
+export interface PropertyBindingsConfig {
+  bindings: PropertyBinding[]
+}
+/** A scene property (Rive view model value). */
+export interface PropertySummary {
+  id: OpaqueId
+  artboard: OpaqueId
+  name: string
+  kind: 'Number' | 'Bool' | 'Text' | 'Color'
+  /** Starting value as JSON. */
+  default: string
+}
+
 /** A project code / markup file (`an1mbyt3_core::TextFile`). */
 export interface TextFileSummary {
   id: OpaqueId
@@ -1445,6 +1492,8 @@ export type NodeBehavior =
   | ({ kind: 'Flipbook' } & FlipbookConfig)
   | ({ kind: 'Cloth2D' } & Cloth2DConfig)
   | ({ kind: 'Tree2D' } & Tree2DConfig)
+  | ({ kind: 'UiEvents' } & UiEventsConfig)
+  | ({ kind: 'PropertyBindings' } & PropertyBindingsConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

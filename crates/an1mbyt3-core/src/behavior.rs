@@ -108,6 +108,11 @@ pub enum NodeBehavior {
     Cloth2D(crate::Cloth2D),
     /// A procedural tree — see [`crate::Tree2D`]. (Appended last.)
     Tree2D(crate::Tree2D),
+    /// On Click actions — see [`crate::UiEvents`]. (Appended last.)
+    UiEvents(crate::UiEvents),
+    /// Drives the node from scene properties — see
+    /// [`crate::PropertyBindings`]. (Appended last.)
+    PropertyBindings(crate::PropertyBindings),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

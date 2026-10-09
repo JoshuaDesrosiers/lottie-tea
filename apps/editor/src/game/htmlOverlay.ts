@@ -23,6 +23,7 @@
  * editor drives it in Design (non-interactive, a preview), the script host
  * in Playground and exported games.
  */
+import { formatProp } from './props'
 import { resolveFileRef } from './projectFiles'
 import type { OpaqueId, UiHtmlConfig } from '../ipc/document'
 
@@ -52,9 +53,16 @@ export interface OverlayView {
 export interface OverlayHandlers {
   fireTrigger(name: string): void
   setInput(name: string, value: boolean | number | string): void
+  /** Scene properties: `data-bind="name"` shows one (optional
+   * `data-format="Score: {}"`), `data-prop="name"` on an input writes one. */
+  getProp?(name: string): unknown
+  setProp?(name: string, value: unknown): void
+  /** Bumped when any property changes (bound elements refresh then). */
+  propsVersion?: number
 }
 
 interface Live {
+  propsVersion?: number
   host: HTMLDivElement
   root: ShadowRoot
   /** What's rendered inside (re-rendered only when this changes). */
@@ -145,9 +153,27 @@ class HtmlOverlay {
       // Content: re-rendered only when the authored HTML / CSS / size
       // change (scripts editing `ref.dom` keep their changes).
       const content = `${config.width}x${config.height}\n${css}\n${html}`
-      if (content !== live.content) {
+      const contentChanged = content !== live.content
+      if (contentChanged) {
         live.content = content
         live.root.innerHTML = `<style>:host{all:initial;display:block;width:${config.width}px;height:${config.height}px;}\n${css}</style>${html}`
+      }
+      // Property bindings: refreshed when a property changed (or the HTML
+      // was re-rendered).
+      const getProp = handlers?.getProp
+      if (getProp && (contentChanged || live.propsVersion !== handlers.propsVersion)) {
+        live.propsVersion = handlers.propsVersion
+        for (const el of live.root.querySelectorAll<HTMLElement>('[data-bind]')) {
+          const text = formatProp(getProp(el.dataset.bind ?? ''), el.dataset.format ?? '')
+          if (el.textContent !== text) el.textContent = text
+        }
+        for (const el of live.root.querySelectorAll<HTMLInputElement>('[data-prop]')) {
+          // Don't fight the user while they're editing it.
+          if (live.root.activeElement === el) continue
+          const v = getProp(el.dataset.prop ?? '')
+          if (el.type === 'checkbox') el.checked = !!v
+          else if (String(el.value) !== String(v ?? '')) el.value = String(v ?? '')
+        }
       }
       const host = live.host
       host.style.display = item.visible ? 'block' : 'none'
@@ -179,6 +205,11 @@ class HtmlOverlay {
   private handleInput(event: Event) {
     if (!this.interactive || !this.handlers) return
     const el = event.target as HTMLInputElement | HTMLSelectElement | null
+    const prop = el?.getAttribute?.('data-prop')
+    if (el && prop && this.handlers.setProp) {
+      this.handlers.setProp(prop, el instanceof HTMLInputElement && el.type === 'checkbox' ? el.checked : el.value)
+      return
+    }
     const name = el?.getAttribute?.('data-input')
     if (!el || !name) return
     if (el instanceof HTMLInputElement && el.type === 'checkbox') this.handlers.setInput(name, el.checked)

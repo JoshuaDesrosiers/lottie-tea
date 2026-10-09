@@ -253,6 +253,13 @@ export interface ScriptContext {
    * `status`, `me`, `isHost`, `players`, `hosting.addresses`. See
    * `game/net.ts`. */
   net: ScriptNet
+  /** **Scene properties** (the Inspector's Properties, nothing selected):
+   * read / write by name — `ctx.props.score += 1`. Values keep their type;
+   * Property Binding components and HTML `data-bind` update from them. */
+  props: Record<string, any>
+  /** Registers `fn` as a function an On Click action can call by `name`
+   * ("Call script function"). */
+  on(name: string, fn: (arg?: unknown) => unknown): void
   /** Untracked, no-undo-entry writes — the same "live preview, no history
    * spam" mutation every on-canvas drag handle already uses
    * (`previewNodeTranslation` etc., `ipc/wasmEditor.ts`), not the

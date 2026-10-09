@@ -53,6 +53,9 @@ pub struct ScriptNodeDto {
     pub html: Option<an1mbyt3_core::UiHtml>,
     /// Local-space bounds `[min x, min y, max x, max y]` (button hit tests).
     pub bounds: [f32; 4],
+    /// Every component on the node (`ref.bodyType`, On Click events,
+    /// Property Bindings and "has this component" checks read these).
+    pub behaviors: Vec<crate::dto::NodeBehaviorEntryDto>,
 }
 
 #[derive(Serialize)]
@@ -109,6 +112,20 @@ pub fn revision(document: &Document, artboard: &Artboard) -> u32 {
         mix(node.parent.map_or(u32::MAX, |p| id_parts(p).0));
         mix(kind_name(&node.kind).len() as u32);
         mix(node.rigidbody().map_or(9, |rb| rb.body_type as u32));
+        // Components added / removed / toggled, and edits to the ones the
+        // host reads live from this table (On Click, Property Bindings).
+        mix(node.behaviors.len() as u32);
+        for entry in &node.behaviors {
+            mix(entry.enabled as u32);
+            match &entry.behavior {
+                an1mbyt3_core::NodeBehavior::UiEvents(_) | an1mbyt3_core::NodeBehavior::PropertyBindings(_) => {
+                    for b in format!("{:?}", entry.behavior).bytes() {
+                        mix(b as u32);
+                    }
+                }
+                _ => {}
+            }
+        }
     }
     mix(document.images().count() as u32);
     h & 0x00ff_ffff
@@ -168,6 +185,7 @@ pub fn scene(document: &Document, artboard: &Artboard) -> ScriptSceneDto {
                     let (min, max) = crate::dto::local_bounds(artboard, id);
                     [min.x, min.y, max.x, max.y]
                 },
+                behaviors: node.behaviors.iter().map(Into::into).collect(),
             })
         })
         .collect();
