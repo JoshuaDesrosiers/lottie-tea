@@ -1291,6 +1291,9 @@ fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard,
     if node.cloth().is_some() {
         draws.extend(cloth_draws(editor, node_id));
     }
+    if node.tree().is_some() {
+        draws.extend(tree_draws(editor, artboard, node_id));
+    }
     if let Some(config) = node.liquid() {
         draws.extend(liquid_draws(editor, artboard, node_id, config));
     }
@@ -1400,6 +1403,17 @@ fn particle_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artbo
                 material: None,
             }
         })
+        .collect()
+}
+
+/// A Tree 2D's parts, back to front, in the node's own space.
+fn tree_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId) -> Vec<DrawCall<'a>> {
+    let Some(gpu) = editor.tree_gpu.get(&node_id) else { return Vec::new() };
+    let transform = artboard.world_transform(node_id);
+    gpu.parts
+        .iter()
+        .zip(gpu.bindings.iter())
+        .map(|((mesh, color), binding)| DrawCall { mesh, binding, transform, fill_color: *color, blend_mode: BlendMode::Normal, gradient: None, texture: None, material: None })
         .collect()
 }
 
@@ -2092,6 +2106,10 @@ pub struct WasmEditor {
     /// rest otherwise) and its GPU meshes / texture — see `ClothGpu`.
     cloth_sims: HashMap<NodeId, an1mbyt3_runtime::ClothSim>,
     cloth_gpu: HashMap<NodeId, ClothGpu>,
+    /// Tree 2D: each tree's runtime (skeleton, clock, shake, falling
+    /// leaves) and its per-colour meshes, rebuilt every frame (it sways).
+    tree_states: HashMap<NodeId, an1mbyt3_runtime::TreeRuntime>,
+    tree_gpu: HashMap<NodeId, TreeGpu>,
     /// Live Rigidbody 2D / Collider 2D simulation for the scene Playground
     /// is running — `(scene, world)`. Built on the first Playground frame,
     /// dropped on leaving Playground or switching scenes (stopping
@@ -2285,6 +2303,14 @@ struct ClothGpu {
     shading: f32,
 }
 
+/// See `WasmEditor::tree_gpu`: one flat-colour mesh per part (bark, bark
+/// shadow, dark foliage, light foliage, accents, falling leaves), each with
+/// its own draw binding.
+struct TreeGpu {
+    parts: Vec<(GpuMesh, [f32; 4])>,
+    bindings: Vec<DrawBinding>,
+}
+
 /// What a cloth's texture was baked from.
 type ClothTextureKey = ([u32; 4], an1mbyt3_core::ClothPatternKind, [u32; 4], u32, Option<an1mbyt3_core::ImageId>);
 
@@ -2463,6 +2489,8 @@ impl WasmEditor {
             trail_gpu: HashMap::new(),
             cloth_sims: HashMap::new(),
             cloth_gpu: HashMap::new(),
+            tree_states: HashMap::new(),
+            tree_gpu: HashMap::new(),
             physics: None,
             physics3d: None,
         })
@@ -2612,8 +2640,10 @@ impl WasmEditor {
         if entering_playground || leaving_playground {
             self.flipbook_clocks.clear();
             self.environment_3d = None;
-            // Cloth starts hanging at rest every time play starts / stops.
+            // Cloth starts hanging at rest every time play starts / stops,
+            // and trees start their clocks (and grow-in) over.
             self.cloth_sims.clear();
+            self.tree_states.clear();
         }
         if entering_playground {
             self.runtime_spawned.clear();
@@ -3273,6 +3303,37 @@ impl WasmEditor {
                 gpu.meshes = meshes;
                 gpu.shading = config.shading;
             }
+        }
+
+        // Tree 2D pre-pass: advance each tree's clock / shake / falling
+        // leaves (Playground; frozen and fully grown while designing) and
+        // rebuild its meshes.
+        let artboard = self.document.artboard(artboard_id).unwrap();
+        let trees: Vec<(NodeId, an1mbyt3_core::Tree2D)> =
+            artboard.node_ids().filter(|id| !artboard.is_effectively_deleted(*id)).filter_map(|id| artboard.node(id)?.tree().map(|tree| (id, *tree))).collect();
+        let live_trees: std::collections::HashSet<NodeId> = trees.iter().map(|(id, _)| *id).collect();
+        self.tree_states.retain(|id, _| live_trees.contains(id));
+        self.tree_gpu.retain(|id, _| live_trees.contains(id));
+        for (node_id, config) in trees {
+            let state = self.tree_states.entry(node_id).or_default();
+            state.sync(&config);
+            let grow = if self.playground_active {
+                state.step(&config, delta_seconds);
+                if config.grow_on_play { (state.time / config.grow_time.max(0.1)).min(1.0) } else { 1.0 }
+            } else {
+                1.0
+            };
+            let mesh = an1mbyt3_runtime::build_tree_mesh(&config, state, grow);
+            let gpu = self.tree_gpu.entry(node_id).or_insert_with(|| TreeGpu { parts: Vec::new(), bindings: Vec::new() });
+            while gpu.bindings.len() < mesh.parts.len() {
+                gpu.bindings.push(self.renderer.create_draw_binding());
+            }
+            gpu.parts = mesh
+                .parts
+                .into_iter()
+                .filter(|(_, positions, indices)| !positions.is_empty() && !indices.is_empty())
+                .map(|(color, positions, indices)| (self.renderer.upload_mesh(&an1mbyt3_geometry::Mesh { positions, indices, uvs: Vec::new() }), color))
+                .collect();
         }
 
         // Motion-path world positions for the selected node's Translation
@@ -4115,6 +4176,8 @@ impl WasmEditor {
         self.trail_gpu.clear();
         self.cloth_sims.clear();
         self.cloth_gpu.clear();
+        self.tree_states.clear();
+        self.tree_gpu.clear();
         self.active_animation = self.document.artboard(artboard_id).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
         self.scrub_time = 0.0;
@@ -6124,6 +6187,7 @@ impl WasmEditor {
             "Collider3D" => B::Collider3D(an1mbyt3_core::Collider3D::default()),
             "Flipbook" => B::Flipbook(an1mbyt3_core::Flipbook::default()),
             "Cloth2D" => B::Cloth2D(an1mbyt3_core::Cloth2D::default()),
+            "Tree2D" => B::Tree2D(an1mbyt3_core::Tree2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -7591,6 +7655,27 @@ impl WasmEditor {
             n.transform.position = glam::Vec3::new(values[0], values[1], values[2]);
             n.transform.rotation_degrees = glam::Vec3::new(values[3], values[4], values[5]);
             n.transform.scale = glam::Vec3::new(values[6], values[7], values[8]);
+        }
+        Ok(())
+    }
+
+    /// Script API (`ref.shakeTree(strength)`): the tree sways hard for a
+    /// moment and drops leaves (strength ~0.5 = a nudge, 2 = a big shake).
+    pub fn tree_shake(&mut self, node: JsValue, strength: f32) -> Result<(), JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        if let Some(state) = self.tree_states.get_mut(&node_id) {
+            state.shake(strength.max(0.0));
+        }
+        Ok(())
+    }
+
+    /// Script API (`ref.regrowTree()`): restarts its clock — with Grow on
+    /// Play on, it grows in again from a sapling.
+    pub fn tree_regrow(&mut self, node: JsValue) -> Result<(), JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        if let Some(state) = self.tree_states.get_mut(&node_id) {
+            state.time = 0.0;
+            state.leaves.clear();
         }
         Ok(())
     }
@@ -9214,6 +9299,14 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// The + menu's Demos → "Tree Garden" — the Tree 2D component: every
+    /// species growing in, swaying, shaken by clicks.
+    pub async fn load_trees_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_trees::build_demo_trees(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     /// The + menu's Demos → "Physics 3D Lab" — Rigidbody 3D / Collider 3D:
     /// a crate pyramid, a ramp, a trigger zone and a click-to-fire cannon.
     pub async fn load_physics3d_demo(&mut self) -> Result<JsValue, JsValue> {
@@ -9810,6 +9903,8 @@ impl WasmEditor {
         self.trail_gpu.clear();
         self.cloth_sims.clear();
         self.cloth_gpu.clear();
+        self.tree_states.clear();
+        self.tree_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
@@ -9977,6 +10072,8 @@ impl WasmEditor {
         self.trail_gpu.clear();
         self.cloth_sims.clear();
         self.cloth_gpu.clear();
+        self.tree_states.clear();
+        self.tree_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
@@ -10062,6 +10159,8 @@ impl WasmEditor {
         self.trail_gpu.clear();
         self.cloth_sims.clear();
         self.cloth_gpu.clear();
+        self.tree_states.clear();
+        self.tree_gpu.clear();
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();

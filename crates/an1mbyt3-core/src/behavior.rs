@@ -106,6 +106,8 @@ pub enum NodeBehavior {
     /// Soft fabric: flags, curtains, capes — see [`crate::Cloth2D`].
     /// (Appended last.)
     Cloth2D(crate::Cloth2D),
+    /// A procedural tree — see [`crate::Tree2D`]. (Appended last.)
+    Tree2D(crate::Tree2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

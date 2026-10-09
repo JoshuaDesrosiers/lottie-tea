@@ -4982,6 +4982,14 @@ function cn(e, t, n, r, i, a) {
 			enumerable: !1,
 			value: (e) => a.setVoxels(s.id, e instanceof Uint8Array ? e : Uint8Array.from(e))
 		},
+		shakeTree: {
+			enumerable: !1,
+			value: (e = 1) => a.tree.shake(s.id, e)
+		},
+		regrowTree: {
+			enumerable: !1,
+			value: () => a.tree.regrow(s.id)
+		},
 		grabCloth: {
 			enumerable: !1,
 			value: (e, t, n = 40) => a.cloth.grab(s.id, e, t, n)
@@ -5548,6 +5556,10 @@ var Fn = class {
 			setVoxels: (e, t) => d(() => bt(n, s, e, t)),
 			setVoxel: (e, t, r, i, a) => d(() => Ct(n, s, e, t, r, i, a)),
 			setVoxelChunk: (e, t, r, i) => d(() => xt(n, s, e, t, r, i)),
+			tree: {
+				shake: (e, t) => d(() => n.tree_shake(e, t)),
+				regrow: (e) => d(() => n.tree_regrow(e))
+			},
 			cloth: {
 				grab: (e, t, r, i) => d(() => n.cloth_grab(e, t, r, i)),
 				drag: (e, t, r) => d(() => n.cloth_drag(e, t, r)),

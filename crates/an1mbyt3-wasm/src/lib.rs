@@ -84,6 +84,7 @@ mod demo_voxel;
 mod demo_boom;
 mod demo_lan;
 mod demo_cloth;
+mod demo_trees;
 mod view3d;
 mod demo_tactics_3d;
 mod demo_tactics;

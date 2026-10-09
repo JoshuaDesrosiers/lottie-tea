@@ -55,6 +55,7 @@
 
 mod block_interpreter;
 pub mod cloth;
+pub mod tree;
 mod graph;
 mod keyboard;
 mod particle_sim;
@@ -66,6 +67,7 @@ pub use an1mbyt3_core::{
 };
 pub use block_interpreter::{touching, BlockContext};
 pub use cloth::{build_mesh as build_cloth_mesh, ClothMesh, ClothSim};
+pub use tree::{build_tree_mesh, TreeRuntime};
 pub use graph::{evaluate_graph, GraphContext};
 pub use keyboard::KeyboardState;
 pub use particle_sim::{step as step_particle_system, Particle, ParticleSystemRuntime};

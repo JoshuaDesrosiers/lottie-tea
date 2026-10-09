@@ -154,6 +154,11 @@ export interface ScriptContext {
   setVoxels(node: OpaqueId, blocks: Uint8Array): void
   /** Block worlds: set one block — see `ref.setVoxel`. */
   setVoxel(node: OpaqueId, x: number, y: number, z: number, block: number): boolean
+  /** Tree 2D — see `ref.shakeTree` / `ref.regrowTree`. */
+  tree: {
+    shake(node: OpaqueId, strength: number): void
+    regrow(node: OpaqueId): void
+  }
   /** Cloth 2D — see `ref.grabCloth` etc. */
   cloth: {
     grab(node: OpaqueId, x: number, y: number, radius: number): boolean
@@ -494,6 +499,11 @@ export interface ComponentRef {
   setClothWind(x: number | null, y?: number): void
   /** **Cloth 2D**: mend it — back to hanging at rest. */
   resetCloth(): void
+  /** **Tree 2D**: shake it — it sways hard for a moment and drops leaves
+   * (0.5 = a nudge, 2 = a big shake). */
+  shakeTree(strength?: number): void
+  /** **Tree 2D**: restart it (with Grow in on, it grows from a sapling again). */
+  regrowTree(): void
   /** Nodes with an **Audio Source**: play its clip (with its volume / pitch
    * / loop / spatial settings; `options` override volume and pitch), or
    * stop what it's playing. */
@@ -845,6 +855,14 @@ function makeComponentRefFromState(
     setVoxels: {
       enumerable: false,
       value: (blocks: Uint8Array | number[]) => ctx.setVoxels(node.id, blocks instanceof Uint8Array ? blocks : Uint8Array.from(blocks)),
+    },
+    shakeTree: {
+      enumerable: false,
+      value: (strength = 1) => ctx.tree.shake(node.id, strength),
+    },
+    regrowTree: {
+      enumerable: false,
+      value: () => ctx.tree.regrow(node.id),
     },
     grabCloth: {
       enumerable: false,

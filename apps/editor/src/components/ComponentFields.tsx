@@ -42,6 +42,8 @@ import type {
   SpriteSkin2DConfig,
   Liquid2DConfig,
   Cloth2DConfig,
+  Tree2DConfig,
+  TreeSpecies,
   ClothPin,
   ClothPatternKind,
   PhysicsMaterial2DConfig,
@@ -1092,6 +1094,79 @@ export function ScreenFields({ screen, onChange }: { screen: ScreenSettings; onC
   )
 }
 
+const TREE_SPECIES: TreeSpecies[] = ['Oak', 'Pine', 'Birch', 'Sakura', 'Palm', 'Willow']
+/** Each species' natural colours (bark, foliage, accent) — mirrors
+ * `an1mbyt3_core::TreeSpecies::palette`. */
+const TREE_PALETTES: Record<TreeSpecies, [number, number, number, number][]> = {
+  Oak: [[0.42, 0.28, 0.18, 1], [0.36, 0.66, 0.26, 1], [0.85, 0.3, 0.25, 1]],
+  Pine: [[0.38, 0.24, 0.16, 1], [0.16, 0.45, 0.32, 1], [0.55, 0.38, 0.2, 1]],
+  Birch: [[0.92, 0.9, 0.86, 1], [0.62, 0.8, 0.3, 1], [0.95, 0.85, 0.3, 1]],
+  Sakura: [[0.3, 0.2, 0.2, 1], [1, 0.72, 0.82, 1], [1, 0.88, 0.93, 1]],
+  Palm: [[0.62, 0.46, 0.28, 1], [0.3, 0.68, 0.3, 1], [0.45, 0.3, 0.15, 1]],
+  Willow: [[0.36, 0.28, 0.2, 1], [0.5, 0.72, 0.3, 1], [0.8, 0.9, 0.5, 1]],
+}
+
+/** Tree 2D — a procedural tree from a species and a seed; sways, drops
+ * leaves, can grow in when play starts. */
+export function Tree2DFields({ config, onChange }: { config: Tree2DConfig; onChange: (value: Tree2DConfig) => void }) {
+  const update = (patch: Partial<Tree2DConfig>) => onChange({ ...config, ...patch })
+  const setSpecies = (species: TreeSpecies) => {
+    // Picking a species also gives it its natural colours.
+    const [barkColor, leafColor, accentColor] = TREE_PALETTES[species]
+    update({ species, barkColor, leafColor, accentColor })
+  }
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Row label="Species" title="Each grows by its own rules — and picking one sets its natural colours.">
+        <select value={config.species} onChange={(e) => setSpecies(e.target.value as TreeSpecies)} className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
+          {TREE_SPECIES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </Row>
+      <Row label="Seed" title="Same seed + settings = the same tree. Roll for a new one.">
+        <NumberField label="#" value={config.seed} step={1} onCommit={(v) => update({ seed: Math.max(0, Math.round(v)) })} />
+        <button onClick={() => update({ seed: Math.floor(Math.random() * 100000) })} className="rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-overlay/20" title="A new random tree">
+          Roll
+        </button>
+      </Row>
+      <Row label="Height" title="Roughly how tall (world units). The trunk's foot is at this node.">
+        <NumberField label="" value={config.height} step={10} onCommit={(v) => update({ height: clamp(v, 20, 2000) })} />
+      </Row>
+      <Row label="Spread" title="How wide the branches fan out (1 = natural).">
+        <Slider value={config.spread} min={0.2} max={2} step={0.05} onChange={(spread) => update({ spread })} />
+      </Row>
+      <Row label="Foliage" title="How much foliage (0 = bare winter branches).">
+        <Slider value={config.density} min={0} max={2} step={0.05} onChange={(density) => update({ density })} />
+      </Row>
+      <Row label="Bark">
+        <ColorSwatch value={config.barkColor} onChange={(barkColor) => update({ barkColor })} />
+      </Row>
+      <Row label="Leaves">
+        <ColorSwatch value={config.leafColor} onChange={(leafColor) => update({ leafColor })} />
+      </Row>
+      <Row label="Accent" title="Blossom (sakura) and fruit colour.">
+        <ColorSwatch value={config.accentColor} onChange={(accentColor) => update({ accentColor })} />
+      </Row>
+      <Row label="Wind" title="Steady wind: leans the tree and carries falling leaves (−1..1, + = right).">
+        <Slider value={config.wind} min={-1} max={1} step={0.05} onChange={(wind) => update({ wind })} />
+      </Row>
+      <Row label="Sway" title="How much it sways (0 = still).">
+        <Slider value={config.windSway} min={0} max={3} step={0.05} onChange={(windSway) => update({ windSway })} />
+      </Row>
+      <Row label="Leaf fall" title="Leaves dropping per second (in play).">
+        <NumberField label="/s" value={config.fallingLeaves} step={0.1} onCommit={(v) => update({ fallingLeaves: clamp(v, 0, 30) })} />
+      </Row>
+      <Row label="Grow in" title="In play, grows from a sapling over this many seconds.">
+        <input type="checkbox" checked={config.growOnPlay} onChange={(e) => update({ growOnPlay: e.target.checked })} />
+        {config.growOnPlay && <NumberField label="s" value={config.growTime} step={0.5} onCommit={(v) => update({ growTime: clamp(v, 0.2, 60) })} />}
+      </Row>
+    </div>
+  )
+}
+
 const CLOTH_PINS: [ClothPin, string][] = [['TopEdge', 'Top edge (curtain)'], ['TopCorners', 'Top corners (sag)'], ['LeftEdge', 'Left edge (flag)'], ['None', 'Nothing (falls)']]
 const CLOTH_PATTERNS: [ClothPatternKind, string][] = [['Solid', 'Solid'], ['HorizontalStripes', 'Stripes across'], ['VerticalStripes', 'Stripes down'], ['Checker', 'Checker']]
 
@@ -1238,16 +1313,18 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   Collider3D: 'Collider 3D',
   Flipbook: 'Flipbook',
   Cloth2D: 'Cloth 2D',
+  Tree2D: 'Tree 2D',
   UiSlider: 'UI Slider',
   UiScrollbar: 'UI Scrollbar',
   UiScrollView: 'UI Scroll View',
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem'] },
+  { title: 'Nature', kinds: ['Tree2D'] },
   { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D', 'Cloth2D'] },
   { title: 'Physics 3D', kinds: ['Rigidbody3D', 'Collider3D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },

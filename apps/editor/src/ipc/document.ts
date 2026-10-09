@@ -1182,6 +1182,24 @@ export interface UiHtmlConfig {
 }
 
 /** A 3D physics body (`an1mbyt3_core::Rigidbody3D`). */
+/** `an1mbyt3_core::Tree2D` — a procedural tree. */
+export type TreeSpecies = 'Oak' | 'Pine' | 'Birch' | 'Sakura' | 'Palm' | 'Willow'
+export interface Tree2DConfig {
+  species: TreeSpecies
+  seed: number
+  height: number
+  spread: number
+  density: number
+  barkColor: [number, number, number, number]
+  leafColor: [number, number, number, number]
+  accentColor: [number, number, number, number]
+  wind: number
+  windSway: number
+  fallingLeaves: number
+  growOnPlay: boolean
+  growTime: number
+}
+
 /** `an1mbyt3_core::Cloth2D` — soft fabric: flags, curtains, capes. */
 export type ClothPin = 'TopEdge' | 'TopCorners' | 'LeftEdge' | 'None'
 export type ClothPatternKind = 'Solid' | 'HorizontalStripes' | 'VerticalStripes' | 'Checker'
@@ -1414,6 +1432,7 @@ export type NodeBehavior =
   | ({ kind: 'Collider3D' } & Collider3DConfig)
   | ({ kind: 'Flipbook' } & FlipbookConfig)
   | ({ kind: 'Cloth2D' } & Cloth2DConfig)
+  | ({ kind: 'Tree2D' } & Tree2DConfig)
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

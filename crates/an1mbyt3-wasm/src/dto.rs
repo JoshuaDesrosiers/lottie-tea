@@ -2087,6 +2087,7 @@ pub enum NodeBehaviorDto {
     Collider3D(an1mbyt3_core::Collider3D),
     Flipbook(an1mbyt3_core::Flipbook),
     Cloth2D(an1mbyt3_core::Cloth2D),
+    Tree2D(an1mbyt3_core::Tree2D),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2127,6 +2128,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::Collider3D(c) => NodeBehaviorDto::Collider3D(*c),
             an1mbyt3_core::NodeBehavior::Flipbook(f) => NodeBehaviorDto::Flipbook(*f),
             an1mbyt3_core::NodeBehavior::Cloth2D(c) => NodeBehaviorDto::Cloth2D(*c),
+            an1mbyt3_core::NodeBehavior::Tree2D(t) => NodeBehaviorDto::Tree2D(*t),
         }
     }
 }
@@ -2169,6 +2171,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::Collider3D(c) => an1mbyt3_core::NodeBehavior::Collider3D(c),
             NodeBehaviorDto::Flipbook(f) => an1mbyt3_core::NodeBehavior::Flipbook(f),
             NodeBehaviorDto::Cloth2D(c) => an1mbyt3_core::NodeBehavior::Cloth2D(c),
+            NodeBehaviorDto::Tree2D(t) => an1mbyt3_core::NodeBehavior::Tree2D(t),
         }
     }
 }

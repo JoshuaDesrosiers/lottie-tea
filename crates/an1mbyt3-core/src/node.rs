@@ -262,6 +262,14 @@ impl Node {
         })
     }
 
+    /// The node's enabled Tree 2D, if any.
+    pub fn tree(&self) -> Option<&crate::Tree2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Tree2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// The node's enabled Cloth 2D, if any.
     pub fn cloth(&self) -> Option<&crate::Cloth2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

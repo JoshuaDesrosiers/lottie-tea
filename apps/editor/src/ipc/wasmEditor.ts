@@ -206,6 +206,11 @@ export async function loadClothDemo(editor: WasmEditor): Promise<AddArtboardResu
   return (await editor.load_cloth_demo()) as AddArtboardResult
 }
 
+/** Demos → "Tree Garden" (Tree 2D). */
+export async function loadTreesDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_trees_demo()) as AddArtboardResult
+}
+
 /** Demos → "Physics 3D Lab". */
 export async function loadPhysics3DDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_physics3d_demo()) as AddArtboardResult
