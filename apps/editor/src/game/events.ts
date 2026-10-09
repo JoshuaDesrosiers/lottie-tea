@@ -18,6 +18,7 @@ import { gameConsole, type ConsoleOrigin } from './console'
 /** Component methods an action can call: component kind → methods. */
 export const COMPONENT_METHODS: Record<string, { method: string; label: string; arg?: string }[]> = {
   ParticleSystem: [{ method: 'emit', label: 'Emit particles', arg: 'Count' }],
+  ParticleSystem3D: [{ method: 'burst', label: 'Burst particles', arg: 'Count' }],
   AudioSource: [
     { method: 'play', label: 'Play' },
     { method: 'stop', label: 'Stop' },

@@ -151,6 +151,8 @@ export interface ScriptContext {
   setTransform3D(node: OpaqueId, values: number[]): void
   /** Untracked model-mesh animation write — see `ref.playAnimation3`. */
   setAnimation3D(node: OpaqueId, clip: string, loop: boolean, overlay: string): void
+  /** Particle System 3D: emit `count` at once — see `ref.burst3`. */
+  burstParticles3D(node: OpaqueId, count: number): void
   /** Block worlds: replace every block — see `ref.setVoxels`. */
   setVoxels(node: OpaqueId, blocks: Uint8Array): void
   /** Block worlds: set one block — see `ref.setVoxel`. */
@@ -476,6 +478,9 @@ export interface ComponentRef {
    * (`'holding-right-shoot'` while walking). Re-sending the same clips
    * doesn't restart them. */
   playAnimation3(name: string, options?: { loop?: boolean; overlay?: string }): void
+  /** **Particle System 3D**: emit `count` particles at once (a burst on
+   * top of the steady rate) — explosions, casts, impacts. */
+  burst3(count?: number): void
   /** **Block worlds** (a Voxels mesh): replace every block at once — one
    * byte per block, x fastest, then z, then y (`x + width * (z + depth *
    * y)`), 0 = air (block ids: grass 1, dirt 2, stone 3, … see the Voxels
@@ -919,6 +924,10 @@ function makeComponentRefFromState(
         animState.key = key
         ctx.setAnimation3D(node.id, name, loop, overlay)
       },
+    },
+    burst3: {
+      enumerable: false,
+      value: (count = 50) => ctx.burstParticles3D(node.id, Math.max(1, Math.round(count))),
     },
     lookAt3: {
       enumerable: false,

@@ -62,6 +62,7 @@ import {
   previewBreakJoint,
   previewNode3DTransform,
   previewNode3DAnimation,
+  burstParticles3D,
   setVoxels,
   setVoxel,
   setVoxelChunk,
@@ -460,6 +461,7 @@ export class ScriptHost {
         breakJoint: (node) => flushed(() => previewBreakJoint(editor, artboardId, node)),
         setTransform3D: (node, values) => flushed(() => previewNode3DTransform(editor, artboardId, node, values)),
         setAnimation3D: (node, clip, loop, overlay) => flushed(() => previewNode3DAnimation(editor, artboardId, node, clip, loop, overlay)),
+        burstParticles3D: (node, count) => flushed(() => burstParticles3D(editor, artboardId, node, count)),
         setVoxels: (node, blocks) => flushed(() => setVoxels(editor, artboardId, node, blocks)),
         setVoxel: (node, x, y, z, block) => flushed(() => setVoxel(editor, artboardId, node, x, y, z, block)),
         setVoxelChunk: (node, cx, cz, blocks) => flushed(() => setVoxelChunk(editor, artboardId, node, cx, cz, blocks)),
@@ -606,6 +608,9 @@ export class ScriptHost {
               return true
             case 'AudioSource.stop':
               audio.stopNodeSounds(`${id.idx}:${id.version}`)
+              return true
+            case 'ParticleSystem3D.burst':
+              burstParticles3D(editor, scene.id, id, Math.max(1, Math.round(Number.isFinite(num) && num > 0 ? num : 50)))
               return true
             case 'Tree2D.shake':
               editor.tree_shake(id, Number.isFinite(num) && num > 0 ? num : 1)

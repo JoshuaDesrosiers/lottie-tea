@@ -71,6 +71,7 @@ async fn run() {
         fog_density: 0.0,
         point_lights: Vec::new(),
         draws,
+        particles: Vec::new(),
     }));
     let pixels = renderer.render_to_texture((W as f32, H as f32), Camera::default(), wgpu::Color::BLACK, &[]).await;
     image::RgbaImage::from_raw(W, H, pixels).unwrap().save("render_model_output.png").unwrap();

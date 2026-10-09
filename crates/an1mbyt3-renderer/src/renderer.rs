@@ -21,7 +21,7 @@ use an1mbyt3_geometry::Mesh;
 
 mod lighting;
 mod three_d;
-pub use three_d::{GpuMaterial3D, GpuMesh3D, MeshDraw3D, PointLight3D, Scene3D, MAX_POINT_LIGHTS};
+pub use three_d::{Blend3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, MAX_POINT_LIGHTS};
 pub use lighting::{LightDraw, LightShadows, LightShape, LightVolumetric, Lighting, ShadowCasterShape, MAX_FREEFORM_POINTS};
 
 /// How many gradient stops `shader.wgsl` has room for — matches that
@@ -601,6 +601,13 @@ fn material_uv(in: VertexOutput) -> vec2<f32> {
     let size = max(bounds_max - bounds_min, vec2<f32>(0.0001, 0.0001));
     let normalized = (in.local_position - bounds_min) / size;
     return vec2<f32>(normalized.x, 1.0 - normalized.y);
+}
+
+// The View Fresnel node on a flat sprite: there's no surface normal in 2D,
+// so it fakes a sphere — 0 at the sprite's centre, 1 at its edge.
+fn material_fresnel(in: VertexOutput, power: f32) -> f32 {
+    let r = clamp(length(material_uv(in) * 2.0 - vec2<f32>(1.0, 1.0)), 0.0, 1.0);
+    return pow(r, max(power, 0.0001));
 }
 
 @fragment

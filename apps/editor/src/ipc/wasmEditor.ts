@@ -207,6 +207,16 @@ export async function loadClothDemo(editor: WasmEditor): Promise<AddArtboardResu
   return (await editor.load_cloth_demo()) as AddArtboardResult
 }
 
+/** Demos → "Reyna's Leer" (3D particles + a shader-graph eye). */
+export async function loadLeerDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_leer_demo()) as AddArtboardResult
+}
+
+/** Emits `count` particles at once from a node's Particle System 3D. */
+export function burstParticles3D(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, count: number): boolean {
+  return editor.burst_particles_3d(artboard, node, count)
+}
+
 /** Demos → "Tree Garden" (Tree 2D). */
 export async function loadTreesDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_trees_demo()) as AddArtboardResult

@@ -2030,6 +2030,8 @@ pub struct WasmEditor {
     /// Per-node animation clocks for model meshes: the clips playing (base,
     /// overlay) and how far into each.
     anim_clocks: HashMap<NodeId, AnimClock>,
+    /// Live 3D particles (`ParticleSystem3D` components), see `particles3d`.
+    particles3d: crate::particles3d::Particles3D,
     /// Seconds each Flipbook node has been playing this Playground session
     /// (cleared on entering / leaving Playground) — see `apply_flipbooks`.
     flipbook_clocks: HashMap<NodeId, f32>,
@@ -2470,6 +2472,7 @@ impl WasmEditor {
             export_transparent: false,
             model_gpu: HashMap::new(),
             anim_clocks: HashMap::new(),
+            particles3d: Default::default(),
             flipbook_clocks: HashMap::new(),
             textured_material_3d: None,
             voxel_worlds: HashMap::new(),
@@ -6329,6 +6332,7 @@ impl WasmEditor {
             "Tree2D" => B::Tree2D(an1mbyt3_core::Tree2D::default()),
             "UiEvents" => B::UiEvents(an1mbyt3_core::UiEvents::default()),
             "PropertyBindings" => B::PropertyBindings(an1mbyt3_core::PropertyBindings::default()),
+            "ParticleSystem3D" => B::ParticleSystem3D(an1mbyt3_core::ParticleSystem3D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -6653,6 +6657,25 @@ impl WasmEditor {
         Font::from_bytes(bytes.clone(), 0).map_err(|e| JsValue::from_str(&format!("add_font: {name} isn't a readable TTF/OTF font ({e:?})")))?;
         let id = self.document.add_font(FontAsset { name, data: bytes });
         Ok(serde_wasm_bindgen::to_value(&id)?)
+    }
+
+    /// Emits `count` particles at once from `node`'s Particle System 3D
+    /// (On Click "Burst", scripts' `ref.burst3(n)`). False if it has none.
+    pub fn burst_particles_3d(&mut self, artboard: JsValue, node: JsValue, count: u32) -> Result<bool, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let Some(artboard) = self.document.artboard(artboard_id) else { return Ok(false) };
+        let Some(world) = artboard.world_matrix_3d(node_id) else { return Ok(false) };
+        let Some(cfg) = artboard.node(node_id).and_then(|n| {
+            n.behaviors.iter().find_map(|e| match &e.behavior {
+                an1mbyt3_core::NodeBehavior::ParticleSystem3D(p) if e.enabled => Some(p.clone()),
+                _ => None,
+            })
+        }) else {
+            return Ok(false);
+        };
+        self.particles3d.burst(node_id, &cfg, world, count);
+        Ok(true)
     }
 
     /// Switches a `Text` node to another of the document's fonts (one
@@ -7251,6 +7274,7 @@ impl WasmEditor {
         let mut markers: Vec<(Mat4, Node3DContent)> = Vec::new();
         let mut sun: Option<(Vec3, Vec3)> = None;
         let mut points = Vec::new();
+        let mut emitters: Vec<(NodeId, Mat4, an1mbyt3_core::ParticleSystem3D)> = Vec::new();
         let mut any_3d = false;
         for id in artboard.node_ids() {
             if artboard.is_effectively_deleted(id) {
@@ -7263,6 +7287,11 @@ impl WasmEditor {
                 continue;
             }
             let Some(world) = artboard.world_matrix_3d(id) else { continue };
+            for entry in &node.behaviors {
+                if let (true, an1mbyt3_core::NodeBehavior::ParticleSystem3D(p)) = (entry.enabled, &entry.behavior) {
+                    emitters.push((id, world, p.clone()));
+                }
+            }
             match n.content {
                 Node3DContent::Mesh(mesh) => meshes.push((id, world, mesh)),
                 Node3DContent::Camera(cam) => {
@@ -7314,6 +7343,20 @@ impl WasmEditor {
             (world.inverse(), projection, world.transform_point3(Vec3::ZERO), cam.clear_color)
         };
         let frustum = frustum_planes(projection * view);
+
+        // 3D particles: simulate, then camera-facing quads.
+        let mut particles = Vec::new();
+        {
+            self.particles3d.sync_playing(self.playground_active);
+            let live: std::collections::HashSet<NodeId> = emitters.iter().map(|(id, _, _)| *id).collect();
+            self.particles3d.retain(&live);
+            let camera_world = view.inverse();
+            let (right, up) = (camera_world.x_axis.truncate().normalize_or(Vec3::X), camera_world.y_axis.truncate().normalize_or(Vec3::Y));
+            for (id, world, cfg) in &emitters {
+                self.particles3d.step(*id, cfg, *world, delta);
+                self.particles3d.quads(*id, cfg, *world, eye, right, up, &mut particles);
+            }
+        }
         for (node_id, model, mesh) in meshes {
             let material = mesh.material.and_then(|id| self.material3d(id));
             if let Primitive3D::Model { model: model_id } = mesh.primitive {
@@ -7324,7 +7367,10 @@ impl WasmEditor {
                 self.voxel_draws(node_id, [width, height, depth], model, &mesh, eye, &frustum, &mut draws);
                 continue;
             }
-            draws.push(MeshDraw3D { shininess: mesh.shininess, unlit: mesh.unlit, material, ..MeshDraw3D::new(self.mesh3d(&mesh.primitive), model, mesh.color) });
+            // A colour with alpha below 100 % draws see-through (sorted,
+            // not hiding what's behind it) — glass, ghosts, energy orbs.
+            let blend = if mesh.color[3] < 0.999 { an1mbyt3_renderer::Blend3D::Transparent } else { an1mbyt3_renderer::Blend3D::Opaque };
+            draws.push(MeshDraw3D { shininess: mesh.shininess, unlit: mesh.unlit, material, blend, ..MeshDraw3D::new(self.mesh3d(&mesh.primitive), model, mesh.color) });
         }
 
         if editor_view {
@@ -7402,6 +7448,7 @@ impl WasmEditor {
             fog_density: self.environment_3d.map_or(0.0, |(_, d, _)| d),
             point_lights: points,
             draws,
+            particles,
         }));
     }
 
@@ -9471,6 +9518,14 @@ impl WasmEditor {
     /// species growing in, swaying, shaken by clicks.
     pub async fn load_trees_demo(&mut self) -> Result<JsValue, JsValue> {
         let demo = crate::demo_trees::build_demo_trees(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
+    /// The + menu's Demos → "Reyna's Leer" — 3D particles (swirling bands,
+    /// smoke, converging sparks) round a see-through shader-graph eye.
+    pub async fn load_leer_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_leer::build_demo_leer(&mut self.document);
         migrate_document(&mut self.document);
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }

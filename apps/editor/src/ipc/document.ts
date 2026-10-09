@@ -1505,6 +1505,58 @@ export type NodeBehavior =
   | ({ kind: 'Tree2D' } & Tree2DConfig)
   | ({ kind: 'UiEvents' } & UiEventsConfig)
   | ({ kind: 'PropertyBindings' } & PropertyBindingsConfig)
+  | ({ kind: 'ParticleSystem3D' } & ParticleSystem3DConfig)
+
+/** A value over a particle's life: `[t, value]` points, `t` 0 (birth) → 1 (death). */
+export interface LifeCurve {
+  points: [number, number][]
+}
+
+export type ParticleBehaviorKind3D = 'Converge' | 'Attract' | 'Repel' | 'Drag'
+
+/** One behaviour in a Particle System 3D (`an1mbyt3_core::ParticleBehavior3D`). */
+export interface ParticleBehavior3D {
+  kind: ParticleBehaviorKind3D
+  enabled: boolean
+  strength: number
+  curve: LifeCurve
+  point: [number, number, number]
+  /** Local: relative to the emitter. World: a fixed scene point. */
+  space: 'Local' | 'World'
+}
+
+/** Mirrors `an1mbyt3_core::ParticleSystem3D`. */
+export interface ParticleSystem3DConfig {
+  emitting: boolean
+  rate: number
+  burst: number
+  maxParticles: number
+  lifetime: number
+  lifetimeJitter: number
+  shape: 'Point' | 'Sphere' | 'Shell' | 'Ring'
+  radius: number
+  thickness: number
+  speed: number
+  rise: number
+  swirl: number
+  swirlJitter: number
+  tilt: number
+  pull: number
+  velocity: [number, number, number]
+  gravity: number
+  turbulence: number
+  sizeStart: number
+  sizeEnd: number
+  colorStart: [number, number, number, number]
+  colorMid: [number, number, number, number]
+  colorEnd: [number, number, number, number]
+  intensity: number
+  blend: 'Additive' | 'Alpha'
+  stretch: number
+  localSpace: boolean
+  seed: number
+  behaviors: ParticleBehavior3D[]
+}
 
 /** Every addable Unity component kind (the Add Component menu). */
 export type ComponentKind = Exclude<NodeBehavior['kind'], 'SpriteRenderer' | 'Script'>

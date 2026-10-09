@@ -100,6 +100,7 @@ function ShapesMenu({
   onLoadHtmlDemo,
   onLoadPhysics3DDemo,
   onLoadTreesDemo,
+  onLoadLeerDemo,
   onLoadClothDemo,
   onLoadLanDemo,
   onLoadBoomDemo,
@@ -157,6 +158,7 @@ function ShapesMenu({
   onLoadHtmlDemo: () => void
   onLoadPhysics3DDemo: () => void
   onLoadTreesDemo: () => void
+  onLoadLeerDemo: () => void
   onLoadClothDemo: () => void
   onLoadLanDemo: () => void
   onLoadBoomDemo: () => void
@@ -266,6 +268,7 @@ function ShapesMenu({
         { kind: 'item', label: 'HTML UI Lab', icon: <SparkleIcon />, onSelect: onLoadHtmlDemo },
         { kind: 'item', label: 'Physics 3D Lab', icon: <SparkleIcon />, onSelect: onLoadPhysics3DDemo },
         { kind: 'item', label: 'Tree Garden', icon: <SparkleIcon />, onSelect: onLoadTreesDemo },
+        { kind: 'item', label: "Reyna's Leer", icon: <SparkleIcon />, onSelect: onLoadLeerDemo },
         { kind: 'item', label: 'Cloth Lab', icon: <SparkleIcon />, onSelect: onLoadClothDemo },
         { kind: 'item', label: 'LAN Party (multiplayer)', icon: <SparkleIcon />, onSelect: onLoadLanDemo },
         { kind: 'item', label: 'Toon Explosion', icon: <SparkleIcon />, onSelect: onLoadBoomDemo },
@@ -510,6 +513,7 @@ export function TopToolbar({
   onLoadHtmlDemo,
   onLoadPhysics3DDemo,
   onLoadTreesDemo,
+  onLoadLeerDemo,
   onLoadClothDemo,
   onLoadLanDemo,
   onLoadBoomDemo,
@@ -568,6 +572,7 @@ export function TopToolbar({
   onLoadHtmlDemo: () => void
   onLoadPhysics3DDemo: () => void
   onLoadTreesDemo: () => void
+  onLoadLeerDemo: () => void
   onLoadClothDemo: () => void
   onLoadLanDemo: () => void
   onLoadBoomDemo: () => void
@@ -677,6 +682,7 @@ export function TopToolbar({
               onLoadHtmlDemo={onLoadHtmlDemo}
               onLoadPhysics3DDemo={onLoadPhysics3DDemo}
               onLoadTreesDemo={onLoadTreesDemo}
+              onLoadLeerDemo={onLoadLeerDemo}
               onLoadClothDemo={onLoadClothDemo}
               onLoadLanDemo={onLoadLanDemo}
               onLoadBoomDemo={onLoadBoomDemo}

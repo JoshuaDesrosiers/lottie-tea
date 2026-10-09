@@ -113,6 +113,9 @@ pub enum NodeBehavior {
     /// Drives the node from scene properties — see
     /// [`crate::PropertyBindings`]. (Appended last.)
     PropertyBindings(crate::PropertyBindings),
+    /// A 3D particle emitter on a `Node3D` — see [`crate::ParticleSystem3D`].
+    /// (Appended last.)
+    ParticleSystem3D(crate::ParticleSystem3D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

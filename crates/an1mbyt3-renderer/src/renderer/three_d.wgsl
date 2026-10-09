@@ -137,3 +137,40 @@ fn shade(in: VertexOutput, base: vec4<f32>) -> vec4<f32> {
     }
     return vec4<f32>(color, base.a);
 }
+
+// ---- particles (`ParticleQuad3D`) ----
+// Camera-facing quads built on the CPU (world-space corners), coloured with
+// premultiplied RGBA so additive (a = 0) and smoky (a > 0) particles share
+// one blend state. The fragment draws a soft round glow with a hotter core.
+
+struct ParticleIn {
+    @location(0) position: vec3<f32>,
+    @location(1) color: vec4<f32>,
+    @location(2) uv: vec2<f32>,
+};
+
+struct ParticleOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) color: vec4<f32>,
+    @location(1) uv: vec2<f32>,
+};
+
+@vertex
+fn vs_particle(in: ParticleIn) -> ParticleOut {
+    var out: ParticleOut;
+    out.clip = scene.view_proj * vec4<f32>(in.position, 1.0);
+    out.color = in.color;
+    out.uv = in.uv;
+    return out;
+}
+
+@fragment
+fn fs_particle(in: ParticleOut) -> @location(0) vec4<f32> {
+    let d = length(in.uv * 2.0 - vec2<f32>(1.0, 1.0));
+    let f = clamp(1.0 - d, 0.0, 1.0);
+    // Smooth falloff plus a brighter core: reads as glowing "stuff", not
+    // flat discs, and stacks into thick bands when many overlap.
+    let glow = f * f * (3.0 - 2.0 * f);
+    let core = f * f * f * 0.8;
+    return in.color * (glow + core);
+}

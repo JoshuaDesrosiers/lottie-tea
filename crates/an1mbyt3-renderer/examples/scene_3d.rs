@@ -46,6 +46,7 @@ async fn run() {
             // In front of the cube (closer to the camera) — must occlude it.
             draw(&sphere, Mat4::from_translation(Vec3::new(0.0, 0.5, 1.4)) * Mat4::from_scale(Vec3::splat(0.6)), [0.3, 0.5, 0.95, 1.0]),
         ],
+        particles: Vec::new(),
     }));
 
     // A 2D square on top (the HUD layer).

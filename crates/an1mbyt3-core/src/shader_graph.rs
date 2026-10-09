@@ -180,6 +180,11 @@ pub enum ShaderNodeKind {
     Fresnel2D,
     /// Running-bond bricks: per-brick colour variation and mortar lines.
     Brick,
+    /// How edge-on the surface is to the camera: 0 where it faces you, 1
+    /// at the silhouette (`pow(1 - |n·v|, Power)`). Rim glows, glass, and
+    /// anything that should "look at" the viewer. On a flat sprite it fakes
+    /// a sphere (centre 0, edge 1).
+    ViewFresnel,
 }
 
 impl ShaderNodeKind {
@@ -230,6 +235,7 @@ impl ShaderNodeKind {
         Self::HueShift,
         Self::Grayscale,
         Self::Fresnel2D,
+        Self::ViewFresnel,
         Self::Brick,
     ];
 
@@ -243,7 +249,7 @@ impl ShaderNodeKind {
             | Posterize => "Math",
             Length | Distance | Dot | Split | Combine | MakeVec2 => "Vector",
             TilingOffset | Panner | RotateUv | Twirl => "UV",
-            Noise | Checker | Circle | HueShift | Grayscale | Fresnel2D | Brick => "Effect",
+            Noise | Checker | Circle | HueShift | Grayscale | Fresnel2D | ViewFresnel | Brick => "Effect",
         }
     }
 
@@ -279,6 +285,7 @@ impl ShaderNodeKind {
             HueShift => const { &[port("Color", V4, ONE), port("Shift", F, ZERO)] },
             Grayscale => const { &[port("Color", V4, ONE)] },
             Fresnel2D => const { &[uv_port("UV"), port("Power", F, [2.0; 4])] },
+            ViewFresnel => const { &[port("Power", F, [1.0; 4])] },
             Brick => const {
                 &[
                     uv_port("UV"),
@@ -305,7 +312,7 @@ impl ShaderNodeKind {
             Length | Distance | Dot => const { &[out("Out", F)] },
             Split => const { &[out("X", F), out("Y", F), out("Z", F), out("W", F)] },
             Combine => const { &[out("Out", V4)] },
-            Noise | Circle | Fresnel2D => const { &[out("Out", F)] },
+            Noise | Circle | Fresnel2D | ViewFresnel => const { &[out("Out", F)] },
             Checker | HueShift | Grayscale => const { &[out("Color", V4)] },
             Brick => const { &[out("Color", V4), out("Mortar", F)] },
         }
@@ -623,6 +630,9 @@ pub fn compile_wgsl(graph: &ShaderGraphDef) -> Result<String, ShaderGraphError> 
                 vec![format!("vec4<f32>(vec3<f32>(dot(n{id}_c.rgb, vec3<f32>(0.2126, 0.7152, 0.0722))), n{id}_c.a)")]
             }
             Fresnel2D => vec![format!("pow(clamp(distance({}, vec2<f32>(0.5, 0.5)) * 2.0, 0.0, 1.0), max({}, 0.0001))", arg(0), arg(1))],
+            // Each pass's glue defines `material_fresnel` (3D: real normal and
+            // camera; 2D: a radial stand-in).
+            ViewFresnel => vec![format!("material_fresnel(in, {})", arg(0))],
             Brick => {
                 // Every other row shifts half a brick; each brick gets its own
                 // brightness from a hash of its cell.

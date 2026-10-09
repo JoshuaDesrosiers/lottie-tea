@@ -84,7 +84,8 @@ import {
 import { PropertyBindingsFields, ScenePropertiesFields, UiEventsFields } from './EventFields'
 import { FontPicker, IconPicker } from './FontPicker'
 import { iconFamily, isIconFamily, type IconStyle } from '../game/googleFonts'
-import { addGoogleFont, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
+import { ParticleSystem3DFields } from './Particle3DFields'
+import { addGoogleFont, burstParticles3D, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
 import { gameConsole } from '../game/console'
 import { ImageAssetPicker } from './ImageAssetPicker'
 import { ChevronDownIcon, CloseIcon, EditIcon, PlayIcon, TrashIcon } from './icons'
@@ -743,6 +744,16 @@ function BehaviorsFields({
       case 'UiEvents': {
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
+      }
+      case 'ParticleSystem3D': {
+        const { kind: _k, ...config } = behavior
+        return (
+          <ParticleSystem3DFields
+            config={config}
+            onChange={(c) => replaceAt(index, { kind: 'ParticleSystem3D', ...c })}
+            onBurst={editor && artboard ? () => burstParticles3D(editor, artboard.id, node.id, 80) : undefined}
+          />
+        )
       }
       case 'PropertyBindings': {
         const { kind: _k, ...config } = behavior
