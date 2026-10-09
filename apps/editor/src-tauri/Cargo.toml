@@ -27,6 +27,8 @@ tauri-plugin-log = "2"
 # separate fs plugin needed, since these commands never expose raw fs access
 # to JS, only whole-file read/write behind our own path-taking commands.
 tauri-plugin-dialog = "2"
+# Port-based multiplayer: the relay server `net_host` starts.
+an1mbyt3-net = { path = "../../../crates/an1mbyt3-net" }
 
 # Deliberately no an1mbyt3-core/an1mbyt3-renderer/wgpu/glam here anymore —
 # this crate's `lib.rs` module doc explains why: the document model and

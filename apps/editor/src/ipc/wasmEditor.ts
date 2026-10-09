@@ -196,6 +196,11 @@ export async function loadBoomDemo(editor: WasmEditor): Promise<AddArtboardResul
   return (await editor.load_boom_demo()) as AddArtboardResult
 }
 
+/** Demos → "LAN Party" (host on a port / join by address). */
+export async function loadLanDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_lan_demo()) as AddArtboardResult
+}
+
 /** Demos → "Physics 3D Lab". */
 export async function loadPhysics3DDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_physics3d_demo()) as AddArtboardResult

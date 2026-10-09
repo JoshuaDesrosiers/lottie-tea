@@ -21,6 +21,7 @@ import { SceneMirror, type ScriptNode } from './sceneMirror'
 import { UiControls } from './uiControls'
 import { htmlOverlay } from './htmlOverlay'
 import { gameStorage } from './storage'
+import { gameNet } from './net'
 import {
   deleteNode,
   duplicateNodes,
@@ -339,6 +340,8 @@ export class ScriptHost {
 
   run(summary: StateMachineSummary, frame: ScriptFrame): string | null {
     const { editor, machine, scene } = frame
+    // This frame's network messages / events (shared by every program).
+    gameNet.beginFrame()
     const programs: { layer: string | null; state: string; source: string; time: number }[] = []
     const base = machine?.states.find((s) => s.name === summary.activeState)
     if (base?.program?.kind === 'Code') programs.push({ layer: null, state: base.name, source: base.program.value, time: this.baseElapsed })
@@ -403,6 +406,7 @@ export class ScriptHost {
         },
         globals: frame.globals,
         storage: gameStorage,
+        net: gameNet,
         // Hot per-frame writes are queued and sent in one call (`writes`);
         // everything else flushes the queue first so engine state is
         // up to date before it's read or changed some other way.

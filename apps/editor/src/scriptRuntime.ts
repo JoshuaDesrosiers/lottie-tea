@@ -40,6 +40,7 @@ import type { ContactEvent, RayHit, RayHit3D, SpawnedPart } from './ipc/wasmEdit
 import type { OpaqueId, Path } from './ipc/document'
 import type { ScriptImage, ScriptNode } from './game/sceneMirror'
 import type { ScriptStorage } from './game/storage'
+import type { ScriptNet } from './game/net'
 
 export interface ScriptContext {
   /** Seconds since this state became active — resets to `0` on every state
@@ -230,6 +231,13 @@ export interface ScriptContext {
    * `ctx.storage.set('save', data)`, `ctx.storage.get('save')`. Values are
    * anything JSON can hold. See `game/storage.ts`. */
   storage: ScriptStorage
+  /** **Multiplayer** (host on a port, others join by address):
+   * `ctx.net.host({ port })`, `ctx.net.join('192.168.1.20:7777')`,
+   * `ctx.net.send(data, to?)`; each frame read `ctx.net.messages`
+   * (`{ from, data }`) and `ctx.net.events` (join / leave / host…), and
+   * `status`, `me`, `isHost`, `players`, `hosting.addresses`. See
+   * `game/net.ts`. */
+  net: ScriptNet
   /** Untracked, no-undo-entry writes — the same "live preview, no history
    * spam" mutation every on-canvas drag handle already uses
    * (`previewNodeTranslation` etc., `ipc/wasmEditor.ts`), not the

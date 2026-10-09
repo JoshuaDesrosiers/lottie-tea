@@ -432,6 +432,9 @@ var t = class e {
 	load_3d_demo() {
 		return J.wasmeditor_load_3d_demo(this.__wbg_ptr);
 	}
+	load_boom_demo() {
+		return J.wasmeditor_load_boom_demo(this.__wbg_ptr);
+	}
 	load_dungeon_demo() {
 		return J.wasmeditor_load_dungeon_demo(this.__wbg_ptr);
 	}
@@ -445,6 +448,9 @@ var t = class e {
 	}
 	load_html_demo() {
 		return J.wasmeditor_load_html_demo(this.__wbg_ptr);
+	}
+	load_lan_demo() {
+		return J.wasmeditor_load_lan_demo(this.__wbg_ptr);
 	}
 	load_liquid_demo() {
 		return J.wasmeditor_load_liquid_demo(this.__wbg_ptr);
@@ -1264,6 +1270,14 @@ var t = class e {
 	}
 	view3d_zoom(e) {
 		J.wasmeditor_view3d_zoom(this.__wbg_ptr, e);
+	}
+	voxel_chunk_set(e, t, n, r, i) {
+		let a = W(i, J.__wbindgen_malloc), o = q, s = J.wasmeditor_voxel_chunk_set(this.__wbg_ptr, e, t, n, r, a, o);
+		if (s[1]) throw K(s[0]);
+	}
+	voxel_chunk_unload(e, t, n, r) {
+		let i = J.wasmeditor_voxel_chunk_unload(this.__wbg_ptr, e, t, n, r);
+		if (i[1]) throw K(i[0]);
 	}
 	voxel_set(e, t, n, r, i, a) {
 		let o = J.wasmeditor_voxel_set(this.__wbg_ptr, e, t, n, r, i, a);
@@ -3897,19 +3911,25 @@ function vt(e, t, n, r, i, a) {
 function yt(e, t, n, r) {
 	e.voxels_set(t, n, r);
 }
-function bt(e, t, n, r, i, a, o) {
+function bt(e, t, n, r, i, a) {
+	e.voxel_chunk_set(t, n, r, i, a);
+}
+function xt(e, t, n, r, i) {
+	e.voxel_chunk_unload(t, n, r, i);
+}
+function St(e, t, n, r, i, a, o) {
 	return e.voxel_set(t, n, r, i, a, o);
 }
-function xt(e, t, n, r) {
+function Ct(e, t, n, r) {
 	e.preview_node3d_transform(t, n, Float32Array.from(r));
 }
-function St(e, t, n) {
+function wt(e, t, n) {
 	e.preview_break_joint(t, n);
 }
-function Ct(e, t, n, r, i) {
+function Tt(e, t, n, r, i) {
 	e.preview_body_type(t, n, r, i);
 }
-function wt(e, t, n) {
+function Et(e, t, n) {
 	let r = e.node_local_bounds(t, n);
 	return [
 		r[0] ?? 0,
@@ -3918,40 +3938,40 @@ function wt(e, t, n) {
 		r[3] ?? 0
 	];
 }
-function Tt(e, t, n, r, i, a, o) {
+function Dt(e, t, n, r, i, a, o) {
 	e.preview_node_scale(t, n, r, i, a, o);
 }
-function Et(e, t, n, r, i, a, o) {
+function Ot(e, t, n, r, i, a, o) {
 	e.preview_node_anchor(t, n, r, i, a, o);
 }
-function Dt(e, t) {
+function kt(e, t) {
 	e.fire_trigger(t);
 }
-function Ot(e) {
+function At(e) {
 	return e.state_machine_summary();
 }
-function kt(e, t, n) {
+function jt(e, t, n) {
 	e.set_state_machine_bool_input(t, n);
 }
-function At(e, t, n) {
+function Mt(e, t, n) {
 	e.set_state_machine_number_input(t, n);
 }
-function jt(e, t, n) {
+function Nt(e, t, n) {
 	e.set_state_machine_enum_input(t, n);
 }
-function Mt(e, t, n) {
+function Pt(e, t, n) {
 	e.set_key_down(t, n);
 }
-function Nt(e, t, n, r, i, a) {
+function Ft(e, t, n, r, i, a) {
 	return e.spawn_prefab(t, n, r, i, a);
 }
-function Pt(e, t, n) {
+function It(e, t, n) {
 	e.destroy_node(t, n);
 }
 //#endregion
 //#region src/game/audio.ts
-var Ft = (e) => `${e.idx}:${e.version}`;
-function It(e, t, n) {
+var Lt = (e) => `${e.idx}:${e.version}`;
+function Rt(e, t, n) {
 	let r = Math.max(1, n), i = Math.hypot(e, t);
 	return {
 		pan: Math.max(-1, Math.min(1, e / (r * .5))),
@@ -3978,7 +3998,7 @@ var Y = new class {
 		return this.ctx ? this.ctx : typeof AudioContext > "u" ? null : (this.ctx = new AudioContext(), this.master = this.ctx.createGain(), this.master.gain.value = this.masterVolume, this.master.connect(this.ctx.destination), this.unlocked && this.ctx.state === "suspended" && this.ctx.resume(), this.ctx);
 	}
 	load(e, t) {
-		let n = Ft(t), r = this.buffers.get(n);
+		let n = Lt(t), r = this.buffers.get(n);
 		if (!r) {
 			let i = this.context();
 			if (!i) return Promise.resolve(null);
@@ -4071,7 +4091,7 @@ var Y = new class {
 			if (!r.spatial || !r.node) continue;
 			let i = n(r.node);
 			if (!i) continue;
-			let a = It(i.x - e, i.y - t, r.range);
+			let a = Rt(i.x - e, i.y - t, r.range);
 			r.panner.pan.value = a.pan, r.gain.gain.value = r.baseVolume * a.gain;
 		}
 	}
@@ -4084,7 +4104,7 @@ var Y = new class {
 	setMasterVolume(e) {
 		this.masterVolume = Math.max(0, e), this.master && (this.master.gain.value = this.masterVolume);
 	}
-}(), X = 31, Lt = class {
+}(), X = 31, zt = class {
 	id;
 	elementId;
 	name;
@@ -4184,7 +4204,7 @@ var Y = new class {
 			]
 		};
 	}
-}, Rt = class {
+}, Bt = class {
 	block = /* @__PURE__ */ new Float32Array();
 	nodes = [];
 	images = [];
@@ -4194,26 +4214,26 @@ var Y = new class {
 		let n = `${t.idx}:${t.version}`, r = e.script_revision(t);
 		if (n !== this.sceneKey || r !== this.revision) {
 			let r = e.script_scene(t);
-			this.sceneKey = n, this.revision = r.revision, this.nodes = r.nodes.map((e, t) => new Lt(this, t, e)), this.images = r.images;
+			this.sceneKey = n, this.revision = r.revision, this.nodes = r.nodes.map((e, t) => new zt(this, t, e)), this.images = r.images;
 		}
 		return this.block = e.script_dynamic(t), this.nodes;
 	}
-}, Z = (e) => `${e.idx}:${e.version}`, zt = (e) => Math.max(0, Math.min(1, e));
-function Bt(e, t) {
+}, Z = (e) => `${e.idx}:${e.version}`, Vt = (e) => Math.max(0, Math.min(1, e));
+function Ht(e, t) {
 	let n = e.worldTransform, r = t.x - n.translation.x, i = t.y - n.translation.y, a = Math.cos(-n.rotation), o = Math.sin(-n.rotation);
 	return {
 		x: (r * a - i * o) / (n.scale.x || 1) + n.anchor.x,
 		y: (r * o + i * a) / (n.scale.y || 1) + n.anchor.y
 	};
 }
-var Vt = (e, t) => t.x >= e[0] && t.x <= e[2] && t.y >= e[1] && t.y <= e[3], Q = (e, t) => Vt(e.bounds, Bt(e, t));
-function Ht(e) {
+var Ut = (e, t) => t.x >= e[0] && t.x <= e[2] && t.y >= e[1] && t.y <= e[3], Q = (e, t) => Ut(e.bounds, Ht(e, t));
+function Wt(e) {
 	return {
 		vertical: e === "BottomToTop" || e === "TopToBottom",
 		reversed: e === "RightToLeft" || e === "TopToBottom"
 	};
 }
-var Ut = class {
+var Gt = class {
 	states = /* @__PURE__ */ new Map();
 	session = null;
 	wasDown = !1;
@@ -4331,14 +4351,14 @@ var Ut = class {
 			if (n.slider) {
 				let t = n.slider, i = this.stateFor(n, t.value);
 				i.clicked = !1;
-				let { vertical: a, reversed: o } = Ht(t.direction), [s, d, f, p] = n.bounds, m = a ? d : s, h = a ? p : f, g = Bt(n, e.mouse), _ = c(n, "Handle"), v = t.interactable && l(n) && (Vt(n.bounds, g) || !!_ && Q(_, e.mouse));
+				let { vertical: a, reversed: o } = Wt(t.direction), [s, d, f, p] = n.bounds, m = a ? d : s, h = a ? p : f, g = Ht(n, e.mouse), _ = c(n, "Handle"), v = t.interactable && l(n) && (Ut(n.bounds, g) || !!_ && Q(_, e.mouse));
 				if (t.interactable && r && v && (i.pressed = !0), e.down || (i.pressed = !1), i.hovered = v, i.pressed) {
-					let e = zt(((a ? g.y : g.x) - m) / Math.max(1e-4, h - m));
+					let e = Vt(((a ? g.y : g.x) - m) / Math.max(1e-4, h - m));
 					o && (e = 1 - e);
 					let n = t.min + e * (t.max - t.min);
 					t.wholeNumbers && (n = Math.round(n)), i.value = n;
 				}
-				let y = t.max - t.min, b = Math.abs(y) < 1e-6 ? 0 : zt((i.value - t.min) / y);
+				let y = t.max - t.min, b = Math.abs(y) < 1e-6 ? 0 : Vt((i.value - t.min) / y);
 				o && (b = 1 - b);
 				let x = m + b * (h - m), S = c(n, "Fill");
 				if (S) {
@@ -4355,7 +4375,7 @@ var Ut = class {
 			if (n.scrollbar && this.updateScrollbar(e, n, c(n, "Handle"), r, l(n)), n.scrollView) {
 				let t = n.scrollView, i = this.stateFor(n), a = c(n, "Content");
 				if (!a) continue;
-				let o = n.bounds, s = e.liveBounds(a.id), u = t.vertical || !t.horizontal, d = u ? o[3] - o[1] : o[2] - o[0], f = u ? s[3] - s[1] : s[2] - s[0], p = Math.max(0, f - d), m = Bt(n, e.mouse), h = l(n) && Vt(o, m);
+				let o = n.bounds, s = e.liveBounds(a.id), u = t.vertical || !t.horizontal, d = u ? o[3] - o[1] : o[2] - o[0], f = u ? s[3] - s[1] : s[2] - s[0], p = Math.max(0, f - d), m = Ht(n, e.mouse), h = l(n) && Ut(o, m);
 				i.hovered = h;
 				let g = c(n, "Scrollbar"), _ = g ? this.states.get(Z(g.id)) : void 0, v = !!g && Q(g, e.mouse);
 				if (h && (e.wheel.y || e.wheel.x) && (i.scroll += (u ? e.wheel.y : e.wheel.x) / 100 * t.wheelStep, i.velocity = 0), r && h && !v && (i.drag = {
@@ -4383,10 +4403,10 @@ var Ut = class {
 		}
 	}
 	updateScrollbar(e, t, n, r, i) {
-		let a = t.scrollbar, o = this.stateFor(t, a.value), { vertical: s, reversed: c } = Ht(a.direction), [l, u, d, f] = t.bounds, p = s ? u : l, m = Math.max(1e-4, (s ? f : d) - p), h = m * Math.max(.05, Math.min(1, o.sizeOverride ?? a.size)), g = m - h, _ = Bt(t, e.mouse), v = s ? _.y : _.x, y = (e) => p + h / 2 + (c ? 1 - e : e) * g, b = (e) => {
-			let t = g > 1e-4 ? zt((e - p - h / 2) / g) : 0;
+		let a = t.scrollbar, o = this.stateFor(t, a.value), { vertical: s, reversed: c } = Wt(a.direction), [l, u, d, f] = t.bounds, p = s ? u : l, m = Math.max(1e-4, (s ? f : d) - p), h = m * Math.max(.05, Math.min(1, o.sizeOverride ?? a.size)), g = m - h, _ = Ht(t, e.mouse), v = s ? _.y : _.x, y = (e) => p + h / 2 + (c ? 1 - e : e) * g, b = (e) => {
+			let t = g > 1e-4 ? Vt((e - p - h / 2) / g) : 0;
 			return c ? 1 - t : t;
-		}, x = y(zt(o.value)), S = a.interactable && i && Vt(t.bounds, _);
+		}, x = y(Vt(o.value)), S = a.interactable && i && Ut(t.bounds, _);
 		if (a.interactable && r && S && (o.pressed = !0, o.drag = {
 			mouse: v,
 			scroll: 0,
@@ -4396,10 +4416,10 @@ var Ut = class {
 			a.steps > 1 && (e = Math.round(e * (a.steps - 1)) / (a.steps - 1)), o.value = e;
 		}
 		if (!n) return;
-		let C = this.stateFor(n), ee = s ? n.bounds[3] - n.bounds[1] : n.bounds[2] - n.bounds[0], w = ee > 1e-4 ? h / ee : 1, T = y(zt(o.value)), E = `${w.toFixed(4)}|${T.toFixed(2)}`;
+		let C = this.stateFor(n), ee = s ? n.bounds[3] - n.bounds[1] : n.bounds[2] - n.bounds[0], w = ee > 1e-4 ? h / ee : 1, T = y(Vt(o.value)), E = `${w.toFixed(4)}|${T.toFixed(2)}`;
 		C.layout !== E && (C.layout = E, s ? e.setScale(n.id, C.baseScale.x, C.baseScale.y * w, n.transform.translation.x, T) : e.setScale(n.id, C.baseScale.x * w, C.baseScale.y, T, n.transform.translation.y)), this.applyStyle(e, n, C, a.style, a.interactable ? o.pressed ? "pressed" : S ? "highlighted" : "normal" : "disabled", [], !1);
 	}
-}, Wt = (e) => `${e.idx}:${e.version}`, Gt = new class {
+}, Kt = (e) => `${e.idx}:${e.version}`, qt = new class {
 	container = null;
 	live = /* @__PURE__ */ new Map();
 	handlers = null;
@@ -4423,7 +4443,7 @@ var Ut = class {
 		return e && e.width > 0 ? e.clientWidth / e.width : 1 / (window.devicePixelRatio || 1);
 	}
 	root(e) {
-		return this.live.get(Wt(e))?.root ?? null;
+		return this.live.get(Kt(e))?.root ?? null;
 	}
 	update(e, t, n, r) {
 		let i = this.container;
@@ -4431,7 +4451,7 @@ var Ut = class {
 		this.handlers = r, this.interactive = n;
 		let a = i.clientWidth, o = i.clientHeight, s = /* @__PURE__ */ new Set();
 		for (let r of e) {
-			let e = Wt(r.id);
+			let e = Kt(r.id);
 			s.add(e);
 			let c = this.live.get(e);
 			if (!c) {
@@ -4463,10 +4483,10 @@ var Ut = class {
 		let t = e.target, n = t?.getAttribute?.("data-input");
 		!t || !n || (t instanceof HTMLInputElement && t.type === "checkbox" ? this.handlers.setInput(n, t.checked) : t instanceof HTMLInputElement && (t.type === "range" || t.type === "number") ? this.handlers.setInput(n, Number(t.value)) : this.handlers.setInput(n, t.value));
 	}
-}(), Kt = "an1mbyt3.save.", qt = {
+}(), Jt = "an1mbyt3.save.", Yt = {
 	get(e) {
 		try {
-			let t = localStorage.getItem(Kt + e);
+			let t = localStorage.getItem(Jt + e);
 			return t === null ? null : JSON.parse(t);
 		} catch {
 			return null;
@@ -4474,14 +4494,14 @@ var Ut = class {
 	},
 	set(e, t) {
 		try {
-			localStorage.setItem(Kt + e, JSON.stringify(t));
+			localStorage.setItem(Jt + e, JSON.stringify(t));
 		} catch (t) {
 			console.warn(`ctx.storage.set('${e}') failed`, t);
 		}
 	},
 	remove(e) {
 		try {
-			localStorage.removeItem(Kt + e);
+			localStorage.removeItem(Jt + e);
 		} catch {}
 	},
 	keys() {
@@ -4489,14 +4509,162 @@ var Ut = class {
 			let e = [];
 			for (let t = 0; t < localStorage.length; t++) {
 				let n = localStorage.key(t);
-				n?.startsWith(Kt) && e.push(n.slice(14));
+				n?.startsWith(Jt) && e.push(n.slice(14));
 			}
 			return e;
 		} catch {
 			return [];
 		}
 	}
-}, Jt = (e) => Array.isArray(e) ? [
+};
+async function Xt(e, t = {}, n) {
+	return window.__TAURI_INTERNALS__.invoke(e, t, n);
+}
+//#endregion
+//#region src/game/net.ts
+var Zt = 7777, Qt = () => typeof window < "u" && "__TAURI_INTERNALS__" in window, $t = new class {
+	status = "offline";
+	error = null;
+	me = null;
+	hostId = null;
+	players = [];
+	hosting = null;
+	messages = [];
+	events = [];
+	socket = null;
+	inbox = [];
+	pendingEvents = [];
+	session = 0;
+	get isHost() {
+		return this.me !== null && this.me === this.hostId;
+	}
+	get canHost() {
+		return Qt();
+	}
+	beginFrame() {
+		this.messages = this.inbox, this.events = this.pendingEvents, this.inbox = [], this.pendingEvents = [];
+	}
+	nameOf(e) {
+		return this.players.find((t) => t.id === e)?.name ?? "?";
+	}
+	host(e) {
+		let t = Math.round(e?.port ?? 7777), n = e?.name ?? "Host";
+		this.leave();
+		let r = this.session;
+		if (!this.canHost) {
+			this.fail("Hosting needs the desktop app (or run an1mbyt3-server) — this copy can only join");
+			return;
+		}
+		this.status = "connecting", Xt("net_host", { port: t }).then((e) => {
+			r === this.session && (this.hosting = e, this.connect(`ws://127.0.0.1:${e.port}`, n, r));
+		}).catch((e) => {
+			r === this.session && this.fail(String(e));
+		});
+	}
+	join(e, t) {
+		this.leave();
+		let n = e.trim();
+		if (!n) {
+			this.fail("Type an address to join, like 192.168.1.20:7777");
+			return;
+		}
+		/^wss?:\/\//.test(n) || (n = "ws://" + n), /:\d+(\/|$)/.test(n.replace(/^wss?:\/\//, "")) || (n = n.replace(/\/?$/, `:${Zt}`)), this.status = "connecting", this.connect(n, t?.name ?? "Player", this.session);
+	}
+	leave() {
+		this.session++;
+		let e = this.socket;
+		if (this.socket = null, e) {
+			e.onclose = e.onmessage = e.onerror = null;
+			try {
+				e.close();
+			} catch {}
+		}
+		this.hosting && Qt() && Xt("net_stop").catch(() => {});
+		let t = this.status === "online";
+		this.hosting = null, this.status = "offline", this.error = null, this.me = this.hostId = null, this.players = [], t && this.pendingEvents.push({ type: "disconnected" });
+	}
+	send(e, t) {
+		this.status !== "online" || !this.socket || this.socket.send(JSON.stringify(t === void 0 ? {
+			t: "send",
+			data: e
+		} : {
+			t: "send",
+			data: e,
+			to: t
+		}));
+	}
+	reset() {
+		this.leave(), this.inbox = [], this.pendingEvents = [], this.messages = [], this.events = [];
+	}
+	fail(e) {
+		this.status = "error", this.error = e;
+	}
+	connect(e, t, n) {
+		let r;
+		try {
+			r = new WebSocket(e);
+		} catch (t) {
+			this.fail(`Can't connect to ${e}: ${t}`);
+			return;
+		}
+		this.socket = r, r.onopen = () => r.send(JSON.stringify({
+			t: "hello",
+			name: t
+		})), r.onerror = () => {
+			n === this.session && this.status === "connecting" && this.fail(`Couldn't reach ${e.replace(/^ws:\/\//, "")} — is a game hosted there?`);
+		}, r.onclose = () => {
+			if (n !== this.session) return;
+			let t = this.status;
+			this.socket = null, this.me = this.hostId = null, this.players = [], t === "online" ? (this.pendingEvents.push({ type: "disconnected" }), this.fail("Disconnected from the host")) : t === "connecting" && this.fail(this.error ?? `Couldn't reach ${e.replace(/^ws:\/\//, "")}`);
+		}, r.onmessage = (e) => {
+			if (n !== this.session) return;
+			let t;
+			try {
+				t = JSON.parse(String(e.data));
+			} catch {
+				return;
+			}
+			switch (t.t) {
+				case "welcome":
+					this.me = t.id ?? null, this.hostId = t.host ?? null, this.players = t.players ?? [], this.status = "online", this.error = null, this.me !== null && this.pendingEvents.push({
+						type: "connected",
+						id: this.me
+					});
+					break;
+				case "join":
+					t.id !== void 0 && (this.players = [...this.players.filter((e) => e.id !== t.id), {
+						id: t.id,
+						name: t.name ?? "Player"
+					}].sort((e, t) => e.id - t.id), this.pendingEvents.push({
+						type: "join",
+						id: t.id,
+						name: t.name ?? "Player"
+					}));
+					break;
+				case "leave":
+					if (t.id !== void 0) {
+						let e = this.nameOf(t.id);
+						this.players = this.players.filter((e) => e.id !== t.id), this.pendingEvents.push({
+							type: "leave",
+							id: t.id,
+							name: e
+						});
+					}
+					break;
+				case "host":
+					t.id !== void 0 && (this.hostId = t.id, this.pendingEvents.push({
+						type: "host",
+						id: t.id
+					}));
+					break;
+				case "msg": t.from !== void 0 && this.inbox.push({
+					from: t.from,
+					data: t.data
+				});
+			}
+		};
+	}
+}(), en = (e) => Array.isArray(e) ? [
 	e[0],
 	e[1],
 	e[2]
@@ -4504,20 +4672,20 @@ var Ut = class {
 	e.x,
 	e.y,
 	e.z
-], Yt = [], Xt = null;
-function Zt(e) {
-	return Xt ||= new Map(Yt.map((e) => [`${e.id.idx}:${e.id.version}`, e])), Xt.get(`${e.idx}:${e.version}`) ?? null;
+], tn = [], nn = null;
+function rn(e) {
+	return nn ||= new Map(tn.map((e) => [`${e.id.idx}:${e.id.version}`, e])), nn.get(`${e.idx}:${e.version}`) ?? null;
 }
-function Qt(e, t) {
+function an(e, t) {
 	let n = e.nodes.find((e) => e.id.idx === t.idx && e.id.version === t.version)?.behaviors.find((e) => e.enabled && e.behavior.kind === "Rigidbody2D")?.behavior;
 	return n && n.kind === "Rigidbody2D" ? n.bodyType : null;
 }
-var $t = 180 / Math.PI, en = Math.PI / 180, $ = /* @__PURE__ */ new WeakMap();
-function tn(e, t, n, r, i, a) {
+var on = 180 / Math.PI, sn = Math.PI / 180, $ = /* @__PURE__ */ new WeakMap();
+function cn(e, t, n, r, i, a) {
 	let o = {
 		x: i.x,
 		y: i.y,
-		rotation: i.rotationRadians * $t,
+		rotation: i.rotationRadians * on,
 		scaleX: i.scaleX,
 		scaleY: i.scaleY,
 		anchorX: i.anchorX,
@@ -4538,7 +4706,7 @@ function tn(e, t, n, r, i, a) {
 		intensity: null,
 		radius: null
 	}, u = null, d = { key: null }, f = () => {
-		let t = Zt(e)?.transform3d ?? null;
+		let t = rn(e)?.transform3d ?? null;
 		return u && u.at === a.time ? u.value : t;
 	}, p = (e) => e ? {
 		x: e[0],
@@ -4559,7 +4727,7 @@ function tn(e, t, n, r, i, a) {
 			...n.rotation,
 			...n.scale
 		]);
-	}, h = () => Zt(e), g = (e, t) => {
+	}, h = () => rn(e), g = (e, t) => {
 		let n = h()?.worldTransform;
 		if (!n) return {
 			x: e,
@@ -4570,7 +4738,7 @@ function tn(e, t, n, r, i, a) {
 			x: n.translation.x + r * a - i * o,
 			y: n.translation.y + r * o + i * a
 		};
-	}, _ = { type: Qt(a, s.id) };
+	}, _ = { type: an(a, s.id) };
 	return Object.defineProperties(c, {
 		x: {
 			enumerable: !0,
@@ -4686,7 +4854,7 @@ function tn(e, t, n, r, i, a) {
 		},
 		worldRotation: {
 			enumerable: !0,
-			get: () => (h()?.worldTransform.rotation ?? 0) * $t
+			get: () => (h()?.worldTransform.rotation ?? 0) * on
 		},
 		worldPoint: {
 			enumerable: !1,
@@ -4784,6 +4952,14 @@ function tn(e, t, n, r, i, a) {
 			enumerable: !1,
 			value: (e) => a.setVoxels(s.id, e instanceof Uint8Array ? e : Uint8Array.from(e))
 		},
+		setVoxelChunk: {
+			enumerable: !1,
+			value: (e, t, n) => a.setVoxelChunk(s.id, e | 0, t | 0, n instanceof Uint8Array ? n : Uint8Array.from(n))
+		},
+		unloadVoxelChunk: {
+			enumerable: !1,
+			value: (e, t) => a.unloadVoxelChunk(s.id, e | 0, t | 0)
+		},
 		setVoxel: {
 			enumerable: !1,
 			value: (e, t, n, r) => a.setVoxel(s.id, Math.floor(e), Math.floor(t), Math.floor(n), r | 0)
@@ -4800,7 +4976,7 @@ function tn(e, t, n, r, i, a) {
 			value: (e, t, n) => {
 				let r = f();
 				if (!r) return;
-				let [i, a, o] = r.position, s = e - i, c = t - a, l = n - o, u = Math.atan2(-s, -l) * $t, d = Math.atan2(c, Math.hypot(s, l)) * $t;
+				let [i, a, o] = r.position, s = e - i, c = t - a, l = n - o, u = Math.atan2(-s, -l) * on, d = Math.atan2(c, Math.hypot(s, l)) * on;
 				m({ rotation: [
 					d,
 					u,
@@ -4867,7 +5043,7 @@ function tn(e, t, n, r, i, a) {
 				} : null;
 			},
 			set: (e) => {
-				e && a.physics.setVelocity3(s.id, 0, ...Jt(e));
+				e && a.physics.setVelocity3(s.id, 0, ...en(e));
 			}
 		},
 		angularVelocity3: {
@@ -4881,7 +5057,7 @@ function tn(e, t, n, r, i, a) {
 				} : null;
 			},
 			set: (e) => {
-				e && a.physics.setVelocity3(s.id, 1, ...Jt(e));
+				e && a.physics.setVelocity3(s.id, 1, ...en(e));
 			}
 		},
 		addForce3: {
@@ -4898,8 +5074,8 @@ function tn(e, t, n, r, i, a) {
 		}
 	}), c;
 }
-function nn(e, t) {
-	return tn(e.id, e.elementId, e.name, e.classes, {
+function ln(e, t) {
+	return cn(e.id, e.elementId, e.name, e.classes, {
 		x: e.transform.translation.x,
 		y: e.transform.translation.y,
 		rotationRadians: e.transform.rotation,
@@ -4915,14 +5091,14 @@ function nn(e, t) {
 		zIndex: e.zIndex
 	}, t);
 }
-function rn(e, t) {
+function un(e, t) {
 	let n = $.get(e);
 	if (!n) return null;
 	let r = t.spawnClone(n);
-	return r ? tn(r, e.id, e.name, e.classes, {
+	return r ? cn(r, e.id, e.name, e.classes, {
 		x: e.x,
 		y: e.y,
-		rotationRadians: e.rotation * en,
+		rotationRadians: e.rotation * sn,
 		scaleX: e.scaleX,
 		scaleY: e.scaleY,
 		anchorX: e.anchorX,
@@ -4935,90 +5111,90 @@ function rn(e, t) {
 		zIndex: e.zIndex
 	}, t) : null;
 }
-function an(e, t) {
+function dn(e, t) {
 	let n = $.get(e);
 	n && t.deleteNode(n);
 }
-function on(e, t) {
+function fn(e, t) {
 	return e + t;
 }
-function sn(e, t) {
+function pn(e, t) {
 	return e - t;
 }
-function cn(e, t) {
+function mn(e, t) {
 	return e * t;
 }
-function ln(e, t) {
+function hn(e, t) {
 	return t === 0 ? 0 : e / t;
 }
-function un(e, t) {
+function gn(e, t) {
 	return +(e > t);
 }
-function dn(e, t) {
+function _n(e, t) {
 	return +(e < t);
 }
-function fn(e, t) {
+function vn(e, t) {
 	return +(e === t);
 }
-function pn(e, t) {
+function yn(e, t) {
 	return +(e !== 0 && t !== 0);
 }
-function mn(e, t) {
+function bn(e, t) {
 	return +(e !== 0 || t !== 0);
 }
-function hn(e) {
+function xn(e) {
 	return +(e === 0);
 }
-function gn(e, t, n) {
+function Sn(e, t, n) {
 	return e === 0 ? n : t;
 }
-function _n(e, t, n) {
+function Cn(e, t, n) {
 	return e + (t - e) * Math.min(Math.max(n, 0), 1);
 }
-function vn(e, t, n) {
+function wn(e, t, n) {
 	return Math.min(Math.max(e, Math.min(t, n)), Math.max(t, n));
 }
-function yn(e) {
+function Tn(e) {
 	let t = Math.imul(e >>> 0, 2654435761) >>> 0;
 	return t = (t ^ t >>> 15) >>> 0, t = Math.imul(t, 2246822507) >>> 0, t = (t ^ t >>> 13) >>> 0, t / 4294967295;
 }
-var bn = {
-	add: on,
-	subtract: sn,
-	multiply: cn,
-	divide: ln,
-	greaterThan: un,
-	lessThan: dn,
-	equals: fn,
-	and: pn,
-	or: mn,
-	not: hn,
-	select: gn,
-	lerp: _n,
-	clamp: vn,
-	random: yn
-}, xn = /* @__PURE__ */ new Map();
-function Sn(e) {
-	let t = xn.get(e);
+var En = {
+	add: fn,
+	subtract: pn,
+	multiply: mn,
+	divide: hn,
+	greaterThan: gn,
+	lessThan: _n,
+	equals: vn,
+	and: yn,
+	or: bn,
+	not: xn,
+	select: Sn,
+	lerp: Cn,
+	clamp: wn,
+	random: Tn
+}, Dn = /* @__PURE__ */ new Map();
+function On(e) {
+	let t = Dn.get(e);
 	if (!t) {
 		let n = `const { add, subtract, multiply, divide, greaterThan, lessThan, equals, and, or, not, select, lerp, clamp, random } = helpers;\n${e}`;
-		t = Function("ctx", "getCompByID", "getCompByClass", "spawnClone", "deleteNode", "helpers", n), xn.set(e, t);
+		t = Function("ctx", "getCompByID", "getCompByClass", "spawnClone", "deleteNode", "helpers", n), Dn.set(e, t);
 	}
 	return t;
 }
-var Cn = /* @__PURE__ */ new Map();
-function wn(e) {
-	let t = e instanceof Error ? `${e.name}: ${e.message}` : String(e), n = Cn.get(t) ?? 0;
-	Cn.set(t, n + 1), n === 0 ? console.error("Programmable State (Code) threw — skipping this frame (further repeats of this error are counted, not logged):", e) : (n + 1) % 600 == 0 && console.warn(`Script error repeated ${n + 1} times: ${t}`);
+var kn = /* @__PURE__ */ new Map();
+function An(e) {
+	let t = e instanceof Error ? `${e.name}: ${e.message}` : String(e), n = kn.get(t) ?? 0;
+	kn.set(t, n + 1), n === 0 ? console.error("Programmable State (Code) threw — skipping this frame (further repeats of this error are counted, not logged):", e) : (n + 1) % 600 == 0 && console.warn(`Script error repeated ${n + 1} times: ${t}`);
 }
-function Tn(e, t) {
-	Yt !== t.nodes && (Yt = t.nodes, Xt = null);
+function jn(e, t) {
+	tn !== t.nodes && (tn = t.nodes, nn = null);
 	let n = (e) => {
 		let n = t.nodes.find((t) => t.elementId === e);
-		return n ? nn(n, t) : null;
-	}, r = (e) => t.nodes.filter((t) => t.classes.includes(e)).map((e) => nn(e, t)), i = (e) => {
+		return n ? ln(n, t) : null;
+	}, r = (e) => t.nodes.filter((t) => t.classes.includes(e)).map((e) => ln(e, t)), i = (e) => {
 		let n = t.nodes.find((t) => t.id.idx === e.idx && t.id.version === e.version);
-		return n ? nn(n, t) : null;
+		return n ? ln(n, t) : null;
 	};
 	t.raycast = (e, n, r, a, o = Number.MAX_VALUE, s = null) => {
 		let c = s ? $.get(s) ?? null : null, l = t.physics.raycast(e, n, r, a, o, c);
@@ -5031,7 +5207,7 @@ function Tn(e, t) {
 			distance: l.distance
 		} : null;
 	}, t.raycast3 = (e, n, r = Number.MAX_VALUE, a = null) => {
-		let o = a ? $.get(a) ?? null : null, s = t.physics.raycast3(Jt(e), Jt(n), r, o);
+		let o = a ? $.get(a) ?? null : null, s = t.physics.raycast3(en(e), en(n), r, o);
 		return s ? {
 			ref: i(s.node),
 			x: s.x,
@@ -5047,7 +5223,7 @@ function Tn(e, t) {
 		if (!o || o.length === 0) return null;
 		let s = o.map((e) => {
 			let n = e.transform;
-			return tn(e.id, "", e.name, [], {
+			return cn(e.id, "", e.name, [], {
 				x: n.translation.x,
 				y: n.translation.y,
 				rotationRadians: n.rotation,
@@ -5071,31 +5247,31 @@ function Tn(e, t) {
 		trigger: e.trigger
 	}));
 	try {
-		Sn(e)(t, n, r, (e) => rn(e, t), (e) => an(e, t), bn);
+		On(e)(t, n, r, (e) => un(e, t), (e) => dn(e, t), En);
 	} catch (e) {
-		wn(e);
+		An(e);
 	}
 }
 //#endregion
 //#region src/game/scriptHost.ts
-var En = {
+var Mn = {
 	" ": "space",
 	ArrowUp: "up",
 	ArrowDown: "down",
 	ArrowLeft: "left",
 	ArrowRight: "right"
 };
-function Dn(e) {
-	return En[e] ?? e.toLowerCase();
+function Nn(e) {
+	return Mn[e] ?? e.toLowerCase();
 }
-function On(e, t) {
+function Pn(e, t) {
 	for (let [n, r] of [
 		[1, "mouseleft"],
 		[2, "mouseright"],
 		[4, "mousemiddle"]
 	]) t.buttons & n ? e.add(r) : e.delete(r);
 }
-var kn = class {
+var Fn = class {
 	start = null;
 	tapped = !1;
 	swiped = null;
@@ -5127,9 +5303,9 @@ var kn = class {
 		};
 		return this.tapped = !1, this.swiped = null, e;
 	}
-}, An = class {
-	mirror = new Rt();
-	writes = new jn();
+}, In = class {
+	mirror = new Bt();
+	writes = new Ln();
 	baseState = null;
 	baseElapsed = 0;
 	layerClocks = {};
@@ -5145,7 +5321,7 @@ var kn = class {
 		}
 		return n;
 	}
-	ui = new Ut();
+	ui = new Gt();
 	updateUi(e, t) {
 		let { editor: n, scene: r } = e;
 		this.ui.update({
@@ -5156,13 +5332,13 @@ var kn = class {
 				y: 0
 			},
 			dt: e.deltaSeconds,
-			liveBounds: (e) => wt(n, r.id, e),
+			liveBounds: (e) => Et(n, r.id, e),
 			setFill: (e, t) => this.writes.push(6, e, t[0], t[1], t[2], t[3]),
 			setImage: (e, t) => this.writes.push(5, e, t.idx, t.version),
 			setVisible: (e, t) => this.writes.push(4, e, +!!t),
 			setTranslation: (e, t, n) => this.writes.push(1, e, t, n),
 			setScale: (e, t, i, a, o) => {
-				this.writes.flush(), Tt(n, r.id, e, a, o, t, i);
+				this.writes.flush(), Dt(n, r.id, e, a, o, t, i);
 			}
 		}, t, e.globals), this.updateHtml(e, t);
 	}
@@ -5184,17 +5360,17 @@ var kn = class {
 		let a = ct(n, r.id), o = a ? {
 			panX: a[0],
 			panY: a[1],
-			pxPerWorld: a[2] * Gt.cssPerPhysical()
+			pxPerWorld: a[2] * qt.cssPerPhysical()
 		} : {
 			panX: e.camera.panX,
 			panY: e.camera.panY,
 			pxPerWorld: e.camera.zoom
 		}, s = new Map((e.machine?.inputs ?? []).map((e) => [e.name, e.kind]));
-		Gt.update(i, o, !0, {
-			fireTrigger: (e) => Dt(n, e),
+		qt.update(i, o, !0, {
+			fireTrigger: (e) => kt(n, e),
 			setInput: (e, t) => {
 				let r = s.get(e);
-				r === "Bool" ? kt(n, e, !!t) : r === "Number" ? At(n, e, Number(t)) : r === "Enum" ? jt(n, e, String(t)) : r === "Trigger" ? Dt(n, e) : console.warn(`HTML UI: state machine has no input "${e}"`);
+				r === "Bool" ? jt(n, e, !!t) : r === "Number" ? Mt(n, e, Number(t)) : r === "Enum" ? Nt(n, e, String(t)) : r === "Trigger" ? kt(n, e) : console.warn(`HTML UI: state machine has no input "${e}"`);
 			}
 		});
 	}
@@ -5244,7 +5420,9 @@ var kn = class {
 		});
 	}
 	run(e, t) {
-		let { editor: n, machine: r, scene: i } = t, a = [], o = r?.states.find((t) => t.name === e.activeState);
+		let { editor: n, machine: r, scene: i } = t;
+		$t.beginFrame();
+		let a = [], o = r?.states.find((t) => t.name === e.activeState);
 		o?.program?.kind === "Code" && a.push({
 			layer: null,
 			state: o.name,
@@ -5266,9 +5444,9 @@ var kn = class {
 		u.target(n, s);
 		let d = (e) => (u.flush(), e()), f = ot(n, s), p = new Map((r?.inputs ?? []).map((e) => [e.name, e.kind])), m = (e, t) => {
 			let r = p.get(e);
-			r === "Bool" ? kt(n, e, !!t) : r === "Number" ? At(n, e, Number(t)) : r === "Enum" ? jt(n, e, String(t)) : r === "Trigger" ? t && Dt(n, e) : console.warn(`ctx.setInput: state machine has no input "${e}"`);
+			r === "Bool" ? jt(n, e, !!t) : r === "Number" ? Mt(n, e, Number(t)) : r === "Enum" ? Nt(n, e, String(t)) : r === "Trigger" ? t && kt(n, e) : console.warn(`ctx.setInput: state machine has no input "${e}"`);
 		}, h = gt(n);
-		for (let e of a) Tn(e.source, {
+		for (let e of a) jn(e.source, {
 			time: e.time,
 			screen: h,
 			layer: e.layer,
@@ -5288,11 +5466,12 @@ var kn = class {
 				l = e;
 			},
 			globals: t.globals,
-			storage: qt,
+			storage: Yt,
+			net: $t,
 			setTranslation: (e, t, n) => u.push(1, e, t, n),
 			setRotationDegrees: (e, t) => u.push(2, e, t),
-			setScale: (e, t, r, i, a) => d(() => Tt(n, s, e, i, a, t, r)),
-			setAnchor: (e, t, r, i, a) => d(() => Et(n, s, e, t, r, i, a)),
+			setScale: (e, t, r, i, a) => d(() => Dt(n, s, e, i, a, t, r)),
+			setAnchor: (e, t, r, i, a) => d(() => Ot(n, s, e, t, r, i, a)),
 			setFillColor: (e, t, n, r, i) => u.push(6, e, t, n, r, i),
 			setTextContent: (e, t) => d(() => dt(n, s, e, t)),
 			setImage: (e, t) => u.push(5, e, t.idx, t.version),
@@ -5308,12 +5487,14 @@ var kn = class {
 			exitPointerLock: t.exitPointerLock,
 			setZIndex: (e, t) => u.push(3, e, t),
 			setTiles: (e, t) => d(() => lt(n, s, e, t)),
-			setBodyType: (e, t, r) => d(() => Ct(n, s, e, t, r)),
-			breakJoint: (e) => d(() => St(n, s, e)),
-			setTransform3D: (e, t) => d(() => xt(n, s, e, t)),
+			setBodyType: (e, t, r) => d(() => Tt(n, s, e, t, r)),
+			breakJoint: (e) => d(() => wt(n, s, e)),
+			setTransform3D: (e, t) => d(() => Ct(n, s, e, t)),
 			setAnimation3D: (e, t, r, i) => d(() => vt(n, s, e, t, r, i)),
 			setVoxels: (e, t) => d(() => yt(n, s, e, t)),
-			setVoxel: (e, t, r, i, a) => d(() => bt(n, s, e, t, r, i, a)),
+			setVoxel: (e, t, r, i, a) => d(() => St(n, s, e, t, r, i, a)),
+			setVoxelChunk: (e, t, r, i) => d(() => bt(n, s, e, t, r, i)),
+			unloadVoxelChunk: (e, t, r) => d(() => xt(n, s, e, t, r)),
 			playSound: (e, t) => {
 				let r = this.soundId(n, e);
 				return r ? Y.play(n, r, t) : (console.warn(`ctx.playSound: no sound named "${e}"`), null);
@@ -5336,7 +5517,7 @@ var kn = class {
 			setMasterVolume: (e) => Y.setMasterVolume(e),
 			playAudioSource: (e, t) => this.playSource(n, c, e, t),
 			uiState: (e) => this.ui.state(e),
-			htmlRoot: (e) => Gt.root(e),
+			htmlRoot: (e) => qt.root(e),
 			setUiState: (e, t) => this.ui.set(e, t),
 			stopAudioSource: (e) => Y.stopNodeSounds(`${e.idx}:${e.version}`),
 			setLight: (e, t, r) => d(() => ut(n, s, e, t, r)),
@@ -5361,15 +5542,15 @@ var kn = class {
 			setVisible: (e, t) => u.push(4, e, +!!t),
 			spawnClone: (e) => d(() => qe(n, s, [e]).newNodes[0] ?? null),
 			spawn: () => null,
-			spawnPrefab: (e, t, r, i) => d(() => Nt(n, s, e, t, r, i)),
-			destroyNode: (e) => d(() => Pt(n, s, e)),
+			spawnPrefab: (e, t, r, i) => d(() => Ft(n, s, e, t, r, i)),
+			destroyNode: (e) => d(() => It(n, s, e)),
 			deleteNode: (e) => {
 				d(() => pt(n, s, e));
 			}
 		});
 		return u.flush(), l;
 	}
-}, jn = class {
+}, Ln = class {
 	buf = /* @__PURE__ */ new Float64Array(1792);
 	len = 0;
 	editor = null;
@@ -5390,7 +5571,7 @@ var kn = class {
 		let e = this.buf.subarray(0, this.len);
 		this.len = 0, this.editor.apply_node_writes(this.artboard, e);
 	}
-}, Mn = [
+}, Rn = [
 	"logic",
 	"ik",
 	"physics",
@@ -5399,7 +5580,7 @@ var kn = class {
 	"gpu",
 	"sync",
 	"scripts"
-], Nn = {
+], zn = {
 	logic: "anim/logic",
 	ik: "ik",
 	physics: "physics",
@@ -5408,10 +5589,10 @@ var kn = class {
 	gpu: "gpu submit",
 	sync: "doc sync",
 	scripts: "scripts"
-}, Pn = class {
+}, Bn = class {
 	enabled = !1;
 	el = null;
-	ema = Object.fromEntries(Mn.map((e) => [e, 0]));
+	ema = Object.fromEntries(Rn.map((e) => [e, 0]));
 	frameMs = 16.7;
 	worstMs = 0;
 	counts = {
@@ -5448,14 +5629,14 @@ var kn = class {
 		};
 		this.jsMarks = {};
 		let a = .1;
-		for (let e of Mn) this.ema[e] += (i[e] - this.ema[e]) * a;
+		for (let e of Rn) this.ema[e] += (i[e] - this.ema[e]) * a;
 		if (t > 0 && t < 1e3 && (this.frameMs += (t - this.frameMs) * a, n - this.lastWorstReset > 2e3 && (this.worstMs = 0, this.lastWorstReset = n), this.worstMs = Math.max(this.worstMs, t)), this.counts = r, n - this.lastPaint > 250 && this.el) {
 			this.lastPaint = n;
-			let e = Mn.reduce((e, t) => e + this.ema[t], 0), t = 1e3 / Math.max(1, this.frameMs), r = (e) => "█".repeat(Math.min(20, Math.round(e / 16.7 * 20))), i = [
+			let e = Rn.reduce((e, t) => e + this.ema[t], 0), t = 1e3 / Math.max(1, this.frameMs), r = (e) => "█".repeat(Math.min(20, Math.round(e / 16.7 * 20))), i = [
 				`${t.toFixed(0).padStart(3)} fps   frame ${this.frameMs.toFixed(1)}ms`,
 				`worst ${this.worstMs.toFixed(1)}ms   cpu ${e.toFixed(1)}ms`,
 				"",
-				...Mn.map((e) => `${Nn[e].padEnd(10)} ${this.ema[e].toFixed(2).padStart(6)} ${r(this.ema[e])}`),
+				...Rn.map((e) => `${zn[e].padEnd(10)} ${this.ema[e].toFixed(2).padStart(6)} ${r(this.ema[e])}`),
 				"",
 				`nodes ${this.counts.nodes}  draws ${this.counts.draws}`,
 				`lights ${this.counts.lights}  bodies ${this.counts.bodies}`,
@@ -5467,7 +5648,7 @@ var kn = class {
 };
 //#endregion
 //#region src/game/screen.ts
-function Fn(e, t, n) {
+function Vn(e, t, n) {
 	let r = Math.max(1, e.width), i = Math.max(1, e.height), a = Math.max(1, t.width), o = Math.max(1, t.height), s = Math.max(0, Math.min(1, n.matchWidthOrHeight)), c = Math.log(a / r), l = Math.log(o / i), u = Math.max(1e-4, Math.exp(c + (l - c) * s));
 	return {
 		width: a / u,
@@ -5476,25 +5657,25 @@ function Fn(e, t, n) {
 }
 //#endregion
 //#region src/player/main.ts
-function In(e) {
+function Hn(e) {
 	let t = document.getElementById(e);
 	if (!t?.textContent) throw Error(`missing ${e}`);
 	return t.textContent.trim();
 }
-function Ln(e) {
+function Un(e) {
 	let t = atob(e), n = new Uint8Array(new ArrayBuffer(t.length));
 	for (let e = 0; e < t.length; e++) n[e] = t.charCodeAt(e);
 	return n;
 }
-function Rn(e) {
+function Wn(e) {
 	let t = document.getElementById("an1-status");
 	t && (t.textContent = e, t.style.display = e ? "flex" : "none");
 }
-async function zn() {
-	let e = JSON.parse(In("an1-config"));
-	document.title = e.title, We(Ln(In("an1-wasm")));
+async function Gn() {
+	let e = JSON.parse(Hn("an1-config"));
+	document.title = e.title, We(Un(Hn("an1-wasm")));
 	let t = document.getElementById("an1-canvas"), n = document.createElement("div");
-	n.style.cssText = "position:relative;flex:none;line-height:0;", t.parentElement?.insertBefore(n, t), n.appendChild(t), Gt.attach(n, t);
+	n.style.cssText = "position:relative;flex:none;line-height:0;", t.parentElement?.insertBefore(n, t), n.appendChild(t), qt.attach(n, t);
 	let r = {
 		width: 1,
 		height: 1
@@ -5504,7 +5685,7 @@ async function zn() {
 	}, a = await Ke(t), o = null, s = null, c = (e, t) => e.idx === t.idx && e.version === t.version, l = () => o?.artboards.find((e) => s && c(e.id, s)) ?? o?.artboards[0] ?? null, u = () => {
 		let e = window.devicePixelRatio || 1, n = window.visualViewport, o = Math.max(1, n?.width ?? window.innerWidth), s = Math.max(1, n?.height ?? window.innerHeight), u = l(), d = u?.nodes.find((e) => u.activeCamera && c(e.id, u.activeCamera))?.camera ?? null, f = Math.max(.01, d?.zoom ?? 1), p = (u?.width ?? o) / f, m = (u?.height ?? s) / f;
 		if (u?.screen.mode === "Responsive") {
-			let e = Fn({
+			let e = Vn({
 				width: p,
 				height: m
 			}, {
@@ -5525,15 +5706,15 @@ async function zn() {
 		let g = !!d?.pixelPerfect.enabled, _ = g ? Math.max(1, Math.floor(h * e)) : h * e, v = Math.max(1, Math.round(p * _)), y = Math.max(1, Math.round(m * _));
 		t.width = v, t.height = y, t.style.width = `${r.width}px`, t.style.height = `${r.height}px`, t.style.imageRendering = g ? "pixelated" : "auto", a.resize(v, y);
 	};
-	window.addEventListener("resize", u), window.visualViewport?.addEventListener("resize", u), window.addEventListener("orientationchange", () => setTimeout(u, 200)), o = await mt(a, Ln(In("an1-game")));
+	window.addEventListener("resize", u), window.visualViewport?.addEventListener("resize", u), window.addEventListener("orientationchange", () => setTimeout(u, 200)), o = await mt(a, Un(Hn("an1-game")));
 	let d = (e) => {
 		o = Je(a, e), o = ht(a, e, "Playground"), s = e, u();
 	}, f = o, p = f.artboards.find((t) => t.name === e.startScene) ?? f.artboards[0];
 	if (!p) {
-		Rn("This game has no scenes.");
+		Wn("This game has no scenes.");
 		return;
 	}
-	d(p.id), Rn("");
+	d(p.id), Wn("");
 	let m = /* @__PURE__ */ new Set(), h = {
 		x: 0,
 		y: 0
@@ -5541,17 +5722,17 @@ async function zn() {
 		x: 0,
 		y: 0
 	}, _ = !1, v = (e, t) => {
-		let n = Dn(e.key);
+		let n = Nn(e.key);
 		[
 			"space",
 			"up",
 			"down",
 			"left",
 			"right"
-		].includes(n) && e.preventDefault(), t ? m.add(n) : m.delete(n), Mt(a, n, t);
+		].includes(n) && e.preventDefault(), t ? m.add(n) : m.delete(n), Pt(a, n, t);
 	};
 	window.addEventListener("keydown", (e) => v(e, !0)), window.addEventListener("keyup", (e) => v(e, !1)), window.addEventListener("blur", () => m.clear());
-	let y = new kn();
+	let y = new Fn();
 	window.addEventListener("pointermove", (e) => {
 		g = {
 			x: g.x + e.movementX,
@@ -5559,14 +5740,14 @@ async function zn() {
 		}, h = {
 			x: e.clientX,
 			y: e.clientY
-		}, m.has("mouse") && On(m, e);
+		}, m.has("mouse") && Pn(m, e);
 	}), t.addEventListener("pointerdown", (e) => {
 		h = {
 			x: e.clientX,
 			y: e.clientY
-		}, y.down(e), m.add("mouse"), On(m, e), _ && document.pointerLockElement !== t && t.requestPointerLock();
+		}, y.down(e), m.add("mouse"), Pn(m, e), _ && document.pointerLockElement !== t && t.requestPointerLock();
 	}), window.addEventListener("pointerup", (e) => {
-		m.has("mouse") && y.up(e), On(m, e), e.buttons || m.delete("mouse");
+		m.has("mouse") && y.up(e), Pn(m, e), e.buttons || m.delete("mouse");
 	}), window.addEventListener("pointercancel", () => {
 		for (let e of [
 			"mouse",
@@ -5594,7 +5775,7 @@ async function zn() {
 			x: l.x + (t - o / 2) * u,
 			y: l.y - (n - s / 2) * u
 		};
-	}, S = new An(), C = new Pn();
+	}, S = new In(), C = new Bn();
 	new URLSearchParams(location.search).has("stats") && C.toggle(), window.addEventListener("keydown", (e) => {
 		(e.key === "F3" || e.key === "`") && (e.preventDefault(), C.toggle());
 	});
@@ -5616,7 +5797,7 @@ async function zn() {
 			w = e;
 			let r = window.devicePixelRatio || 1, i = l();
 			i && !te && (D = E(i)), a.render(n, D.pan.x, D.pan.y, D.zoom * r, -1, r, 0, 0, 0, 0, 0, 0);
-			let u = performance.now(), f = Ot(a);
+			let u = performance.now(), f = At(a);
 			S.tick(f, n);
 			let p = o;
 			C.add("sync", performance.now() - u);
@@ -5678,7 +5859,7 @@ async function zn() {
 	};
 	requestAnimationFrame(ne);
 }
-zn().catch((e) => {
-	console.error(e), Rn(`Couldn't start the game: ${e instanceof Error ? e.message : String(e)}`);
+Gn().catch((e) => {
+	console.error(e), Wn(`Couldn't start the game: ${e instanceof Error ? e.message : String(e)}`);
 });
 //#endregion

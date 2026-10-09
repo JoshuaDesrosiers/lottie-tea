@@ -317,3 +317,40 @@ pub async fn pick_save_file_path(app: tauri::AppHandle, suggested_name: String, 
     let extensions: Vec<&str> = extensions.iter().map(String::as_str).collect();
     app.dialog().file().set_file_name(&suggested_name).add_filter(&filter_name, &extensions).blocking_save_file().map(|path| path.to_string())
 }
+
+/// The game server `net_host` started (one at a time), if any.
+static NET_SERVER: std::sync::Mutex<Option<an1mbyt3_net::RelayServer>> = std::sync::Mutex::new(None);
+
+/// What `net_host` tells the game: the port it's listening on and the
+/// addresses other players should type to join.
+#[derive(serde::Serialize)]
+pub struct NetHosting {
+    port: u16,
+    addresses: Vec<String>,
+}
+
+/// `ctx.net.host(port)`: starts the multiplayer relay server on `port`
+/// (every network interface), replacing one already running. The game then
+/// joins it over loopback like any other player.
+#[tauri::command]
+pub fn net_host(port: u16) -> Result<NetHosting, String> {
+    let mut slot = NET_SERVER.lock().map_err(|e| e.to_string())?;
+    // Free the port first if we're already hosting.
+    if let Some(old) = slot.take() {
+        old.stop();
+    }
+    let server = an1mbyt3_net::RelayServer::start(port).map_err(|e| format!("can't host on port {port}: {e}"))?;
+    let hosting = NetHosting { port: server.port(), addresses: an1mbyt3_net::lan_addresses() };
+    *slot = Some(server);
+    Ok(hosting)
+}
+
+/// Stops hosting (everyone connected is disconnected).
+#[tauri::command]
+pub fn net_stop() {
+    if let Ok(mut slot) = NET_SERVER.lock() {
+        if let Some(server) = slot.take() {
+            server.stop();
+        }
+    }
+}

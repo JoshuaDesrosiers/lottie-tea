@@ -159,6 +159,7 @@ import {
   loadResponsiveDemo,
   loadHtmlDemo,
   loadPhysics3DDemo,
+  loadLanDemo,
   loadBoomDemo,
   loadVoxelDemo,
   addNode3D,
@@ -254,6 +255,7 @@ import { useDockLayout, groupMemberKeys, type PanelKey } from './hooks/useDockLa
 import { isBoolean, isNumber, usePersistedState } from './hooks/persisted'
 import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_HEIGHT, TIMELINE_HEIGHT, TOP_CLEARANCE } from './layoutConstants'
 import { collectSnapTargets, snapTranslation } from './snapping'
+import { gameNet } from './game/net'
 import { mouseToWorld, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from './game/scriptHost'
 import { BoneGizmos } from './components/BoneGizmos'
 import { PerfMeter } from './game/perf'
@@ -681,6 +683,8 @@ function App() {
       // may have changed (it's rebuilt from the design next frame).
       audio.stopAll()
       htmlOverlay.clear()
+      // ...and ends any multiplayer session (stops hosting too).
+      gameNet.reset()
     }
   }, [mode])
   useEffect(() => {
@@ -2357,6 +2361,20 @@ function App() {
     if (!editor) return
     demoLoadingRef.current = true
     void loadBoomDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
+  const handleLoadLanDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadLanDemo(editor)
       .then((result) => {
         switchToScene(result.newArtboard, result.document)
         setMode('Playground')
@@ -4196,6 +4214,7 @@ function App() {
             onLoadResponsiveDemo={handleLoadResponsiveDemo}
             onLoadHtmlDemo={handleLoadHtmlDemo}
             onLoadPhysics3DDemo={handleLoadPhysics3DDemo}
+            onLoadLanDemo={handleLoadLanDemo}
             onLoadBoomDemo={handleLoadBoomDemo}
             onLoadVoxelDemo={handleLoadVoxelDemo}
             onLoadTacticsDemo={handleLoadTacticsDemo}

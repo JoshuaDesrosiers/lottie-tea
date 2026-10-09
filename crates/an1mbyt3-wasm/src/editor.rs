@@ -9008,6 +9008,14 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// The + menu's Demos → "LAN Party" — port-based multiplayer: host
+    /// on a port or join by address (`ctx.net`), toon blobs, host-owned coins.
+    pub async fn load_lan_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_lan::build_demo_lan(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     /// The + menu's Demos → "Physics 3D Lab" — Rigidbody 3D / Collider 3D:
     /// a crate pyramid, a ramp, a trigger zone and a click-to-fire cannon.
     pub async fn load_physics3d_demo(&mut self) -> Result<JsValue, JsValue> {

@@ -13,6 +13,7 @@ members = [
     "crates/an1mbyt3-physics",
     "crates/an1mbyt3-wasm",
     "crates/an1mbyt3-cli",
+    "crates/an1mbyt3-net",
     "apps/editor/src-tauri",
     "apps/runner",
 ]

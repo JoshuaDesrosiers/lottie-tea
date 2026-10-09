@@ -1,0 +1,18 @@
+[package]
+name = "an1mbyt3-net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "LAN / port-based multiplayer: a small WebSocket relay server games connect to (hosted by the editor, or run standalone as `an1mbyt3-server`)."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "an1mbyt3-server"
+path = "src/main.rs"
+
+[dependencies]
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+serde_json.workspace = true

@@ -99,6 +99,7 @@ function ShapesMenu({
   onLoadResponsiveDemo,
   onLoadHtmlDemo,
   onLoadPhysics3DDemo,
+  onLoadLanDemo,
   onLoadBoomDemo,
   onLoadVoxelDemo,
   onLoadTacticsDemo,
@@ -153,6 +154,7 @@ function ShapesMenu({
   onLoadResponsiveDemo: () => void
   onLoadHtmlDemo: () => void
   onLoadPhysics3DDemo: () => void
+  onLoadLanDemo: () => void
   onLoadBoomDemo: () => void
   onLoadVoxelDemo: () => void
   onLoadTacticsDemo: () => void
@@ -255,6 +257,7 @@ function ShapesMenu({
         { kind: 'item', label: 'Responsive Layout', icon: <SparkleIcon />, onSelect: onLoadResponsiveDemo },
         { kind: 'item', label: 'HTML UI Lab', icon: <SparkleIcon />, onSelect: onLoadHtmlDemo },
         { kind: 'item', label: 'Physics 3D Lab', icon: <SparkleIcon />, onSelect: onLoadPhysics3DDemo },
+        { kind: 'item', label: 'LAN Party (multiplayer)', icon: <SparkleIcon />, onSelect: onLoadLanDemo },
         { kind: 'item', label: 'Toon Explosion', icon: <SparkleIcon />, onSelect: onLoadBoomDemo },
         { kind: 'item', label: 'Voxel Craft', icon: <SparkleIcon />, onSelect: onLoadVoxelDemo },
         { kind: 'item', label: 'Sunset Tactics (5v5)', icon: <SparkleIcon />, onSelect: onLoadTacticsDemo },
@@ -496,6 +499,7 @@ export function TopToolbar({
   onLoadResponsiveDemo,
   onLoadHtmlDemo,
   onLoadPhysics3DDemo,
+  onLoadLanDemo,
   onLoadBoomDemo,
   onLoadVoxelDemo,
   onLoadTacticsDemo,
@@ -551,6 +555,7 @@ export function TopToolbar({
   onLoadResponsiveDemo: () => void
   onLoadHtmlDemo: () => void
   onLoadPhysics3DDemo: () => void
+  onLoadLanDemo: () => void
   onLoadBoomDemo: () => void
   onLoadVoxelDemo: () => void
   onLoadTacticsDemo: () => void
@@ -657,6 +662,7 @@ export function TopToolbar({
               onLoadResponsiveDemo={onLoadResponsiveDemo}
               onLoadHtmlDemo={onLoadHtmlDemo}
               onLoadPhysics3DDemo={onLoadPhysics3DDemo}
+              onLoadLanDemo={onLoadLanDemo}
               onLoadBoomDemo={onLoadBoomDemo}
               onLoadVoxelDemo={onLoadVoxelDemo}
               onLoadTacticsDemo={onLoadTacticsDemo}

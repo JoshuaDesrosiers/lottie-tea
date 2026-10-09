@@ -60,6 +60,8 @@ pub fn run() {
             commands::read_file_raw,
             commands::reveal_in_explorer,
             commands::recovery_dir,
+            commands::net_host,
+            commands::net_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
