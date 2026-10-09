@@ -390,6 +390,9 @@ export function ParticleSystem3DFields({ config, onChange, onBurst }: { config: 
             <Row label="Threshold" title="Lower: fatter, more merged liquid. Higher: thinner, separate drops.">
               <SliderNum value={config.fluidThreshold} min={0.05} max={1.5} step={0.01} onChange={(fluidThreshold) => update({ fluidThreshold })} />
             </Row>
+            <Row label="Fluid group" title="Fluid emitters with the same group number are one liquid: their blobs merge (the group uses its first emitter's colours).">
+              <NumberField label="#" value={config.fluidGroup} onCommit={(v) => update({ fluidGroup: Math.max(0, Math.round(v)) })} />
+            </Row>
             <Row label="Gloss">
               <SliderNum value={config.fluidGloss} min={0} max={2} step={0.05} onChange={(fluidGloss) => update({ fluidGloss })} />
             </Row>

@@ -1566,6 +1566,8 @@ export interface ParticleSystem3DConfig {
   fluidEdge: [number, number, number, number]
   fluidThreshold: number
   fluidGloss: number
+  /** Fluid emitters with the same group merge into one liquid. */
+  fluidGroup: number
 }
 
 /** Every addable Unity component kind (the Add Component menu). */

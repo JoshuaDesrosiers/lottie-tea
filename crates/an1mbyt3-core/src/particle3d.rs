@@ -245,6 +245,10 @@ pub struct ParticleSystem3D {
     pub fluid_threshold: f32,
     /// Wet highlight strength (0 = matte).
     pub fluid_gloss: f32,
+    /// Fluid emitters with the same group number are one liquid: their
+    /// blobs merge with each other (the group takes the colours of its
+    /// first emitter). Different numbers stay separate liquids.
+    pub fluid_group: u32,
 }
 
 impl Default for ParticleSystem3D {
@@ -286,6 +290,7 @@ impl Default for ParticleSystem3D {
             fluid_edge: [0.9, 0.2, 0.8, 0.8],
             fluid_threshold: 0.5,
             fluid_gloss: 0.6,
+            fluid_group: 0,
         }
     }
 }

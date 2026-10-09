@@ -47,10 +47,12 @@ fn d(uv: vec2<f32>) -> f32 {
 @fragment
 fn fs_composite(in: Out) -> @location(0) vec4<f32> {
     let threshold = fluid.params.x;
-    let soft = max(fluid.params.y, 0.001);
     let texel = vec2<f32>(fluid.params.w, fluid.params2.x) * 2.0;
     let c = d(in.uv);
-    let coverage = smoothstep(threshold - soft, threshold + soft, c);
+    // A clean, pixel-wide anti-aliased edge (screen-space derivative), not
+    // a blurry fade — the liquid's outline stays crisp at any zoom.
+    let aa = max(fwidth(c), 0.0005);
+    let coverage = smoothstep(threshold - aa, threshold + aa, c);
     if coverage <= 0.001 {
         discard;
     }

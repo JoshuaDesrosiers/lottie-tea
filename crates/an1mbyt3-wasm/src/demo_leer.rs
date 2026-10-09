@@ -7,16 +7,12 @@
 //!   slit pupil, a hot-magenta iris that darkens towards its rim with
 //!   dark veins drifting across it, a white specular glint, and a
 //!   near-black body with a violet rim (**View Fresnel**).
-//! - **Ink tendrils** — `ParticleSystem3D` with *ribbon trails* in **fluid**
-//!   mode: tapering bands orbiting tight round the orb on tilted paths,
-//!   drawn as one glossy liquid surface (screen-space metaballs) so they
-//!   merge into thick ink where they cross, with magenta rims.
-//! - **Magenta glints** ride the same orbits (thin additive ribbons) —
-//!   the hot edges on the ink.
-//! - **Flicks** peel off the surface and lash outwards; **droplets** of ink
-//!   hang in the air round it, and a second set drifts in from further
-//!   out and **converges** into the eye (a Converge behaviour whose curve
-//!   holds at 0, then ramps to 1 — free, then gathered).
+//! - **Liquid ink** — `ParticleSystem3D` in **fluid** mode (screen-space
+//!   metaballs): a wide core blob forms the orb's ink body; blobs crawl
+//!   over its surface and bulge out of it; leapers jump off, stretch a neck
+//!   and get pulled back in (Attract with a late curve); droplets drift in
+//!   and merge (Converge). All one fluid group, so whatever touches joins
+//!   like drops of liquid pulling at each other.
 //! - A sunny orange courtyard for contrast.
 //!
 //! Space casts it (lunge, flare, a burst of flicks), drag orbits, W/S zoom.
@@ -46,16 +42,6 @@ pub(crate) struct DemoLeer {
 
 fn node3d(parent: Option<NodeId>, id: &str, name: &str, transform: Transform3D, content: Node3DContent) -> Node {
     with_id(Node::new(name, parent, NodeKind::Node3D(an1mbyt3_core::Node3D::new(transform, content))), id)
-}
-
-/// An emitter whose local Y points down its parent's −Z: under the `halo`
-/// (which the script turns to face the camera) its orbits circle the
-/// eye's silhouette instead of crossing in front of the iris.
-fn facing(mut node: Node) -> Node {
-    if let NodeKind::Node3D(n) = &mut node.kind {
-        n.transform.rotation_degrees = Vec3::new(-90.0, 0.0, 0.0);
-    }
-    node
 }
 
 /// An empty 3D node carrying a particle emitter.
@@ -193,38 +179,17 @@ fn ink(a: f32) -> [f32; 4] {
     [INK[0], INK[1], INK[2], a]
 }
 
-/// Black ribbons orbiting tight round the orb.
-fn tendrils() -> ParticleSystem3D {
+/// The liquid ink every blob below belongs to: one fluid group, so they
+/// all merge into one body (the first emitter, the core, sets its look).
+fn goo(system: ParticleSystem3D) -> ParticleSystem3D {
     ParticleSystem3D {
-        rate: 9.0,
-        max_particles: 120,
-        lifetime: 1.8,
-        lifetime_jitter: 0.3,
-        shape: Emitter3DShape::Ring,
-        radius: EYE_RADIUS + 0.1,
-        thickness: 0.05,
-        swirl: 150.0,
-        swirl_jitter: 0.35,
-        tilt: 28.0,
-        pull: 8.0,
-        turbulence: 0.05,
-        size_start: 0.42,
-        size_end: 0.06,
-        color_start: ink(1.0),
-        color_mid: ink(1.0),
-        color_end: ink(1.0),
-        intensity: 1.0,
         blend: ParticleBlend3D::Alpha,
-        hardness: 0.92,
-        trail_segments: 20,
-        trail_time: 0.6,
-        // One liquid surface: ribbons that touch merge into thick ink.
         fluid: true,
-        fluid_edge: [0.95, 0.12, 0.78, 0.7],
-        fluid_threshold: 0.3,
-        fluid_gloss: 0.9,
-        seed: 3,
-        ..Default::default()
+        fluid_group: 0,
+        fluid_edge: [0.95, 0.12, 0.78, 0.55],
+        fluid_threshold: 0.4,
+        fluid_gloss: 1.0,
+        ..system
     }
 }
 
@@ -285,42 +250,41 @@ pub(crate) fn build_demo_leer(document: &mut Document) -> DemoLeer {
     let eye = Mesh3D { unlit: true, material: Some(eye_material), shininess: 0.0, ..Mesh3D::new(Primitive3D::Sphere { radius: 0.5, segments: 64, rings: 32 }, [1.0, 1.0, 1.0, 1.0]) };
     add_node(document, &mut inverses, scene, node3d(Some(leer), "eye", "Eye", Transform3D { scale: Vec3::splat(EYE_RADIUS * 2.0), ..Default::default() }, Node3DContent::Mesh(eye)));
 
-    // The ink frames the eye: a pivot the script keeps facing the camera,
-    // carrying the orbiting emitters.
-    let halo = add_node(document, &mut inverses, scene, node3d(None, "halo", "Ink Halo", Transform3D::at(Vec3::new(0.0, 1.7, -1.0)), Node3DContent::Empty));
-    add_node(document, &mut inverses, scene, facing(emitter(halo, "tendrils", "Ink Tendrils", tendrils())));
+    // ---- The ink: metaballs ----
+    // One permanent, wide blob at the centre is the orb's liquid body (its
+    // field reaches just past the eye's surface, so the ink shows as a rim
+    // round it). Blobs crawling over the surface add to that field and
+    // bulge out of it; leapers jump off, stretch a neck back to the body,
+    // and get pulled back in; droplets further out merge in when they
+    // arrive. All one fluid group, so everything that touches joins.
     add_node(
         document,
         &mut inverses,
         scene,
-        facing(emitter(halo, "tendrils2", "Ink Tendrils (wide)", ParticleSystem3D { radius: EYE_RADIUS + 0.22, rate: 6.0, swirl: -120.0, size_start: 0.34, tilt: 40.0, trail_time: 0.75, seed: 17, ..tendrils() })),
-    );
-    add_node(
-        document,
-        &mut inverses,
-        scene,
-        facing(emitter(
-            halo,
-            "glints",
-            "Magenta Glints",
-            ParticleSystem3D {
-                radius: EYE_RADIUS + 0.1,
-                rate: 7.0,
-                size_start: 0.045,
-                size_end: 0.01,
-                color_start: [1.0, 0.2, 0.85, 1.0],
-                color_mid: [0.85, 0.1, 0.75, 0.8],
-                color_end: [0.6, 0.0, 0.6, 0.0],
-                intensity: 1.0,
-                blend: ParticleBlend3D::Additive,
-                hardness: 0.6,
-                trail_segments: 14,
-                trail_time: 0.4,
-                fluid: false,
-                seed: 29,
-                ..tendrils()
-            },
-        )),
+        emitter(
+            leer,
+            "core",
+            "Ink Body",
+            goo(ParticleSystem3D {
+                emitting: false,
+                rate: 0.0,
+                burst: 1,
+                max_particles: 1,
+                lifetime: 1.0e6,
+                lifetime_jitter: 0.0,
+                shape: Emitter3DShape::Point,
+                swirl: 0.0,
+                tilt: 0.0,
+                turbulence: 0.0,
+                size_start: 3.8,
+                size_end: 3.8,
+                color_start: ink(1.0),
+                color_mid: ink(1.0),
+                color_end: ink(1.0),
+                seed: 1,
+                ..Default::default()
+            }),
+        ),
     );
     add_node(
         document,
@@ -328,42 +292,78 @@ pub(crate) fn build_demo_leer(document: &mut Document) -> DemoLeer {
         scene,
         emitter(
             leer,
-            "flicks",
-            "Ink Flicks",
-            ParticleSystem3D {
-                rate: 5.0,
-                burst: 0,
-                max_particles: 80,
-                lifetime: 0.8,
-                lifetime_jitter: 0.3,
+            "crawlers",
+            "Surface Blobs",
+            goo(ParticleSystem3D {
+                rate: 10.0,
+                max_particles: 50,
+                lifetime: 3.6,
+                lifetime_jitter: 0.35,
                 shape: Emitter3DShape::Shell,
-                radius: EYE_RADIUS + 0.02,
-                thickness: 0.02,
-                speed: 1.3,
-                swirl: 140.0,
-                swirl_jitter: 0.4,
+                radius: EYE_RADIUS + 0.06,
+                thickness: 0.03,
+                swirl: 55.0,
+                swirl_jitter: 0.8,
                 tilt: 90.0,
-                pull: 0.0,
-                turbulence: 0.1,
-                size_start: 0.22,
-                size_end: 0.02,
-                color_start: ink(1.0),
-                color_mid: ink(1.0),
-                color_end: ink(1.0),
-                fluid: true,
-                fluid_edge: [0.95, 0.12, 0.78, 0.45],
-                fluid_threshold: 0.42,
-                fluid_gloss: 0.9,
-                blend: ParticleBlend3D::Alpha,
-                hardness: 0.92,
-                trail_segments: 14,
-                trail_time: 0.35,
-                seed: 5,
+                pull: 4.0,
+                turbulence: 0.35,
+                size_start: 0.7,
+                size_end: 0.6,
+                // Swell in and melt away (density, not size, so they merge
+                // and part smoothly). Too faint to show on their own: they
+                // only appear where they add to the body — bulges in its
+                // rim, never loose blobs drifting over the iris.
+                color_start: ink(0.0),
+                color_mid: ink(0.42),
+                color_end: ink(0.0),
+                seed: 9,
                 ..Default::default()
-            },
+            }),
         ),
     );
-    let droplet = |radius: f32, rate: f32, seed: u32, behaviors: Vec<ParticleBehavior3D>| ParticleSystem3D {
+    add_node(
+        document,
+        &mut inverses,
+        scene,
+        emitter(
+            leer,
+            "leapers",
+            "Leaping Drops",
+            goo(ParticleSystem3D {
+                rate: 1.6,
+                max_particles: 30,
+                lifetime: 1.7,
+                lifetime_jitter: 0.3,
+                shape: Emitter3DShape::Shell,
+                radius: EYE_RADIUS + 0.04,
+                thickness: 0.02,
+                speed: 1.1,
+                swirl: 60.0,
+                swirl_jitter: 0.6,
+                tilt: 90.0,
+                pull: 0.0,
+                turbulence: 0.2,
+                size_start: 0.5,
+                size_end: 0.42,
+                color_start: ink(1.0),
+                color_mid: ink(1.0),
+                color_end: ink(0.6),
+                seed: 5,
+                // Fly off, slow, and get pulled back into the body — the
+                // neck stretches and snaps like a drop of honey.
+                behaviors: vec![ParticleBehavior3D {
+                    kind: ParticleBehaviorKind3D::Attract,
+                    enabled: true,
+                    strength: 20.0,
+                    curve: LifeCurve { points: vec![[0.0, 0.0], [0.25, 0.0], [0.6, 1.0]] },
+                    point: [0.0, 0.0, 0.0],
+                    space: PointSpace::Local,
+                }],
+                ..Default::default()
+            }),
+        ),
+    );
+    let droplet = |radius: f32, rate: f32, seed: u32, behaviors: Vec<ParticleBehavior3D>| goo(ParticleSystem3D {
         rate,
         max_particles: 60,
         lifetime: 3.5,
@@ -376,23 +376,18 @@ pub(crate) fn build_demo_leer(document: &mut Document) -> DemoLeer {
         tilt: 90.0,
         pull: 0.0,
         turbulence: 0.15,
-        size_start: 0.22,
-        size_end: 0.15,
+        size_start: 0.34,
+        size_end: 0.3,
         color_start: ink(0.0),
         color_mid: ink(1.0),
         color_end: ink(1.0),
-        blend: ParticleBlend3D::Alpha,
-        hardness: 1.0,
-        // Glossy liquid drops (they merge if they meet).
-        fluid: true,
-        fluid_edge: [0.95, 0.12, 0.78, 0.25],
-        fluid_threshold: 0.4,
-        fluid_gloss: 1.0,
+        // Glossy liquid drops, part of the same ink (they merge into the
+        // body when they reach it).
         seed,
         behaviors,
         ..Default::default()
-    };
-    add_node(document, &mut inverses, scene, emitter(leer, "droplets", "Ink Droplets", droplet(1.6, 3.0, 13, Vec::new())));
+    });
+    add_node(document, &mut inverses, scene, emitter(leer, "droplets", "Ink Droplets", droplet(1.6, 1.0, 13, Vec::new())));
     add_node(
         document,
         &mut inverses,
@@ -403,7 +398,7 @@ pub(crate) fn build_demo_leer(document: &mut Document) -> DemoLeer {
             "Converging Droplets",
             droplet(
                 2.6,
-                4.0,
+                1.8,
                 21,
                 // Drift freely for the first 55 % of life, then pulled all
                 // the way into the eye's centre.
@@ -517,8 +512,7 @@ if (!g.touched) g.yaw = Math.sin(g.t * 0.35) * 32   // idle: a slow sway
 const space = keys.has(' ') || keys.has('space')
 if (space && !g.spaceWas && g.cast < 0) {
   g.cast = 0
-  ref('flicks').burst3(40)
-  ref('tendrils').burst3(30)
+  ref('leapers').burst3(14)
 }
 g.spaceWas = space
 let lunge = 0, flare = 1
@@ -549,12 +543,6 @@ cam.position3 = {
 }
 cam.lookAt3(target.x, target.y, target.z)
 
-// ---- the ink halo rides with the eye and always faces the camera ----
-const halo = ref('halo')
-halo.position3 = leer.position3
-halo.scale3 = { x: flare, y: flare, z: flare }
-const cp = cam.position3
-halo.lookAt3(cp.x, cp.y, cp.z)
 "#;
 
 #[cfg(test)]
@@ -567,7 +555,7 @@ mod tests {
         let demo = build_demo_leer(&mut document);
         let artboard = document.artboard(demo.scene).unwrap();
         let emitters = artboard.node_ids().filter(|id| artboard.node(*id).unwrap().behaviors.iter().any(|e| matches!(e.behavior, NodeBehavior::ParticleSystem3D(_)))).count();
-        assert_eq!(emitters, 7);
+        assert_eq!(emitters, 6);
         an1mbyt3_core::shader_graph::compile_wgsl(&eye_graph()).expect("eye graph compiles");
     }
 }

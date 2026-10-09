@@ -7347,7 +7347,8 @@ impl WasmEditor {
         // 3D particles: simulate, then camera-facing quads (fluid emitters
         // become their own liquid layer).
         let mut particles = Vec::new();
-        let mut fluids = Vec::new();
+        let mut fluids: Vec<an1mbyt3_renderer::FluidLayer3D> = Vec::new();
+        let mut fluid_groups: Vec<u32> = Vec::new();
         {
             self.particles3d.sync_playing(self.playground_active);
             let live: std::collections::HashSet<NodeId> = emitters.iter().map(|(id, _, _)| *id).collect();
@@ -7357,12 +7358,20 @@ impl WasmEditor {
             for (id, world, cfg) in &emitters {
                 self.particles3d.step(*id, cfg, *world, delta);
                 if cfg.fluid {
-                    // Density = each particle's alpha over life.
+                    // Density = each particle's alpha over life. Emitters in
+                    // the same fluid group splat into one layer, so their
+                    // blobs merge (the first one's look wins).
                     let splat = an1mbyt3_core::ParticleSystem3D { blend: an1mbyt3_core::ParticleBlend3D::Alpha, intensity: 1.0, ..cfg.clone() };
-                    let mut quads = Vec::new();
-                    self.particles3d.quads(*id, &splat, *world, eye, right, up, &mut quads);
-                    let c = cfg.color_start;
-                    fluids.push(an1mbyt3_renderer::FluidLayer3D { quads, body: [c[0], c[1], c[2], 1.0], edge: cfg.fluid_edge, threshold: cfg.fluid_threshold.max(0.01), gloss: cfg.fluid_gloss.max(0.0) });
+                    let layer = match fluid_groups.iter().position(|g| *g == cfg.fluid_group) {
+                        Some(i) => i,
+                        None => {
+                            let c = cfg.color_start;
+                            fluid_groups.push(cfg.fluid_group);
+                            fluids.push(an1mbyt3_renderer::FluidLayer3D { quads: Vec::new(), body: [c[0], c[1], c[2], 1.0], edge: cfg.fluid_edge, threshold: cfg.fluid_threshold.max(0.01), gloss: cfg.fluid_gloss.max(0.0) });
+                            fluids.len() - 1
+                        }
+                    };
+                    self.particles3d.quads(*id, &splat, *world, eye, right, up, &mut fluids[layer].quads);
                 } else {
                     self.particles3d.quads(*id, cfg, *world, eye, right, up, &mut particles);
                 }

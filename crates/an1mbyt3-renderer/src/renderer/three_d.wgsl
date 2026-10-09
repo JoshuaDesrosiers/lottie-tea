@@ -170,14 +170,17 @@ fn vs_particle(in: ParticleIn) -> ParticleOut {
     return out;
 }
 
-// Fluid density splat: a smooth bump (no hard edge — the composite pass
-// draws the edge where the summed density crosses the threshold).
-// `color.a` scales how much this particle adds.
+// Fluid density splat: a smooth metaball field, (1 - r²)³ — continuous
+// with its first two derivatives, so where neighbours' fields add up the
+// liquid's outline bulges and necks smoothly (no creases), and fades to
+// exactly zero at the quad's edge. The composite pass draws the surface
+// where the summed density crosses the threshold. `color.a` scales how
+// much this particle adds.
 @fragment
 fn fs_density(in: ParticleOut) -> @location(0) vec4<f32> {
     let d = length(in.uv * 2.0 - vec2<f32>(1.0, 1.0));
     let f = clamp(1.0 - d * d, 0.0, 1.0);
-    let k = f * f * in.color.a;
+    let k = f * f * f * in.color.a;
     return vec4<f32>(k, k, k, k);
 }
 
