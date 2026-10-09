@@ -83,6 +83,9 @@ pub enum ProjectAssetKind {
     Image,
     Audio,
     Model,
+    /// A code / markup file (`an1mbyt3_core::TextFile`), stored at
+    /// `Assets/Code/<its path>`.
+    TextFile,
 }
 
 impl ProjectAssetKind {
@@ -93,6 +96,7 @@ impl ProjectAssetKind {
             Self::Image => "image",
             Self::Audio => "audio",
             Self::Model => "model",
+            Self::TextFile => "text",
         }
     }
 }
@@ -332,6 +336,25 @@ pub fn save_project(document: &Document, project_name: &str) -> serde_json::Resu
         }
     }
 
+    // Code files: each a real text file at `Assets/Code/<path>` (so outside
+    // editors can work on them); the manifest keeps only the path.
+    if let Some(slots) = doc.get_mut("text_files") {
+        for (idx, slot) in indexed_slots(slots) {
+            let asset = Some(ProjectAsset { kind: ProjectAssetKind::TextFile, idx, version: slot_version(slot) });
+            let value = slot.get_mut("value").and_then(Value::as_object_mut).expect("occupied text file slot");
+            if value.get("deleted").and_then(Value::as_bool).unwrap_or(false) {
+                continue;
+            }
+            let rel = an1mbyt3_core::text_file::normalize_path(value.get("path").and_then(Value::as_str).unwrap_or("untitled.txt"));
+            let path = format!("Assets/Code/{rel}");
+            taken.insert(path.to_lowercase());
+            let text = value.remove("text").and_then(|v| v.as_str().map(String::from)).unwrap_or_default();
+            value.insert("$file".into(), Value::String(path.clone()));
+            asset_paths.push(path.clone());
+            files.push(ProjectFile { path, contents: ProjectContents::Text(text), asset, linked: false });
+        }
+    }
+
     let schema_version = root.get("schema_version").cloned().unwrap_or(Value::Null);
     let manifest = json!({
         "format": PROJECT_FORMAT,
@@ -425,6 +448,18 @@ pub fn load_project(manifest: &str, mut read: impl FnMut(&str) -> Option<Vec<u8>
                 value.insert("files".into(), Value::Array(Vec::new()));
             }
             model_files.push(source.map(|s| (s, refs)));
+        }
+    }
+
+    // Code files: read each back from disk. One that went missing (deleted
+    // outside the editor) loads empty rather than refusing the project.
+    if let Some(slots) = doc.get_mut("text_files") {
+        for slot in occupied_slots(slots) {
+            let value = slot.get_mut("value").and_then(Value::as_object_mut).expect("occupied text file slot");
+            if let Some(path) = value.remove("$file").and_then(|v| v.as_str().map(String::from)) {
+                let text = read(&path).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+                value.insert("text".into(), Value::String(text));
+            }
         }
     }
 
@@ -526,6 +561,21 @@ mod tests {
         assert_eq!(jump.source, wav);
         assert_eq!(loaded.audio_assets().count(), 1);
         assert!(loaded.audio(gone).is_none(), "the deleted sound stays deleted");
+    }
+
+    #[test]
+    fn code_files_are_real_files_under_assets_code() {
+        let mut document = Document::new();
+        document.add_text_file(an1mbyt3_core::TextFile::new("UI/menu.html", "<h1>Hi</h1>"));
+        let files = save_project(&document, "Game").unwrap();
+        let file = files.iter().find(|f| f.path == "Assets/Code/UI/menu.html").expect("written as a file");
+        assert_eq!(file.contents, ProjectContents::Text("<h1>Hi</h1>".into()));
+        let manifest = files.iter().find(|f| f.path.ends_with(".an1proj")).unwrap();
+        let ProjectContents::Text(manifest) = &manifest.contents else { panic!() };
+        assert!(!manifest.contains("<h1>Hi</h1>"), "the text lives in the file, not the manifest");
+        // Edited outside the editor, then reopened: the disk copy wins.
+        let loaded = load_project(manifest, |p| if p == "Assets/Code/UI/menu.html" { Some(b"<h1>Edited</h1>".to_vec()) } else { files.iter().find(|f| f.path == p).map(|f| match &f.contents { ProjectContents::Text(t) => t.clone().into_bytes(), ProjectContents::Bytes(b) => b.clone() }) }).unwrap();
+        assert_eq!(loaded.text_file_by_path("UI/menu.html").unwrap().1.text, "<h1>Edited</h1>");
     }
 
     #[test]

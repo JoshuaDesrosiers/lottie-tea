@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom'
 import { Node3DFields } from './Node3DFields'
 import type { ScreenSettings,
   AudioSummary,
+  TextFileSummary,
+  DocumentSummary,
   Node3D,
   MaterialSummary,
   ArtboardSummary,
@@ -611,6 +613,9 @@ function BehaviorsFields({
   materials,
   onEditMaterial,
   sounds,
+  textFiles,
+  onOpenFile,
+  onDocumentChange,
 }: {
   behaviors: NodeBehaviorEntry[]
   scripts: ScriptDefinitionSummary[]
@@ -629,6 +634,11 @@ function BehaviorsFields({
   onEditMaterial: (material: OpaqueId) => void
   /** Imported sounds (the Audio Source clip picker). */
   sounds: AudioSummary[]
+  /** Project code files (HTML UI's file pickers). */
+  textFiles: TextFileSummary[]
+  /** Opens a file in the Code tab. */
+  onOpenFile: (path: string) => void
+  onDocumentChange: (doc: DocumentSummary) => void
 }) {
   const [editingFieldsFor, setEditingFieldsFor] = useState<number | null>(null)
   // The "+ New Script..." inline create row — a real in-panel text field
@@ -777,7 +787,7 @@ function BehaviorsFields({
       }
       case 'UiHtml': {
         const { kind: _k, ...config } = behavior
-        return <UiHtmlFields config={config} onChange={(c) => replaceAt(index, { kind: 'UiHtml', ...c })} />
+        return <UiHtmlFields config={config} node={node} files={textFiles} editor={editor} onOpenFile={onOpenFile} onDocumentChange={onDocumentChange} onChange={(c) => replaceAt(index, { kind: 'UiHtml', ...c })} />
       }
       case 'UiShowWhen': {
         const { kind: _k, ...config } = behavior
@@ -1847,6 +1857,9 @@ export function InspectorPanel({
   onSetNode3D,
   models,
   sounds,
+  textFiles,
+  onOpenFile,
+  onDocumentChange,
   onDelete,
   artboard,
   onSetArtboardSize,
@@ -1996,6 +2009,11 @@ export function InspectorPanel({
   models: { id: OpaqueId; name: string }[]
   /** Imported sounds (Audio Source clips). */
   sounds: AudioSummary[]
+  /** Project code files, opening one in the Code tab, and document updates
+   * from file edits made here (HTML UI → Move to files). */
+  textFiles: TextFileSummary[]
+  onOpenFile: (path: string) => void
+  onDocumentChange: (doc: DocumentSummary) => void
   onDelete: () => void
   /** The active artboard, for the always-visible "Canvas" section below —
    * `null` only in the brief window before the wasm module/document has
@@ -2280,6 +2298,9 @@ export function InspectorPanel({
         materials={materials}
         onEditMaterial={onEditMaterial}
         sounds={sounds}
+        textFiles={textFiles}
+        onOpenFile={onOpenFile}
+        onDocumentChange={onDocumentChange}
       />
 
       <button

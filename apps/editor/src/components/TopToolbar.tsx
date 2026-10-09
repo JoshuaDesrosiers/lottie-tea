@@ -405,9 +405,9 @@ function ExportMenu({ onExportAnimation, onExportGame, onExportDesktopGame }: { 
 /** The editor's top-level modes — the toolbar's segmented buttons.
  * Animate/State Machine are bottom-dock tabs, not modes (see
  * `TopToolbar`'s own doc comment). */
-export type Mode = 'Design' | 'Playground' | 'Paint'
+export type Mode = 'Design' | 'Playground' | 'Paint' | 'Code'
 
-const MODES: Mode[] = ['Design', 'Playground', 'Paint']
+const MODES: Mode[] = ['Design', 'Playground', 'Paint', 'Code']
 
 /**
  * Mode switch (Design/Playground/Paint) plus undo/redo, since both are
@@ -616,7 +616,7 @@ export function TopToolbar({
           </button>
         ))}
 
-        {sceneSwitcher && mode !== 'Paint' && (
+        {sceneSwitcher && mode !== 'Paint' && mode !== 'Code' && (
           <>
             <div className="mx-1 h-4 w-px bg-overlay/10" />
             {sceneSwitcher}

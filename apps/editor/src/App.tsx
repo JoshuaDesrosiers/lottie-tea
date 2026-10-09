@@ -259,6 +259,8 @@ import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_H
 import { collectSnapTargets, snapTranslation } from './snapping'
 import { gameConsole, installAsyncErrorCapture, type ConsoleOrigin } from './game/console'
 import { ConsoleBadge, ConsoleErrorPill, ConsolePanel, consoleClearOnPlay } from './components/ConsolePanel'
+import { setProjectFiles } from './game/projectFiles'
+import { CodeWorkspace, type CodeLocation } from './components/CodeWorkspace'
 import { gameNet } from './game/net'
 import { mouseToWorld, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from './game/scriptHost'
 import { BoneGizmos } from './components/BoneGizmos'
@@ -418,6 +420,10 @@ function App() {
   }, setCanvasFrozen)
 
   const [doc, setDoc] = useState<DocumentSummary | null>(null)
+  /** What the Code tab should open next (a Console link, an Inspector button). */
+  const [codeRequest, setCodeRequest] = useState<(CodeLocation & { nonce: number }) | null>(null)
+  // Code files reach the runtime (HTML UI, scripts) through `projectFiles`.
+  useEffect(() => setProjectFiles(doc?.textFiles), [doc])
   // The latest document for the mount-once render loop (scene list/names).
   const docRef = useRef(doc)
   docRef.current = doc
@@ -809,7 +815,7 @@ function App() {
   // otherwise whichever tab is open — see `bottomDockTab`'s own
   // doc comment for why this replaced 2 separate top-level `Mode`s.
   const effectiveBottomTab: 'Animate' | 'StateMachine' | 'Resources' | 'Shader' | 'Console' | null =
-    mode === 'Playground' ? (bottomDockOpen && bottomDockTab === 'Console' ? 'Console' : null) : mode === 'Paint' ? null : bottomDockOpen ? bottomDockTab : null
+    mode === 'Playground' ? (bottomDockOpen && bottomDockTab === 'Console' ? 'Console' : null) : mode === 'Paint' || mode === 'Code' ? null : bottomDockOpen ? bottomDockTab : null
   const bottomDockVisible = effectiveBottomTab !== null
   // Same mount-only-render-loop-closure reasoning as `modeRef` — the loop's
   // own per-frame state-machine-summary refresh below needs to know whether
@@ -933,7 +939,7 @@ function App() {
         // fight over the same canvas.
         // Paint mode covers the scene entirely: don't spend every frame
         // rendering a canvas nobody can see (it competed with painting).
-        if (exportingRef.current || demoLoadingRef.current || modeRef.current === 'Paint') {
+        if (exportingRef.current || demoLoadingRef.current || modeRef.current === 'Paint' || modeRef.current === 'Code') {
           lastTime = null
           rafHandle = requestAnimationFrame(frame)
           return
@@ -2373,14 +2379,24 @@ function App() {
 
   /** The Console's "where" link: go to the state whose code it is. */
   const handleOpenCodeAt = (origin: ConsoleOrigin) => {
-    if (origin.scene) {
-      const scene = allArtboards.find((a) => a.name === origin.scene)
-      if (scene) handleSelectScene(scene.id)
-    }
-    setMode('Design')
-    setBottomDockTab('StateMachine')
-    setBottomDockOpen(true)
+    if (!origin.state) return
+    setCodeRequest({ kind: 'state', scene: origin.scene ?? '', layer: origin.layer ?? null, state: origin.state, line: origin.line, column: origin.column, nonce: Date.now() })
+    setMode('Code')
   }
+  /** Opens the Code tab at a file (Inspector "Edit file" buttons). */
+  const handleOpenFile = (path: string) => {
+    setCodeRequest({ kind: 'file', path, nonce: Date.now() })
+    setMode('Code')
+  }
+  const handleOpenFileRef = useRef(handleOpenFile)
+  handleOpenFileRef.current = handleOpenFile
+  // `requestOpenFile` (game/projectFiles) from panels that aren't wired to
+  // App directly (the state's code editor).
+  useEffect(() => {
+    const onOpen = (e: Event) => handleOpenFileRef.current(String((e as CustomEvent).detail))
+    window.addEventListener('an1:open-file', onOpen)
+    return () => window.removeEventListener('an1:open-file', onOpen)
+  }, [])
 
   const handleLoadBoomDemo = () => {
     const editor = editorRef.current
@@ -4181,6 +4197,24 @@ function App() {
           visibility; the whole scratch-paint subtree keeps running
           underneath regardless (idle — paper.js doesn't have a continuous
           render loop, it only redraws on an actual change). */}
+      {mode === 'Code' && (
+        // Opaque and above the canvas overlays (camera frames, zoom widget) —
+        // the scene isn't drawn in Code mode.
+        <div
+          className="pointer-events-auto absolute z-40"
+          style={{ left: metrics.leftDockOffset, right: 0, top: metrics.topClearance - metrics.edgeMargin, bottom: 0, padding: metrics.edgeMargin, background: theme === 'light' ? '#eceef3' : '#131318' }}
+        >
+          <CodeWorkspace
+            editor={editorRef.current}
+            doc={doc}
+            nodes={artboards[0]?.nodes ?? []}
+            theme={theme}
+            request={codeRequest}
+            onDocumentChange={setDoc}
+            onRun={() => setMode('Playground')}
+          />
+        </div>
+      )}
       <PaintAssetEditor
         visible={mode === 'Paint'}
         actionBarTarget={paintActionBarTarget}
@@ -4307,7 +4341,7 @@ function App() {
         </div>
       )}
 
-      {mode !== 'Playground' && mode !== 'Paint' && (() => {
+      {mode !== 'Playground' && mode !== 'Paint' && mode !== 'Code' && (() => {
         const panelContent: Record<PanelKey, { title: string; content: React.ReactNode }> = {
           layers: {
             title: 'Layers',
@@ -4380,6 +4414,9 @@ function App() {
                 onSetNode3D={handleSetNode3D}
                 models={doc?.models ?? []}
                 sounds={doc?.audio ?? []}
+                textFiles={doc?.textFiles ?? []}
+                onOpenFile={handleOpenFile}
+                onDocumentChange={setDoc}
                 onEditMaterial={(id) => {
                   setShaderMaterialId(id)
                   setBottomDockTab('Shader')

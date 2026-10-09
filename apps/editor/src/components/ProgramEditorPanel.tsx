@@ -3,6 +3,7 @@ import type { NodeSummary, ProgramDef } from '../ipc/document'
 import { generateCode, parseCode } from '../programCodegen'
 import { BlockProgramEditor } from './BlockProgramEditor'
 import { CodeEditor } from './CodeEditor'
+import { fileRef, fileRefPath, listProjectFiles, requestOpenFile, resolveFileRef } from '../game/projectFiles'
 import { NodeGraphEditor } from './NodeGraphEditor'
 
 /**
@@ -142,10 +143,56 @@ export function ProgramEditorPanel({
             </p>
           )}
           <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-overlay/10">
-            <CodeEditor value={program.kind === 'Code' ? program.value : ''} onChange={(value) => onChange({ kind: 'Code', value })} nodes={nodes} />
+            <ProgramSource program={program} nodes={nodes} onChange={onChange} />
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** The Code tab's body: the state's code inline, or a project script file
+ * it runs (`@file:Scripts/x.js`) — picked from the "Runs" list, edited in
+ * the Code tab. */
+function ProgramSource({ program, nodes, onChange }: { program: ProgramDef; nodes: NodeSummary[]; onChange: (program: ProgramDef) => void }) {
+  const value = program.kind === 'Code' ? program.value : ''
+  const path = fileRefPath(value)
+  const scripts = listProjectFiles().filter((p) => /\.(m?js)$/i.test(p))
+  return (
+    <div className="flex h-full flex-col gap-1">
+      <div className="flex items-center gap-1.5 text-[11px]">
+        <span className="text-ink-dim">Runs</span>
+        <select
+          value={path ?? ''}
+          onChange={(e) => {
+            const next = e.target.value
+            if (next) onChange({ kind: 'Code', value: fileRef(next) })
+            // Back to inline: start from the file's code so nothing is lost.
+            else onChange({ kind: 'Code', value: (path && resolveFileRef(value)) || '' })
+          }}
+          className="rounded bg-overlay/10 px-1.5 py-0.5 text-ink outline-none"
+          title="Inline code, or a script file from the project (Code tab)"
+        >
+          <option value="">Inline code</option>
+          {scripts.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+        {path && (
+          <button onClick={() => requestOpenFile(path)} className="rounded bg-accent/20 px-2 py-0.5 text-ink hover:bg-accent/30">
+            Edit in Code tab
+          </button>
+        )}
+      </div>
+      <div className="min-h-0 flex-1">
+        {path ? (
+          <CodeEditor value={resolveFileRef(value) ?? `// ${path} is missing`} onChange={() => {}} nodes={nodes} readOnly path={`ref:${path}`} />
+        ) : (
+          <CodeEditor value={value} onChange={(v) => onChange({ kind: 'Code', value: v })} nodes={nodes} />
+        )}
+      </div>
     </div>
   )
 }

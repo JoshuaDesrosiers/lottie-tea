@@ -51,12 +51,15 @@ pub struct Document {
     /// Imported sounds — see `crate::audio_asset`.
     #[serde(default)]
     audio: SlotMap<crate::AudioId, crate::AudioAsset>,
-    /// Saved Paint-mode drawings — see `crate::drawing`. Keep this the
-    /// *last* serialized field: `.teab` files written before it existed end
-    /// right before it, and `an1mbyt3_format`'s loader pads such a file with
-    /// empty-map bytes (see `teab::from_teab_bytes`).
+    /// Saved Paint-mode drawings — see `crate::drawing`.
     #[serde(default)]
     drawings: SlotMap<crate::DrawingId, crate::DrawingAsset>,
+    /// Code / markup files (HTML, CSS, JS…) — see `crate::text_file`. Keep
+    /// this the *last* serialized field: `.teab` files written before it
+    /// existed end right before it, and `an1mbyt3_format`'s loader pads such
+    /// a file with empty-map bytes (see `teab::from_teab_bytes`).
+    #[serde(default)]
+    text_files: SlotMap<crate::TextFileId, crate::TextFile>,
     #[serde(skip)]
     undo_stack: Vec<Command>,
     #[serde(skip)]
@@ -175,6 +178,51 @@ impl Document {
     /// Every non-deleted drawing, for the Resources panel.
     pub fn drawings(&self) -> impl Iterator<Item = (crate::DrawingId, &crate::DrawingAsset)> {
         self.drawings.iter().filter(|(_, d)| !d.deleted)
+    }
+
+    pub fn add_text_file(&mut self, file: crate::TextFile) -> crate::TextFileId {
+        self.text_files.insert(file)
+    }
+
+    /// Resolves deleted files too (undo needs to reach them).
+    pub fn text_file(&self, id: crate::TextFileId) -> Option<&crate::TextFile> {
+        self.text_files.get(id)
+    }
+
+    pub(crate) fn text_file_mut(&mut self, id: crate::TextFileId) -> Option<&mut crate::TextFile> {
+        self.text_files.get_mut(id)
+    }
+
+    /// Every non-deleted text file, in path order.
+    pub fn text_files(&self) -> impl Iterator<Item = (crate::TextFileId, &crate::TextFile)> {
+        let mut files: Vec<_> = self.text_files.iter().filter(|(_, f)| !f.deleted).collect();
+        files.sort_by(|a, b| a.1.path.cmp(&b.1.path));
+        files.into_iter()
+    }
+
+    /// The non-deleted file at `path` (normalized), if any.
+    pub fn text_file_by_path(&self, path: &str) -> Option<(crate::TextFileId, &crate::TextFile)> {
+        let path = crate::text_file::normalize_path(path);
+        self.text_files.iter().find(|(_, f)| !f.deleted && f.path == path)
+    }
+
+    /// Editing a file's text as you type: no undo entry per keystroke (the
+    /// code editor keeps its own undo), but it's a real change — it bumps
+    /// the revision so the document counts as unsaved.
+    pub fn set_text_file_text(&mut self, id: crate::TextFileId, text: String) -> bool {
+        let Some(file) = self.text_files.get_mut(id) else { return false };
+        if file.text == text {
+            return true;
+        }
+        file.text = text;
+        self.revision = self.revision.wrapping_add(1);
+        true
+    }
+
+    /// The text `value` stands for — an `@file:` reference's file text, or
+    /// `value` itself (see [`crate::text_file::resolve_file_ref`]).
+    pub fn resolve_text<'a>(&'a self, value: &'a str) -> Option<&'a str> {
+        crate::text_file::resolve_file_ref(value, |path| self.text_files.values().find(|f| !f.deleted && f.path == path).map(|f| f.text.as_str()))
     }
 
     /// Every non-deleted prefab, for the Resources panel.

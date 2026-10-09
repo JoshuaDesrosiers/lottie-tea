@@ -24,6 +24,7 @@ import {
   setMode,
   setWasmBytes,
 } from '../ipc/wasmEditor'
+import { setProjectFiles } from '../game/projectFiles'
 import type { ArtboardSummary, DocumentSummary, OpaqueId } from '../ipc/document'
 import { normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from '../game/scriptHost'
 import { PerfMeter } from '../game/perf'
@@ -124,6 +125,8 @@ async function boot() {
   window.addEventListener('orientationchange', () => setTimeout(applySize, 200))
 
   doc = await loadTeab(editor, base64Bytes(payload('an1-game')))
+  // Code files (HTML UI / scripts referenced by `@file:`).
+  setProjectFiles(doc?.textFiles)
   const enterScene = (id: OpaqueId) => {
     doc = setActiveArtboard(editor, id)
     doc = setMode(editor, id, 'Playground')

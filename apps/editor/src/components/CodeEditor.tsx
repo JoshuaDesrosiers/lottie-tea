@@ -78,52 +78,115 @@ type CompletionProvider = Parameters<Monaco['languages']['registerCompletionItem
 type CompletionModel = Parameters<CompletionProvider['provideCompletionItems']>[0]
 type CompletionPosition = Parameters<CompletionProvider['provideCompletionItems']>[1]
 
-export function CodeEditor({ value, onChange, nodes }: { value: string; onChange: (value: string) => void; nodes: NodeSummary[] }) {
-  const nodesRef = useRef(nodes)
-  nodesRef.current = nodes
+/** The scene nodes the completion provider suggests ids / classes from
+ * (module-level: Monaco's providers are global, registered once). */
+let completionNodes: NodeSummary[] = []
+let providerRegistered = false
 
-  function handleMount(_editor: unknown, monaco: Monaco) {
-    monaco.languages.registerCompletionItemProvider('javascript', {
-      triggerCharacters: ['.', "'", '"'],
-      provideCompletionItems(model: CompletionModel, position: CompletionPosition) {
-        const word = model.getWordUntilPosition(position)
-        const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn }
-        const linePrefix = model.getLineContent(position.lineNumber).slice(0, position.column - 1)
+function registerCompletions(monaco: Monaco) {
+  if (providerRegistered) return
+  providerRegistered = true
+  monaco.languages.registerCompletionItemProvider('javascript', {
+    triggerCharacters: ['.', "'", '"'],
+    provideCompletionItems(model: CompletionModel, position: CompletionPosition) {
+      const word = model.getWordUntilPosition(position)
+      const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn }
+      const linePrefix = model.getLineContent(position.lineNumber).slice(0, position.column - 1)
 
-        // Inside a string literal right after getCompByID(/getCompByClass( —
-        // suggest this artboard's own live ids/classes instead of the
-        // generic ctx/getCompBy* suggestions, so an author sees exactly
-        // what's actually on the canvas rather than guessing an id.
-        if (/getCompByID\(\s*['"][^'"]*$/.test(linePrefix)) {
-          return {
-            suggestions: nodesRef.current
-              .filter((n) => n.elementId)
-              .map((n) => ({ label: n.elementId, kind: 12 /* Value */, insertText: n.elementId, detail: n.name, range })),
-          }
+      // Inside a string literal right after getCompByID(/getCompByClass( —
+      // suggest this artboard's own live ids/classes instead of the
+      // generic ctx/getCompBy* suggestions, so an author sees exactly
+      // what's actually on the canvas rather than guessing an id.
+      if (/getCompByID\(\s*['"][^'"]*$/.test(linePrefix)) {
+        return {
+          suggestions: completionNodes
+            .filter((n) => n.elementId)
+            .map((n) => ({ label: n.elementId, kind: 12 /* Value */, insertText: n.elementId, detail: n.name, range })),
         }
-        if (/getCompByClass\(\s*['"][^'"]*$/.test(linePrefix)) {
-          const classes = Array.from(new Set(nodesRef.current.flatMap((n) => n.classes)))
-          return { suggestions: classes.map((c) => ({ label: c, kind: 12, insertText: c, range })) }
+      }
+      if (/getCompByClass\(\s*['"][^'"]*$/.test(linePrefix)) {
+        const classes = Array.from(new Set(completionNodes.flatMap((n) => n.classes)))
+        return { suggestions: classes.map((c) => ({ label: c, kind: 12, insertText: c, range })) }
+      }
+      if (/\bref\.$|\.\w*$/.test(linePrefix) && /(comp|ref|node|square|shape)\w*\.\w*$/i.test(linePrefix)) {
+        return {
+          suggestions: COMPONENT_REF_PROPERTIES.map((p) => ({ label: p, kind: 9 /* Field */, insertText: p, range })),
         }
-        if (/\bref\.$|\.\w*$/.test(linePrefix) && /(comp|ref|node|square|shape)\w*\.\w*$/i.test(linePrefix)) {
-          return {
-            suggestions: COMPONENT_REF_PROPERTIES.map((p) => ({ label: p, kind: 9 /* Field */, insertText: p, range })),
-          }
-        }
+      }
 
-        return { suggestions: CTX_SUGGESTIONS.map((s) => ({ ...s, range })) }
-      },
-    })
+      return { suggestions: CTX_SUGGESTIONS.map((s) => ({ ...s, range })) }
+    },
+  })
+}
+
+/** Monaco's language id for a file extension. */
+export function languageForExtension(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case 'js':
+    case 'mjs':
+      return 'javascript'
+    case 'ts':
+      return 'typescript'
+    case 'html':
+    case 'htm':
+      return 'html'
+    case 'css':
+      return 'css'
+    case 'json':
+      return 'json'
+    case 'md':
+      return 'markdown'
+    default:
+      return 'plaintext'
   }
+}
+
+export type CodeEditorInstance = monacoEditor.editor.IStandaloneCodeEditor
+
+/**
+ * A Monaco editor.
+ * - `language`: `javascript` (default — scripts get the `ctx` / node-id
+ *   completions), `html`, `css`, … (`languageForExtension`).
+ * - `path`: a stable id for the text being edited (a file path, a state's
+ *   key). Monaco keeps one model per path, so switching tabs keeps each
+ *   file's own undo history and cursor.
+ * - `onEditorMount`: the editor instance (e.g. to jump to a line).
+ */
+export function CodeEditor({
+  value,
+  onChange,
+  nodes = [],
+  language = 'javascript',
+  path,
+  theme = 'dark',
+  readOnly = false,
+  onEditorMount,
+}: {
+  value: string
+  onChange: (value: string) => void
+  nodes?: NodeSummary[]
+  language?: string
+  path?: string
+  theme?: 'dark' | 'light'
+  readOnly?: boolean
+  onEditorMount?: (editor: CodeEditorInstance) => void
+}) {
+  completionNodes = nodes
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
   return (
     <Editor
       height="100%"
-      language="javascript"
-      theme="vs-dark"
+      language={language}
+      path={path}
+      theme={theme === 'light' ? 'vs' : 'vs-dark'}
       value={value}
-      onChange={(next) => onChange(next ?? '')}
-      onMount={handleMount}
+      onChange={(next) => onChangeRef.current(next ?? '')}
+      onMount={(editor, monaco) => {
+        registerCompletions(monaco)
+        onEditorMount?.(editor)
+      }}
       options={{
         fontSize: 12,
         minimap: { enabled: false },
@@ -131,6 +194,7 @@ export function CodeEditor({ value, onChange, nodes }: { value: string; onChange
         automaticLayout: true,
         tabSize: 2,
         wordWrap: 'on',
+        readOnly,
       }}
     />
   )

@@ -42,6 +42,8 @@ import type {
   SpriteSkin2DConfig,
   Liquid2DConfig,
   Cloth2DConfig,
+  TextFileSummary,
+  DocumentSummary,
   Tree2DConfig,
   TreeSpecies,
   ClothPin,
@@ -56,6 +58,8 @@ import { Dropdown, NumberField } from './InspectorPanel'
 import { PlusIcon, TrashIcon } from './icons'
 import { ColorSwatch } from './ColorPicker'
 import { ImageAssetPicker } from './ImageAssetPicker'
+import { fileRef, fileRefPath, resolveFileRef } from '../game/projectFiles'
+import { addTextFile } from '../ipc/wasmEditor'
 import { Slider } from './Slider'
 
 /**
@@ -1043,8 +1047,89 @@ function CodeArea({ value, onCommit, rows, placeholder }: { value: string; onCom
 }
 
 /** HTML UI: the element's HTML, CSS, size and interactivity. */
-export function UiHtmlFields({ config, onChange }: { config: UiHtmlConfig; onChange: (value: UiHtmlConfig) => void }) {
+/** One of HTML UI's two sources (HTML or CSS): typed inline, or a project
+ * file (`@file:<path>`) picked from the list, with an Edit button that
+ * opens it in the Code tab. */
+function HtmlSourceField({
+  label,
+  ext,
+  value,
+  files,
+  placeholder,
+  onChange,
+  onOpenFile,
+}: {
+  label: string
+  ext: 'html' | 'css'
+  value: string
+  files: TextFileSummary[]
+  placeholder: string
+  onChange: (value: string) => void
+  onOpenFile: (path: string) => void
+}) {
+  const path = fileRefPath(value)
+  const options = files.filter((f) => f.extension === ext || f.path === path)
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11px] text-ink-dim">{label}</span>
+        {path !== null ? (
+          <>
+            <select
+              value={path}
+              onChange={(e) => onChange(fileRef(e.target.value))}
+              className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 font-mono text-[11px] text-ink outline-none"
+            >
+              {options.map((f) => (
+                <option key={f.path} value={f.path}>
+                  {f.path}
+                </option>
+              ))}
+              {!options.some((f) => f.path === path) && <option value={path}>{path} (missing)</option>}
+            </select>
+            <button onClick={() => onOpenFile(path)} className="rounded bg-accent/20 px-2 py-1 text-[11px] text-ink hover:bg-accent/30" title="Edit in the Code tab">
+              Edit
+            </button>
+          </>
+        ) : null}
+      </div>
+      {path === null && <CodeArea value={value} rows={7} onCommit={onChange} placeholder={placeholder} />}
+    </div>
+  )
+}
+
+export function UiHtmlFields({
+  config,
+  onChange,
+  node,
+  files = [],
+  editor = null,
+  onOpenFile = () => {},
+  onDocumentChange = () => {},
+}: {
+  config: UiHtmlConfig
+  onChange: (value: UiHtmlConfig) => void
+  node?: NodeSummary
+  files?: TextFileSummary[]
+  editor?: WasmEditor | null
+  onOpenFile?: (path: string) => void
+  onDocumentChange?: (doc: DocumentSummary) => void
+}) {
   const update = (patch: Partial<UiHtmlConfig>) => onChange({ ...config, ...patch })
+  const usingFiles = fileRefPath(config.html) !== null || fileRefPath(config.css) !== null
+  // Inline → files: writes the current HTML / CSS into two new files named
+  // after the node (UI/<name>.html / .css) and points the component at them.
+  const moveToFiles = () => {
+    if (!editor) return
+    const base = (node?.name || 'ui').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'ui'
+    let next = addTextFile(editor, `UI/${base}.html`, config.html)
+    const html = next.textFiles.find((f) => !files.some((g) => g.path === f.path) && f.extension === 'html')
+    next = addTextFile(editor, `UI/${base}.css`, config.css)
+    const css = next.textFiles.find((f) => !files.some((g) => g.path === f.path) && f.extension === 'css' && f.path !== html?.path)
+    onDocumentChange(next)
+    if (html && css) onChange({ ...config, html: fileRef(html.path), css: fileRef(css.path) })
+  }
+  const toInline = () => onChange({ ...config, html: resolveFileRef(config.html) ?? '', css: resolveFileRef(config.css) ?? '' })
   return (
     <div className="flex flex-col gap-1.5">
       <Row label="Size" title="The element's box in world units (CSS px at zoom 1). It scales with the node and the camera.">
@@ -1054,12 +1139,20 @@ export function UiHtmlFields({ config, onChange }: { config: UiHtmlConfig; onCha
       <Check checked={config.interactive} onChange={(interactive) => update({ interactive })}>
         Interactive (takes clicks and typing when playing)
       </Check>
-      <span className="text-[11px] text-ink-dim">HTML</span>
-      <CodeArea value={config.html} rows={7} onCommit={(html) => update({ html })} placeholder="<div class='card'>Hello</div>" />
-      <span className="text-[11px] text-ink-dim">CSS</span>
-      <CodeArea value={config.css} rows={7} onCommit={(css) => update({ css })} placeholder=".card { color: white; }" />
+      <Row label="Source" title="Inline: typed right here. Files: HTML and CSS files from the project, edited in the Code tab (they show up live).">
+        <div className="flex flex-1 overflow-hidden rounded bg-overlay/10 text-[11px]">
+          <button onClick={() => usingFiles && toInline()} className={`flex-1 px-2 py-1 ${!usingFiles ? 'bg-accent/30 text-ink' : 'text-ink-dim hover:text-ink'}`}>
+            Inline
+          </button>
+          <button onClick={() => !usingFiles && moveToFiles()} disabled={!editor} className={`flex-1 px-2 py-1 ${usingFiles ? 'bg-accent/30 text-ink' : 'text-ink-dim hover:text-ink'}`} title={usingFiles ? undefined : 'Move this HTML and CSS into project files (UI/…) and use them'}>
+            Files
+          </button>
+        </div>
+      </Row>
+      <HtmlSourceField label="HTML" ext="html" value={config.html} files={files} placeholder="<div class='card'>Hello</div>" onChange={(html) => update({ html })} onOpenFile={onOpenFile} />
+      <HtmlSourceField label="CSS" ext="css" value={config.css} files={files} placeholder=".card { color: white; }" onChange={(css) => update({ css })} onOpenFile={onOpenFile} />
       <p className="text-[10px] leading-snug text-ink-dim">
-        Applies when the box loses focus (or Ctrl+Enter). <code className="text-ink">data-trigger="name"</code> on an element fires that trigger when clicked; <code className="text-ink">&lt;input data-input="name"&gt;</code> sets that input. Scripts get the DOM as <code className="text-ink">ref.dom</code>. Always drawn on top of the canvas.
+        {usingFiles ? 'Edits in the Code tab show up live.' : 'Applies when the box loses focus (or Ctrl+Enter).'} <code className="text-ink">data-trigger="name"</code> on an element fires that trigger when clicked; <code className="text-ink">&lt;input data-input="name"&gt;</code> sets that input. Scripts get the DOM as <code className="text-ink">ref.dom</code>. Always drawn on top of the canvas.
       </p>
     </div>
   )

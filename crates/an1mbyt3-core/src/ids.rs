@@ -65,6 +65,10 @@ new_key_type! {
     /// within a [`crate::Document`] — document-level like `ImageId`.
     pub struct DrawingId;
 
+    /// Identifies one code / markup file ([`crate::TextFile`]) within a
+    /// [`crate::Document`] — document-level like `ImageId`.
+    pub struct TextFileId;
+
     /// Identifies one reusable [`crate::Material`] within a [`crate::Document`]
     /// — same document-level-asset shape as `ImageId`/`FontId`: a material is
     /// saved once and referenced by any number of `SpriteRendererBehavior`s,

@@ -22,6 +22,8 @@ import { UiControls } from './uiControls'
 import { htmlOverlay } from './htmlOverlay'
 import { gameStorage } from './storage'
 import { gameNet } from './net'
+import { resolveFileRef } from './projectFiles'
+import { gameConsole } from './console'
 import {
   deleteNode,
   duplicateNodes,
@@ -385,7 +387,13 @@ export class ScriptHost {
     }
     const screen = screenInfoNow(editor)
     for (const program of programs) {
-      runScript(program.source, {
+      // A program can live in a project file (`@file:Scripts/x.js`).
+      const source = resolveFileRef(program.source)
+      if (source === null) {
+        gameConsole.add('error', `Missing script file: ${program.source.slice(6)}`, { scene: scene.name, layer: program.layer, state: program.state, kind: 'Script' })
+        continue
+      }
+      runScript(source, {
         time: program.time,
         screen,
         layer: program.layer,

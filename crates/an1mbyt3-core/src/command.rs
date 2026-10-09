@@ -407,6 +407,13 @@ pub enum Command {
     /// Replaces a drawing wholesale (re-saved from Paint, renamed). Inverse:
     /// the previous value.
     SetDrawing { drawing: crate::DrawingId, value: Box<crate::DrawingAsset> },
+    /// Adds a code / markup file. Inverse: `SetTextFileDeleted { value: true }`.
+    AddTextFile { file: crate::TextFile },
+    /// Soft-deletes / restores a text file. Inverse: the previous value.
+    SetTextFileDeleted { file: crate::TextFileId, value: bool },
+    /// Replaces a text file wholesale (renamed / moved). Inverse: the
+    /// previous value.
+    SetTextFile { file: crate::TextFileId, value: Box<crate::TextFile> },
     /// Replaces one node's whole data in place — prefab sync/instantiate
     /// (copying a prefab node's kind, behaviors, links…) in one undoable
     /// step. The node keeps its current `parent` and `deleted` flag no
@@ -1215,6 +1222,20 @@ impl Command {
                 let target = document.drawing_mut(drawing).expect("Command: drawing not found");
                 let previous = std::mem::replace(target, *value);
                 Command::SetDrawing { drawing, value: Box::new(previous) }
+            }
+            Command::AddTextFile { file } => {
+                let file = document.add_text_file(file);
+                Command::SetTextFileDeleted { file, value: true }
+            }
+            Command::SetTextFileDeleted { file, value } => {
+                let target = &mut document.text_file_mut(file).expect("Command: text file not found").deleted;
+                let previous = std::mem::replace(target, value);
+                Command::SetTextFileDeleted { file, value: previous }
+            }
+            Command::SetTextFile { file, value } => {
+                let target = document.text_file_mut(file).expect("Command: text file not found");
+                let previous = std::mem::replace(target, *value);
+                Command::SetTextFile { file, value: Box::new(previous) }
             }
             Command::ReplaceNode { artboard, node, value } => {
                 let target = document.node_mut(artboard, node);

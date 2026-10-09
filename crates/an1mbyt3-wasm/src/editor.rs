@@ -5525,6 +5525,58 @@ impl WasmEditor {
         self.document_summary()
     }
 
+    /// The Code tab's New File: adds a code / markup file at `path` (made
+    /// unique with a number if taken) with `text`. Undoable. Returns the
+    /// document summary.
+    pub fn add_text_file(&mut self, path: String, text: String) -> Result<JsValue, JsValue> {
+        let mut path = an1mbyt3_core::text_file::normalize_path(&path);
+        if path.is_empty() {
+            path = "untitled.txt".into();
+        }
+        if self.document.text_file_by_path(&path).is_some() {
+            let (stem, ext) = path.rsplit_once('.').map_or((path.clone(), String::new()), |(s, e)| (s.to_string(), format!(".{e}")));
+            let mut n = 2;
+            while self.document.text_file_by_path(&format!("{stem} {n}{ext}")).is_some() {
+                n += 1;
+            }
+            path = format!("{stem} {n}{ext}");
+        }
+        self.document.apply(Command::AddTextFile { file: an1mbyt3_core::TextFile::new(path, text) });
+        self.document_summary()
+    }
+
+    /// Typing in the Code tab: replaces a file's text without an undo entry
+    /// per keystroke (the code editor has its own undo) — still counts as an
+    /// unsaved change. Cheap: no summary is returned.
+    pub fn set_text_file_text(&mut self, file: JsValue, text: String) -> Result<bool, JsValue> {
+        let id: an1mbyt3_core::TextFileId = parse_id(file)?;
+        Ok(self.document.set_text_file_text(id, text))
+    }
+
+    /// Renames / moves a file (`path` is its new full path). Undoable.
+    /// Fails if another file already has that path.
+    pub fn rename_text_file(&mut self, file: JsValue, path: String) -> Result<JsValue, JsValue> {
+        let id: an1mbyt3_core::TextFileId = parse_id(file)?;
+        let path = an1mbyt3_core::text_file::normalize_path(&path);
+        if path.is_empty() {
+            return Err(JsValue::from_str("A file needs a name"));
+        }
+        if self.document.text_file_by_path(&path).is_some_and(|(other, _)| other != id) {
+            return Err(JsValue::from_str(&format!("There's already a file at {path}")));
+        }
+        let mut value = self.document.text_file(id).ok_or_else(|| JsValue::from_str("rename_text_file: unknown file"))?.clone();
+        value.path = path;
+        self.document.apply(Command::SetTextFile { file: id, value: Box::new(value) });
+        self.document_summary()
+    }
+
+    /// Deletes a file. Undoable.
+    pub fn delete_text_file(&mut self, file: JsValue) -> Result<JsValue, JsValue> {
+        let id: an1mbyt3_core::TextFileId = parse_id(file)?;
+        self.document.apply(Command::SetTextFileDeleted { file: id, value: true });
+        self.document_summary()
+    }
+
     pub fn rename_drawing(&mut self, drawing: JsValue, name: String) -> Result<JsValue, JsValue> {
         let drawing_id: an1mbyt3_core::DrawingId = parse_id(drawing)?;
         let mut value = self.document.drawing(drawing_id).ok_or_else(|| JsValue::from_str("rename_drawing: unknown drawing"))?.clone();

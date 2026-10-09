@@ -2366,6 +2366,20 @@ pub struct DocumentSummary {
     pub models: Vec<ModelSummary>,
     /// Every imported sound (Resources → Sounds, the Audio Source picker).
     pub audio: Vec<AudioSummary>,
+    /// Every code / markup file, with its text (the Code tab, `@file:`
+    /// references in HTML UI and scripts), in path order.
+    pub text_files: Vec<TextFileSummary>,
+}
+
+/// One code / markup file.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextFileSummary {
+    pub id: an1mbyt3_core::TextFileId,
+    pub path: String,
+    pub text: String,
+    /// Lowercased extension (`"html"`, `"css"`, `"js"`…), or `""`.
+    pub extension: String,
 }
 
 /// One imported sound.
@@ -2504,6 +2518,7 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
             })
             .collect(),
         models: document.models().map(|(id, m)| ModelSummary { id, name: m.name.clone() }).collect(),
+        text_files: document.text_files().map(|(id, f)| TextFileSummary { id, path: f.path.clone(), text: f.text.clone(), extension: f.extension() }).collect(),
         audio: document.audio_assets().map(|(id, a)| AudioSummary { id, name: a.name.clone(), byte_length: a.source.len() as u32, file: a.file.clone() }).collect(),
         materials: document
             .materials()

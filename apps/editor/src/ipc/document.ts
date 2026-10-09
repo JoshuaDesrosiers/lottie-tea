@@ -963,6 +963,8 @@ export interface DocumentSummary {
   models: { id: OpaqueId; name: string }[]
   /** Every imported sound. */
   audio: AudioSummary[]
+  /** Project code / markup files (the Code tab, `@file:` references). */
+  textFiles: TextFileSummary[]
 }
 
 // ---- 3D (mirrors `an1mbyt3_core::space3d`) ----
@@ -1182,6 +1184,16 @@ export interface UiHtmlConfig {
 }
 
 /** A 3D physics body (`an1mbyt3_core::Rigidbody3D`). */
+/** A project code / markup file (`an1mbyt3_core::TextFile`). */
+export interface TextFileSummary {
+  id: OpaqueId
+  /** `UI/menu.html` — `/`-separated, no leading slash. */
+  path: string
+  text: string
+  /** Lowercased extension (`html`, `css`, `js`…) or `''`. */
+  extension: string
+}
+
 /** `an1mbyt3_core::Tree2D` — a procedural tree. */
 export type TreeSpecies = 'Oak' | 'Pine' | 'Birch' | 'Sakura' | 'Palm' | 'Willow'
 export interface Tree2DConfig {

@@ -23,6 +23,7 @@
  * editor drives it in Design (non-interactive, a preview), the script host
  * in Playground and exported games.
  */
+import { resolveFileRef } from './projectFiles'
 import type { OpaqueId, UiHtmlConfig } from '../ipc/document'
 
 export type { UiHtmlConfig }
@@ -137,12 +138,16 @@ class HtmlOverlay {
         this.live.set(key, live)
       }
       const { config } = item
+      // `html` / `css` may be `@file:` references to project files (the
+      // Code tab) — resolved here, so editing the file re-renders live.
+      const html = resolveFileRef(config.html) ?? `<div style="font:12px system-ui;color:#f87171;padding:8px">Missing file: ${config.html.slice(6)}</div>`
+      const css = resolveFileRef(config.css) ?? ''
       // Content: re-rendered only when the authored HTML / CSS / size
       // change (scripts editing `ref.dom` keep their changes).
-      const content = `${config.width}x${config.height}\n${config.css}\n${config.html}`
+      const content = `${config.width}x${config.height}\n${css}\n${html}`
       if (content !== live.content) {
         live.content = content
-        live.root.innerHTML = `<style>:host{all:initial;display:block;width:${config.width}px;height:${config.height}px;}\n${config.css}</style>${config.html}`
+        live.root.innerHTML = `<style>:host{all:initial;display:block;width:${config.width}px;height:${config.height}px;}\n${css}</style>${html}`
       }
       const host = live.host
       host.style.display = item.visible ? 'block' : 'none'

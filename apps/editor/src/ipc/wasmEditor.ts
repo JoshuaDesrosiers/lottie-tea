@@ -1117,6 +1117,28 @@ export function previewNode3DAnimation(editor: WasmEditor, artboard: OpaqueId, n
   editor.preview_node3d_animation(artboard, node, clip, loop, overlay)
 }
 
+// ---- Code files (the Code tab) ----
+
+/** New file at `path` (made unique if taken). Undoable. */
+export function addTextFile(editor: WasmEditor, path: string, text: string): DocumentSummary {
+  return editor.add_text_file(path, text) as DocumentSummary
+}
+
+/** Typing: the file's new text (no undo entry; the code editor has its own). */
+export function setTextFileText(editor: WasmEditor, file: OpaqueId, text: string): void {
+  editor.set_text_file_text(file, text)
+}
+
+/** Rename / move. Undoable. Throws if the path is taken. */
+export function renameTextFile(editor: WasmEditor, file: OpaqueId, path: string): DocumentSummary {
+  return editor.rename_text_file(file, path) as DocumentSummary
+}
+
+/** Delete. Undoable. */
+export function deleteTextFile(editor: WasmEditor, file: OpaqueId): DocumentSummary {
+  return editor.delete_text_file(file) as DocumentSummary
+}
+
 /** Script API: replace a block world's blocks (`ref.setVoxels`). */
 export function setVoxels(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, blocks: Uint8Array): void {
   editor.voxels_set(artboard, node, blocks)
