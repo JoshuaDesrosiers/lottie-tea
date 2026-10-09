@@ -153,6 +153,9 @@ export interface ScriptContext {
   setVoxels(node: OpaqueId, blocks: Uint8Array): void
   /** Block worlds: set one block — see `ref.setVoxel`. */
   setVoxel(node: OpaqueId, x: number, y: number, z: number, block: number): boolean
+  /** Streamed block worlds: load / drop a chunk — see `ref.setVoxelChunk`. */
+  setVoxelChunk(node: OpaqueId, cx: number, cz: number, blocks: Uint8Array): void
+  unloadVoxelChunk(node: OpaqueId, cx: number, cz: number): void
   /** **Sound.** Plays an imported sound by name (`'jump'` or `'jump.wav'`):
    * `{ volume, pitch, loop, pan }`. Returns a handle (`stop()`,
    * `setVolume(v)`, `setPitch(p)`, `playing`) or `null` if there's no
@@ -452,6 +455,14 @@ export interface ComponentRef {
   /** **Block worlds**: set one block (0 = air); only the touched part of
    * the world is re-meshed. `false` outside the world. */
   setVoxel(x: number, y: number, z: number, block: number): boolean
+  /** **Streamed block worlds** (no edge): load (or replace) the chunk
+   * column `cx, cz` — blocks `[cx*16, cx*16+16) × [0, height) × [cz*16,
+   * cz*16+16)`, bytes x fastest, then z, then y (`lx + 16 * (lz + 16 * y)`).
+   * Load the chunks around the player as they move and unload far ones;
+   * the engine meshes nearest-first and only draws what the camera sees. */
+  setVoxelChunk(cx: number, cz: number, blocks: Uint8Array | number[]): void
+  /** **Streamed block worlds**: drop a loaded chunk (and its meshes). */
+  unloadVoxelChunk(cx: number, cz: number): void
   /** Nodes with an **Audio Source**: play its clip (with its volume / pitch
    * / loop / spatial settings; `options` override volume and pitch), or
    * stop what it's playing. */
@@ -803,6 +814,14 @@ function makeComponentRefFromState(
     setVoxels: {
       enumerable: false,
       value: (blocks: Uint8Array | number[]) => ctx.setVoxels(node.id, blocks instanceof Uint8Array ? blocks : Uint8Array.from(blocks)),
+    },
+    setVoxelChunk: {
+      enumerable: false,
+      value: (cx: number, cz: number, blocks: Uint8Array | number[]) => ctx.setVoxelChunk(node.id, cx | 0, cz | 0, blocks instanceof Uint8Array ? blocks : Uint8Array.from(blocks)),
+    },
+    unloadVoxelChunk: {
+      enumerable: false,
+      value: (cx: number, cz: number) => ctx.unloadVoxelChunk(node.id, cx | 0, cz | 0),
     },
     setVoxel: {
       enumerable: false,

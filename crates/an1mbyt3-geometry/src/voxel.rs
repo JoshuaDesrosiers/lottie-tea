@@ -132,8 +132,22 @@ impl VoxelGrid {
         }
     }
 
+}
+
+/// Anything the mesher can read blocks from: a dense [`VoxelGrid`], or a
+/// streamed world of loaded chunks (the wasm editor's chunked block
+/// worlds). Unknown / unloaded places read as air.
+pub trait BlockSource {
+    fn block(&self, x: i32, y: i32, z: i32) -> u8;
+
     fn opaque(&self, x: i32, y: i32, z: i32) -> bool {
-        block_def(self.get(x, y, z)).opaque
+        block_def(self.block(x, y, z)).opaque
+    }
+}
+
+impl BlockSource for VoxelGrid {
+    fn block(&self, x: i32, y: i32, z: i32) -> u8 {
+        self.get(x, y, z)
     }
 }
 
@@ -165,26 +179,24 @@ const AO: [f32; 4] = [1.0, 0.8, 0.64, 0.5];
 /// water above), like a real water line.
 const WATER_DROP: f32 = 0.12;
 
-/// Meshes the blocks with `min <= (x, y, z) < max` (clamped to the grid),
-/// culling against neighbours anywhere in the grid so region seams are
-/// invisible. Positions are in the grid's local space.
-pub fn mesh_voxel_region(grid: &VoxelGrid, min: [u32; 3], max: [u32; 3]) -> Mesh3DData {
+/// Meshes the blocks with `min <= (x, y, z) < max`, culling against
+/// neighbours anywhere in `grid` (so region and chunk seams are invisible).
+/// Positions are in the world's local space.
+pub fn mesh_voxel_region<S: BlockSource + ?Sized>(grid: &S, min: [i32; 3], max: [i32; 3]) -> Mesh3DData {
     let mut m = Mesh3DData::default();
-    let hi = [max[0].min(grid.width), max[1].min(grid.height), max[2].min(grid.depth)];
     let water = BLOCKS.iter().position(|b| b.name == "water").unwrap_or(usize::MAX) as u8;
-    for y in min[1]..hi[1] {
-        for z in min[2]..hi[2] {
-            for x in min[0]..hi[0] {
-                let (x, y, z) = (x as i32, y as i32, z as i32);
-                let id = grid.get(x, y, z);
+    for y in min[1]..max[1] {
+        for z in min[2]..max[2] {
+            for x in min[0]..max[0] {
+                let id = grid.block(x, y, z);
                 if id == AIR {
                     continue;
                 }
                 let def = block_def(id);
-                let surface_drop = if id == water && grid.get(x, y + 1, z) != water { WATER_DROP } else { 0.0 };
+                let surface_drop = if id == water && grid.block(x, y + 1, z) != water { WATER_DROP } else { 0.0 };
                 for face in &FACES {
                     let [nx, ny, nz] = face.normal;
-                    let neighbour = grid.get(x + nx, y + ny, z + nz);
+                    let neighbour = grid.block(x + nx, y + ny, z + nz);
                     if block_def(neighbour).hides(neighbour, id) {
                         continue;
                     }
@@ -197,7 +209,7 @@ pub fn mesh_voxel_region(grid: &VoxelGrid, min: [u32; 3], max: [u32; 3]) -> Mesh
     m
 }
 
-fn emit_face(m: &mut Mesh3DData, grid: &VoxelGrid, at: [i32; 3], face: &Face, tile: u8, surface_drop: f32) {
+fn emit_face<S: BlockSource + ?Sized>(m: &mut Mesh3DData, grid: &S, at: [i32; 3], face: &Face, tile: u8, surface_drop: f32) {
     let add = |a: [i32; 3], b: [i32; 3]| [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
     let neg = |a: [i32; 3]| [-a[0], -a[1], -a[2]];
     // The block's centre, and the cell just outside this face (AO looks

@@ -56,6 +56,8 @@ import {
   previewNode3DAnimation,
   setVoxels,
   setVoxel,
+  setVoxelChunk,
+  unloadVoxelChunk,
   setStateMachineBoolInput,
   setStateMachineEnumInput,
   setStateMachineNumberInput,
@@ -431,6 +433,8 @@ export class ScriptHost {
         setAnimation3D: (node, clip, loop, overlay) => flushed(() => previewNode3DAnimation(editor, artboardId, node, clip, loop, overlay)),
         setVoxels: (node, blocks) => flushed(() => setVoxels(editor, artboardId, node, blocks)),
         setVoxel: (node, x, y, z, block) => flushed(() => setVoxel(editor, artboardId, node, x, y, z, block)),
+        setVoxelChunk: (node, cx, cz, blocks) => flushed(() => setVoxelChunk(editor, artboardId, node, cx, cz, blocks)),
+        unloadVoxelChunk: (node, cx, cz) => flushed(() => unloadVoxelChunk(editor, artboardId, node, cx, cz)),
         playSound: (name, options) => {
           const id = this.soundId(editor, name)
           if (!id) {

@@ -1107,6 +1107,16 @@ export function setVoxels(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId
   editor.voxels_set(artboard, node, blocks)
 }
 
+/** Script API: load one chunk of a streamed block world (`ref.setVoxelChunk`). */
+export function setVoxelChunk(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, cx: number, cz: number, blocks: Uint8Array): void {
+  editor.voxel_chunk_set(artboard, node, cx, cz, blocks)
+}
+
+/** Script API: drop one chunk of a streamed block world (`ref.unloadVoxelChunk`). */
+export function unloadVoxelChunk(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, cx: number, cz: number): void {
+  editor.voxel_chunk_unload(artboard, node, cx, cz)
+}
+
 /** Script API: set one block of a block world (`ref.setVoxel`). */
 export function setVoxel(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, x: number, y: number, z: number, block: number): boolean {
   return editor.voxel_set(artboard, node, x, y, z, block)

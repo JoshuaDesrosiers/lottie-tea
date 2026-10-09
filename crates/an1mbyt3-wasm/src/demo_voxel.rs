@@ -1,12 +1,17 @@
 //! "Voxel Craft" — a Minetest / Minecraft-style block sandbox.
 //!
-//! - **The world** is one `Primitive3D::Voxels` node (128 × 64 × 128
-//!   blocks). The script generates it from a seed every time the game
-//!   starts — rolling hills, mountains with snow caps, beaches and lakes at
-//!   the water line, winding caves, ore veins, trees — and replays the
-//!   player's saved edits on top (`ctx.storage`), so builds survive a
-//!   restart. The engine meshes it in 16³ regions with face culling and
-//!   per-vertex ambient occlusion (`an1mbyt3_geometry::voxel`).
+//! - **The world** is one *streamed* `Primitive3D::Voxels` node, 80 blocks
+//!   tall and endless sideways. The script generates 16 × 80 × 16 chunks
+//!   from a seed as you walk (nearest first, a few milliseconds a frame) —
+//!   oceans and continents, hills, snowy mountains, beaches, caves, ores,
+//!   forests — hands them to the engine (`ref.setVoxelChunk`) and drops the
+//!   ones far behind you (`ref.unloadVoxelChunk`). Your edits are replayed
+//!   on top of regenerated chunks and saved (`ctx.storage`). The engine
+//!   meshes 16³ regions nearest-first with face culling and ambient
+//!   occlusion (`an1mbyt3_geometry::voxel`) and only draws regions in view.
+//! - **Zombies** (a pool of blocky part-built mobs) spawn around you, chase
+//!   and hit you; punch them back. Health hearts, fall damage, death and
+//!   respawn; P toggles peaceful.
 //! - **Play**: first-person walk / jump / swim with block collision, fly
 //!   mode (F), left-click breaks, right-click places, 1–9 / the wheel pick
 //!   a hotbar slot, E opens the creative inventory, N makes a new world.
@@ -27,8 +32,11 @@ use crate::demo_ninja::{add_node, with_id};
 
 const SCREEN_W: f32 = 960.0;
 const SCREEN_H: f32 = 540.0;
-/// The world's size in blocks.
-const WORLD: [u32; 3] = [128, 64, 128];
+/// The block world node's size: streamed worlds only use the height (the
+/// chunks are 16 × 16 columns).
+const WORLD: [u32; 3] = [16, 80, 16];
+/// Pooled zombies.
+const MOBS: usize = 10;
 /// Pooled break-debris cubes.
 const DEBRIS: usize = 12;
 /// The held block's centre in camera space (right, down, ahead).
@@ -94,12 +102,12 @@ pub(crate) fn build_demo_voxel(document: &mut Document) -> VoxelDemo {
 
     let sky = [0.55, 0.74, 0.96, 1.0];
     let cam = Camera3D { fov_degrees: 72.0, near: 0.05, far: 260.0, current: true, clear_color: Some(sky) };
-    let cam_id = add_node(document, &mut inverses, scene, node3d("cam3d", None, Transform3D::at(Vec3::new(64.0, 40.0, 64.0)), Node3DContent::Camera(cam)));
+    let cam_id = add_node(document, &mut inverses, scene, node3d("cam3d", None, Transform3D::at(Vec3::new(0.0, 50.0, 0.0)), Node3DContent::Camera(cam)));
     add_node(
         document,
         &mut inverses,
         scene,
-        node3d("sun", None, Transform3D { position: Vec3::new(64.0, 80.0, 64.0), rotation_degrees: Vec3::new(-52.0, -35.0, 0.0), scale: Vec3::ONE }, Node3DContent::Light(Light3D { kind: Light3DKind::Directional, color: [1.0, 0.95, 0.85], intensity: 0.8, range: 10.0 })),
+        node3d("sun", None, Transform3D { position: Vec3::new(0.0, 100.0, 0.0), rotation_degrees: Vec3::new(-52.0, -35.0, 0.0), scale: Vec3::ONE }, Node3DContent::Light(Light3D { kind: Light3DKind::Directional, color: [1.0, 0.95, 0.85], intensity: 0.8, range: 10.0 })),
     );
 
     // The world (its blocks come from the script).
@@ -137,10 +145,39 @@ pub(crate) fn build_demo_voxel(document: &mut Document) -> VoxelDemo {
         add_node(document, &mut inverses, scene, debris);
     }
 
+    // Zombies: a root (feet, facing) with a body, a head with eyes, and arms
+    // / legs hung from pivots at the shoulders / hips so the script can
+    // swing them. Facing −Z (the way the camera looks at yaw 0).
+    for i in 0..MOBS {
+        let mut root = node3d(&format!("mob{i}"), None, Transform3D { position: Vec3::new(0.0, -100.0, 0.0), rotation_degrees: Vec3::ZERO, scale: Vec3::splat(0.9) }, Node3DContent::Empty);
+        root.visible = false;
+        let root = add_node(document, &mut inverses, scene, root);
+        let skin = [0.33, 0.58, 0.33, 1.0];
+        let shirt = [0.13, 0.52, 0.58, 1.0];
+        let pants = [0.24, 0.24, 0.55, 1.0];
+        let part = |name: String, parent, at: Vec3, size: Vec3, color: [f32; 4]| node3d(&name, Some(parent), Transform3D { position: at, rotation_degrees: Vec3::ZERO, scale: size }, mesh(Primitive3D::cube(), color, false));
+        add_node(document, &mut inverses, scene, part(format!("mob{i}body"), root, Vec3::new(0.0, 1.125, 0.0), Vec3::new(0.5, 0.75, 0.25), shirt));
+        let head = add_node(document, &mut inverses, scene, part(format!("mob{i}head"), root, Vec3::new(0.0, 1.75, 0.0), Vec3::splat(0.5), skin));
+        for (side, x) in [("L", -0.11f32), ("R", 0.11)] {
+            // (Children of the head cube: in its unit space.)
+            add_node(document, &mut inverses, scene, part(format!("mob{i}eye{side}"), head, Vec3::new(x / 0.5, 0.02, -0.51), Vec3::new(0.36, 0.24, 0.08), [0.05, 0.05, 0.05, 1.0]));
+        }
+        for (limb, x, y, color, forward) in [("armL", -0.375f32, 1.5f32, skin, true), ("armR", 0.375, 1.5, skin, true), ("legL", -0.125, 0.75, pants, false), ("legR", 0.125, 0.75, pants, false)] {
+            // Zombie arms reach forward (pivot turned 90° about X).
+            let pivot = add_node(
+                document,
+                &mut inverses,
+                scene,
+                node3d(&format!("mob{i}{limb}"), Some(root), Transform3D { position: Vec3::new(x, y, 0.0), rotation_degrees: Vec3::new(if forward { 90.0 } else { 0.0 }, 0.0, 0.0), scale: Vec3::ONE }, Node3DContent::Empty),
+            );
+            add_node(document, &mut inverses, scene, part(format!("mob{i}{limb}Mesh"), pivot, Vec3::new(0.0, -0.375, 0.0), Vec3::new(0.25, 0.75, 0.25), color));
+        }
+    }
+
     let (aw, ah, atlas) = an1mbyt3_geometry::voxel_atlas();
     let blocks = an1mbyt3_geometry::BLOCKS.iter().map(|b| format!("{{ name: {:?}, top: {}, side: {}, bottom: {} }}", b.name, b.top, b.side, b.bottom)).collect::<Vec<_>>().join(", ");
     let prefix = format!(
-        "const W = {}, H = {}, D = {}\nconst DEBRIS = {DEBRIS}\nconst ATLAS_W = {aw}, ATLAS_H = {ah}, TILE = {}, ATLAS_COLS = {}\nconst ATLAS_B64 = \"{}\"\nconst BLOCKS = [{blocks}]",
+        "const W = {}, H = {}, D = {}\nconst DEBRIS = {DEBRIS}, MOBS = {MOBS}\nconst ATLAS_W = {aw}, ATLAS_H = {ah}, TILE = {}, ATLAS_COLS = {}\nconst ATLAS_B64 = \"{}\"\nconst BLOCKS = [{blocks}]",
         WORLD[0],
         WORLD[1],
         WORLD[2],
@@ -185,7 +222,9 @@ const HUD_HTML: &str = r#"<div class="hud">
   <div class="cross"></div>
   <div class="hint" id="hint">CLICK TO PLAY</div>
   <div class="toast" id="toast"></div>
+  <div class="hearts" id="hearts"></div>
   <div class="bar" id="bar"></div>
+  <div class="dead" id="dead"><div class="big">YOU DIED</div><div id="deadSub">Click to respawn</div></div>
 </div>"#;
 
 const HUD_CSS: &str = r#"
@@ -205,6 +244,19 @@ const HUD_CSS: &str = r#"
 .slot img { width: 62px; height: 62px; image-rendering: pixelated; }
 .slot .n { position: absolute; left: 5px; top: 2px; font-size: 16px; opacity: 0.75; }
 .slot.on { border: 5px solid #fff; box-shadow: 0 0 0 3px rgb(0 0 0 / 0.6); z-index: 1; }
+/* Health: 10 pixel hearts above the hotbar (2 HP each). */
+.hearts { position: absolute; left: 50%; bottom: 120px; transform: translateX(-370px); display: flex; gap: 4px; }
+.h { width: 28px; height: 26px; position: relative; background: rgb(0 0 0 / 0.55); clip-path: polygon(0 25%, 15% 0, 40% 0, 50% 15%, 60% 0, 85% 0, 100% 25%, 100% 50%, 50% 100%, 0 50%); }
+.h::after { content: ''; position: absolute; inset: 3px; background: #4a1414; clip-path: inherit; }
+.h.full::after { background: linear-gradient(#ff5a5a, #c41616); }
+.h.half::after { background: linear-gradient(90deg, #e33 0 50%, #4a1414 50%); }
+.hearts.blink .h { animation: blink 0.15s 2; }
+@keyframes blink { 50% { filter: brightness(2.2); } }
+.hurt { position: absolute; inset: 0; background: radial-gradient(transparent 40%, rgb(200 0 0 / 0.55)); opacity: 0; transition: opacity 0.35s; }
+.hurt.on { opacity: 1; transition: none; }
+.dead { position: absolute; inset: 0; background: rgb(120 0 0 / 0.5); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 24px; font-size: 30px; }
+.dead.on { display: flex; }
+.dead .big { font-size: 96px; letter-spacing: 6px; }
 "#;
 
 /// The creative inventory: every block, click to put it in the selected

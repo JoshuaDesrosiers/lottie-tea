@@ -6930,18 +6930,6 @@ impl WasmEditor {
         let delta = self.frame_delta;
         let live: std::collections::HashSet<NodeId> = meshes.iter().map(|(id, _, _)| *id).collect();
         self.anim_clocks.retain(|id, _| live.contains(id));
-        for (node_id, model, mesh) in meshes {
-            let material = mesh.material.and_then(|id| self.material3d(id));
-            if let Primitive3D::Model { model: model_id } = mesh.primitive {
-                self.model_draws(node_id, model_id, model, &mesh, material, delta, &mut draws);
-                continue;
-            }
-            if let Primitive3D::Voxels { width, height, depth } = mesh.primitive {
-                self.voxel_draws(node_id, [width, height, depth], model, &mesh, &mut draws);
-                continue;
-            }
-            draws.push(MeshDraw3D { shininess: mesh.shininess, unlit: mesh.unlit, material, ..MeshDraw3D::new(self.mesh3d(&mesh.primitive), model, mesh.color) });
-        }
         let aspect = (self.canvas_width.max(1) as f32) / (self.canvas_height.max(1) as f32);
         let (view, projection, eye, clear) = if editor_view {
             let cam = self.view3d_camera;
@@ -6953,6 +6941,19 @@ impl WasmEditor {
             let projection = glam::camera::rh::proj::directx::perspective(cam.fov_degrees.clamp(1.0, 170.0).to_radians(), aspect, near, cam.far.max(near + 0.01));
             (world.inverse(), projection, world.transform_point3(Vec3::ZERO), cam.clear_color)
         };
+        let frustum = frustum_planes(projection * view);
+        for (node_id, model, mesh) in meshes {
+            let material = mesh.material.and_then(|id| self.material3d(id));
+            if let Primitive3D::Model { model: model_id } = mesh.primitive {
+                self.model_draws(node_id, model_id, model, &mesh, material, delta, &mut draws);
+                continue;
+            }
+            if let Primitive3D::Voxels { width, height, depth } = mesh.primitive {
+                self.voxel_draws(node_id, [width, height, depth], model, &mesh, eye, &frustum, &mut draws);
+                continue;
+            }
+            draws.push(MeshDraw3D { shininess: mesh.shininess, unlit: mesh.unlit, material, ..MeshDraw3D::new(self.mesh3d(&mesh.primitive), model, mesh.color) });
+        }
 
         if editor_view {
             let cam = self.view3d_camera;
@@ -7478,10 +7479,43 @@ impl WasmEditor {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
         let size = self.voxel_size(artboard_id, node_id).ok_or_else(|| JsValue::from_str("setVoxels: not a block world (Voxels mesh)"))?;
-        let mut world = VoxelWorld::new(size);
-        let n = blocks.len().min(world.grid.blocks.len());
-        world.grid.blocks[..n].copy_from_slice(&blocks[..n]);
+        let mut world = VoxelWorld::dense(size);
+        if let VoxelStore::Dense(grid) = &mut world.store {
+            let n = blocks.len().min(grid.blocks.len());
+            grid.blocks[..n].copy_from_slice(&blocks[..n]);
+        }
         self.voxel_worlds.insert(node_id, world);
+        Ok(())
+    }
+
+    /// Script API (`ref.setVoxelChunk(cx, cz, bytes)`): loads (or replaces)
+    /// one chunk of a **streamed** block world — the column of blocks
+    /// `[cx*16, cx*16+16) × [0, height) × [cz*16, cz*16+16)`, any `cx` / `cz`
+    /// (negative too: the world has no edge). Bytes are x fastest, then z,
+    /// then y (`lx + 16 * (lz + 16 * y)`). The first chunk switches the node
+    /// from a fixed-size world to a streamed one. Neighbouring chunks are
+    /// re-meshed too, so faces and shading across the seam are right.
+    pub fn voxel_chunk_set(&mut self, artboard: JsValue, node: JsValue, cx: i32, cz: i32, blocks: Vec<u8>) -> Result<(), JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let size = self.voxel_size(artboard_id, node_id).ok_or_else(|| JsValue::from_str("setVoxelChunk: not a block world (Voxels mesh)"))?;
+        let world = self.voxel_worlds.entry(node_id).or_insert_with(|| VoxelWorld::chunked(size));
+        if world.size != size || matches!(world.store, VoxelStore::Dense(_)) {
+            *world = VoxelWorld::chunked(size);
+        }
+        world.set_chunk(cx, cz, blocks);
+        Ok(())
+    }
+
+    /// Script API (`ref.unloadVoxelChunk(cx, cz)`): drops a streamed chunk
+    /// (and its meshes) — the far-away part of the world you walked away
+    /// from.
+    pub fn voxel_chunk_unload(&mut self, artboard: JsValue, node: JsValue, cx: i32, cz: i32) -> Result<(), JsValue> {
+        let _: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        if let Some(world) = self.voxel_worlds.get_mut(&node_id) {
+            world.unload_chunk(cx, cz);
+        }
         Ok(())
     }
 
@@ -7492,13 +7526,16 @@ impl WasmEditor {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
         let size = self.voxel_size(artboard_id, node_id).ok_or_else(|| JsValue::from_str("setVoxel: not a block world (Voxels mesh)"))?;
-        let world = self.voxel_worlds.entry(node_id).or_insert_with(|| VoxelWorld::new(size));
+        let world = self.voxel_worlds.entry(node_id).or_insert_with(|| VoxelWorld::dense(size));
         Ok(world.set(x, y, z, block))
     }
 
-    /// One draw per non-empty meshed region of a block world, re-meshing
-    /// the regions edited since last frame.
-    fn voxel_draws(&mut self, node_id: NodeId, size: [u32; 3], world_matrix: glam::Mat4, mesh: &an1mbyt3_core::Mesh3D, draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>) {
+    /// One draw per non-empty meshed region of a block world that the
+    /// camera can see, re-meshing edited / newly loaded regions first —
+    /// nearest the camera first, at most `VOXEL_MESH_BUDGET` a frame, so
+    /// streaming in a big area never stalls a frame.
+    #[allow(clippy::too_many_arguments)]
+    fn voxel_draws(&mut self, node_id: NodeId, size: [u32; 3], world_matrix: glam::Mat4, mesh: &an1mbyt3_core::Mesh3D, eye: glam::Vec3, frustum: &[glam::Vec4; 6], draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>) {
         if self.voxel_material_3d.is_none() {
             // (Validated by a renderer test, so this can't fail at runtime.)
             let Ok(material) = self.renderer.compile_material_3d(an1mbyt3_geometry::VOXEL_MATERIAL_WGSL) else { return };
@@ -7508,24 +7545,44 @@ impl WasmEditor {
             let (w, h, rgba) = an1mbyt3_geometry::voxel_atlas();
             self.voxel_atlas_gpu = Some(self.renderer.upload_texture_wrapped(w, h, &rgba, an1mbyt3_renderer::ImageFilterMode::Nearest, false));
         }
-        let world = self.voxel_worlds.entry(node_id).or_insert_with(|| VoxelWorld::new(size));
+        let world = self.voxel_worlds.entry(node_id).or_insert_with(|| VoxelWorld::dense(size));
         // The node was resized: start over with an empty world that size.
-        if [world.grid.width, world.grid.height, world.grid.depth] != size {
-            *world = VoxelWorld::new(size);
+        if world.size != size {
+            *world = VoxelWorld::dense(size);
         }
-        for region in std::mem::take(&mut world.dirty) {
-            let min = [region[0] * VOXEL_REGION, region[1] * VOXEL_REGION, region[2] * VOXEL_REGION];
-            let max = [min[0] + VOXEL_REGION, min[1] + VOXEL_REGION, min[2] + VOXEL_REGION];
-            let data = an1mbyt3_geometry::mesh_voxel_region(&world.grid, min, max);
-            if data.indices.is_empty() {
-                world.regions.remove(&region);
-            } else {
-                world.regions.insert(region, std::rc::Rc::new(self.renderer.upload_mesh_3d(&data)));
+        let local_eye = world_matrix.inverse().transform_point3(eye);
+        let r = VOXEL_REGION as f32;
+        let centre = |region: &[i32; 3]| glam::Vec3::new((region[0] as f32 + 0.5) * r, (region[1] as f32 + 0.5) * r, (region[2] as f32 + 0.5) * r);
+        if !world.dirty.is_empty() {
+            // (Streamed columns wait for their 4 neighbours, so seam faces and
+            // shading are right the first time and each is meshed once.)
+            let mut queue: Vec<[i32; 3]> = world.dirty.iter().copied().filter(|r| world.meshable(r)).collect();
+            if queue.len() > VOXEL_MESH_BUDGET {
+                queue.sort_by(|a, b| centre(a).distance_squared(local_eye).total_cmp(&centre(b).distance_squared(local_eye)));
+                queue.truncate(VOXEL_MESH_BUDGET);
+            }
+            for region in queue {
+                world.dirty.remove(&region);
+                let min = [region[0] * VOXEL_REGION as i32, region[1] * VOXEL_REGION as i32, region[2] * VOXEL_REGION as i32];
+                let max = [min[0] + VOXEL_REGION as i32, min[1] + VOXEL_REGION as i32, min[2] + VOXEL_REGION as i32];
+                let data = an1mbyt3_geometry::mesh_voxel_region(&world.store, min, max);
+                if data.indices.is_empty() {
+                    world.regions.remove(&region);
+                } else {
+                    world.regions.insert(region, std::rc::Rc::new(self.renderer.upload_mesh_3d(&data)));
+                }
             }
         }
         let material = self.voxel_material_3d.clone();
         let texture = self.voxel_atlas_gpu.clone();
-        for gpu in world.regions.values() {
+        // A region's bounding sphere, in world space.
+        let scale = world_matrix.to_scale_rotation_translation().0.max_element();
+        let radius = r * 0.87 * scale;
+        for (region, gpu) in &world.regions {
+            let at = world_matrix.transform_point3(centre(region));
+            if frustum.iter().any(|p| p.truncate().dot(at) + p.w < -radius * p.truncate().length()) {
+                continue;
+            }
             draws.push(an1mbyt3_renderer::MeshDraw3D {
                 shininess: mesh.shininess,
                 unlit: mesh.unlit,
@@ -9892,24 +9949,52 @@ fn to_js_value<T: serde::Serialize>(value: &T) -> Result<JsValue, JsValue> {
 type Mesh3DKey = (u8, [u32; 4]);
 
 /// Block worlds are meshed in cubes of this many blocks a side, so one
-/// edit re-meshes a few thousand blocks, not the whole world.
+/// edit re-meshes a few thousand blocks, not the whole world; streamed
+/// worlds load in columns this wide.
 const VOXEL_REGION: u32 = 16;
+/// Regions meshed per block world per frame at most (nearest first).
+const VOXEL_MESH_BUDGET: usize = 40;
+
+/// Where a block world's blocks live: one fixed box (`ref.setVoxels`), or
+/// streamed 16-wide columns loaded / unloaded by the script around the
+/// player (`ref.setVoxelChunk`), with no edge.
+enum VoxelStore {
+    Dense(an1mbyt3_geometry::VoxelGrid),
+    Chunked { height: u32, columns: HashMap<(i32, i32), Vec<u8>> },
+}
+
+impl an1mbyt3_geometry::BlockSource for VoxelStore {
+    fn block(&self, x: i32, y: i32, z: i32) -> u8 {
+        match self {
+            VoxelStore::Dense(grid) => grid.get(x, y, z),
+            VoxelStore::Chunked { height, columns } => {
+                if y < 0 || y >= *height as i32 {
+                    return 0;
+                }
+                let r = VOXEL_REGION as i32;
+                columns.get(&(x.div_euclid(r), z.div_euclid(r))).map_or(0, |c| c[(x.rem_euclid(r) + r * (z.rem_euclid(r) + r * y)) as usize])
+            }
+        }
+    }
+}
 
 /// A block world's runtime state (`WasmEditor::voxel_worlds`): its blocks,
 /// the uploaded mesh of every non-empty region, and which regions need
-/// re-meshing before the next draw.
+/// re-meshing.
 struct VoxelWorld {
-    grid: an1mbyt3_geometry::VoxelGrid,
-    regions: HashMap<[u32; 3], std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>>,
-    dirty: std::collections::HashSet<[u32; 3]>,
+    /// The node's `Voxels` size when this was made (a resize starts over).
+    size: [u32; 3],
+    store: VoxelStore,
+    regions: HashMap<[i32; 3], std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>>,
+    dirty: std::collections::HashSet<[i32; 3]>,
 }
 
 impl VoxelWorld {
-    /// An empty (all air) world; every region starts dirty so a fresh one
-    /// is fully meshed on its first draw.
-    fn new(size: [u32; 3]) -> Self {
-        let mut world = Self { grid: an1mbyt3_geometry::VoxelGrid::new(size[0], size[1], size[2]), regions: HashMap::new(), dirty: Default::default() };
-        let count = |n: u32| n.div_ceil(VOXEL_REGION);
+    /// An empty (all air) fixed-size world; every region starts dirty so it
+    /// is fully meshed once filled.
+    fn dense(size: [u32; 3]) -> Self {
+        let mut world = Self { size, store: VoxelStore::Dense(an1mbyt3_geometry::VoxelGrid::new(size[0], size[1], size[2])), regions: HashMap::new(), dirty: Default::default() };
+        let count = |n: u32| n.div_ceil(VOXEL_REGION) as i32;
         for y in 0..count(size[1]) {
             for z in 0..count(size[2]) {
                 for x in 0..count(size[0]) {
@@ -9920,30 +10005,113 @@ impl VoxelWorld {
         world
     }
 
+    /// An empty streamed world (`size[1]` blocks tall; width / depth unused).
+    fn chunked(size: [u32; 3]) -> Self {
+        Self { size, store: VoxelStore::Chunked { height: size[1], columns: HashMap::new() }, regions: HashMap::new(), dirty: Default::default() }
+    }
+
+    fn region_rows(&self) -> i32 {
+        self.size[1].div_ceil(VOXEL_REGION) as i32
+    }
+
+    /// Marks every region of column `(cx, cz)` for re-meshing (if loaded).
+    fn dirty_column(&mut self, cx: i32, cz: i32) {
+        if let VoxelStore::Chunked { columns, .. } = &self.store {
+            if !columns.contains_key(&(cx, cz)) {
+                return;
+            }
+        }
+        for ry in 0..self.region_rows() {
+            self.dirty.insert([cx, ry, cz]);
+        }
+    }
+
+    /// Whether a dirty region can be meshed now: always for fixed worlds;
+    /// for streamed ones, once the 4 neighbouring columns are loaded (a
+    /// column at the edge of the loaded area waits — like Minecraft, the
+    /// outermost ring of loaded chunks isn't drawn).
+    fn meshable(&self, region: &[i32; 3]) -> bool {
+        match &self.store {
+            VoxelStore::Dense(_) => true,
+            VoxelStore::Chunked { columns, .. } => [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)].iter().all(|(dx, dz)| columns.contains_key(&(region[0] + dx, region[2] + dz))),
+        }
+    }
+
+    fn set_chunk(&mut self, cx: i32, cz: i32, mut blocks: Vec<u8>) {
+        let VoxelStore::Chunked { height, columns } = &mut self.store else { return };
+        blocks.resize((VOXEL_REGION * VOXEL_REGION * *height) as usize, 0);
+        let replaced = columns.insert((cx, cz), blocks).is_some();
+        // A new column only needs meshing itself (neighbours that were
+        // waiting for it are still dirty); replacing one changes what its
+        // neighbours see across the seams.
+        if replaced {
+            for dz in -1..=1 {
+                for dx in -1..=1 {
+                    self.dirty_column(cx + dx, cz + dz);
+                }
+            }
+        } else {
+            self.dirty_column(cx, cz);
+        }
+    }
+
+    fn unload_chunk(&mut self, cx: i32, cz: i32) {
+        let VoxelStore::Chunked { columns, .. } = &mut self.store else { return };
+        if columns.remove(&(cx, cz)).is_none() {
+            return;
+        }
+        self.regions.retain(|r, _| (r[0], r[2]) != (cx, cz));
+        self.dirty.retain(|r| (r[0], r[2]) != (cx, cz));
+        // Neighbours keep their meshes (unloading is far from the player,
+        // behind the fog).
+    }
+
     /// Sets a block and marks every region whose mesh it can change: its
     /// own, plus the neighbours it borders (their faces and AO look one
-    /// block across the seam). `false` outside the world.
+    /// block across the seam). `false` outside the world (or in a chunk
+    /// that isn't loaded).
     fn set(&mut self, x: i32, y: i32, z: i32, block: u8) -> bool {
-        let before = self.grid.get(x, y, z);
-        if !self.grid.set(x, y, z, block) {
+        use an1mbyt3_geometry::BlockSource;
+        let before = self.store.block(x, y, z);
+        let r = VOXEL_REGION as i32;
+        let stored = match &mut self.store {
+            VoxelStore::Dense(grid) => grid.set(x, y, z, block),
+            VoxelStore::Chunked { height, columns } => {
+                if y < 0 || y >= *height as i32 {
+                    false
+                } else if let Some(c) = columns.get_mut(&(x.div_euclid(r), z.div_euclid(r))) {
+                    c[(x.rem_euclid(r) + r * (z.rem_euclid(r) + r * y)) as usize] = block;
+                    true
+                } else {
+                    false
+                }
+            }
+        };
+        if !stored {
             return false;
         }
         if before == block {
             return true;
         }
-        let r = VOXEL_REGION as i32;
         for dy in -1..=1 {
             for dz in -1..=1 {
                 for dx in -1..=1 {
                     let (px, py, pz) = (x + dx, y + dy, z + dz);
-                    if px >= 0 && py >= 0 && pz >= 0 {
-                        self.dirty.insert([(px / r) as u32, (py / r) as u32, (pz / r) as u32]);
+                    if py >= 0 {
+                        self.dirty.insert([px.div_euclid(r), py / r, pz.div_euclid(r)]);
                     }
                 }
             }
         }
         true
     }
+}
+
+/// The six clip planes (`ax + by + cz + d >= 0` inside) of a view-projection
+/// matrix with a 0..1 depth range (Gribb / Hartmann).
+fn frustum_planes(m: glam::Mat4) -> [glam::Vec4; 6] {
+    let (r0, r1, r2, r3) = (m.row(0), m.row(1), m.row(2), m.row(3));
+    [r3 + r0, r3 - r0, r3 + r1, r3 - r1, r2, r3 - r2]
 }
 
 /// The scene view's floor grid (not a primitive).
