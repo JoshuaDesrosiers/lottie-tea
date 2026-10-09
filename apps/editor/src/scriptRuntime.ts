@@ -41,6 +41,7 @@ import type { OpaqueId, Path } from './ipc/document'
 import type { ScriptImage, ScriptNode } from './game/sceneMirror'
 import type { ScriptStorage } from './game/storage'
 import type { ScriptNet } from './game/net'
+import { findSyntaxErrorLine, formatValue, gameConsole, locateScriptError, scriptConsole, SCRIPT_URL_PREFIX, type ConsoleOrigin } from './game/console'
 
 export interface ScriptContext {
   /** Seconds since this state became active — resets to `0` on every state
@@ -1147,12 +1148,23 @@ type CompiledScript = (
   spawnClone: (ref: ComponentRef) => ComponentRef | null,
   deleteNode: (ref: ComponentRef) => void,
   helpers: typeof HELPERS,
+  console: ReturnType<typeof scriptConsole>,
+  print: (...args: unknown[]) => void,
 ) => void
+
+/** The compiled program's parameters (also used to re-compile prefixes
+ * when locating a syntax error). */
+const SCRIPT_PARAMS = ['ctx', 'getCompByID', 'getCompByClass', 'spawnClone', 'deleteNode', 'helpers', 'console', 'print']
 
 const cache = new Map<string, CompiledScript>()
 
-function compile(source: string): CompiledScript {
-  let compiled = cache.get(source)
+/** Compiles a program once (per source + location). `url` names it in
+ * stack traces (`an1script://Scene/Layer/State`) so a runtime error can be
+ * traced back to its state and line — see `game/console.ts`. Throws the
+ * engine's `SyntaxError` if it doesn't compile. */
+function compile(source: string, url: string): CompiledScript {
+  const key = url + '\n' + source
+  let compiled = cache.get(key)
   if (!compiled) {
     // Destructures `helpers` into bare names via a parameter default
     // pattern isn't available on `Function`'s positional params, so the
@@ -1160,32 +1172,37 @@ function compile(source: string): CompiledScript {
     // what lets both hand-written scripts and `programCodegen.ts`'s
     // generated code call `add(a, b)` etc. as bare globals rather than
     // `helpers.add(a, b)`.
-    const wrapped = `const { add, subtract, multiply, divide, greaterThan, lessThan, equals, and, or, not, select, lerp, clamp, random } = helpers;\n${source}`
+    // (Exactly one line before the program: `SCRIPT_LINE_OFFSET` counts it.)
+    const wrapped = `const { add, subtract, multiply, divide, greaterThan, lessThan, equals, and, or, not, select, lerp, clamp, random } = helpers;\n${source}\n//# sourceURL=${url}`
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    compiled = new Function('ctx', 'getCompByID', 'getCompByClass', 'spawnClone', 'deleteNode', 'helpers', wrapped) as CompiledScript
-    cache.set(source, compiled)
+    compiled = new Function(...SCRIPT_PARAMS, wrapped) as CompiledScript
+    cache.set(key, compiled)
   }
   return compiled
 }
 
-/** Runs `source` once against `ctx`, catching (and logging, not throwing)
- * any error a malformed/authoring-time-broken script raises — a bad Code
- * program is a recoverable authoring mistake, same "log and continue"
- * convention `App.tsx`'s own `frame()` loop already applies to a Rust panic
- * surfacing at a wasm call site, not a reason to kill the whole render loop. */
-// A script that throws usually throws every frame — logging each one would
-// flood the console (60 errors/s) until DevTools runs the page out of
-// memory. Each distinct message is logged once, then counted quietly.
-const reportedErrors = new Map<string, number>()
-function reportScriptError(err: unknown): void {
-  const key = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
-  const seen = reportedErrors.get(key) ?? 0
-  reportedErrors.set(key, seen + 1)
-  if (seen === 0) console.error('Programmable State (Code) threw — skipping this frame (further repeats of this error are counted, not logged):', err)
-  else if ((seen + 1) % 600 === 0) console.warn(`Script error repeated ${seen + 1} times: ${key}`)
-}
-
+/** Runs `source` once against `ctx`. A broken program never takes the game
+ * down — see `game/console.ts` for the isolation policy:
+ * - it **doesn't compile** → reported in the Console once (with its line),
+ *   and skipped until its code changes;
+ * - it **throws** → that program loses this frame (everything else keeps
+ *   running), and the error is reported with its scene / state / line,
+ *   repeats collapsed into a count. */
 export function runScript(source: string, ctx: ScriptContext): void {
+  const origin: ConsoleOrigin = { scene: ctx.scene, layer: ctx.layer, state: ctx.state }
+  const url = `${SCRIPT_URL_PREFIX}${encodeURIComponent(ctx.scene ?? '')}/${ctx.layer ? encodeURIComponent(ctx.layer) : '-'}/${encodeURIComponent(ctx.state ?? '')}`
+  const key = url + '\n' + source
+  if (gameConsole.isBroken(key)) return
+  let program: CompiledScript
+  try {
+    program = compile(source, url)
+  } catch (err) {
+    const message = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+    const line = err instanceof Error ? findSyntaxErrorLine(source, err.message, SCRIPT_PARAMS) : undefined
+    gameConsole.add('error', `${message} — this program won't run until it's fixed`, { ...origin, line, kind: 'Script' })
+    gameConsole.markBroken(key, message)
+    return
+  }
   if (frameNodes !== ctx.nodes) {
     frameNodes = ctx.nodes
     frameIndex = null
@@ -1234,16 +1251,21 @@ export function runScript(source: string, ctx: ScriptContext): void {
   }
   ctx.collisions = ctx.physics.events.map((e) => ({ a: refById(e.a), b: refById(e.b), started: e.started, trigger: e.trigger }))
 
+  const out = scriptConsole(() => origin)
   try {
-    compile(source)(
+    program(
       ctx,
       getCompByID,
       getCompByClass,
       (ref) => spawnClone(ref, ctx),
       (ref) => deleteNode(ref, ctx),
       HELPERS,
+      out,
+      out.log,
     )
   } catch (err) {
-    reportScriptError(err)
+    const where = locateScriptError(err)
+    const message = err instanceof Error ? `${err.name}: ${err.message}` : `Uncaught ${formatValue(err)}`
+    gameConsole.add('error', message, { ...origin, line: where.line, column: where.column, kind: 'Script' }, where.stack)
   }
 }

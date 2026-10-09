@@ -257,6 +257,8 @@ import { useDockLayout, groupMemberKeys, type PanelKey } from './hooks/useDockLa
 import { isBoolean, isNumber, usePersistedState } from './hooks/persisted'
 import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_HEIGHT, TIMELINE_HEIGHT, TOP_CLEARANCE } from './layoutConstants'
 import { collectSnapTargets, snapTranslation } from './snapping'
+import { gameConsole, installAsyncErrorCapture, type ConsoleOrigin } from './game/console'
+import { ConsoleBadge, ConsoleErrorPill, ConsolePanel, consoleClearOnPlay } from './components/ConsolePanel'
 import { gameNet } from './game/net'
 import { mouseToWorld, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from './game/scriptHost'
 import { BoneGizmos } from './components/BoneGizmos'
@@ -593,10 +595,12 @@ function App() {
   // `Resources` is the project folder browser (Unity's Project window) —
   // a bottom tab like Unity's, next to the animation tools.
   // `Shader` is the material node-graph editor (Godot's VisualShader).
-  const [bottomDockTab, setBottomDockTab] = usePersistedState<'Animate' | 'StateMachine' | 'Resources' | 'Shader'>(
+  // `Console` is the game console (logs + errors, `components/ConsolePanel`);
+  // unlike the others it stays up while playing.
+  const [bottomDockTab, setBottomDockTab] = usePersistedState<'Animate' | 'StateMachine' | 'Resources' | 'Shader' | 'Console'>(
     'bottomDockTab',
     'Animate',
-    (v): v is 'Animate' | 'StateMachine' | 'Resources' | 'Shader' => v === 'Animate' || v === 'StateMachine' || v === 'Resources' || v === 'Shader',
+    (v): v is 'Animate' | 'StateMachine' | 'Resources' | 'Shader' | 'Console' => v === 'Animate' || v === 'StateMachine' || v === 'Resources' || v === 'Shader' || v === 'Console',
   )
   /** The canvas's 2D / 3D view toggle (only shown when the scene has 3D nodes). */
   const [sceneView, setSceneView] = usePersistedState<'2D' | '3D'>('sceneView', '3D', (v): v is '2D' | '3D' => v === '2D' || v === '3D')
@@ -677,7 +681,16 @@ function App() {
   // gesture, which browsers require) actually locks. Leaving Playground
   // releases the lock.
   const pointerLockArmedRef = useRef(false)
+  // Errors from callbacks scripts hand to the DOM / timers land in the
+  // Console instead of only in DevTools.
+  useEffect(() => installAsyncErrorCapture(), [])
   useEffect(() => {
+    if (mode === 'Playground') {
+      // A new run: programs that didn't compile last time get another try
+      // (their code may be fixed), and the Console starts fresh if asked.
+      gameConsole.resetBroken()
+      if (consoleClearOnPlay()) gameConsole.clear()
+    }
     if (mode !== 'Playground') {
       pointerLockArmedRef.current = false
       if (document.pointerLockElement) document.exitPointerLock()
@@ -795,8 +808,8 @@ function App() {
   // Playground (a live run shows only the game plus the top bar),
   // otherwise whichever tab is open — see `bottomDockTab`'s own
   // doc comment for why this replaced 2 separate top-level `Mode`s.
-  const effectiveBottomTab: 'Animate' | 'StateMachine' | 'Resources' | 'Shader' | null =
-    mode === 'Playground' ? null : mode === 'Paint' ? null : bottomDockOpen ? bottomDockTab : null
+  const effectiveBottomTab: 'Animate' | 'StateMachine' | 'Resources' | 'Shader' | 'Console' | null =
+    mode === 'Playground' ? (bottomDockOpen && bottomDockTab === 'Console' ? 'Console' : null) : mode === 'Paint' ? null : bottomDockOpen ? bottomDockTab : null
   const bottomDockVisible = effectiveBottomTab !== null
   // Same mount-only-render-loop-closure reasoning as `modeRef` — the loop's
   // own per-frame state-machine-summary refresh below needs to know whether
@@ -905,7 +918,7 @@ function App() {
       // matter within this one running loop, recreated fresh if this effect
       // ever re-runs (it never does; empty deps, mount-only).
       let lastTime: number | null = null
-      let frameErrors = 0
+
       // Runs the scene's Code programs (every state-machine layer) — shared
       // with the exported standalone player, see `game/scriptHost.ts`.
       const scriptHost = new ScriptHost()
@@ -1086,9 +1099,9 @@ function App() {
           wheel = { x: 0, y: 0 }
           perf.endFrame(editorRef.current, deltaSeconds * 1000, now)
         } catch (err) {
-          // Logged sparingly: a per-frame error would otherwise flood the console.
-          frameErrors++
-          if (frameErrors <= 3 || frameErrors % 600 === 0) console.error(`frame threw (#${frameErrors}) — skipping it`, err)
+          // The frame is skipped, the loop carries on. Reported in the game
+          // Console (repeats collapse into a count there).
+          gameConsole.add('error', `${err instanceof Error ? `${err.name}: ${err.message}` : String(err)} — this frame was skipped`, { kind: 'Engine' }, err instanceof Error ? err.stack : undefined)
         } finally {
           rafHandle = requestAnimationFrame(frame)
         }
@@ -2356,6 +2369,17 @@ function App() {
       .finally(() => {
         demoLoadingRef.current = false
       })
+  }
+
+  /** The Console's "where" link: go to the state whose code it is. */
+  const handleOpenCodeAt = (origin: ConsoleOrigin) => {
+    if (origin.scene) {
+      const scene = allArtboards.find((a) => a.name === origin.scene)
+      if (scene) handleSelectScene(scene.id)
+    }
+    setMode('Design')
+    setBottomDockTab('StateMachine')
+    setBottomDockOpen(true)
   }
 
   const handleLoadBoomDemo = () => {
@@ -4533,6 +4557,15 @@ function App() {
           >
             Shader
           </button>
+          <button
+            onClick={() => setBottomDockTab('Console')}
+            className={`relative rounded px-2 py-1 text-[11px] font-medium uppercase tracking-wide ${
+              bottomDockTab === 'Console' ? 'bg-overlay/10 text-ink' : 'text-ink-dim hover:text-ink'
+            }`}
+          >
+            Console
+            <ConsoleBadge />
+          </button>
           <button onClick={() => setBottomDockOpen(false)} title="Close" className="ml-0.5 rounded p-1 text-ink-dim hover:bg-overlay/10 hover:text-ink">
             <CloseIcon />
           </button>
@@ -4573,6 +4606,30 @@ function App() {
               onRefresh={project.refreshFiles}
             />
           </FloatingPanel>
+        </div>
+      )}
+
+      {effectiveBottomTab === 'Console' && (
+        <div
+          className="pointer-events-auto absolute select-none"
+          style={{ left: metrics.leftDockOffset, right: metrics.edgeMargin, bottom: metrics.edgeMargin, height: mode === 'Playground' ? Math.min(bottomDockHeight, 220) : bottomDockHeight }}
+        >
+          <FloatingPanel className="relative flex h-full flex-col p-2">
+            <div {...bottomDockResizeHandleProps} className="group absolute -top-1.5 left-0 z-10 h-3 w-full touch-none" style={{ cursor: 'ns-resize' }}>
+              <div className="mx-auto mt-1.5 h-px w-full bg-transparent group-hover:bg-accent/70 group-active:bg-accent" />
+            </div>
+            <ConsolePanel onOpenCode={handleOpenCodeAt} onClose={mode === 'Playground' ? () => setBottomDockOpen(false) : undefined} />
+          </FloatingPanel>
+        </div>
+      )}
+      {mode === 'Playground' && effectiveBottomTab !== 'Console' && (
+        <div className="pointer-events-none absolute z-30" style={{ left: metrics.leftDockOffset, bottom: metrics.edgeMargin + 8 }}>
+          <ConsoleErrorPill
+            onOpen={() => {
+              setBottomDockTab('Console')
+              setBottomDockOpen(true)
+            }}
+          />
         </div>
       )}
 
