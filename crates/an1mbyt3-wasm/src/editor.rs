@@ -62,7 +62,8 @@ use crate::dto::{
 /// module doc asks of every caller (AN1MBYT3_BUILD_PLAN.md §6: transform-only
 /// movement never touches this — the key has no transform in it).
 struct TextMeshCache {
-    key: (String, f32),
+    /// Content, size and font — a change to any of them re-shapes.
+    key: (String, f32, FontId),
     glyphs: Vec<(GpuMesh, DrawBinding, Vec2)>,
     /// The run's real local bounds (glyph outlines, horizontally centred,
     /// baseline at 0) — what UI layouts measure text by, instead of
@@ -3087,10 +3088,11 @@ impl WasmEditor {
                     .expect("TextNode::font must reference a FontAsset registered on the same Document");
                 let font = Font::from_bytes(font_asset.data.clone(), 0)
                     .expect("TextNode font bytes must be a valid font file");
+                crate::text_bounds::register_font(text.font, &font_asset.data);
                 self.font_cache.insert(text.font, font);
             }
 
-            let key = (text.content.clone(), text.size_px);
+            let key = (text.content.clone(), text.size_px, text.font);
             let needs_reshape = self.text_mesh_cache.get(&node_id).map(|cached| cached.key != key).unwrap_or(true);
             if needs_reshape {
                 let font = self.font_cache.get(&text.font).unwrap();
@@ -3122,6 +3124,7 @@ impl WasmEditor {
                     .filter(|g| !g.mesh.indices.is_empty())
                     .map(|g| (self.renderer.upload_mesh(&g.mesh), self.renderer.create_draw_binding(), g.offset + recenter))
                     .collect();
+                crate::text_bounds::record(&text.content, text.size_px, text.font, bounds);
                 self.text_mesh_cache.insert(node_id, TextMeshCache { key, glyphs, bounds });
             }
         }
@@ -3979,7 +3982,12 @@ impl WasmEditor {
         let fit = (self.canvas_width as f32 / frame_w).min(self.canvas_height as f32 / frame_h);
         let pp = camera.pixel_perfect;
         if !pp.enabled {
-            return Some(CameraFrame { pan, zoom: fit, background: camera.background_color, render_scale: None, crop: None });
+            // A Fixed screen shows exactly the camera's frame: the axis with
+            // room to spare gets bars instead of revealing world outside the
+            // frame (what an exported game shows too). Responsive screens
+            // already fill the canvas with the frame.
+            let crop = (artboard.screen.mode != an1mbyt3_core::ScreenMode::Responsive).then(|| Vec2::new(frame_w, frame_h) * 0.5);
+            return Some(CameraFrame { pan, zoom: fit, background: camera.background_color, render_scale: None, crop });
         }
         use an1mbyt3_core::{PixelCropFrame, PixelGridSnapping};
         let zoom = if pp.crop_frame == PixelCropFrame::StretchFill { fit } else { fit.floor().max(1.0) };
@@ -6633,6 +6641,33 @@ impl WasmEditor {
 
     /// Changes a `Text` node's `size_px` — the Inspector's size field.
     /// Undoable (`Command::SetTextSize`).
+    /// Registers a font file's bytes (TTF / OTF — e.g. a Google Font the
+    /// editor downloaded) as a `FontAsset` named `name`, and returns its
+    /// `FontId`. A font with the same name already on the document is
+    /// reused rather than duplicated. Errors if the bytes aren't a font the
+    /// shaper can read (WOFF2 isn't — the editor fetches TTF).
+    pub fn add_font(&mut self, name: String, bytes: Vec<u8>) -> Result<JsValue, JsValue> {
+        if let Some((id, _)) = self.document.fonts().find(|(_, f)| f.name == name) {
+            return Ok(serde_wasm_bindgen::to_value(&id)?);
+        }
+        Font::from_bytes(bytes.clone(), 0).map_err(|e| JsValue::from_str(&format!("add_font: {name} isn't a readable TTF/OTF font ({e:?})")))?;
+        let id = self.document.add_font(FontAsset { name, data: bytes });
+        Ok(serde_wasm_bindgen::to_value(&id)?)
+    }
+
+    /// Switches a `Text` node to another of the document's fonts (one
+    /// undoable step).
+    pub fn set_text_font(&mut self, artboard: JsValue, node: JsValue, font: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let font_id: FontId = parse_id(font)?;
+        if self.document.font(font_id).is_none() {
+            return Err(JsValue::from_str("set_text_font: unknown font"));
+        }
+        self.document.apply(Command::SetTextFont { artboard: artboard_id, node: node_id, value: font_id });
+        self.document_summary()
+    }
+
     pub fn set_text_size(&mut self, artboard: JsValue, node: JsValue, value: f32) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
@@ -10023,6 +10058,7 @@ impl WasmEditor {
         self.tilemap_mesh_cache.clear();
         self.tilemap_mesh_source.clear();
         self.font_cache.clear();
+        crate::text_bounds::clear();
         self.text_mesh_cache.clear();
         self.image_bindings.clear();
         self.image_cache.clear();
@@ -10192,6 +10228,7 @@ impl WasmEditor {
         self.tilemap_mesh_cache.clear();
         self.tilemap_mesh_source.clear();
         self.font_cache.clear();
+        crate::text_bounds::clear();
         self.text_mesh_cache.clear();
         self.image_bindings.clear();
         self.image_cache.clear();
@@ -10279,6 +10316,7 @@ impl WasmEditor {
         self.tilemap_mesh_cache.clear();
         self.tilemap_mesh_source.clear();
         self.font_cache.clear();
+        crate::text_bounds::clear();
         self.text_mesh_cache.clear();
         self.image_bindings.clear();
         self.image_cache.clear();

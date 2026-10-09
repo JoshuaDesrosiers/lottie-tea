@@ -629,6 +629,10 @@ pub enum Command {
     SetMaterialDeleted { material: crate::MaterialId, value: bool },
     /// Replaces a material wholesale (a shader-graph edit, a rename).
     SetMaterial { material: crate::MaterialId, value: Box<crate::Material> },
+    /// Changes a `Text` node's font (the Inspector's font picker — a
+    /// Google Font or any other `FontAsset` on the document). Panics via
+    /// `node_mut` if `node` isn't a `NodeKind::Text`.
+    SetTextFont { artboard: ArtboardId, node: NodeId, value: crate::FontId },
 }
 
 /// Shared lookup for every `ComponentDefinition`-targeting command below —
@@ -1494,6 +1498,14 @@ impl Command {
                 let target = document.material_mut(material).expect("Command: material not found");
                 let previous = std::mem::replace(target, *value);
                 Command::SetMaterial { material, value: Box::new(previous) }
+            }
+            Command::SetTextFont { artboard, node, value } => {
+                let target = document.node_mut(artboard, node);
+                let NodeKind::Text(text) = &mut target.kind else {
+                    panic!("Command::SetTextFont: node is not a Text");
+                };
+                let previous = std::mem::replace(&mut text.font, value);
+                Command::SetTextFont { artboard, node, value: previous }
             }
             Command::SetArtboardName { artboard, value } => {
                 let previous = std::mem::replace(

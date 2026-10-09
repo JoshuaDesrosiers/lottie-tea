@@ -15,6 +15,7 @@
  * defined for the old Tauri bridge, since `editor.rs`'s DTOs are
  * byte-for-byte the same shape on purpose.
  */
+import { fetchFontFile } from '../game/googleFonts'
 import init, { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm.js'
 import type { ScreenSettings,
   AddAnimationResult,
@@ -643,6 +644,26 @@ export function previewNodeImage(editor: WasmEditor, artboard: OpaqueId, node: O
  * comment). A no-op if `node` isn't a `Shape` node. */
 export function previewNodePath(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, value: Path): void {
   editor.preview_node_path(artboard, node, value)
+}
+
+/** Adds a font file (TTF / OTF bytes) to the document as `name`, reusing a
+ * font of the same name. Throws if the bytes aren't a readable font. */
+export function addFont(editor: WasmEditor, name: string, bytes: Uint8Array): OpaqueId {
+  return editor.add_font(name, bytes) as OpaqueId
+}
+
+/** Switches a `Text` node's font. Undoable (`Command::SetTextFont`). */
+export function setTextFont(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, font: OpaqueId): DocumentSummary {
+  return editor.set_text_font(artboard, node, font) as DocumentSummary
+}
+
+/** Downloads Google Font `family` (unless the document has it already),
+ * adds it, and returns its id. */
+export async function addGoogleFont(editor: WasmEditor, family: string): Promise<OpaqueId> {
+  const existing = (editor.document_summary() as DocumentSummary).fonts.find((f) => f.name === family)
+  if (existing) return existing.id
+  const bytes = await fetchFontFile(family)
+  return addFont(editor, family, bytes)
 }
 
 /** Changes a `Text` node's size (pixels) — the Inspector's size field.

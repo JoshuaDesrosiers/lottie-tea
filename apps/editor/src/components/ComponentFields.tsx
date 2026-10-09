@@ -61,6 +61,8 @@ import { ImageAssetPicker } from './ImageAssetPicker'
 import { fileRef, fileRefPath, resolveFileRef } from '../game/projectFiles'
 import { addTextFile } from '../ipc/wasmEditor'
 import { Slider } from './Slider'
+import { FontPicker, IconPicker } from './FontPicker'
+import type { IconStyle } from '../game/googleFonts'
 
 /**
  * Unity-style component editors that aren't big enough for their own file
@@ -1151,9 +1153,63 @@ export function UiHtmlFields({
       </Row>
       <HtmlSourceField label="HTML" ext="html" value={config.html} files={files} placeholder="<div class='card'>Hello</div>" onChange={(html) => update({ html })} onOpenFile={onOpenFile} />
       <HtmlSourceField label="CSS" ext="css" value={config.css} files={files} placeholder=".card { color: white; }" onChange={(css) => update({ css })} onOpenFile={onOpenFile} />
+      <HtmlFontsAndIcons
+        usingFiles={usingFiles}
+        onAddCss={(rule) => update({ css: `${config.css.trimEnd()}\n${rule}\n` })}
+        onAddHtml={(snippet) => update({ html: `${config.html.trimEnd()}\n${snippet}\n` })}
+      />
       <p className="text-[10px] leading-snug text-ink-dim">
         {usingFiles ? 'Edits in the Code tab show up live.' : 'Applies when the box loses focus (or Ctrl+Enter).'} <code className="text-ink">data-trigger="name"</code> on an element fires that trigger when clicked; <code className="text-ink">&lt;input data-input="name"&gt;</code> sets that input. Scripts get the DOM as <code className="text-ink">ref.dom</code>. Always drawn on top of the canvas.
       </p>
+    </div>
+  )
+}
+
+/**
+ * HTML UI's "Fonts & Icons" helper. Any Google Font named in the CSS loads
+ * by itself (`loadFontsUsedIn`), and Material Symbols work as
+ * `<span class="material-symbols-rounded">home</span>` — this just writes
+ * those for you: inline sources get the rule / element appended, file
+ * sources get it copied to paste in the Code tab.
+ */
+function HtmlFontsAndIcons({ usingFiles, onAddCss, onAddHtml }: { usingFiles: boolean; onAddCss: (rule: string) => void; onAddHtml: (snippet: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const [iconStyle, setIconStyle] = useState<IconStyle>('Rounded')
+  const give = (text: string, add: (t: string) => void, what: string) => {
+    if (!usingFiles) {
+      add(text)
+      setNote(`Added ${what}.`)
+      return
+    }
+    navigator.clipboard?.writeText(text).then(
+      () => setNote(`Copied ${what} — paste it into your file.`),
+      () => setNote(text),
+    )
+  }
+  return (
+    <div className="flex flex-col gap-1 rounded-md bg-overlay/5 p-1.5">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center justify-between text-[11px] text-ink-dim hover:text-ink">
+        <span>Fonts &amp; Icons (Google)</span>
+        <span>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <>
+          <FontPicker
+            label="Use a font for the whole element"
+            value={null}
+            onPick={(family) => give(`:host { font-family: "${family}", sans-serif; }`, onAddCss, `the ${family} rule`)}
+          />
+          <span className="text-[11px] text-ink-dim">Add an icon</span>
+          <IconPicker
+            value={null}
+            style={iconStyle}
+            onStyle={setIconStyle}
+            onPick={(name) => give(`<span class="material-symbols-${iconStyle.toLowerCase()}">${name}</span>`, onAddHtml, `the ${name} icon`)}
+          />
+          {note && <span className="text-[10px] text-ink-dim">{note}</span>}
+        </>
+      )}
     </div>
   )
 }

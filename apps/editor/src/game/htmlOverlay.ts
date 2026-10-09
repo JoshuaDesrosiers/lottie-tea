@@ -25,6 +25,7 @@
  */
 import { formatProp } from './props'
 import { resolveFileRef } from './projectFiles'
+import { ICON_CLASS_CSS, loadFontsUsedIn } from './googleFonts'
 import type { OpaqueId, UiHtmlConfig } from '../ipc/document'
 
 export type { UiHtmlConfig }
@@ -156,7 +157,11 @@ class HtmlOverlay {
       const contentChanged = content !== live.content
       if (contentChanged) {
         live.content = content
-        live.root.innerHTML = `<style>:host{all:initial;display:block;width:${config.width}px;height:${config.height}px;}\n${css}</style>${html}`
+        // Google Fonts named in a font-family, and Material Symbols if its
+        // classes are used, are linked into the page (fonts are page-wide);
+        // the icon classes themselves have to live in the shadow root.
+        loadFontsUsedIn(html, css)
+        live.root.innerHTML = `<style>:host{all:initial;display:block;width:${config.width}px;height:${config.height}px;}\n${ICON_CLASS_CSS}\n${css}</style>${html}`
       }
       // Property bindings: refreshed when a property changed (or the HTML
       // was re-rendered).

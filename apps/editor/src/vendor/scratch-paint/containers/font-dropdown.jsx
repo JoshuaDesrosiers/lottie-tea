@@ -6,6 +6,7 @@ import React from 'react';
 
 import FontDropdownComponent from '../components/font-dropdown/font-dropdown.jsx';
 import Fonts from '../lib/fonts';
+import {ensureFontReady} from '../../../game/googleFonts';
 import {changeFont} from '../reducers/font';
 import {getSelectedLeafItems} from '../helper/selection';
 import styles from '../components/font-dropdown/font-dropdown.module.css';
@@ -25,6 +26,8 @@ class FontDropdown extends React.Component {
             'handleChangeFontChinese',
             'handleChangeFontJapanese',
             'handleChangeFontKorean',
+            'handleChangeFontGoogle',
+            'handlePickFontGoogle',
             'handleOpenDropdown',
             'handleClickOutsideDropdown',
             'setDropdown',
@@ -64,7 +67,8 @@ class FontDropdown extends React.Component {
         case Fonts.JAPANESE:
             return '日本語';
         default:
-            return font;
+            // A Google family is stored quoted for paper.js.
+            return typeof font === 'string' ? font.replace(/^"|"$/g, '') : font;
         }
     }
     handleChangeFontSansSerif () {
@@ -112,6 +116,27 @@ class FontDropdown extends React.Component {
             this.props.changeFont(Fonts.KOREAN);
         }
     }
+    /** an1mbyt3: a Google Font (quoted family). The stylesheet is loaded
+     * first so paper.js measures and draws the real face, not a fallback. */
+    handleChangeFontGoogle (font) {
+        if (!this.dropDown.isOpen()) return;
+        this.hoveredGoogle = font;
+        ensureFontReady(font.replace(/^"|"$/g, '')).then(() => {
+            if (this.hoveredGoogle === font && this.dropDown && this.dropDown.isOpen()) {
+                this.props.changeFont(font);
+            }
+        });
+    }
+    /** an1mbyt3: clicking a Google Font keeps it even if its hover preview
+     * hadn't finished loading — close, wait for the face, then apply. */
+    handlePickFontGoogle (font) {
+        this.hoveredGoogle = null;
+        if (this.dropDown.isOpen()) this.dropDown.handleClosePopover();
+        ensureFontReady(font.replace(/^"|"$/g, '')).then(() => {
+            this.props.changeFont(font);
+            this.props.onUpdateImage();
+        });
+    }
     handleChoose () {
         if (this.dropDown.isOpen()) {
             this.dropDown.handleClosePopover();
@@ -151,6 +176,8 @@ class FontDropdown extends React.Component {
                 onClickOutsideDropdown={this.handleClickOutsideDropdown}
                 onHoverChinese={this.handleChangeFontChinese}
                 onHoverCurly={this.handleChangeFontCurly}
+                onHoverFont={this.handleChangeFontGoogle}
+                onPickFont={this.handlePickFontGoogle}
                 onHoverHandwriting={this.handleChangeFontHandwriting}
                 onHoverJapanese={this.handleChangeFontJapanese}
                 onHoverKorean={this.handleChangeFontKorean}

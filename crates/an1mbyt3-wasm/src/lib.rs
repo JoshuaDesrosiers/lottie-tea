@@ -96,6 +96,7 @@ mod demo_stress;
 mod prefab_ops;
 mod profiler;
 mod script_scene;
+mod text_bounds;
 mod demo_ninja;
 mod lighting2d;
 mod dto;
@@ -247,7 +248,8 @@ fn build_scene() -> (Document, ArtboardId, StateMachine) {
 /// editor-internal type or building an abstraction neither caller actually
 /// needs yet).
 struct TextMeshCache {
-    key: (String, f32),
+    /// Content, size and font — a change to any of them re-shapes.
+    key: (String, f32, FontId),
     glyphs: Vec<(GpuMesh, DrawBinding, Vec2)>,
 }
 
@@ -515,6 +517,7 @@ impl WasmPlayer {
         self.driver = driver;
         self.mesh_cache.clear();
         self.font_cache.clear();
+        crate::text_bounds::clear();
         self.text_mesh_cache.clear();
         self.image_bindings.clear();
         self.image_cache.clear();
@@ -683,10 +686,11 @@ impl WasmPlayer {
                     .font(text.font)
                     .expect("TextNode::font must reference a FontAsset registered on the same Document");
                 let font = Font::from_bytes(font_asset.data.clone(), 0).expect("TextNode font bytes must be a valid font file");
+                crate::text_bounds::register_font(text.font, &font_asset.data);
                 self.font_cache.insert(text.font, font);
             }
 
-            let key = (text.content.clone(), text.size_px);
+            let key = (text.content.clone(), text.size_px, text.font);
             let needs_reshape = self.text_mesh_cache.get(&node_id).map(|cached| cached.key != key).unwrap_or(true);
             if needs_reshape {
                 let font = self.font_cache.get(&text.font).unwrap();

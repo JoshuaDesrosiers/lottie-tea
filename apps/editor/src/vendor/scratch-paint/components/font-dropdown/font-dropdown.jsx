@@ -7,6 +7,59 @@ import Dropdown from '../dropdown/dropdown.jsx';
 import InputGroup from '../input-group/input-group.jsx';
 import Fonts from '../../lib/fonts';
 import styles from './font-dropdown.module.css';
+// an1mbyt3: Google Fonts in the text tool (not in upstream scratch-paint).
+import {fontCatalog, loadFontPreview, POPULAR_FONTS} from '../../../../game/googleFonts';
+
+/** How many Google families the dropdown lists at once (search for more). */
+const GOOGLE_ROWS = 40;
+
+/**
+ * an1mbyt3 addition: a searchable list of Google Fonts under the built-in
+ * ones. Hover previews the font on the selected text, click keeps it —
+ * same as the built-in rows. A family is passed quoted (`"Press Start 2P"`)
+ * because paper.js puts it straight into a CSS `font` shorthand.
+ */
+const GoogleFontsSection = ({onHoverFont, onPickFont}) => {
+    const [query, setQuery] = React.useState('');
+    const [fonts, setFonts] = React.useState(POPULAR_FONTS);
+    React.useEffect(() => {
+        fontCatalog().then(setFonts);
+    }, []);
+    const q = query.trim().toLowerCase();
+    const shown = fonts.filter(f => !q || f.family.toLowerCase().includes(q)).slice(0, GOOGLE_ROWS);
+    return (
+        <div className={styles.googleSection}>
+            <div className={styles.googleHeading}>Google Fonts</div>
+            <input
+                className={styles.googleSearch}
+                placeholder="Search fonts…"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.stopPropagation()}
+            />
+            <div className={styles.googleList}>
+                {shown.map(f => {
+                    loadFontPreview(f.family);
+                    return (
+                        <Button
+                            className={classNames(styles.modMenuItem)}
+                            key={f.family}
+                            onClick={() => onPickFont(`"${f.family}"`)}
+                            onMouseOver={() => onHoverFont(`"${f.family}"`)}
+                        >
+                            <span style={{fontFamily: `"${f.family}"`}}>{f.family}</span>
+                        </Button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+GoogleFontsSection.propTypes = {
+    onPickFont: PropTypes.func.isRequired,
+    onHoverFont: PropTypes.func.isRequired
+};
 
 const ModeToolsComponent = props => (
     <Dropdown
@@ -95,6 +148,10 @@ const ModeToolsComponent = props => (
                         {props.getFontName(Fonts.KOREAN)}
                     </span>
                 </Button>
+                <GoogleFontsSection
+                    onPickFont={props.onPickFont}
+                    onHoverFont={props.onHoverFont}
+                />
             </InputGroup>
         }
         ref={props.componentRef}
@@ -102,7 +159,10 @@ const ModeToolsComponent = props => (
         onOpen={props.onOpenDropdown}
         onOuterAction={props.onClickOutsideDropdown}
     >
-        <span className={classNames(props.getFontStyle(props.font), styles.displayedFontName)}>
+        <span
+            className={classNames(props.getFontStyle(props.font), styles.displayedFontName)}
+            style={props.getFontStyle(props.font) ? null : {fontFamily: props.font}}
+        >
             {props.getFontName(props.font)}
         </span>
     </Dropdown>
@@ -116,6 +176,8 @@ ModeToolsComponent.propTypes = {
     onChoose: PropTypes.func.isRequired,
     onClickOutsideDropdown: PropTypes.func,
     onHoverChinese: PropTypes.func,
+    onHoverFont: PropTypes.func,
+    onPickFont: PropTypes.func,
     onHoverCurly: PropTypes.func,
     onHoverHandwriting: PropTypes.func,
     onHoverJapanese: PropTypes.func,

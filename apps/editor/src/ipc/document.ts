@@ -442,6 +442,8 @@ export interface NodeSummary {
   /** `Text` nodes only — the Inspector's size field. `null` for every
    * other kind. */
   textSizePx: number | null
+  /** `Text` nodes only — its font (one of `DocumentSummary.fonts`). */
+  textFont: OpaqueId | null
   /** `Instance` nodes only — which `ComponentDefinition` this is an
    * instance of. `null` for every other kind. */
   component: OpaqueId | null
@@ -967,6 +969,15 @@ export interface DocumentSummary {
   textFiles: TextFileSummary[]
   /** Every scene's properties. */
   properties: PropertySummary[]
+  /** Every font on the document (Text nodes' font picker). */
+  fonts: FontSummary[]
+}
+
+/** One font asset (`an1mbyt3_core::FontAsset`; its bytes stay in wasm). */
+export interface FontSummary {
+  id: OpaqueId
+  /** The family name ("Russo One", "Material Symbols Rounded"). */
+  name: string
 }
 
 // ---- 3D (mirrors `an1mbyt3_core::space3d`) ----

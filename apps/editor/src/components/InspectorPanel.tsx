@@ -6,6 +6,7 @@ import type { ScreenSettings,
   AudioSummary,
   TextFileSummary,
   DocumentSummary,
+  FontSummary,
   PropertySummary,
   Node3D,
   MaterialSummary,
@@ -81,7 +82,10 @@ import {
   ScreenFields,
 } from './ComponentFields'
 import { PropertyBindingsFields, ScenePropertiesFields, UiEventsFields } from './EventFields'
-import { defaultComponent } from '../ipc/wasmEditor'
+import { FontPicker, IconPicker } from './FontPicker'
+import { iconFamily, isIconFamily, type IconStyle } from '../game/googleFonts'
+import { addGoogleFont, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
+import { gameConsole } from '../game/console'
 import { ImageAssetPicker } from './ImageAssetPicker'
 import { ChevronDownIcon, CloseIcon, EditIcon, PlayIcon, TrashIcon } from './icons'
 
@@ -766,7 +770,12 @@ function BehaviorsFields({
       }
       case 'UiButton': {
         const { kind: _k, ...config } = behavior
-        return <UiButtonFields config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'UiButton', ...c })} />
+        return (
+          <>
+            <UiButtonFields config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'UiButton', ...c })} />
+            <ButtonIconField editor={editor} artboard={artboard} node={node} onDocumentChange={onDocumentChange} />
+          </>
+        )
       }
       case 'UiToggle': {
         const { kind: _k, ...config } = behavior
@@ -1687,28 +1696,119 @@ function GradientStopList({ gradient, onChange }: { gradient: GradientDef; onCha
  * offered here yet (there's no font-asset list/picker in the editor at
  * all currently; every `Text` node keeps whichever font it was created
  * with, deferred until that's built). */
+/**
+ * UI Button → Icon: a Material Symbols icon on the button. The icon is a
+ * child Text node named `icon` drawn with the icon font (so it can be
+ * moved, tinted and animated like any node); picking again just changes
+ * which icon it shows, "Remove" deletes it.
+ */
+function ButtonIconField({
+  editor,
+  artboard,
+  node,
+  onDocumentChange,
+}: {
+  editor: WasmEditor | null
+  artboard: ArtboardSummary | null
+  node: NodeSummary
+  onDocumentChange: (doc: DocumentSummary) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
+  const same = (a: OpaqueId | null, b: OpaqueId) => !!a && a.idx === b.idx && a.version === b.version
+  const iconNode = artboard?.nodes.find((n) => n.kind === 'Text' && n.name === 'icon' && same(n.parent, node.id)) ?? null
+  const pick = async (name: string) => {
+    if (!editor || !artboard) return
+    if (iconNode) {
+      onDocumentChange(setTextContent(editor, artboard.id, iconNode.id, name))
+      return
+    }
+    setBusy(true)
+    try {
+      const font = await addGoogleFont(editor, iconFamily('Rounded'))
+      const added = addTextNode(editor, artboard.id, node.id)
+      renameNode(editor, artboard.id, added.newNode, 'icon')
+      setTextContent(editor, artboard.id, added.newNode, name)
+      setTextSize(editor, artboard.id, added.newNode, 40)
+      // The engine draws text from its baseline; drop it by about half
+      // its height so the icon sits on the button's centre.
+      setNodeTranslation(editor, artboard.id, added.newNode, 0, -18)
+      onDocumentChange(setTextFont(editor, artboard.id, added.newNode, font))
+    } catch (err) {
+      gameConsole.add('error', `Couldn't add the icon: ${err instanceof Error ? err.message : String(err)}`, { kind: 'Engine' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="flex flex-col gap-1 border-t border-panel-border/60 pt-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] text-ink-dim">{busy ? 'Adding icon…' : iconNode ? `Icon: ${iconNode.textContent}` : 'Icon'}</span>
+        <div className="flex gap-1">
+          {iconNode && editor && artboard && (
+            <button type="button" className="rounded px-1.5 py-0.5 text-[10px] text-ink-dim hover:bg-overlay/10 hover:text-ink" onClick={() => onDocumentChange(deleteNode(editor, artboard.id, iconNode.id))}>
+              Remove
+            </button>
+          )}
+          <button type="button" className="rounded px-1.5 py-0.5 text-[10px] text-ink-dim hover:bg-overlay/10 hover:text-ink" onClick={() => setOpen((o) => !o)}>
+            {open ? 'Done' : iconNode ? 'Change' : 'Add icon'}
+          </button>
+        </div>
+      </div>
+      {open && <IconPicker value={iconNode?.textContent ?? null} style="Rounded" onPick={pick} />}
+    </div>
+  )
+}
+
 function TextFields({
   node,
+  fonts,
   onSetContent,
   onSetSize,
+  onSetFontFamily,
 }: {
   node: NodeSummary
+  fonts: FontSummary[]
   onSetContent: (value: string) => void
   onSetSize: (value: number) => void
+  /** Switches to a Google Font (downloaded into the document if needed). */
+  onSetFontFamily: (family: string) => Promise<void>
 }) {
   const [text, setText] = useState(node.textContent ?? '')
+  const [busy, setBusy] = useState(false)
   useEffect(() => setText(node.textContent ?? ''), [node.textContent])
+  const family = fonts.find((f) => node.textFont && f.id.idx === node.textFont.idx && f.id.version === node.textFont.version)?.name ?? null
+  const icon = isIconFamily(family)
+  const pickFamily = (next: string) => {
+    setBusy(true)
+    onSetFontFamily(next).finally(() => setBusy(false))
+  }
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[11px] text-ink-dim">Text</span>
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => onSetContent(text)}
-        rows={2}
-        className="w-full resize-none rounded-md bg-overlay/5 px-2 py-1.5 text-xs text-ink outline-none"
-      />
+      {icon ? (
+        <>
+          <span className="text-[11px] text-ink-dim">Icon</span>
+          <IconPicker
+            value={node.textContent}
+            style={(family!.replace('Material Symbols ', '') as IconStyle) ?? 'Rounded'}
+            onPick={(name) => onSetContent(name)}
+            onStyle={(style) => pickFamily(iconFamily(style))}
+          />
+        </>
+      ) : (
+        <>
+          <span className="text-[11px] text-ink-dim">Text</span>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onBlur={() => onSetContent(text)}
+            rows={2}
+            className="w-full resize-none rounded-md bg-overlay/5 px-2 py-1.5 text-xs text-ink outline-none"
+          />
+          <FontPicker value={family} busy={busy} onPick={pickFamily} extra={fonts.map((f) => f.name).filter((n) => !isIconFamily(n))} />
+        </>
+      )}
       <NumberField label="Size" value={node.textSizePx ?? 16} onCommit={onSetSize} />
     </div>
   )
@@ -1863,6 +1963,8 @@ export function InspectorPanel({
   onSetGradient,
   onSetTextContent,
   onSetTextSize,
+  onSetTextFontFamily,
+  fonts,
   onSetInstanceVariant,
   onSetInstanceFillColorOverride,
   onSetImageProcessing,
@@ -1998,6 +2100,10 @@ export function InspectorPanel({
   onSetTextContent: (value: string) => void
   /** Only meaningful when `node.kind === 'Text'`. */
   onSetTextSize: (value: number) => void
+  /** Only meaningful when `node.kind === 'Text'` — a Google Font family. */
+  onSetTextFontFamily: (family: string) => Promise<void>
+  /** Every font on the document. */
+  fonts: FontSummary[]
   /** Only meaningful when `node.kind === 'Instance'` — `null` selects "no
    * variant" (falls back to the definition's default color). */
   onSetInstanceVariant: (value: string | null) => void
@@ -2296,7 +2402,7 @@ export function InspectorPanel({
       {/* Unity: the sprite's Material — Lit (2D lights affect it) or Unlit. */}
       {node.kind !== 'Bone' && node.kind !== 'Node3D' && node.light2d === null && node.camera === null && <MaterialField unlit={node.unlit} onSetUnlit={onSetNodeUnlit} />}
 
-      {node.kind === 'Text' && <TextFields node={node} onSetContent={onSetTextContent} onSetSize={onSetTextSize} />}
+      {node.kind === 'Text' && <TextFields node={node} fonts={fonts} onSetContent={onSetTextContent} onSetSize={onSetTextSize} onSetFontFamily={onSetTextFontFamily} />}
 
       {node.kind === 'Bone' && node.parent !== null && <IkTargetFields root={node.parent} onSolveIk={onSolveIk} />}
 

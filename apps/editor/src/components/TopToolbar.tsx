@@ -118,7 +118,7 @@ function ShapesMenu({
   onAddParticleSystem: () => void
   /** "Text" — a Text node using the document's font (a bundled UI font is
    * added the first time). */
-  onAddText: () => void
+  onAddText: (icon?: boolean) => void
   onImportSvg: () => void
   onImportImage: () => void
   /** Import → 3D Model: a glTF / GLB file as a new 3D node. */
@@ -183,7 +183,8 @@ function ShapesMenu({
       children: [
         ...SHAPE_PRESETS.map(({ kind, label, icon: Icon }): AddMenuEntry => ({ kind: 'item', label, icon: <Icon />, onSelect: () => onAddShape(kind) })),
         { kind: 'separator' },
-        { kind: 'item', label: 'Text', icon: <TextKindIcon />, onSelect: onAddText },
+        { kind: 'item', label: 'Text', icon: <TextKindIcon />, onSelect: () => onAddText() },
+        { kind: 'item', label: 'Icon (Material Symbols)', icon: <SparkleIcon />, onSelect: () => onAddText(true) },
         { kind: 'item', label: 'Sprite (Image)…', icon: <ImageIcon />, onSelect: onImportImage },
         { kind: 'item', label: 'Tilemap…', icon: <TileGridIcon />, onSelect: onAddTilemap },
         { kind: 'item', label: 'Bone', icon: <BoneIcon />, onSelect: onAddBone },
@@ -211,7 +212,10 @@ function ShapesMenu({
       kind: 'submenu',
       label: 'UI',
       icon: <SparkleIcon />,
-      children: UI_MENU_ITEMS.map((item): AddMenuEntry => ({ kind: 'item', label: UI_MENU_LABEL[item] ?? item, icon: <SparkleIcon />, onSelect: () => onAddUi(item) })),
+      children: [
+        ...UI_MENU_ITEMS.map((item): AddMenuEntry => ({ kind: 'item', label: UI_MENU_LABEL[item] ?? item, icon: <SparkleIcon />, onSelect: () => onAddUi(item) })),
+        { kind: 'item', label: 'Icon', icon: <SparkleIcon />, onSelect: () => onAddText(true) },
+      ],
     },
     {
       kind: 'submenu',
@@ -550,7 +554,7 @@ export function TopToolbar({
   onAddLight2D: (lightType: Light2DType) => void
   /** "Trail Renderer" — attaches to the selected node (so it follows it). */
   onAddTrail: () => void
-  onAddText: () => void
+  onAddText: (icon?: boolean) => void
   onLoadFpsDemo: () => void
   onLoadStressDemo: () => void
   onLoadRigDemo: () => void

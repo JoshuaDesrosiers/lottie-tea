@@ -82,3 +82,34 @@
 .korean {
     font-family: "Malgun Gothic";
 }
+
+/* an1mbyt3: the Google Fonts section */
+.google-section {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid $ui-pane-border;
+    margin-top: $grid-unit;
+    padding-top: $grid-unit;
+}
+
+.google-heading {
+    font-size: .65rem;
+    opacity: .7;
+    padding: 0 $grid-unit;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.google-search {
+    margin: $grid-unit 0;
+    padding: .25rem .5rem;
+    border-radius: .25rem;
+    border: 1px solid $ui-pane-border;
+    font-size: .75rem;
+    width: 8rem;
+}
+
+.google-list {
+    max-height: 14rem;
+    overflow-y: auto;
+}

@@ -102,6 +102,12 @@ pub(crate) fn local_bounds(artboard: &Artboard, node_id: NodeId) -> (Vec2, Vec2)
         NodeKind::Shape(shape) => shape.path.bounds(),
         NodeKind::Bone(bone) => (Vec2::new(0.0, -BONE_VISUAL_WIDTH / 2.0), Vec2::new(bone.length, BONE_VISUAL_WIDTH / 2.0)),
         NodeKind::Text(text) => {
+            // The real glyph bounds once the font has been parsed
+            // (`text_bounds`); the estimate below only covers the first
+            // frame of a font nothing has drawn yet.
+            if let Some(bounds) = crate::text_bounds::measure(text) {
+                return bounds;
+            }
             // No authored path to measure (glyph meshes are a derived,
             // unsaved artifact — see `TextNode`'s doc comment) — a rough
             // monospace-ish estimate from character count and font size,
@@ -1039,6 +1045,9 @@ pub struct NodeSummary {
     /// `Some(size)` only for `NodeKind::Text` nodes (the Inspector's size
     /// field, `WasmEditor::set_text_size`); `None` for every other kind.
     pub text_size_px: Option<f32>,
+    /// `Some(font)` only for `NodeKind::Text` nodes (the Inspector's font
+    /// picker, `WasmEditor::set_text_font`).
+    pub text_font: Option<an1mbyt3_core::FontId>,
     /// `Some(id)` only for `NodeKind::Instance` nodes — which
     /// `ComponentDefinition` this instance is of; `None` for every other kind.
     pub component: Option<ComponentId>,
@@ -2377,6 +2386,16 @@ pub struct DocumentSummary {
     pub text_files: Vec<TextFileSummary>,
     /// Every scene's properties (Rive view models).
     pub properties: Vec<PropertySummary>,
+    /// Every font on the document (Text nodes' font picker).
+    pub fonts: Vec<FontSummary>,
+}
+
+/// One font asset (its bytes stay in wasm).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FontSummary {
+    pub id: an1mbyt3_core::FontId,
+    pub name: String,
 }
 
 /// One scene property.
@@ -2517,6 +2536,12 @@ fn summarize_image(id: an1mbyt3_core::ImageId, asset: &an1mbyt3_core::ImageAsset
 }
 
 pub fn summarize_document(document: &Document, active_animation: Option<AnimationId>, active_state_machine: Option<StateMachineId>) -> DocumentSummary {
+    // Text nodes' bounds below are measured from their real glyphs, which
+    // needs their fonts parsed — including a font added this very edit,
+    // before anything has drawn with it (a no-op for known fonts).
+    for (id, font) in document.fonts() {
+        crate::text_bounds::register_font(id, &font.data);
+    }
     DocumentSummary {
         components: document.components().map(|(id, def)| summarize_component(id, def)).collect(),
         images: document.images().map(|(id, asset)| summarize_image(id, asset)).collect(),
@@ -2540,6 +2565,7 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
         models: document.models().map(|(id, m)| ModelSummary { id, name: m.name.clone() }).collect(),
         text_files: document.text_files().map(|(id, f)| TextFileSummary { id, path: f.path.clone(), text: f.text.clone(), extension: f.extension() }).collect(),
         properties: document.properties().map(|(id, p)| PropertySummary { id, artboard: p.artboard, name: p.name.clone(), kind: p.kind, default: p.default.clone() }).collect(),
+        fonts: document.fonts().map(|(id, f)| FontSummary { id, name: f.name.clone() }).collect(),
         audio: document.audio_assets().map(|(id, a)| AudioSummary { id, name: a.name.clone(), byte_length: a.source.len() as u32, file: a.file.clone() }).collect(),
         materials: document
             .materials()
@@ -2665,6 +2691,10 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
                             },
                             text_size_px: match &node.kind {
                                 NodeKind::Text(text) => Some(text.size_px),
+                                _ => None,
+                            },
+                            text_font: match &node.kind {
+                                NodeKind::Text(text) => Some(text.font),
                                 _ => None,
                             },
                             component: match &node.kind {

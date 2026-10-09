@@ -115,6 +115,8 @@ import {
   deleteNode,
   deleteNodes,
   addTextNode,
+  addGoogleFont,
+  setTextFont,
   setTile,
   addTilemapNode,
   resizeTilemap,
@@ -258,9 +260,10 @@ import { isBoolean, isNumber, usePersistedState } from './hooks/persisted'
 import { LEFT_DOCK_OFFSET, MAX_BOTTOM_DOCK_HEIGHT, RAIL_WIDTH, MIN_BOTTOM_DOCK_HEIGHT, TIMELINE_HEIGHT, TOP_CLEARANCE } from './layoutConstants'
 import { collectSnapTargets, snapTranslation } from './snapping'
 import { gameConsole, installAsyncErrorCapture, type ConsoleOrigin } from './game/console'
-import { ConsoleBadge, ConsoleErrorPill, ConsolePanel, consoleClearOnPlay } from './components/ConsolePanel'
+import { ConsoleBadge, ConsolePanel, consoleClearOnPlay } from './components/ConsolePanel'
 import { sceneProps, setPropertyDefs } from './game/props'
 import { resetFunctions } from './game/events'
+import { iconFamily } from './game/googleFonts'
 import { setProjectFiles } from './game/projectFiles'
 import { CodeWorkspace, type CodeLocation } from './components/CodeWorkspace'
 import { gameNet } from './game/net'
@@ -350,6 +353,9 @@ const LIGHT_GIZMO_HALF_EXTENT = 12
 /** The bottom dock's Animate/State Machine tab strip height — part of the
  * dock's own clearance (see `bottomDockClearance`). */
 const BOTTOM_TAB_STRIP_HEIGHT = 30
+
+/** The Console's height in Playground (kept small: the game is the point). */
+const PLAY_CONSOLE_HEIGHT = 200
 
 function App() {
   const width = typeof window !== 'undefined' ? window.innerWidth : 1200
@@ -608,6 +614,9 @@ function App() {
   // `Shader` is the material node-graph editor (Godot's VisualShader).
   // `Console` is the game console (logs + errors, `components/ConsolePanel`);
   // unlike the others it stays up while playing.
+  // Playground keeps its own Console open / closed state: it starts as
+  // just the tab (the game gets the whole view), whatever Design had open.
+  const [playConsoleOpen, setPlayConsoleOpen] = useState(false)
   const [bottomDockTab, setBottomDockTab] = usePersistedState<'Animate' | 'StateMachine' | 'Resources' | 'Shader' | 'Console'>(
     'bottomDockTab',
     'Animate',
@@ -823,7 +832,7 @@ function App() {
   // otherwise whichever tab is open — see `bottomDockTab`'s own
   // doc comment for why this replaced 2 separate top-level `Mode`s.
   const effectiveBottomTab: 'Animate' | 'StateMachine' | 'Resources' | 'Shader' | 'Console' | null =
-    mode === 'Playground' ? (bottomDockOpen && bottomDockTab === 'Console' ? 'Console' : null) : mode === 'Paint' || mode === 'Code' ? null : bottomDockOpen ? bottomDockTab : null
+    mode === 'Playground' ? (playConsoleOpen ? 'Console' : null) : mode === 'Paint' || mode === 'Code' ? null : bottomDockOpen ? bottomDockTab : null
   const bottomDockVisible = effectiveBottomTab !== null
   // Same mount-only-render-loop-closure reasoning as `modeRef` — the loop's
   // own per-frame state-machine-summary refresh below needs to know whether
@@ -2593,13 +2602,36 @@ function App() {
   }
 
   /** + menu → 2D Object → Text: added at the scene root and selected, so the
-   * Inspector's text field is right there to type into. */
-  const handleAddText = () => {
+   * Inspector's text field is right there to type into. `icon`: + menu →
+   * Icon — the same Text node drawn with Material Symbols (its text is the
+   * icon's name, e.g. `star`), so the Inspector shows the icon grid. */
+  const handleAddText = (icon = false) => {
     const artboard = artboards[0]
-    if (!editorRef.current || !artboard) return
-    const result = addTextNode(editorRef.current, artboard.id, null)
+    const editor = editorRef.current
+    if (!editor || !artboard) return
+    const result = addTextNode(editor, artboard.id, null)
     setDoc(result.document)
     setSelection({ artboardId: artboard.id, nodeId: result.newNode })
+    if (!icon) return
+    setDoc(setTextContent(editor, artboard.id, result.newNode, 'star'))
+    setDoc(setTextSize(editor, artboard.id, result.newNode, 96))
+    addGoogleFont(editor, iconFamily('Rounded'))
+      .then((font) => setDoc(setTextFont(editor, artboard.id, result.newNode, font)))
+      .catch((err) => gameConsole.add('error', `Couldn't download the icon font: ${err instanceof Error ? err.message : String(err)}`, { kind: 'Engine' }))
+  }
+
+  /** Inspector → Text → Font: downloads the Google Font into the document
+   * (once) and switches the selected Text node to it. */
+  const handleSetTextFontFamily = async (family: string) => {
+    const editor = editorRef.current
+    const target = selection
+    if (!editor || !target) return
+    try {
+      const font = await addGoogleFont(editor, family)
+      setDoc(setTextFont(editor, target.artboardId, target.nodeId, font))
+    } catch (err) {
+      gameConsole.add('error', `Couldn't use the font ${family}: ${err instanceof Error ? err.message : String(err)}`, { kind: 'Engine' })
+    }
   }
 
   /** Toolbar "Add Bone" — chains onto the currently selected bone (becomes
@@ -3957,7 +3989,13 @@ function App() {
           top: metrics.topClearance,
           bottom: bottomDockClearance,
         }
-      : { left: 0, right: 0, top: 0, bottom: 0 }
+      : mode === 'Playground'
+        ? // The game starts below the toolbar, so nothing it frames hides
+          // under it (the camera fits the space that's actually visible).
+          // An open Console takes its strip of the window too: the game
+          // shrinks to fit above it instead of hiding behind it.
+          { left: 0, right: 0, top: metrics.topClearance, bottom: playConsoleOpen ? PLAY_CONSOLE_HEIGHT + BOTTOM_TAB_STRIP_HEIGHT : 0 }
+        : { left: 0, right: 0, top: 0, bottom: 0 }
   const viewportFillsWindow = uiStyle !== 'solid'
 
   return (
@@ -4411,6 +4449,8 @@ function App() {
                 onSetGradient={handleSetGradient}
                 onSetTextContent={handleSetTextContent}
                 onSetTextSize={handleSetTextSize}
+                onSetTextFontFamily={handleSetTextFontFamily}
+                fonts={doc?.fonts ?? []}
                 onSetInstanceVariant={handleSetInstanceVariant}
                 onSetInstanceFillColorOverride={handleSetInstanceFillColorOverride}
                 onSetImageProcessing={handleSetImageProcessing}
@@ -4659,24 +4699,40 @@ function App() {
       {effectiveBottomTab === 'Console' && (
         <div
           className="pointer-events-auto absolute select-none"
-          style={{ left: metrics.leftDockOffset, right: metrics.edgeMargin, bottom: metrics.edgeMargin, height: mode === 'Playground' ? Math.min(bottomDockHeight, 220) : bottomDockHeight }}
+          style={
+            mode === 'Playground'
+              ? // Docked edge to edge under the game (no rail in Playground).
+                { left: 0, right: 0, bottom: 0, height: PLAY_CONSOLE_HEIGHT }
+              : { left: metrics.leftDockOffset, right: metrics.edgeMargin, bottom: metrics.edgeMargin, height: bottomDockHeight }
+          }
         >
-          <FloatingPanel className="relative flex h-full flex-col p-2">
+          <FloatingPanel className={`relative flex h-full flex-col p-2 ${mode === 'Playground' ? '!rounded-none border-x-0 border-b-0 !shadow-none' : ''}`}>
             <div {...bottomDockResizeHandleProps} className="group absolute -top-1.5 left-0 z-10 h-3 w-full touch-none" style={{ cursor: 'ns-resize' }}>
               <div className="mx-auto mt-1.5 h-px w-full bg-transparent group-hover:bg-accent/70 group-active:bg-accent" />
             </div>
-            <ConsolePanel onOpenCode={handleOpenCodeAt} onClose={mode === 'Playground' ? () => setBottomDockOpen(false) : undefined} />
+            <ConsolePanel onOpenCode={handleOpenCodeAt} />
           </FloatingPanel>
         </div>
       )}
-      {mode === 'Playground' && effectiveBottomTab !== 'Console' && (
-        <div className="pointer-events-none absolute z-30" style={{ left: metrics.leftDockOffset, bottom: metrics.edgeMargin + 8 }}>
-          <ConsoleErrorPill
-            onOpen={() => {
-              setBottomDockTab('Console')
-              setBottomDockOpen(true)
-            }}
-          />
+      {/* Playground: just the Console tab (with its error count) until it's
+          opened — same strip as Design's bottom dock, sitting on the panel. */}
+      {mode === 'Playground' && (
+        <div
+          className={`pointer-events-auto absolute z-20 flex items-center gap-0.5 border border-panel-border bg-panel px-1 py-0.5 backdrop-blur-panel ${playConsoleOpen ? 'rounded-t-md border-b-0' : 'rounded-md'}`}
+          style={{ left: playConsoleOpen ? 8 : metrics.edgeMargin, bottom: playConsoleOpen ? PLAY_CONSOLE_HEIGHT - 1 : metrics.edgeMargin, height: BOTTOM_TAB_STRIP_HEIGHT }}
+        >
+          <button
+            onClick={() => setPlayConsoleOpen((open) => !open)}
+            className={`relative rounded px-2 py-1 text-[11px] font-medium uppercase tracking-wide ${playConsoleOpen ? 'bg-overlay/10 text-ink' : 'text-ink-dim hover:text-ink'}`}
+          >
+            Console
+            <ConsoleBadge />
+          </button>
+          {playConsoleOpen && (
+            <button onClick={() => setPlayConsoleOpen(false)} title="Close" className="ml-0.5 rounded p-1 text-ink-dim hover:bg-overlay/10 hover:text-ink">
+              <CloseIcon />
+            </button>
+          )}
         </div>
       )}
 
