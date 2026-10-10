@@ -487,6 +487,7 @@ export class ScriptHost {
           raycast: (o, d, maxDistance) => flushed(() => glassRaycast(editor, artboardId, o, d, maxDistance)),
           reset: (node) => flushed(() => editor.glass_reset(artboardId, node)),
           intact: (node) => flushed(() => editor.glass_intact(artboardId, node)),
+          crack: (node, p, radius, amount) => flushed(() => editor.glass_crack(artboardId, node, p[0], p[1], p[2], radius, amount)),
         },
         playSound: (name, options) => {
           const id = this.soundId(editor, name)

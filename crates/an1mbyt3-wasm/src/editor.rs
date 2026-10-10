@@ -8690,6 +8690,21 @@ impl WasmEditor {
         to_js_value(&crate::dto::ShatterDto { broken: result.broken as u32, loose: result.loose as u32 })
     }
 
+    /// Script API (`ref.crack3`): cracks a glass pane where something hit it
+    /// without breaking it (thick glass that survives a hit) — world point,
+    /// reach in metres, how much to whiten (0..1, accumulates). Returns
+    /// the pieces touched (0 on a hole).
+    #[allow(clippy::too_many_arguments)]
+    pub fn glass_crack(&mut self, artboard: JsValue, node: JsValue, px: f32, py: f32, pz: f32, radius: f32, amount: f32) -> Result<u32, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let Some((primitive, world)) = self.mesh3d_node(artboard_id, node_id) else { return Err(JsValue::from_str("crack3: not a glass pane")) };
+        let local = world.inverse().transform_point3(glam::Vec3::new(px, py, pz));
+        let scale = ((world.x_axis.truncate().length() + world.y_axis.truncate().length()) * 0.5).max(1e-6);
+        let Some(runtime) = self.glass_runtime(node_id, primitive) else { return Err(JsValue::from_str("crack3: not a glass pane")) };
+        Ok(runtime.pane.crack(local.truncate(), radius / scale, amount) as u32)
+    }
+
     /// Script API (`ref.resetGlass()`): every piece back in place.
     pub fn glass_reset(&mut self, artboard: JsValue, node: JsValue) -> Result<(), JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;

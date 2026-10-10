@@ -177,6 +177,7 @@ export interface ScriptContext {
     raycast(o: [number, number, number], d: [number, number, number], maxDistance: number): RayHit3D | null
     reset(node: OpaqueId): void
     intact(node: OpaqueId): number
+    crack(node: OpaqueId, point: [number, number, number], radius: number, amount: number): number
   }
   /** Streamed block worlds: load / drop a chunk — see `ref.setVoxelChunk`. */
   setVoxelChunk(node: OpaqueId, cx: number, cz: number, blocks: Uint8Array): void
@@ -517,6 +518,11 @@ export interface ComponentRef {
    * default 0; `null` = none). Pieces left hanging off nothing fall too.
    * Returns `{ broken, loose }` (0 / 0 for a hit on a hole). */
   shatter3(point: Vec3Like, velocity: Vec3Like, options?: { radius?: number; floor?: number | null }): { broken: number; loose: number }
+  /** **Breakable glass**: crack it where something hit, without breaking
+   * anything — thick glass that survives a hit. The pieces round `point`
+   * (world) frost over; options `radius` (m, default 0.35) and `amount`
+   * (0..1 whitening added per hit, default 0.5). Returns pieces touched. */
+  crack3(point: Vec3Like, options?: { radius?: number; amount?: number }): number
   /** **Breakable glass**: every piece back in place. */
   resetGlass(): void
   /** **Breakable glass**: how much is still standing, 0..1 (by area). */
@@ -933,6 +939,10 @@ function makeComponentRefFromState(
     resetGlass: {
       enumerable: false,
       value: () => ctx.glass.reset(node.id),
+    },
+    crack3: {
+      enumerable: false,
+      value: (point: Vec3Like, options: { radius?: number; amount?: number } = {}) => ctx.glass.crack(node.id, vec3Of(point), options.radius ?? 0.35, options.amount ?? 0.5),
     },
     glassIntact: {
       enumerable: false,

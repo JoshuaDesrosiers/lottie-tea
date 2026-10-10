@@ -288,6 +288,30 @@ impl GlassPane {
         self.cell_at(p).map(|_| (t, p))
     }
 
+    /// Cracks the pane around local `point` without breaking anything —
+    /// thick glass taking a hit it survives. Pieces within `radius` (and the
+    /// one under the point) whiten by `amount` (0..1, accumulating), so the
+    /// impact shows as a frosted star that grows with each hit. Returns how
+    /// many pieces it touched (0 for a hit on a hole).
+    pub fn crack(&mut self, point: Vec2, radius: f32, amount: f32) -> usize {
+        let Some(hit_cell) = self.cell_at(point) else { return 0 };
+        let radius = radius.max(0.001);
+        let mut touched = 0;
+        for i in 0..self.cells.len() {
+            if !self.intact[i] || self.cells[i].points.len() < 3 {
+                continue;
+            }
+            let d = distance_to_polygon(&self.cells[i].points, point);
+            if i == hit_cell || d < radius {
+                let falloff = if i == hit_cell { 1.0 } else { 1.0 - d / radius };
+                self.cracked[i] = (self.cracked[i] + amount * falloff).min(1.0);
+                touched += 1;
+            }
+        }
+        self.version += 1;
+        touched
+    }
+
     /// Breaks the pane around `params.point` (see the module doc for how).
     /// A hit on a hole breaks nothing.
     pub fn shatter(&mut self, params: &ShatterParams) -> ShatterResult {
@@ -714,6 +738,16 @@ mod tests {
         for _ in 0..400 {
             pane.step(1.0 / 60.0);
         }
+        assert_eq!(pane.shard_count(), 0);
+    }
+
+    #[test]
+    fn crack_whitens_without_breaking() {
+        let mut pane = GlassPane::new(1.0, 1.0, 0.1, 0.2, 3, SIDE_ALL);
+        assert!(pane.crack(Vec2::ZERO, 0.3, 0.6) >= 1);
+        assert!((pane.intact_fraction() - 1.0).abs() < 1e-6, "nothing breaks");
+        let cell = pane.cell_at(Vec2::ZERO).unwrap();
+        assert!(pane.cracked[cell] > 0.5);
         assert_eq!(pane.shard_count(), 0);
     }
 

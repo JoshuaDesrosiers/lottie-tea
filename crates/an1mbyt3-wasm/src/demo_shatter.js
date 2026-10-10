@@ -11,10 +11,13 @@
 //
 // Rules: start with 40 balls; each throw costs 1; crystals give +3; 10
 // crystals in a row (without letting one pass) = multiball (up to 5 balls
-// per throw); standing glass the camera flies into costs 10 and resets
-// multiball. 0 balls = run over. Every ZONE_LEN metres a checkpoint door
-// opens a new zone (palette, speed, obstacle mix); reached zones unlock on
-// the menu.
+// per throw); standing glass (or a hammer) the camera flies into costs 10
+// — the lost balls tumble out in front of you — and resets multiball.
+// 0 balls = run over. Every ZONE_LEN metres a checkpoint door opens a new
+// zone (palette, speed, obstacle mix, setting: interior hall, open-sky
+// platform or canyon); reached zones unlock on the menu. Orange crystals
+// give 8 s of rapid fire (hold to fire, free). Thick glass cracks before
+// it breaks.
 //
 // Prefix constants (from Rust): W/H (screen), HALF_WIDTH/HEIGHT (corridor),
 // EYE, FOV, pool sizes, pane sizes, SHELL_LEN, ZONES (palettes).
@@ -40,9 +43,14 @@ const GRAVITY = 9.8
 const BALL_R = 0.13
 const CRYSTAL_R = 0.42
 /** How far ahead patterns get placed. */
-const AHEAD = 110
+const AHEAD = 95
 const TAN_HALF = Math.tan((FOV * Math.PI) / 360)
 const ASPECT = W / H
+/** Rapid fire: how long it lasts, and seconds between shots while held. */
+const RAPID_TIME = 8
+const RAPID_EVERY = 0.085
+/** Pylon spacing along open-sky platforms. */
+const PYLON_GAP = 13
 /** Camera collider: rays at these offsets (x, y) from the eye. */
 const COLLIDER = [[0, 0], [0.22, 0], [-0.22, 0], [0, 0.2], [0, -0.2]]
 
@@ -69,7 +77,12 @@ if (!g.init) {
     door: Array.from({ length: DOORS }, (_, i) => i),
     cry: Array.from({ length: CRYSTALS }, (_, i) => i),
     deco: Array.from({ length: DECOS }, (_, i) => i),
+    hx: Array.from({ length: HELIXES }, (_, i) => i),
+    hm: Array.from({ length: HAMMERS }, (_, i) => i),
+    pt: Array.from({ length: THICK }, (_, i) => i),
+    pw: Array.from({ length: POWERS }, (_, i) => i),
   }
+  g.lost = Array.from({ length: LOST }, (_, i) => ({ i, on: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0 }))
   g.objs = []
   g.balls = []
   for (let i = 0; i < BALLS; i++) g.balls.push({ i, on: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0 })
@@ -108,6 +121,12 @@ function startRun(zone, attract) {
   g.banner = null
   g.archD = Array.from({ length: ARCHES }, (_, i) => Math.floor(g.d / ARCH_GAP) * ARCH_GAP + i * ARCH_GAP)
   g.archDirty = true
+  g.pylD = Array.from({ length: PYLONS }, (_, i) => Math.floor(g.d / PYLON_GAP) * PYLON_GAP + i * PYLON_GAP)
+  g.pylDirty = true
+  for (const b of g.lost) if (b.on) hideLost(b)
+  g.rapidT = 0
+  g.fireT = 0
+  g.env = null
   g.col = JSON.parse(JSON.stringify(themeOf(zoneOf(g.d))))
   g.colDirty = true
   if (!attract) {
@@ -134,6 +153,7 @@ function glassOf(o) {
     case 'fan': return Array.from({ length: BLADES }, (_, b) => 'fan' + o.i + 'b' + b)
     case 'hang': return ['hang' + o.i + 'g']
     case 'door': return ['door' + o.i + 't']
+    case 'helix': return Array.from({ length: RUNGS }, (_, k) => 'hx' + o.i + 'r' + k)
     default: return []
   }
 }
@@ -148,10 +168,13 @@ function rootOf(o) {
     case 'door': return 'door' + o.i
     case 'cry': return 'cry' + o.i
     case 'deco': return 'deco' + o.i
+    case 'helix': return 'hx' + o.i
+    case 'hammer': return 'hm' + o.i
+    case 'power': return 'pw' + o.i
   }
 }
 
-const POOL_OF = { bar: 'bar', fan: 'fan', hang: 'hang', door: 'door', cry: 'cry', deco: 'deco' }
+const POOL_OF = { bar: 'bar', fan: 'fan', hang: 'hang', door: 'door', cry: 'cry', deco: 'deco', helix: 'hx', hammer: 'hm', power: 'pw' }
 
 function release(o, quiet) {
   const root = ref(rootOf(o))
@@ -185,12 +208,19 @@ function crystalsNear(d, count) {
     const side = Math.random() < 0.5 ? -1 : 1
     crystal(d + rand(-2, 4), side * rand(0.9, 3.0), rand(0.8, 4.4))
   }
+  // Now and then, a rapid-fire power-up.
+  if (g.mode === 'play' && Math.random() < 0.07 && g.rapidT <= 0) {
+    const i = take('pw')
+    if (i >= 0) place({ kind: 'power', i, d: d + rand(0, 4), x: pick([-1, 1]) * rand(1.2, 2.6), y: rand(2.2, 4.2), alive: true, spin: rand(0, 360) })
+  }
 }
 
-function pane(pool, d, x, y, s, move) {
+/** A pane from `pool`: `pb` big, `ps` small, `sp` spinner, `pt` thick
+ * (which takes `hp` hits — the first ones only crack it). */
+function pane(pool, d, x, y, s, move, hp = 1) {
   const i = take(pool)
   if (i < 0) return false
-  place({ kind: 'pane', pool, i, d, x, y, s, move, ph: rand(0, 6.28) })
+  place({ kind: 'pane', pool, i, d, x, y, s, move, ph: rand(0, 6.28), hp })
   return true
 }
 
@@ -263,13 +293,47 @@ const PATTERNS = {
     crystalsNear(d + 3, 2 + Math.floor(Math.random() * 2))
     return 16
   },
+  // Thick glass: three hits (two later on), the first ones crack it.
+  thick(d, k) {
+    pane('pt', d, rand(-0.3, 0.3), EYE + 0.15, 1.0, null, k >= 8 ? 3 : 2)
+    crystalsNear(d - 6, 2)
+    return 15
+  },
+  // A DNA strand slung across the space, tilted, turning slowly round its
+  // own axis; its glass rungs block your line where it crosses.
+  helix(d, k) {
+    const i = take('hx')
+    if (i < 0) return PATTERNS.wall(d, k)
+    const tilt = pick([-1, 1]) * rand(12, 30)
+    place({ kind: 'helix', i, d, y: EYE + rand(-0.1, 0.35), tilt, w: (26 + k * 2.5) * pick([-1, 1]), ph: rand(0, 360) })
+    crystalsNear(d - 5, 2)
+    return 12
+  },
+  // Swinging hammers: solid metal, time your way past.
+  hammer(d, k) {
+    const count = k >= 7 && Math.random() < 0.5 ? 2 : 1
+    for (let n = 0; n < count; n++) {
+      const i = take('hm')
+      if (i < 0) break
+      place({ kind: 'hammer', i, d: d + n * 7, amp: 58, w: 1.5 + k * 0.05, ph: n * Math.PI + rand(-0.4, 0.4) })
+    }
+    crystalsNear(d - 4, 1)
+    return 8 + count * 7
+  },
 }
 
 /** Which patterns each zone mixes in (weights). */
 function patternsFor(zone) {
-  const z = Math.min(zone, 9)
-  const w = { wall: 4, breather: z < 3 ? 1.5 : 0.8, bars: z >= 0 ? 1.2 : 0, double: z >= 1 ? 1.5 : 0.5, grid: z >= 1 ? 1.5 : 0, slider: z >= 2 ? 2 : 0, hanger: z >= 3 ? 2 : 0, fan: z >= 4 ? 2 : 0, spinner: z >= 5 ? 2 : 0 }
-  if (z >= 6) for (const key of ['slider', 'hanger', 'fan', 'spinner', 'double']) w[key] += 1
+  const z = Math.min(zone, 15)
+  const env = themeOf(zone).env
+  const w = {
+    wall: 4, breather: z < 3 ? 1.5 : 0.8, bars: 1.2, double: z >= 1 ? 1.5 : 0.5, grid: z >= 1 ? 1.5 : 0, slider: z >= 2 ? 2 : 0, thick: z >= 2 ? 1.6 : 0,
+    hanger: z >= 3 && env !== 'open' ? 2 : 0, helix: z >= 3 ? 1.6 : 0, fan: z >= 4 ? 2 : 0, hammer: z >= 4 ? 1.8 : 0, spinner: z >= 5 ? 2 : 0,
+  }
+  if (z >= 6) for (const key of ['slider', 'fan', 'spinner', 'double', 'helix', 'hammer', 'thick']) w[key] += 1
+  if (z >= 6 && env !== 'open') w.hanger += 1
+  // Helix Labs lives up to its name.
+  if (themeOf(zone).name === 'Helix Labs') w.helix += 4
   return w
 }
 
@@ -338,10 +402,23 @@ function updateObj(o, t) {
       ref('door' + o.i + 'R').position3 = { x: HALF_WIDTH * 0.5 + slide, y: HEIGHT * 0.5, z: 0 }
       break
     }
-    case 'cry': {
+    case 'cry':
+    case 'power': {
       const root = ref(rootOf(o))
       root.position3 = { x: o.x, y: o.y + Math.sin(t * 2 + o.spin) * 0.12, z }
-      root.rotation3 = { x: 0, y: o.spin + t * 110, z: 0 }
+      root.rotation3 = { x: 0, y: o.spin + t * (o.kind === 'power' ? 200 : 110), z: 0 }
+      break
+    }
+    case 'helix': {
+      const root = ref(rootOf(o))
+      root.position3 = { x: 0, y: o.y, z }
+      root.rotation3 = { x: 0, y: 0, z: o.tilt }
+      ref('hx' + o.i + 's').rotation3 = { x: o.ph + t * o.w, y: 0, z: 0 }
+      break
+    }
+    case 'hammer': {
+      ref(rootOf(o)).position3 = { x: 0, y: HEIGHT, z }
+      ref('hm' + o.i + 's').rotation3 = { x: 0, y: 0, z: hammerAngle(o, t) }
       break
     }
     case 'deco': {
@@ -351,6 +428,17 @@ function updateObj(o, t) {
       break
     }
   }
+}
+
+/** A hammer's swing angle (degrees) at time `t`. */
+function hammerAngle(o, t) {
+  return Math.sin(t * o.w + o.ph) * o.amp
+}
+
+/** Where a hammer's head is now (world). */
+function hammerHead(o) {
+  const a = (hammerAngle(o, g.t) * Math.PI) / 180
+  return { x: Math.sin(a) * HAMMER_REACH, y: HEIGHT - Math.cos(a) * HAMMER_REACH, z: -o.d }
 }
 
 function showBanner(small, big) {
@@ -368,6 +456,45 @@ function pop(text, wx, wy, wz, cls) {
     }
   }
   g.pops.push({ id: g.popId++, text, x: px, y: py, cls: cls || '', t: 0.9, made: false })
+}
+
+function hideLost(b) {
+  b.on = false
+  const node = ref('lb' + b.i)
+  node.visible = false
+  node.position3 = { x: 0, y: -50, z: 0 }
+}
+
+/** The balls a crash costs, tossed out in front of you: they tumble down,
+ * bounce and roll, and never break anything. */
+function spillBalls(count) {
+  for (let n = 0; n < count; n++) {
+    const b = g.lost.find((l) => !l.on)
+    if (!b) break
+    Object.assign(b, { on: true, x: g.camX + rand(-0.35, 0.35), y: g.camY - rand(0.1, 0.5), z: g.camZ - rand(0.5, 1.2), vx: rand(-3.2, 3.2), vy: rand(1.5, 5), vz: -(g.speed + rand(1.5, 6.5)), age: rand(0, 0.3) })
+    ref('lb' + b.i).visible = true
+  }
+}
+
+function stepLost(b, dt) {
+  b.vy -= GRAVITY * dt
+  b.x += b.vx * dt
+  b.y += b.vy * dt
+  b.z += b.vz * dt
+  const overFloor = Math.abs(b.x) <= HALF_WIDTH
+  if (overFloor && b.y < BALL_R && b.y > -0.4) {
+    b.y = BALL_R
+    if (b.vy < 0) b.vy = -b.vy * 0.5
+    b.vx *= 0.9
+    b.vz *= 0.94
+    if (Math.abs(b.vy) > 1.5) ctx.playSound('tink', { volume: Math.min(0.18, Math.abs(b.vy) * 0.03), pitch: rand(0.45, 0.65) })
+  }
+  if (g.env !== 'open' && Math.abs(b.x) > HALF_WIDTH - BALL_R) {
+    b.x = Math.sign(b.x) * (HALF_WIDTH - BALL_R)
+    b.vx = -b.vx * 0.5
+  }
+  b.age += dt
+  if (b.age > 3.4 || b.z > g.camZ + 2 || b.y < -30) hideLost(b)
 }
 
 function hideBall(b) {
@@ -400,15 +527,27 @@ function crash(hit) {
   // Burst a big hole (and the pieces the collider would hit next).
   hit.ref?.shatter3(hit, [0, 0, -g.speed * 1.6 - 4], { radius: 1.05, floor: 0 })
   for (const [ox, oy] of COLLIDER) hit.ref?.shatter3([g.camX + ox * 2.5, g.camY + oy * 2.5, hit.z], [0, 0, -g.speed - 3], { radius: 0.6, floor: 0 })
+  // You burst through: everything on your line for the next few metres
+  // goes too (a helix's next rungs, a double wall), so one crash costs
+  // one crash.
+  for (const [ox, oy] of COLLIDER) {
+    for (let n = 0; n < 8; n++) {
+      const ahead = ctx.glassRaycast3([g.camX + ox, g.camY + oy, hit.z + 0.2], [0, 0, -1], 3.5)
+      if (!ahead || !ahead.ref) break
+      ahead.ref.shatter3(ahead, [0, 0, -g.speed - 3], { radius: 0.7, floor: 0 })
+    }
+  }
   penalty()
 }
 
 function penalty() {
+  // Show what it cost: the balls themselves go flying.
+  spillBalls(Math.min(CRASH_COST, Math.max(g.ammo, 3)))
   g.ammo = Math.max(0, g.ammo - CRASH_COST)
   g.multi = 1
   g.streak = 0
-  g.invuln = 0.45
-  g.shake = 0.55
+  g.invuln = 0.8
+  g.shake = 0.9
   g.flash = 1
   g.slow = 0.35
   pop('−' + CRASH_COST, null, 0, 0, 'bad')
@@ -462,8 +601,21 @@ function stepBall(b, dt) {
     b.vy -= GRAVITY * h
     const speed = Math.hypot(b.vx, b.vy, b.vz)
     const hit = ctx.glassRaycast3([b.x, b.y, b.z], [b.vx, b.vy, b.vz], speed * h + BALL_R)
+    // Thick glass that still has hits left only cracks, and the ball
+    // bounces back off it.
+    const thick = hit && hit.ref && /^pt\d+$/.test(hit.ref.name) ? g.objs.find((o) => o.kind === 'pane' && o.pool === 'pt' && 'pt' + o.i === hit.ref.name) : null
+    if (thick && thick.hp > 1) {
+      thick.hp--
+      hit.ref.crack3(hit, { radius: 0.55, amount: 0.55 })
+      ctx.playSound('tink', { volume: 0.8, pitch: rand(0.4, 0.5) })
+      b.vz = Math.abs(b.vz) * 0.25
+      b.vy = Math.max(b.vy, 0) + 1.2
+      b.vx = b.vx * 0.4 + rand(-1, 1)
+      b.z += 0.05
+      continue
+    }
     if (hit && hit.ref) {
-      const r = hit.ref.shatter3(hit, [b.vx, b.vy, b.vz], { radius: 0.34, floor: 0 })
+      const r = hit.ref.shatter3(hit, [b.vx, b.vy, b.vz], { radius: thick ? 0.6 : 0.34, floor: 0 })
       const pieces = r.broken + r.loose
       if (pieces > 0) {
         breakFx(hit.x, hit.y, hit.z, pieces, r.loose > 5 || pieces > 12)
@@ -478,21 +630,33 @@ function stepBall(b, dt) {
     b.y += b.vy * h
     const prevZ = b.z
     b.z += b.vz * h
-    // Crystals.
+    // Crystals and power-ups; hammer heads (solid metal) bounce balls.
     for (const o of g.objs) {
-      if (o.kind !== 'cry' || !o.alive) continue
-      if (Math.hypot(b.x - o.x, b.y - o.y, b.z + o.d) < BALL_R + CRYSTAL_R) collectCrystal(o)
+      if ((o.kind === 'cry' || o.kind === 'power') && o.alive) {
+        if (Math.hypot(b.x - o.x, b.y - o.y, b.z + o.d) < BALL_R + CRYSTAL_R * (o.kind === 'power' ? 1.3 : 1)) {
+          if (o.kind === 'cry') collectCrystal(o)
+          else collectPower(o)
+        }
+      } else if (o.kind === 'hammer') {
+        const head = hammerHead(o)
+        if (Math.abs(b.z - head.z) < 0.45 + BALL_R && Math.abs(b.x - head.x) < 0.8 + BALL_R && Math.abs(b.y - head.y) < 0.45 + BALL_R) {
+          b.z = head.z + 0.46 + BALL_R
+          b.vz = Math.abs(b.vz) * 0.35
+          b.vx += Math.cos((hammerAngle(o, g.t) * Math.PI) / 180) * o.w * 2 + rand(-1, 1)
+          ctx.playSound('tink', { volume: 0.45, pitch: 0.3 })
+        }
+      }
     }
-    // Floor, ceiling, walls.
-    if (b.y < BALL_R) {
+    // Floor (only under the platform), ceiling, walls.
+    if (b.y < BALL_R && b.y > -0.4 && Math.abs(b.x) <= HALF_WIDTH) {
       b.y = BALL_R
       if (b.vy < 0) b.vy = -b.vy * 0.45
       b.vx *= 0.92
       b.vz *= 0.92
       if (Math.abs(b.vy) > 1.2) ctx.playSound('tink', { volume: Math.min(0.25, Math.abs(b.vy) * 0.04), pitch: rand(0.5, 0.7) })
     }
-    if (b.y > HEIGHT - BALL_R && b.vy > 0) b.vy = -b.vy * 0.5
-    if (Math.abs(b.x) > HALF_WIDTH - BALL_R) {
+    if (g.env === 'interior' && b.y > HEIGHT - BALL_R && b.vy > 0) b.vy = -b.vy * 0.5
+    if (g.env !== 'open' && Math.abs(b.x) > HALF_WIDTH - BALL_R) {
       b.x = Math.sign(b.x) * (HALF_WIDTH - BALL_R)
       b.vx = -b.vx * 0.55
     }
@@ -508,7 +672,17 @@ function stepBall(b, dt) {
     }
   }
   b.age += dt
-  if (b.age > 5 || b.z > g.camZ + 2) hideBall(b)
+  if (b.age > 5 || b.z > g.camZ + 2 || b.y < -30) hideBall(b)
+}
+
+function collectPower(o) {
+  o.alive = false
+  ref('pw' + o.i).visible = false
+  if (g.mode !== 'play') return
+  g.rapidT = RAPID_TIME
+  ctx.playSound('crystal', { volume: 0.9, pitch: 0.7 })
+  ctx.playSound('checkpoint', { volume: 0.35, pitch: 1.5 })
+  pop('RAPID FIRE', o.x, o.y, -o.d, 'multi')
 }
 
 function collectCrystal(o) {
@@ -569,12 +743,14 @@ if (zoneNow !== g.lastZone) {
 
 // The camera: down the middle with a breath of bob, and shake on a crash.
 g.shake = Math.max(0, g.shake - dt)
-g.camX = Math.sin(g.t * 0.7) * 0.05 + (g.shake > 0 ? rand(-1, 1) * g.shake * 0.12 : 0)
-g.camY = EYE + Math.sin(g.t * 2.2) * 0.035 + (g.shake > 0 ? rand(-1, 1) * g.shake * 0.1 : 0)
+// (Shake eases out: strong at the hit, fading over ~0.9 s.)
+const shake = g.shake * g.shake
+g.camX = Math.sin(g.t * 0.7) * 0.05 + (shake > 0 ? rand(-1, 1) * shake * 0.22 : 0)
+g.camY = EYE + Math.sin(g.t * 2.2) * 0.035 + (shake > 0 ? rand(-1, 1) * shake * 0.18 : 0)
 g.camZ = -g.d
 const cam = ref('cam')
 cam.position3 = { x: g.camX, y: g.camY, z: g.camZ }
-cam.rotation3 = { x: 0, y: 0, z: Math.sin(g.t * 0.5) * 0.4 + (g.shake > 0 ? rand(-1, 1) * g.shake * 3 : 0) }
+cam.rotation3 = { x: shake > 0 ? rand(-1, 1) * shake * 2 : 0, y: shake > 0 ? rand(-1, 1) * shake * 2 : 0, z: Math.sin(g.t * 0.5) * 0.4 + (shake > 0 ? rand(-1, 1) * shake * 6 : 0) }
 
 // Glass the camera passes through.
 g.invuln = Math.max(0, g.invuln - dt)
@@ -586,13 +762,22 @@ if (g.mode === 'play' && g.invuln <= 0 && g.d > prevD) {
       break
     }
   }
+  // Hammers: the head is solid.
+  for (const o of g.objs) {
+    if (o.kind !== 'hammer' || g.invuln > 0) continue
+    const head = hammerHead(o)
+    if (Math.abs(head.z - g.camZ) < 0.55 && Math.abs(head.x - g.camX) < 1.0 && Math.abs(head.y - g.camY) < 0.65) {
+      ctx.playSound('crash', { volume: 0.9, pitch: 0.6 })
+      penalty()
+    }
+  }
 }
 
 // Spawn ahead, recycle behind, animate what moves.
 spawnAhead()
 for (let k = g.objs.length - 1; k >= 0; k--) {
   const o = g.objs[k]
-  if (o.d < g.d - 9) {
+  if (o.d + (o.len || 0) < g.d - 9) {
     release(o, false)
     g.objs.splice(k, 1)
     continue
@@ -608,7 +793,7 @@ for (let k = g.objs.length - 1; k >= 0; k--) {
       penalty()
     }
   }
-  if (o.kind === 'pane' && o.move || o.kind === 'fan' || o.kind === 'hang' || o.kind === 'door' || o.kind === 'cry') updateObj(o, g.t)
+  if (o.kind === 'pane' && o.move || o.kind === 'fan' || o.kind === 'hang' || o.kind === 'door' || o.kind === 'cry' || o.kind === 'power' || o.kind === 'helix' || o.kind === 'hammer') updateObj(o, g.t)
 }
 
 // Arches (and the lamps on the next few) recycle forward.
@@ -625,6 +810,47 @@ for (let j = 0; j < LAMPS; j++) {
   ref('lamp' + j).position3 = { x: 0, y: HEIGHT - 1.4, z: -a.d }
 }
 
+// The setting: interior halls, open-sky platforms, canyons. (Switches just
+// past each checkpoint door.)
+const envNow = themeOf(g.mode === 'menu' ? 0 : zoneOf(g.d + 1)).env
+if (envNow !== g.env) {
+  g.env = envNow
+  const interior = envNow === 'interior', open = envNow === 'open'
+  ref('ceil').visible = interior
+  ref('wallL').visible = !open
+  ref('wallR').visible = !open
+  // Canyon walls tower into the sky.
+  for (const id of ['wallL', 'wallR']) {
+    const node = ref(id)
+    const p = node.position3
+    node.scale3 = { x: 1, y: interior ? 1 : 4.5, z: 1 }
+    node.position3 = { x: p.x, y: interior ? HEIGHT * 0.5 : HEIGHT * 0.5 + 10, z: p.z }
+  }
+  for (let i = 0; i < ARCHES; i++) ref('arch' + i).visible = interior
+  for (let i = 0; i < PYLONS; i++) ref('pyl' + i).visible = open
+  ref('sky').visible = !interior
+  g.pylDirty = true
+}
+if (!g.env || g.env !== 'interior') ref('sky').position3 = { x: g.camX, y: g.camY, z: g.camZ }
+// Pylons beside open platforms recycle forward like the arches.
+if (g.env === 'open') {
+  for (let i = 0; i < PYLONS; i++) {
+    if (g.pylD[i] < g.d - 10 || g.pylDirty) {
+      while (g.pylD[i] < g.d - 10) g.pylD[i] += PYLONS * PYLON_GAP
+      // A deterministic look per slot (so it doesn't flicker on reflow).
+      const s = Math.sin(g.pylD[i] * 12.9898 + i * 78.233) * 43758.5453
+      const r = s - Math.floor(s)
+      const side = i % 2 ? 1 : -1
+      const w = 1.2 + r * 3.5, top = -6 + r * 30, depth = 1.5 + ((r * 7) % 1) * 5
+      const h = top + 60
+      const node = ref('pyl' + i)
+      node.scale3 = { x: w, y: h, z: depth }
+      node.position3 = { x: side * (8 + r * 16), y: top - h * 0.5, z: -g.pylD[i] - r * 6 }
+    }
+  }
+  g.pylDirty = false
+}
+
 // The shell rides along (its tiles are world-locked, so they stream by).
 const shellZ = -(g.d + SHELL_LEN * 0.5 - 40)
 for (const id of ['floor', 'ceil', 'wallL', 'wallR']) {
@@ -633,18 +859,28 @@ for (const id of ['floor', 'ceil', 'wallL', 'wallR']) {
   node.position3 = { x: p.x, y: p.y, z: shellZ }
 }
 
-// Throwing.
+// Throwing. With rapid fire, holding fires a stream of free balls.
 const down = keys.has('mouse') || keys.has('mouseleft')
 const space = keys.has('space')
 const pressed = (down && !g.wasDown) || (space && !g.wasSpace)
 g.wasDown = down
 g.wasSpace = space
-if (g.mode === 'play' && !paused && pressed && g.playT > 0.3) {
-  if (g.ammo > 0) {
-    const nx = space && !down ? 0 : ctx.mouseX / (W / 2), ny = space && !down ? 0 : ctx.mouseY / (H / 2)
-    const [dx, dy, dz] = norm(nx * TAN_HALF * ASPECT, ny * TAN_HALF, -1)
+g.rapidT = Math.max(0, g.rapidT - dt)
+g.fireT = Math.max(0, g.fireT - dt)
+const aim = () => {
+  const nx = space && !down ? 0 : ctx.mouseX / (W / 2), ny = space && !down ? 0 : ctx.mouseY / (H / 2)
+  return norm(nx * TAN_HALF * ASPECT, ny * TAN_HALF, -1)
+}
+if (g.mode === 'play' && !paused && g.playT > 0.3) {
+  if (g.rapidT > 0) {
+    if ((down || space) && g.fireT <= 0) {
+      g.fireT = RAPID_EVERY
+      const [dx, dy, dz] = aim()
+      throwBalls(dx + rand(-0.012, 0.012), dy + rand(-0.012, 0.012), dz)
+    }
+  } else if (pressed && g.ammo > 0) {
     g.ammo--
-    throwBalls(dx, dy, dz)
+    throwBalls(...aim())
   }
 }
 // Attract mode behind the menu: it plays itself.
@@ -665,6 +901,11 @@ for (const b of g.balls) {
   stepBall(b, dt)
   if (b.on) ref('ball' + b.i).position3 = { x: b.x, y: b.y, z: b.z }
 }
+for (const b of g.lost) {
+  if (!b.on) continue
+  stepLost(b, dt)
+  if (b.on) ref('lb' + b.i).position3 = { x: b.x, y: b.y, z: b.z }
+}
 // Out of balls (and none left in the air that could still win some back).
 if (g.mode === 'play' && g.ammo <= 0 && !g.balls.some((b) => b.on)) {
   g.overT += dt
@@ -681,7 +922,8 @@ for (const key of ['fog', 'floor', 'wall', 'arch', 'glow', 'glass', 'ambient']) 
   if (Math.abs(next[0] - g.col[key][0]) + Math.abs(next[1] - g.col[key][1]) + Math.abs(next[2] - g.col[key][2]) > 0.0004) moved = true
   g.col[key] = next
 }
-ctx.setEnvironment3({ fog: g.col.fog, fogDensity: 0.0135, ambient: g.col.ambient })
+// (Thick fog: the corridor ahead melts into haze and things loom out of it.)
+ctx.setEnvironment3({ fog: g.col.fog, fogDensity: 0.03, ambient: g.col.ambient })
 g.colT = (g.colT || 0) - realDt
 if ((moved || g.colDirty) && g.colT <= 0) {
   g.colT = 0.08
@@ -705,6 +947,13 @@ if ((moved || g.colDirty) && g.colT <= 0) {
   // Chrome reflects the zone: its Tint is the floor colour.
   const chrome = rgba(lerp3(c.floor, c.fog, 0.35))
   for (let i = 0; i < BALLS; i++) ref('ball' + i).fillColor = chrome
+  for (let i = 0; i < LOST; i++) ref('lb' + i).fillColor = chrome
+  ref('sky').fillColor = rgba(c.fog)
+  for (let i = 0; i < PYLONS; i++) ref('pyl' + i).fillColor = rgba(lerp3(c.arch, c.fog, 0.25))
+  for (let h = 0; h < HELIXES; h++) for (let k = 0; k < RUNGS; k++) ref('hx' + h + 'r' + k).fillColor = glass
+  // Thick glass: a deeper, murkier tint.
+  for (let i = 0; i < THICK; i++) ref('pt' + i).fillColor = rgba(lerp3(c.glass, [0.1, 0.25, 0.3], 0.35), 0.72)
+  for (let i = 0; i < HAMMERS; i++) ref('hm' + i + 'g').fillColor = rgba(c.glow)
   for (let i = 0; i < DOORS; i++) for (const s of ['L', 'R']) ref('door' + i + s + 's').fillColor = rgba(c.glow)
 }
 
@@ -735,6 +984,8 @@ if (hud) {
     $('dist').textContent = Math.round(g.d) + ' M'
   }
   $('balls').parentElement.classList.toggle('bump', g.bump > 0)
+  $('power').classList.toggle('on', playing && g.rapidT > 0)
+  if (g.rapidT > 0) $('powerBar').style.transform = `scaleX(${(g.rapidT / RAPID_TIME).toFixed(3)})`
   $('flash').classList.toggle('on', g.flash > 0.6)
   const banner = $('banner')
   const showB = !!(g.banner && g.banner.t > 0 && playing)
@@ -743,7 +994,7 @@ if (hud) {
     $('bannerSmall').textContent = g.banner.small
     $('bannerBig').textContent = g.banner.big
   }
-  const hint = paused ? 'PAUSED · P TO RESUME' : playing && g.playT < 6 ? 'CLICK TO THROW · SPACE THROWS STRAIGHT · P PAUSES' : ''
+  const hint = paused ? 'PAUSED · P TO RESUME' : playing && g.rapidT > 0 ? 'HOLD TO FIRE' : playing && g.playT < 6 ? 'CLICK TO THROW · SPACE THROWS STRAIGHT · P PAUSES' : ''
   if ($('hint').textContent !== hint) $('hint').textContent = hint
   // Score pops.
   const pops = $('pops')

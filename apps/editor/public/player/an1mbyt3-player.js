@@ -589,6 +589,11 @@ var g = class e {
 		var n = N(t[0], t[1]).slice();
 		return G.__wbindgen_free(t[0], t[1] * 1, 1), n;
 	}
+	glass_crack(e, t, n, r, i, a, o) {
+		let s = G.wasmeditor_glass_crack(this.__wbg_ptr, e, t, n, r, i, a, o);
+		if (s[2]) throw U(s[1]);
+		return s[0] >>> 0;
+	}
 	glass_intact(e, t) {
 		let n = G.wasmeditor_glass_intact(this.__wbg_ptr, e, t);
 		if (n[2]) throw U(n[1]);
@@ -5627,6 +5632,10 @@ function or(e, t, n, r, i, a) {
 			enumerable: !1,
 			value: () => a.glass.reset(s.id)
 		},
+		crack3: {
+			enumerable: !1,
+			value: (e, t = {}) => a.glass.crack(s.id, Q(e), t.radius ?? .35, t.amount ?? .5)
+		},
 		glassIntact: {
 			enumerable: !1,
 			get: () => a.glass.intact(s.id)
@@ -6271,7 +6280,8 @@ var Mr = class {
 					shatter: (e, t, r, i, a) => f(() => yt(n, s, e, t, r, i, a)),
 					raycast: (e, t, r) => f(() => bt(n, s, e, t, r)),
 					reset: (e) => f(() => n.glass_reset(s, e)),
-					intact: (e) => f(() => n.glass_intact(s, e))
+					intact: (e) => f(() => n.glass_intact(s, e)),
+					crack: (e, t, r, i) => f(() => n.glass_crack(s, e, t[0], t[1], t[2], r, i))
 				},
 				playSound: (e, t) => {
 					let r = this.soundId(n, e);
