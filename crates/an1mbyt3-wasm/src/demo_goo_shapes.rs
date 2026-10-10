@@ -145,9 +145,9 @@ for (let i = 0; i < 2; i++) {
   b.x = -150 + Math.cos(a) * 205
   b.y = 25 + Math.sin(a) * 105
 }
-const gap = 80 + Math.sin(t * 1.3) * 52
-ref('square0').x = 300 - gap
-ref('square1').x = 300 + gap
+const gap = 75 + Math.sin(t * 1.3) * 45
+ref('square0').x = 270 - gap
+ref('square1').x = 270 + gap
 "#;
 
 #[cfg(test)]

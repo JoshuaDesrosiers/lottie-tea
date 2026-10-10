@@ -35,31 +35,41 @@ pub fn visible_share(threshold: f32) -> f32 {
 /// Most grid cells a frame may use (caps cost for huge spreads).
 const MAX_CELLS: usize = 160_000;
 
-/// The liquid's outline at `threshold`, as closed polygons. `detail` is the
-/// grid cell size relative to the smallest blob's field radius (smaller =
-/// smoother, costlier); `0.2` is a good default.
-pub fn contour(blobs: &[Blob], threshold: f32, detail: f32) -> Vec<Vec<Vec2>> {
+/// The sampling grid for a field covering `min..max`: **locked to the
+/// world** — corners sit on multiples of `cell` from the world origin, and
+/// `cell` itself only ever changes by whole doublings (when a spread gets
+/// huge). So a still member is sampled at exactly the same points every
+/// frame and its outline doesn't shimmer, however the rest of its group
+/// (and so the grid's extent) moves. Returns `(cell, origin, w, h)`.
+fn world_grid(min: Vec2, max: Vec2, base_cell: f32) -> (f32, Vec2, usize, usize) {
+    let mut cell = base_cell.max(0.05);
+    loop {
+        let origin = ((min / cell).floor() - Vec2::ONE) * cell;
+        let w = ((max.x - origin.x) / cell).ceil() as usize + 2;
+        let h = ((max.y - origin.y) / cell).ceil() as usize + 2;
+        if w * h <= MAX_CELLS {
+            return (cell, origin, w, h);
+        }
+        cell *= 2.0;
+    }
+}
+
+/// The liquid's outline at `threshold`, as closed polygons, sampled on a
+/// world-locked grid of `cell`-sized squares (see [`world_grid`]). Keep
+/// `cell` the same from frame to frame (derive it from settings, not from
+/// the current blobs) or outlines shimmer as sizes change.
+pub fn contour(blobs: &[Blob], threshold: f32, cell: f32) -> Vec<Vec<Vec2>> {
     let blobs: Vec<&Blob> = blobs.iter().filter(|b| b.radius > 0.0 && b.weight > 0.0).collect();
     if blobs.is_empty() {
         return Vec::new();
     }
     let mut min = Vec2::splat(f32::INFINITY);
     let mut max = Vec2::splat(f32::NEG_INFINITY);
-    let mut smallest = f32::INFINITY;
     for b in &blobs {
         min = min.min(b.center - Vec2::splat(b.radius));
         max = max.max(b.center + Vec2::splat(b.radius));
-        smallest = smallest.min(b.radius);
     }
-    // One extra cell of margin so outlines always close inside the grid.
-    let mut cell = (smallest * detail.clamp(0.05, 1.0)).max(0.0001);
-    let span = max - min;
-    while ((span.x / cell) as usize + 3) * ((span.y / cell) as usize + 3) > MAX_CELLS {
-        cell *= 1.25;
-    }
-    let origin = min - Vec2::splat(cell);
-    let w = (span.x / cell) as usize + 3;
-    let h = (span.y / cell) as usize + 3;
+    let (cell, origin, w, h) = world_grid(min, max, cell);
 
     // Splat every blob's field onto the grid corners it reaches.
     let mut field = vec![0.0f32; w * h];
@@ -264,14 +274,7 @@ pub fn contour_sources(sources: &[Source], reach: f32, inset: f32, detail: f32) 
     }
     min -= Vec2::splat(reach);
     max += Vec2::splat(reach);
-    let mut cell = (reach * detail.clamp(0.05, 1.0)).max(0.25);
-    let span = max - min;
-    while ((span.x / cell) as usize + 3) * ((span.y / cell) as usize + 3) > MAX_CELLS {
-        cell *= 1.25;
-    }
-    let origin = min - Vec2::splat(cell);
-    let w = (span.x / cell) as usize + 3;
-    let h = (span.y / cell) as usize + 3;
+    let (cell, origin, w, h) = world_grid(min, max, (reach * detail.clamp(0.05, 1.0)).max(0.25));
     let mut field = vec![0.0f32; w * h];
     for s in &sources {
         let (a, b) = s.bounds();
@@ -378,7 +381,7 @@ mod tests {
     #[test]
     fn a_lone_blob_is_a_circle_of_its_visible_radius() {
         let r = 10.0;
-        let loops = contour(&[Blob { center: Vec2::new(5.0, -3.0), radius: r, weight: 1.0 }], 0.5, 0.1);
+        let loops = contour(&[Blob { center: Vec2::new(5.0, -3.0), radius: r, weight: 1.0 }], 0.5, 1.0);
         assert_eq!(loops.len(), 1);
         let visible = r * visible_share(0.5);
         let expected = std::f32::consts::PI * visible * visible;
@@ -397,10 +400,25 @@ mod tests {
     }
 
     #[test]
+    fn a_still_blob_outline_is_identical_however_its_neighbour_moves() {
+        let still = Blob { center: Vec2::new(0.0, 0.0), radius: 10.0, weight: 1.0 };
+        let outline = |other_x: f32| {
+            let loops = contour(&[still, Blob { center: Vec2::new(other_x, 0.0), radius: 10.0, weight: 1.0 }], 0.5, 1.0);
+            // The loop round the still blob (the one nearest the origin).
+            let mut ring = loops.into_iter().min_by(|a, b| a[0].length().total_cmp(&b[0].length())).unwrap();
+            ring.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));
+            ring
+        };
+        // The neighbour is far away and moving: the grid's extent changes,
+        // the still blob's outline must not.
+        assert_eq!(outline(60.0), outline(63.7));
+    }
+
+    #[test]
     fn far_blobs_stay_apart_close_blobs_merge() {
         let blob = |x: f32| Blob { center: Vec2::new(x, 0.0), radius: 10.0, weight: 1.0 };
-        assert_eq!(contour(&[blob(0.0), blob(30.0)], 0.5, 0.1).len(), 2, "apart");
+        assert_eq!(contour(&[blob(0.0), blob(30.0)], 0.5, 1.0).len(), 2, "apart");
         // Visible radii ≈ 4.5 each; at 11 apart the fields join into one body.
-        assert_eq!(contour(&[blob(0.0), blob(11.0)], 0.5, 0.1).len(), 1, "merged");
+        assert_eq!(contour(&[blob(0.0), blob(11.0)], 0.5, 1.0).len(), 1, "merged");
     }
 }

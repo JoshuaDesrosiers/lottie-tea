@@ -1419,6 +1419,21 @@ fn apply_particle_behaviors_2d(fx: &an1mbyt3_core::ParticleBehaviors2D, particle
 /// The metaball blobs for a node with a Particle Fluid 2D: its Particle
 /// System's live particles (world space, sized as drawn, weighted by their
 /// colour's alpha) and/or its Liquid 2D's particles.
+/// The grid cell for a node's Particle Fluid 2D, from its *settings* (the
+/// typical drop's reach × detail) — never from the live particles, whose
+/// sizes change every frame and would make the outline shimmer.
+fn fluid_cell(node: &Node, fluid: &an1mbyt3_core::ParticleFluid2D) -> f32 {
+    let reach = fluid.stickiness.max(0.5);
+    let radius = if let Some(config) = node.particle_system() {
+        (config.main.start_size.min + config.main.start_size.max) * 0.25 * reach
+    } else if let Some(config) = node.liquid() {
+        config.particle_spacing.max(2.0) * 0.75 * reach
+    } else {
+        10.0
+    };
+    (radius.max(1.0) * fluid.detail.clamp(0.08, 0.6)).max(0.5)
+}
+
 fn fluid_blobs(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node_id: NodeId, node: &Node, fluid: &an1mbyt3_core::ParticleFluid2D) -> Vec<crate::metaball2d::Blob> {
     let reach = fluid.stickiness.max(0.5);
     let mut blobs = Vec::new();
@@ -1450,13 +1465,13 @@ fn fluid_blobs(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node_id:
 /// nudged up-left, the body colour lightened — a shine on every drop that
 /// merges along with them (a higher field level instead would flood dense
 /// clusters with shine).
-fn fluid_meshes(fluid: &an1mbyt3_core::ParticleFluid2D, blobs: &[crate::metaball2d::Blob]) -> Vec<(an1mbyt3_geometry::Mesh, [f32; 4])> {
+fn fluid_meshes(fluid: &an1mbyt3_core::ParticleFluid2D, blobs: &[crate::metaball2d::Blob], cell: f32) -> Vec<(an1mbyt3_geometry::Mesh, [f32; 4])> {
     use crate::metaball2d::{contour, to_path};
     if blobs.is_empty() {
         return Vec::new();
     }
     let th = fluid.threshold.clamp(0.05, 0.95);
-    let detail = fluid.detail.clamp(0.08, 0.6);
+    let detail = cell;
     let mut out = Vec::new();
     let has_rim = fluid.edge_color[3] > 0.001 && fluid.edge_width > 0.0;
     if has_rim {
@@ -3485,19 +3500,19 @@ impl WasmEditor {
         // Particle Fluid 2D: contour every liquid node's particles into
         // metaball outlines (rim / body / highlight) and upload them.
         let artboard = self.document.artboard(artboard_id).unwrap();
-        let fluids: Vec<(NodeId, an1mbyt3_core::ParticleFluid2D, Vec<crate::metaball2d::Blob>)> = artboard
+        let fluids: Vec<(NodeId, an1mbyt3_core::ParticleFluid2D, Vec<crate::metaball2d::Blob>, f32)> = artboard
             .node_ids()
             .filter(|id| !artboard.is_effectively_deleted(*id) && crate::lighting2d::effectively_visible(artboard, *id))
             .filter_map(|id| {
                 let node = artboard.node(id)?;
                 let fluid = *node.particle_fluid()?;
-                Some((id, fluid, fluid_blobs(self, artboard, id, node, &fluid)))
+                Some((id, fluid, fluid_blobs(self, artboard, id, node, &fluid), fluid_cell(node, &fluid)))
             })
             .collect();
-        let live: std::collections::HashSet<NodeId> = fluids.iter().map(|(id, _, _)| *id).collect();
+        let live: std::collections::HashSet<NodeId> = fluids.iter().map(|(id, _, _, _)| *id).collect();
         self.particle_fluid_gpu.retain(|id, _| live.contains(id));
-        for (node_id, fluid, blobs) in fluids {
-            let meshes: Vec<(an1mbyt3_geometry::Mesh, [f32; 4])> = fluid_meshes(&fluid, &blobs);
+        for (node_id, fluid, blobs, cell) in fluids {
+            let meshes: Vec<(an1mbyt3_geometry::Mesh, [f32; 4])> = fluid_meshes(&fluid, &blobs, cell);
             let entry = self.particle_fluid_gpu.entry(node_id).or_insert_with(|| (Vec::new(), Vec::new()));
             entry.0.clear();
             for (mesh, color) in meshes {
