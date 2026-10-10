@@ -585,6 +585,13 @@ pub struct DrawCall<'a> {
 /// when the graph changes.
 pub struct GpuMaterial {
     pipeline: wgpu::RenderPipeline,
+    /// The same shader, stencil-tested (`Equal`, no writes) for content
+    /// inside a clip mask — `draw_masked_scene`'s masked pass has a
+    /// depth/stencil attachment, so it can't use `pipeline` (no
+    /// depth_stencil state). Without this, a material draw under a mask
+    /// fell back to the plain textured pipeline and showed its raw input
+    /// texture (e.g. a liquid's packed field as green/magenta blur).
+    masked_pipeline: wgpu::RenderPipeline,
 }
 
 /// Shared state every material pipeline binds: the layout (draw uniforms,
@@ -2075,28 +2082,43 @@ impl Renderer {
                 &[wgpu::VertexAttribute { format: wgpu::VertexFormat::Float32x2, offset: 0, shader_location: 1 }]
             },
         };
-        let pipeline = self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("an1mbyt3 material pipeline"),
-            layout: Some(&self.material_resources().layout),
-            vertex: wgpu::VertexState {
-                module: &module,
-                entry_point: Some("vs_main"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[Some(layout2(0)), Some(layout2(1))],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &module,
-                entry_point: Some("fs_material"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(wgpu::ColorTargetState { format: self.render_format, blend: Some(wgpu_blend_state(BlendMode::Normal)), write_mask: wgpu::ColorWrites::ALL })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-        Ok(GpuMaterial { pipeline })
+        // Built twice: unmasked (no depth/stencil) and masked (stencil
+        // `Equal` against the clip's depth, like `masked_content_pipelines`).
+        let build = |label: &str, depth_stencil: Option<wgpu::DepthStencilState>| {
+            self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&self.material_resources().layout),
+                vertex: wgpu::VertexState {
+                    module: &module,
+                    entry_point: Some("vs_main"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[Some(layout2(0)), Some(layout2(1))],
+                },
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil,
+                multisample: wgpu::MultisampleState::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &module,
+                    entry_point: Some("fs_material"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState { format: self.render_format, blend: Some(wgpu_blend_state(BlendMode::Normal)), write_mask: wgpu::ColorWrites::ALL })],
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
+        let face = wgpu::StencilFaceState {
+            compare: wgpu::CompareFunction::Equal,
+            fail_op: wgpu::StencilOperation::Keep,
+            depth_fail_op: wgpu::StencilOperation::Keep,
+            pass_op: wgpu::StencilOperation::Keep,
+        };
+        let pipeline = build("an1mbyt3 material pipeline", None);
+        let masked_pipeline = build(
+            "an1mbyt3 masked material pipeline",
+            Some(no_depth_write_stencil_state(wgpu::StencilState { front: face, back: face, read_mask: 0xff, write_mask: 0x00 })),
+        );
+        Ok(GpuMaterial { pipeline, masked_pipeline })
     }
 
     pub fn upload_texture(&self, width: u32, height: u32, rgba: &[u8], filter: ImageFilterMode) -> GpuImageTexture {
@@ -2779,14 +2801,22 @@ impl Renderer {
                         // `uniforms.color` alone (just its flat tint) and
                         // never sampled its texture at all, rendering as a
                         // flat, usually near-white, opaque rectangle instead
-                        // of its actual pixels.
-                        match draw.texture {
-                            Some(texture) => {
+                        // of its actual pixels. Materials (shader graphs,
+                        // GPU liquids) use their own stencil-tested twin.
+                        match (draw.material, draw.texture) {
+                            (Some(material), texture) => {
+                                let resources = self.material_resources();
+                                pass.set_pipeline(&material.masked_pipeline);
+                                pass.set_bind_group(0, &draw.binding.bind_group, &[]);
+                                pass.set_bind_group(1, &texture.unwrap_or(&resources.white).bind_group, &[]);
+                                pass.set_bind_group(2, &resources.globals_bind_group, &[]);
+                            }
+                            (None, Some(texture)) => {
                                 pass.set_pipeline(&self.masked_content_textured_pipeline);
                                 pass.set_bind_group(0, &draw.binding.bind_group, &[]);
                                 pass.set_bind_group(1, &texture.bind_group, &[]);
                             }
-                            None => {
+                            (None, None) => {
                                 pass.set_pipeline(
                                     self.masked_content_pipelines
                                         .get(&draw.blend_mode)
