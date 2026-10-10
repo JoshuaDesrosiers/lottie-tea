@@ -17,7 +17,9 @@
 // zone (palette, speed, obstacle mix, setting: interior hall, open-sky
 // platform or canyon); reached zones unlock on the menu. Orange crystals
 // give 8 s of rapid fire (hold to fire, free). Thick glass cracks before
-// it breaks.
+// it breaks. Laser gates crash you unless you shoot one of their glass
+// bases; a hammer's glass beam, shot where the rod hangs, drops it; pop-up
+// panes lie flat until you're close, then snap upright.
 //
 // Prefix constants (from Rust): W/H (screen), HALF_WIDTH/HEIGHT (corridor),
 // EYE, FOV, pool sizes, pane sizes, SHELL_LEN, ZONES (palettes).
@@ -81,6 +83,8 @@ if (!g.init) {
     hm: Array.from({ length: HAMMERS }, (_, i) => i),
     pt: Array.from({ length: THICK }, (_, i) => i),
     pw: Array.from({ length: POWERS }, (_, i) => i),
+    lz: Array.from({ length: LASERS }, (_, i) => i),
+    pj: Array.from({ length: POPUPS }, (_, i) => i),
   }
   g.lost = Array.from({ length: LOST }, (_, i) => ({ i, on: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 0 }))
   g.objs = []
@@ -153,7 +157,17 @@ function glassOf(o) {
     case 'fan': return Array.from({ length: BLADES }, (_, b) => 'fan' + o.i + 'b' + b)
     case 'hang': return ['hang' + o.i + 'g']
     case 'door': return ['door' + o.i + 't']
-    case 'helix': return Array.from({ length: RUNGS }, (_, k) => 'hx' + o.i + 'r' + k)
+    case 'helix': {
+      const ids = []
+      for (let k = 0; k < RUNGS; k++) {
+        ids.push('hx' + o.i + 'r' + k)
+        if (k + 1 < RUNGS) ids.push('hx' + o.i + 'b' + k + 't', 'hx' + o.i + 'b' + k + 'b')
+      }
+      return ids
+    }
+    case 'hammer': return ['hm' + o.i + 'b']
+    case 'laser': return ['lz' + o.i + 'a', 'lz' + o.i + 'b']
+    case 'popup': return ['pj' + o.i]
     default: return []
   }
 }
@@ -171,10 +185,12 @@ function rootOf(o) {
     case 'helix': return 'hx' + o.i
     case 'hammer': return 'hm' + o.i
     case 'power': return 'pw' + o.i
+    case 'laser': return 'lz' + o.i
+    case 'popup': return 'pj' + o.i + 'r'
   }
 }
 
-const POOL_OF = { bar: 'bar', fan: 'fan', hang: 'hang', door: 'door', cry: 'cry', deco: 'deco', helix: 'hx', hammer: 'hm', power: 'pw' }
+const POOL_OF = { bar: 'bar', fan: 'fan', hang: 'hang', door: 'door', cry: 'cry', deco: 'deco', helix: 'hx', hammer: 'hm', power: 'pw', laser: 'lz', popup: 'pj' }
 
 function release(o, quiet) {
   const root = ref(rootOf(o))
@@ -309,13 +325,34 @@ const PATTERNS = {
     crystalsNear(d - 5, 2)
     return 12
   },
-  // Swinging hammers: solid metal, time your way past.
+  // Laser gates: shoot a base to switch one off, or slip past its sweep.
+  laser(d, k) {
+    const count = k >= 9 && Math.random() < 0.6 ? 2 : 1
+    for (let n = 0; n < count; n++) {
+      const i = take('lz')
+      if (i < 0) break
+      const vertical = Math.random() < 0.45
+      const sweep = Math.random() < 0.7
+      place({ kind: 'laser', i, d: d + n * 6, vertical, on: true, amp: sweep ? (vertical ? 2.6 : 1.8) : 0, w: 0.9 + k * 0.05, ph: rand(0, 6.28), base: vertical ? rand(-0.5, 0.5) : EYE + rand(-0.2, 0.6) })
+    }
+    crystalsNear(d - 5, 1)
+    return 8 + count * 6
+  },
+  // Jumpscare glass: flat in the floor until you're close.
+  popup(d, k) {
+    const i = take('pj')
+    if (i < 0) return PATTERNS.wall(d, k)
+    place({ kind: 'popup', i, d, x: rand(-0.4, 0.4), up: 0, popping: false })
+    crystalsNear(d - 6, 1)
+    return 14
+  },
+  // Swinging hammers: solid metal, time your way past (or shoot the beam).
   hammer(d, k) {
     const count = k >= 7 && Math.random() < 0.5 ? 2 : 1
     for (let n = 0; n < count; n++) {
       const i = take('hm')
       if (i < 0) break
-      place({ kind: 'hammer', i, d: d + n * 7, amp: 58, w: 1.5 + k * 0.05, ph: n * Math.PI + rand(-0.4, 0.4) })
+      place({ kind: 'hammer', i, d: d + n * 7, amp: 58, w: 1.5 + k * 0.05, ph: n * Math.PI + rand(-0.4, 0.4), dropped: false, dropY: 0, dropV: 0 })
     }
     crystalsNear(d - 4, 1)
     return 8 + count * 7
@@ -329,11 +366,13 @@ function patternsFor(zone) {
   const w = {
     wall: 4, breather: z < 3 ? 1.5 : 0.8, bars: 1.2, double: z >= 1 ? 1.5 : 0.5, grid: z >= 1 ? 1.5 : 0, slider: z >= 2 ? 2 : 0, thick: z >= 2 ? 1.6 : 0,
     hanger: z >= 3 && env !== 'open' ? 2 : 0, helix: z >= 3 ? 1.6 : 0, fan: z >= 4 ? 2 : 0, hammer: z >= 4 ? 1.8 : 0, spinner: z >= 5 ? 2 : 0,
+    popup: z >= 2 ? 1.4 : 0, laser: z >= 5 ? 1.6 : 0,
   }
-  if (z >= 6) for (const key of ['slider', 'fan', 'spinner', 'double', 'helix', 'hammer', 'thick']) w[key] += 1
+  if (z >= 6) for (const key of ['slider', 'fan', 'spinner', 'double', 'helix', 'hammer', 'thick', 'popup', 'laser']) w[key] += 1
   if (z >= 6 && env !== 'open') w.hanger += 1
   // Helix Labs lives up to its name.
   if (themeOf(zone).name === 'Helix Labs') w.helix += 4
+  if (themeOf(zone).name === 'Laser Vault') w.laser += 6
   return w
 }
 
@@ -418,7 +457,40 @@ function updateObj(o, t) {
     }
     case 'hammer': {
       ref(rootOf(o)).position3 = { x: 0, y: HEIGHT, z }
-      ref('hm' + o.i + 's').rotation3 = { x: 0, y: 0, z: hammerAngle(o, t) }
+      const swing = ref('hm' + o.i + 's')
+      swing.rotation3 = { x: 0, y: 0, z: o.dropped ? o.dropAngle : hammerAngle(o, t) }
+      swing.position3 = { x: 0, y: o.dropY, z: 0 }
+      break
+    }
+    case 'laser': {
+      ref(rootOf(o)).position3 = { x: 0, y: 0, z }
+      const at = laserAt(o, t)
+      const beam = ref('lz' + o.i + 'l'), halo = ref('lz' + o.i + 'h')
+      beam.visible = o.on
+      halo.visible = o.on
+      if (o.vertical) {
+        const len = HEIGHT - 0.6
+        beam.position3 = halo.position3 = { x: at, y: HEIGHT * 0.5, z: 0 }
+        beam.scale3 = { x: 0.05, y: len, z: 0.05 }
+        halo.scale3 = { x: 0.18, y: len, z: 0.18 }
+        ref('lz' + o.i + 'a').position3 = { x: at, y: 0.3, z: 0 }
+        ref('lz' + o.i + 'b').position3 = { x: at, y: HEIGHT - 0.3, z: 0 }
+      } else {
+        const len = HALF_WIDTH * 2 - 0.6
+        beam.position3 = halo.position3 = { x: 0, y: at, z: 0 }
+        beam.scale3 = { x: len, y: 0.05, z: 0.05 }
+        halo.scale3 = { x: len, y: 0.18, z: 0.18 }
+        ref('lz' + o.i + 'a').position3 = { x: -HALF_WIDTH + 0.3, y: at, z: 0 }
+        ref('lz' + o.i + 'b').position3 = { x: HALF_WIDTH - 0.3, y: at, z: 0 }
+      }
+      break
+    }
+    case 'popup': {
+      const root = ref(rootOf(o))
+      root.position3 = { x: o.x, y: 0, z }
+      // Hinged at its near edge: flat (pointing away) → upright.
+      root.rotation3 = { x: -90 * (1 - o.up), y: 0, z: 0 }
+      root.scale3 = { x: 1.05, y: 1.05, z: 1 }
       break
     }
     case 'deco': {
@@ -428,6 +500,13 @@ function updateObj(o, t) {
       break
     }
   }
+}
+
+/** Where a laser's beam is at time `t`: its height (left/right beam) or
+ * its x (floor/ceiling beam). */
+function laserAt(o, t) {
+  const swing = o.amp ? Math.sin(t * o.w + o.ph) * o.amp * 0.5 : 0
+  return o.vertical ? Math.max(-HALF_WIDTH + 0.5, Math.min(HALF_WIDTH - 0.5, o.base + swing)) : Math.max(0.4, Math.min(HEIGHT - 0.4, o.base + swing))
 }
 
 /** A hammer's swing angle (degrees) at time `t`. */
@@ -620,6 +699,27 @@ function stepBall(b, dt) {
       if (pieces > 0) {
         breakFx(hit.x, hit.y, hit.z, pieces, r.loose > 5 || pieces > 12)
         if (hit.ref.name.startsWith('door')) openDoorFor(hit.ref.name)
+        // A laser base: its beam dies.
+        let m = /^lz(\d+)[ab]$/.exec(hit.ref.name)
+        if (m) {
+          const laser = g.objs.find((o) => o.kind === 'laser' && o.i === Number(m[1]))
+          if (laser && laser.on) {
+            laser.on = false
+            updateObj(laser, g.t)
+            ctx.playSound('door', { volume: 0.6, pitch: 1.8 })
+          }
+        }
+        // A hammer's beam broken where the rod hangs: the hammer drops.
+        m = /^hm(\d+)b$/.exec(hit.ref.name)
+        if (m && Math.abs(hit.x) < 0.9) {
+          const hammer = g.objs.find((o) => o.kind === 'hammer' && o.i === Number(m[1]))
+          if (hammer && !hammer.dropped) {
+            hammer.dropped = true
+            hammer.dropAngle = hammerAngle(hammer, g.t)
+            hammer.dropV = 0
+            ctx.playSound('door', { volume: 0.7, pitch: 0.6 })
+          }
+        }
         // Punch through, losing some pace and kicked a little off line.
         b.vx = b.vx * 0.72 + hit.normalX * 0.6 + rand(-0.8, 0.8)
         b.vy = b.vy * 0.72 + rand(-0.4, 0.8)
@@ -637,7 +737,7 @@ function stepBall(b, dt) {
           if (o.kind === 'cry') collectCrystal(o)
           else collectPower(o)
         }
-      } else if (o.kind === 'hammer') {
+      } else if (o.kind === 'hammer' && !o.dropped) {
         const head = hammerHead(o)
         if (Math.abs(b.z - head.z) < 0.45 + BALL_R && Math.abs(b.x - head.x) < 0.8 + BALL_R && Math.abs(b.y - head.y) < 0.45 + BALL_R) {
           b.z = head.z + 0.46 + BALL_R
@@ -764,10 +864,21 @@ if (g.mode === 'play' && g.invuln <= 0 && g.d > prevD) {
   }
   // Hammers: the head is solid.
   for (const o of g.objs) {
-    if (o.kind !== 'hammer' || g.invuln > 0) continue
+    if (o.kind !== 'hammer' || o.dropped || g.invuln > 0) continue
     const head = hammerHead(o)
     if (Math.abs(head.z - g.camZ) < 0.55 && Math.abs(head.x - g.camX) < 1.0 && Math.abs(head.y - g.camY) < 0.65) {
       ctx.playSound('crash', { volume: 0.9, pitch: 0.6 })
+      penalty()
+    }
+  }
+  // Live lasers: crossing the beam's plane this frame, close to the beam.
+  for (const o of g.objs) {
+    if (o.kind !== 'laser' || !o.on || g.invuln > 0) continue
+    if (!(prevD < o.d && o.d <= g.d + 0.05)) continue
+    const at = laserAt(o, g.t)
+    if (o.vertical ? Math.abs(g.camX - at) < 0.24 : Math.abs(g.camY - at) < 0.24) {
+      ctx.playSound('crash', { volume: 0.8, pitch: 1.5 })
+      g.flash = 1
       penalty()
     }
   }
@@ -782,6 +893,21 @@ for (let k = g.objs.length - 1; k >= 0; k--) {
     g.objs.splice(k, 1)
     continue
   }
+  if (o.kind === 'popup') {
+    // Snap upright when you get close (sooner the faster you go).
+    if (!o.popping && o.d - g.d < 10 + g.speed * 0.35) {
+      o.popping = true
+      if (g.mode === 'play') ctx.playSound('throw', { volume: 0.9, pitch: 0.55 })
+    }
+    if (o.popping && o.up < 1) {
+      o.up = Math.min(1, o.up + dt * 5.5)
+      updateObj(o, g.t)
+    }
+  }
+  if (o.kind === 'hammer' && o.dropped && o.dropY > -12) {
+    o.dropV -= GRAVITY * dt
+    o.dropY += o.dropV * dt
+  }
   if (o.kind === 'door') {
     if (o.opening) o.open = Math.min(1, o.open + dt * 2.6)
     // Flying into a closed door: a crash, and it bursts open.
@@ -793,7 +919,7 @@ for (let k = g.objs.length - 1; k >= 0; k--) {
       penalty()
     }
   }
-  if (o.kind === 'pane' && o.move || o.kind === 'fan' || o.kind === 'hang' || o.kind === 'door' || o.kind === 'cry' || o.kind === 'power' || o.kind === 'helix' || o.kind === 'hammer') updateObj(o, g.t)
+  if (o.kind === 'pane' && o.move || o.kind === 'fan' || o.kind === 'hang' || o.kind === 'door' || o.kind === 'cry' || o.kind === 'power' || o.kind === 'helix' || o.kind === 'hammer' || o.kind === 'laser') updateObj(o, g.t)
 }
 
 // Arches (and the lamps on the next few) recycle forward.
@@ -950,9 +1076,16 @@ if ((moved || g.colDirty) && g.colT <= 0) {
   for (let i = 0; i < LOST; i++) ref('lb' + i).fillColor = chrome
   ref('sky').fillColor = rgba(c.fog)
   for (let i = 0; i < PYLONS; i++) ref('pyl' + i).fillColor = rgba(lerp3(c.arch, c.fog, 0.25))
-  for (let h = 0; h < HELIXES; h++) for (let k = 0; k < RUNGS; k++) ref('hx' + h + 'r' + k).fillColor = glass
-  // Thick glass: a deeper, murkier tint.
-  for (let i = 0; i < THICK; i++) ref('pt' + i).fillColor = rgba(lerp3(c.glass, [0.1, 0.25, 0.3], 0.35), 0.72)
+  for (let h = 0; h < HELIXES; h++) {
+    for (let k = 0; k < RUNGS; k++) {
+      ref('hx' + h + 'r' + k).fillColor = glass
+      if (k + 1 < RUNGS) for (const s of ['t', 'b']) ref('hx' + h + 'b' + k + s).fillColor = glass
+    }
+  }
+  for (let i = 0; i < HAMMERS; i++) ref('hm' + i + 'b').fillColor = glass
+  for (let i = 0; i < POPUPS; i++) ref('pj' + i).fillColor = glass
+  // Thick glass: much darker and nearly opaque, so it reads as dense.
+  for (let i = 0; i < THICK; i++) ref('pt' + i).fillColor = rgba(lerp3(c.glass, [0.03, 0.08, 0.1], 0.7), 0.9)
   for (let i = 0; i < HAMMERS; i++) ref('hm' + i + 'g').fillColor = rgba(c.glow)
   for (let i = 0; i < DOORS; i++) for (const s of ['L', 'R']) ref('door' + i + s + 's').fillColor = rgba(c.glow)
 }

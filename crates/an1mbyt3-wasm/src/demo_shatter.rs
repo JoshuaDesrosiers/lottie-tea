@@ -89,6 +89,9 @@ const STRAND_R: f32 = 0.72;
 const HAMMERS: usize = 3;
 const THICK: usize = 4;
 const POWERS: usize = 3;
+/// Laser gates and pop-up ("jumpscare") panes.
+const LASERS: usize = 4;
+const POPUPS: usize = 3;
 /// Pane sizes (local units, before the script's per-obstacle scale).
 const BIG: (f32, f32) = (3.2, 2.6);
 const SMALL: (f32, f32) = (1.5, 1.5);
@@ -575,6 +578,7 @@ const ZONES: &[Zone] = &[
     zone!("Dunes", "open", [0.98, 0.82, 0.6], [0.86, 0.68, 0.46], [0.92, 0.76, 0.56], [0.62, 0.42, 0.26], [1.0, 0.9, 0.7], [0.8, 1.0, 0.92], [0.66, 0.56, 0.46]),
     zone!("Night", "open", [0.06, 0.08, 0.18], [0.1, 0.12, 0.22], [0.12, 0.14, 0.26], [0.05, 0.06, 0.12], [0.3, 0.9, 1.0], [0.6, 0.9, 1.0], [0.22, 0.26, 0.38]),
     zone!("Abyss", "canyon", [0.1, 0.16, 0.2], [0.12, 0.18, 0.22], [0.16, 0.24, 0.28], [0.06, 0.1, 0.12], [0.4, 1.0, 0.8], [0.5, 1.0, 0.85], [0.22, 0.3, 0.32]),
+    zone!("Laser Vault", "interior", [0.14, 0.06, 0.08], [0.17, 0.08, 0.1], [0.21, 0.09, 0.12], [0.08, 0.03, 0.04], [1.0, 0.3, 0.25], [0.7, 0.95, 1.0], [0.3, 0.2, 0.22]),
     zone!("Helix Labs", "interior", [0.86, 0.92, 0.94], [0.76, 0.82, 0.84], [0.9, 0.94, 0.95], [0.28, 0.66, 0.6], [0.6, 1.0, 0.85], [0.6, 1.0, 0.9], [0.56, 0.62, 0.64]),
     zone!("Aurora", "open", [0.1, 0.2, 0.3], [0.14, 0.2, 0.3], [0.18, 0.26, 0.36], [0.08, 0.12, 0.18], [0.5, 1.0, 0.7], [0.55, 1.0, 0.85], [0.26, 0.32, 0.4]),
     zone!("Zenith", "open", [0.96, 0.88, 0.7], [0.78, 0.68, 0.48], [0.9, 0.82, 0.64], [0.6, 0.46, 0.24], [1.0, 0.95, 0.75], [0.7, 1.0, 0.92], [0.6, 0.56, 0.48]),
@@ -682,23 +686,11 @@ pub(crate) fn build_demo_shatter(document: &mut Document) -> ShatterDemo {
     let glass_color = rgba(z0.glass, 0.5);
     let glass_mesh = |w: f32, h: f32, thickness: f32, shard: f32, seed: u32, anchors: u32| mesh(Primitive3D::Glass { width: w, height: h, thickness, shard, seed, anchors }, glass_color, 0.9, false, Some(glass));
     let frame = [0.16, 0.17, 0.2, 1.0];
-    // A framed pane: an empty root (the script places / scales it), the
-    // glass, and four thin metal frame bars round it.
+    // A pane: an empty root (the script places / scales it) holding the
+    // glass. (No frames: everything you see in the path is glass.)
     let framed = |document: &mut Document, inverses: &mut Vec<Command>, name: String, size: (f32, f32), shard: f32, seed: u32| {
         let root = add_node(document, inverses, scene, hidden(node3d(&format!("{name}r"), None, at(PARKED), Node3DContent::Empty)));
         add_node(document, inverses, scene, node3d(&name, Some(root), Transform3D::default(), glass_mesh(size.0, size.1, 0.035, shard, seed, SIDE_ALL)));
-        let (hw, hh, t) = (size.0 * 0.5, size.1 * 0.5, 0.09);
-        for (k, (position, bar)) in [
-            (Vec3::new(0.0, hh + t * 0.5, 0.0), Vec3::new(size.0 + t * 2.0, t, t * 1.4)),
-            (Vec3::new(0.0, -hh - t * 0.5, 0.0), Vec3::new(size.0 + t * 2.0, t, t * 1.4)),
-            (Vec3::new(-hw - t * 0.5, 0.0, 0.0), Vec3::new(t, size.1, t * 1.4)),
-            (Vec3::new(hw + t * 0.5, 0.0, 0.0), Vec3::new(t, size.1, t * 1.4)),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            add_node(document, inverses, scene, node3d(&format!("{name}f{k}"), Some(root), at(position), mesh(Primitive3D::Cube { size: bar }, frame, 0.85, false, None)));
-        }
     };
     for i in 0..BIG_PANES {
         framed(document, &mut inverses, format!("pb{i}"), BIG, 0.3, 100 + i as u32);
@@ -772,11 +764,10 @@ pub(crate) fn build_demo_shatter(document: &mut Document) -> ShatterDemo {
     }
     // DNA strands: long double helixes slung across the space like
     // bridges (the script tilts each one and turns it slowly round its own
-    // axis). Along local X: two dark metal backbones spiralling round the
-    // axis, joined every RUNG_GAP by a glass rung (held at both backbones —
-    // smash its middle and the stubs stay). Where a strand crosses your
-    // line, its rungs are in the way.
-    let backbone = [0.11, 0.12, 0.14, 1.0];
+    // axis), all glass. Along local X: two backbones spiralling round the
+    // axis, joined every RUNG_GAP by a rung (held at both backbones — smash
+    // its middle and the stubs stay). Where a strand crosses your line,
+    // it's in the way.
     let span = (RUNGS - 1) as f32 * RUNG_GAP;
     let strand_point = |k: f32, side: f32| {
         let a = (k * RUNG_TWIST).to_radians();
@@ -793,48 +784,61 @@ pub(crate) fn build_demo_shatter(document: &mut Document) -> ShatterDemo {
                 node3d(&format!("hx{h}a{k}"), Some(spin), Transform3D { position: Vec3::new(-span * 0.5 + k as f32 * RUNG_GAP, 0.0, 0.0), rotation_degrees: Vec3::new(k as f32 * RUNG_TWIST, 0.0, 0.0), scale: Vec3::ONE }, Node3DContent::Empty),
             );
             add_node(document, &mut inverses, scene, node3d(&format!("hx{h}r{k}"), Some(arm), Transform3D::default(), glass_mesh(0.24, STRAND_R * 2.0 - 0.16, 0.14, 0.28, 800 + (h * RUNGS + k) as u32, SIDE_TOP | SIDE_BOTTOM)));
-            // Backbone segments to the next rung (straight tubes between
-            // the two strands' points — computed here once; the whole
-            // strand then turns as one).
+            // Backbone segments to the next rung: glass bars too (the whole
+            // strand is glass), laid along the line between the two
+            // strands' points — computed here once; the strand turns as one.
+            // Each is held at both ends, so a hit bites a chunk out.
             if k + 1 < RUNGS {
                 for (side_name, side) in [("t", 1.0f32), ("b", -1.0)] {
                     let from = strand_point(k as f32, side);
                     let to = strand_point(k as f32 + 1.0, side);
                     let dir = to - from;
-                    let mut t = Transform3D { position: (from + to) * 0.5, rotation_degrees: Vec3::ZERO, scale: Vec3::new(1.0, dir.length() + 0.06, 1.0) };
-                    t.set_rotation(glam::Quat::from_rotation_arc(Vec3::Y, dir.normalize()));
-                    add_node(document, &mut inverses, scene, node3d(&format!("hx{h}b{k}{side_name}"), Some(spin), t, mesh(Primitive3D::Cylinder { radius: 0.12, height: 1.0, segments: 12 }, backbone, 0.85, false, None)));
+                    let mut t = Transform3D { position: (from + to) * 0.5, rotation_degrees: Vec3::ZERO, scale: Vec3::ONE };
+                    t.set_rotation(glam::Quat::from_rotation_arc(Vec3::X, dir.normalize()));
+                    add_node(
+                        document,
+                        &mut inverses,
+                        scene,
+                        node3d(&format!("hx{h}b{k}{side_name}"), Some(spin), t, glass_mesh(dir.length() + 0.08, 0.2, 0.2, 0.3, 860 + (h * RUNGS * 2 + k * 2) as u32 + side_name.len() as u32, SIDE_LEFT | SIDE_RIGHT)),
+                    );
                 }
             }
         }
     }
-    // Hammers: a beam across the track, a pivot swinging a rod and a heavy
-    // metal head through the path. Metal: balls bounce off, you dodge.
+    // Hammers: a glass beam across the track, a pivot swinging a rod and a
+    // heavy metal head through the path. The head is solid (balls bounce
+    // off it, you dodge it) — but shoot the beam where the rod hangs and
+    // the whole hammer drops.
     for i in 0..HAMMERS {
         let root = add_node(document, &mut inverses, scene, hidden(node3d(&format!("hm{i}"), None, at(PARKED), Node3DContent::Empty)));
-        add_node(document, &mut inverses, scene, node3d(&format!("hm{i}b"), Some(root), at(Vec3::ZERO), mesh(Primitive3D::Cube { size: Vec3::new(HALF_WIDTH * 2.0 + 0.6, 0.4, 0.4) }, frame, 0.85, false, None)));
+        add_node(document, &mut inverses, scene, node3d(&format!("hm{i}b"), Some(root), at(Vec3::ZERO), glass_mesh(HALF_WIDTH * 2.0 + 0.6, 0.42, 0.42, 0.45, 950 + i as u32, SIDE_LEFT | SIDE_RIGHT)));
         let swing = add_node(document, &mut inverses, scene, node3d(&format!("hm{i}s"), Some(root), Transform3D::default(), Node3DContent::Empty));
         add_node(document, &mut inverses, scene, node3d(&format!("hm{i}r"), Some(swing), at(Vec3::new(0.0, -HAMMER_REACH * 0.5, 0.0)), mesh(Primitive3D::Cube { size: Vec3::new(0.14, HAMMER_REACH, 0.14) }, frame, 0.85, false, None)));
         add_node(document, &mut inverses, scene, node3d(&format!("hm{i}h"), Some(swing), at(Vec3::new(0.0, -HAMMER_REACH, 0.0)), mesh(Primitive3D::Cube { size: Vec3::new(1.6, 0.9, 0.9) }, [0.3, 0.32, 0.36, 1.0], 0.9, false, None)));
         add_node(document, &mut inverses, scene, node3d(&format!("hm{i}g"), Some(swing), at(Vec3::new(0.0, -HAMMER_REACH, 0.47)), mesh(Primitive3D::Cube { size: Vec3::new(1.4, 0.12, 0.04) }, rgba(z0.glow, 1.0), 0.0, true, None)));
     }
-    // Thick glass: framed, heavier frame, deeper tint — it cracks on the
-    // first hits and only breaks on the last.
+    // Thick glass: a deeper, murkier tint and a slab-thick edge — it
+    // cracks on the first hits and only breaks on the last.
     for i in 0..THICK {
         let root = add_node(document, &mut inverses, scene, hidden(node3d(&format!("pt{i}r"), None, at(PARKED), Node3DContent::Empty)));
-        add_node(document, &mut inverses, scene, node3d(&format!("pt{i}"), Some(root), Transform3D::default(), mesh(Primitive3D::Glass { width: THICK_PANE.0, height: THICK_PANE.1, thickness: 0.16, shard: 0.36, seed: 900 + i as u32, anchors: SIDE_ALL }, [0.45, 0.8, 0.85, 0.72], 0.95, false, Some(glass))));
-        let (hw, hh, t) = (THICK_PANE.0 * 0.5, THICK_PANE.1 * 0.5, 0.16);
-        for (k, (position, bar)) in [
-            (Vec3::new(0.0, hh + t * 0.5, 0.0), Vec3::new(THICK_PANE.0 + t * 2.0, t, t * 1.6)),
-            (Vec3::new(0.0, -hh - t * 0.5, 0.0), Vec3::new(THICK_PANE.0 + t * 2.0, t, t * 1.6)),
-            (Vec3::new(-hw - t * 0.5, 0.0, 0.0), Vec3::new(t, THICK_PANE.1, t * 1.6)),
-            (Vec3::new(hw + t * 0.5, 0.0, 0.0), Vec3::new(t, THICK_PANE.1, t * 1.6)),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            add_node(document, &mut inverses, scene, node3d(&format!("pt{i}f{k}"), Some(root), at(position), mesh(Primitive3D::Cube { size: bar }, [0.1, 0.11, 0.13, 1.0], 0.9, false, None)));
+        add_node(document, &mut inverses, scene, node3d(&format!("pt{i}"), Some(root), Transform3D::default(), mesh(Primitive3D::Glass { width: THICK_PANE.0, height: THICK_PANE.1, thickness: 0.16, shard: 0.36, seed: 900 + i as u32, anchors: SIDE_ALL }, [0.2, 0.32, 0.36, 0.9], 0.95, false, Some(glass))));
+    }
+    // Laser gates: a red beam between two glass bases (left/right walls or
+    // floor/ceiling — the script orients and sweeps them). Fly into a live
+    // beam and you crash; shoot either base and the beam dies.
+    for i in 0..LASERS {
+        let root = add_node(document, &mut inverses, scene, hidden(node3d(&format!("lz{i}"), None, at(PARKED), Node3DContent::Empty)));
+        add_node(document, &mut inverses, scene, node3d(&format!("lz{i}l"), Some(root), Transform3D::default(), mesh(Primitive3D::cube(), [1.0, 0.16, 0.1, 1.0], 0.0, true, None)));
+        add_node(document, &mut inverses, scene, node3d(&format!("lz{i}h"), Some(root), Transform3D::default(), mesh(Primitive3D::cube(), [1.0, 0.25, 0.2, 0.28], 0.0, true, None)));
+        for base in ["a", "b"] {
+            add_node(document, &mut inverses, scene, node3d(&format!("lz{i}{base}"), Some(root), Transform3D::default(), mesh(Primitive3D::Glass { width: 0.6, height: 0.6, thickness: 0.3, shard: 0.2, seed: 970 + i as u32, anchors: 0 }, [1.0, 0.55, 0.5, 0.7], 0.9, false, Some(glass))));
         }
+    }
+    // Pop-up ("jumpscare") panes: lying flat in the floor, hinged at their
+    // near edge, they snap upright as you come close.
+    for i in 0..POPUPS {
+        let root = add_node(document, &mut inverses, scene, hidden(node3d(&format!("pj{i}r"), None, at(PARKED), Node3DContent::Empty)));
+        add_node(document, &mut inverses, scene, node3d(&format!("pj{i}"), Some(root), at(Vec3::new(0.0, BIG.1 * 0.5, 0.0)), glass_mesh(BIG.0, BIG.1, 0.035, 0.3, 990 + i as u32, SIDE_BOTTOM)));
     }
     // Power-ups: big orange crystals — rapid fire.
     for i in 0..POWERS {
@@ -859,6 +863,7 @@ pub(crate) fn build_demo_shatter(document: &mut Document) -> ShatterDemo {
          const BIG = [{}, {}], SMALL = [{}, {}], BLADE = [{}, {}], HANG = [{}, {}], SPIN = [{}, {}]\n\
          const SHELL_LEN = {shell_len}\n\
          const RUNG_GAP = {RUNG_GAP}\n\
+         const LASERS = {LASERS}, POPUPS = {POPUPS}\n\
          const PYLONS = {PYLONS}, LOST = {LOST}, HELIXES = {HELIXES}, RUNGS = {RUNGS}, HAMMERS = {HAMMERS}, THICK = {THICK}, POWERS = {POWERS}, HAMMER_REACH = {HAMMER_REACH}\n\
          const ZONES = {}",
         BIG.0,
@@ -990,8 +995,8 @@ mod tests {
             .filter_map(|id| artboard.node(id))
             .filter(|n| matches!(&n.kind, NodeKind::Node3D(an1mbyt3_core::Node3D { content: Node3DContent::Mesh(Mesh3D { primitive: Primitive3D::Glass { .. }, .. }), .. })))
             .count();
-        assert_eq!(glass_count, BIG_PANES + SMALL_PANES + SPINNERS + BARS + FANS * BLADES + HANGERS + DOORS + HELIXES * RUNGS + THICK);
-        assert_eq!(ZONES.len(), 16);
+        assert_eq!(glass_count, BIG_PANES + SMALL_PANES + SPINNERS + BARS + FANS * BLADES + HANGERS + DOORS + HELIXES * (RUNGS + (RUNGS - 1) * 2) + THICK + HAMMERS + LASERS * 2 + POPUPS);
+        assert_eq!(ZONES.len(), 17);
         assert!(document.audio_assets().count() >= 9);
     }
 
