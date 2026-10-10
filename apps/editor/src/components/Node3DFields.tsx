@@ -11,7 +11,15 @@ import { Dropdown, NumberField } from './InspectorPanel'
  * whole `Node3D` back (`set_node3d`, one undo step).
  */
 
-const PRIMITIVES: Primitive3D['shape'][] = ['Cube', 'Sphere', 'Plane', 'Cylinder', 'Cone', 'Torus', 'Voxels']
+const PRIMITIVES: Primitive3D['shape'][] = ['Cube', 'Sphere', 'Plane', 'Cylinder', 'Cone', 'Torus', 'Voxels', 'Glass']
+
+/** Glass `anchors` bits — which edges hold the pane up. */
+const GLASS_SIDES: { bit: number; label: string }[] = [
+  { bit: 1, label: 'Left' },
+  { bit: 2, label: 'Right' },
+  { bit: 4, label: 'Bottom' },
+  { bit: 8, label: 'Top' },
+]
 
 /** A fresh primitive of `shape` with its default parameters (`Model` uses
  * the first imported model). */
@@ -33,6 +41,8 @@ function defaultPrimitive(shape: Primitive3D['shape'], firstModel: OpaqueId | nu
       return { shape, radius: 0.5, tube: 0.18, segments: 40, sides: 16 }
     case 'Voxels':
       return { shape, width: 32, height: 32, depth: 32 }
+    case 'Glass':
+      return { shape, width: 2, height: 1.5, thickness: 0.02, shard: 0.22, seed: 1, anchors: 15 }
   }
 }
 
@@ -256,6 +266,36 @@ function PrimitiveParams({ primitive, onChange }: { primitive: Primitive3D; onCh
           {num('H', primitive.height, 1, (height) => onChange({ ...primitive, height: Math.max(1, Math.round(height)) }))}
           {num('D', primitive.depth, 1, (depth) => onChange({ ...primitive, depth: Math.max(1, Math.round(depth)) }))}
         </Row>
+      )
+    case 'Glass':
+      // Breakable glass: size, how big its pieces are, and which edges hold
+      // it (pieces cut off from every held edge fall when it's hit).
+      return (
+        <div className="flex flex-col gap-1.5">
+          <Row label="Size (W / H / Thickness)">
+            {num('W', primitive.width, 0.1, (width) => onChange({ ...primitive, width: Math.max(0.01, width) }))}
+            {num('H', primitive.height, 0.1, (height) => onChange({ ...primitive, height: Math.max(0.01, height) }))}
+            {num('T', primitive.thickness, 0.005, (thickness) => onChange({ ...primitive, thickness: Math.max(0.0005, thickness) }))}
+          </Row>
+          <Row label="Piece size / Pattern seed">
+            {num('S', primitive.shard, 0.02, (shard) => onChange({ ...primitive, shard: Math.max(0.01, shard) }))}
+            {num('#', primitive.seed, 1, (seed) => onChange({ ...primitive, seed: Math.max(0, Math.round(seed)) }))}
+          </Row>
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] text-ink-dim" title="A hit that cuts pieces off from every held edge makes them fall: a bar held top and bottom loses a bite, a hanging pane drops everything below the break.">
+              Held by edges
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {GLASS_SIDES.map(({ bit, label }) => (
+                <label key={bit} className="flex items-center gap-1 text-[11px] text-ink-dim">
+                  <input type="checkbox" checked={(primitive.anchors & bit) !== 0} onChange={(e) => onChange({ ...primitive, anchors: e.target.checked ? primitive.anchors | bit : primitive.anchors & ~bit })} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <p className="text-[10px] leading-snug text-ink-dim">Scripts break it: <code>ref.shatter3(point, velocity)</code>, find standing glass with <code>ctx.glassRaycast3</code>. Materials get uv.x = 1 on edges, uv.y = cracks.</p>
+        </div>
       )
     case 'Torus':
       return (

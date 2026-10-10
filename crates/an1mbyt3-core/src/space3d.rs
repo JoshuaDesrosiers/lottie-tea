@@ -89,9 +89,25 @@ pub enum Primitive3D {
     /// `ref.setVoxel(x, y, z, block)`) — a generated world is far too big
     /// to save as nodes, and games regenerate it from a seed anyway.
     Voxels { width: u32, height: u32, depth: u32 },
+    /// A **breakable glass pane**: `width × height` in local XY (facing +Z,
+    /// centred), `thickness` deep, pre-cut into Voronoi pieces about
+    /// `shard` units across (`seed` picks the pattern). It hangs off the
+    /// edges set in `anchors` (bits: 1 left, 2 right, 4 bottom, 8 top; 15 =
+    /// a pane in a frame, 12 = a bar held top and bottom, 8 = hanging) —
+    /// when a hit cuts pieces off from every anchored edge, they fall.
+    ///
+    /// Which pieces are broken, and the flying shards, are runtime state
+    /// (scripts: `ref.shatter3`, `ctx.glassRaycast3`, `ref.resetGlass`; see
+    /// `an1mbyt3_geometry::glass`). Materials on glass get `uv.x` = 1 on
+    /// edges/sides and `uv.y` = how cracked a face is.
+    Glass { width: f32, height: f32, thickness: f32, shard: f32, seed: u32, anchors: u32 },
 }
 
 impl Primitive3D {
+    /// A 2 × 1.5 m framed pane, 2 cm thick.
+    pub fn glass() -> Self {
+        Self::Glass { width: 2.0, height: 1.5, thickness: 0.02, shard: 0.22, seed: 1, anchors: 15 }
+    }
     pub fn cube() -> Self {
         Self::Cube { size: Vec3::ONE }
     }
@@ -296,6 +312,7 @@ enum Primitive3DTagged {
     Torus { radius: f32, tube: f32, segments: u32, sides: u32 },
     Model { model: crate::ModelId },
     Voxels { width: u32, height: u32, depth: u32 },
+    Glass { width: f32, height: f32, thickness: f32, shard: f32, seed: u32, anchors: u32 },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -309,6 +326,7 @@ enum Primitive3DPlain {
     Torus { radius: f32, tube: f32, segments: u32, sides: u32 },
     Model { model: crate::ModelId },
     Voxels { width: u32, height: u32, depth: u32 },
+    Glass { width: f32, height: f32, thickness: f32, shard: f32, seed: u32, anchors: u32 },
 }
 
 binary_safe_tagged!(Primitive3D, Primitive3DTagged, Primitive3DPlain);

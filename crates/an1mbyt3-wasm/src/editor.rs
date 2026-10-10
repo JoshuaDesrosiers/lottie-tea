@@ -2362,6 +2362,10 @@ pub struct WasmEditor {
     /// Block worlds' runtime blocks and their meshed regions, by the
     /// `Primitive3D::Voxels` node (scripts fill them; see `VoxelWorld`).
     voxel_worlds: HashMap<NodeId, VoxelWorld>,
+    /// Breakable glass (`Primitive3D::Glass`): which pieces are still in
+    /// place and the flying shards, per pane. Runtime only — cleared on
+    /// entering/leaving Playground, so every run starts with whole glass.
+    glass: HashMap<NodeId, GlassRuntime>,
     /// The block atlas texture and the material block worlds draw with
     /// (`an1mbyt3_geometry::voxel`), made on first use.
     voxel_atlas_gpu: Option<an1mbyt3_renderer::GpuImageTexture>,
@@ -2818,6 +2822,7 @@ impl WasmEditor {
             flipbook_clocks: HashMap::new(),
             textured_material_3d: None,
             voxel_worlds: HashMap::new(),
+            glass: HashMap::new(),
             voxel_atlas_gpu: None,
             voxel_material_3d: None,
             environment_3d: None,
@@ -3023,6 +3028,10 @@ impl WasmEditor {
 
         self.state_machine_active = is_state_machine;
         self.animate_mode_active = is_animate;
+        if is_playground != self.playground_active {
+            // Whole glass again, every run (and back in Design).
+            self.glass.clear();
+        }
         self.playground_active = is_playground;
         self.document_summary()
     }
@@ -7811,6 +7820,9 @@ impl WasmEditor {
         let delta = self.frame_delta;
         let live: std::collections::HashSet<NodeId> = meshes.iter().map(|(id, _, _)| *id).collect();
         self.anim_clocks.retain(|id, _| live.contains(id));
+        // (Hidden panes keep their state: a pooled pane can be hidden and
+        // reshown; only deleted ones are forgotten.)
+        self.glass.retain(|id, _| artboard.node(*id).is_some());
         let aspect = (self.canvas_width.max(1) as f32) / (self.canvas_height.max(1) as f32);
         let (view, projection, eye, clear) = if editor_view {
             let cam = self.view3d_camera;
@@ -7867,6 +7879,10 @@ impl WasmEditor {
             }
             if let Primitive3D::Voxels { width, height, depth } = mesh.primitive {
                 self.voxel_draws(node_id, [width, height, depth], model, &mesh, eye, &frustum, &mut draws);
+                continue;
+            }
+            if let Primitive3D::Glass { .. } = mesh.primitive {
+                self.glass_draws(node_id, model, &mesh, material, &mut draws);
                 continue;
             }
             // A colour with alpha below 100 % draws see-through (sorted,
@@ -8608,6 +8624,146 @@ impl WasmEditor {
                 ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(gpu), world_matrix, mesh.color)
             });
         }
+    }
+
+    /// A glass pane's runtime state, (re)cut when its shape changed.
+    fn glass_runtime(&mut self, node_id: NodeId, primitive: an1mbyt3_core::Primitive3D) -> Option<&mut GlassRuntime> {
+        glass_entry(&mut self.glass, node_id, primitive)
+    }
+
+    /// Glass draws: the intact pieces (re-meshed only when something
+    /// breaks) in the pane's space, plus its flying shards (re-meshed every
+    /// frame while there are any) in world space. Both wear the pane's
+    /// colour/material; below 100 % alpha they draw see-through.
+    fn glass_draws(&mut self, node_id: NodeId, world: glam::Mat4, mesh: &an1mbyt3_core::Mesh3D, material: Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>, draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>) {
+        let delta = self.frame_delta;
+        let renderer = &self.renderer;
+        let Some(runtime) = glass_entry(&mut self.glass, node_id, mesh.primitive) else { return };
+        let flying = runtime.pane.step(delta);
+        if runtime.intact.as_ref().is_none_or(|(v, _)| *v != runtime.pane.version) {
+            let data = runtime.pane.intact_mesh();
+            let gpu = (!data.indices.is_empty()).then(|| std::rc::Rc::new(renderer.upload_mesh_3d(&data)));
+            runtime.intact = Some((runtime.pane.version, gpu));
+        }
+        runtime.shards = if flying {
+            let data = runtime.pane.shards_mesh();
+            (!data.indices.is_empty()).then(|| std::rc::Rc::new(renderer.upload_mesh_3d(&data)))
+        } else {
+            None
+        };
+        let blend = if mesh.color[3] < 0.999 { an1mbyt3_renderer::Blend3D::Transparent } else { an1mbyt3_renderer::Blend3D::Opaque };
+        let draw = |gpu: &std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>, model: glam::Mat4| an1mbyt3_renderer::MeshDraw3D { shininess: mesh.shininess, unlit: mesh.unlit, material: material.clone(), blend, ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(gpu), model, mesh.color) };
+        if let Some((_, Some(gpu))) = &runtime.intact {
+            draws.push(draw(gpu, world));
+        }
+        if let Some(gpu) = &runtime.shards {
+            draws.push(draw(gpu, glam::Mat4::IDENTITY));
+        }
+    }
+    /// The `Primitive3D` of a 3D mesh node, with its world matrix.
+    fn mesh3d_node(&self, artboard_id: ArtboardId, node_id: NodeId) -> Option<(an1mbyt3_core::Primitive3D, glam::Mat4)> {
+        let artboard = self.document.artboard(artboard_id)?;
+        match &artboard.node(node_id)?.kind {
+            NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Mesh(mesh), .. }) => Some((mesh.primitive, artboard.world_matrix_3d(node_id)?)),
+            _ => None,
+        }
+    }
+
+    /// Script API (`ref.shatter3`): breaks a glass pane where something hit
+    /// it — world point (`px, py, pz`; projected onto the pane), the hitting
+    /// object's world velocity (`vx, vy, vz`, m/s; shards fly along it),
+    /// how far the breakage reaches (`radius`, metres) and the world height
+    /// shards land on (`floor`; pass `-Infinity` for none). A hit on a hole
+    /// breaks nothing. Returns `{ broken, loose }`: pieces knocked out, and
+    /// pieces that lost their support and fell. Untracked runtime state.
+    #[allow(clippy::too_many_arguments)]
+    pub fn glass_shatter(&mut self, artboard: JsValue, node: JsValue, px: f32, py: f32, pz: f32, vx: f32, vy: f32, vz: f32, radius: f32, floor: f32) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let Some((primitive, world)) = self.mesh3d_node(artboard_id, node_id) else { return Err(JsValue::from_str("shatter3: not a glass pane")) };
+        let local = world.inverse().transform_point3(glam::Vec3::new(px, py, pz));
+        // Metres → the pane's local units (its average in-plane scale).
+        let scale = ((world.x_axis.truncate().length() + world.y_axis.truncate().length()) * 0.5).max(1e-6);
+        let seed = (px.to_bits() ^ py.to_bits().rotate_left(11) ^ pz.to_bits().rotate_left(22)) ^ node_id_hash(node_id);
+        let Some(runtime) = self.glass_runtime(node_id, primitive) else { return Err(JsValue::from_str("shatter3: not a glass pane")) };
+        let result = runtime.pane.shatter(&an1mbyt3_geometry::ShatterParams { point: local.truncate(), radius: radius / scale, velocity: glam::Vec3::new(vx, vy, vz), world, floor, seed });
+        to_js_value(&crate::dto::ShatterDto { broken: result.broken as u32, loose: result.loose as u32 })
+    }
+
+    /// Script API (`ref.resetGlass()`): every piece back in place.
+    pub fn glass_reset(&mut self, artboard: JsValue, node: JsValue) -> Result<(), JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        if let Some((primitive, _)) = self.mesh3d_node(artboard_id, node_id) {
+            if let Some(runtime) = self.glass_runtime(node_id, primitive) {
+                runtime.pane.reset();
+            }
+        }
+        Ok(())
+    }
+
+    /// Script API (`ref.glassIntact`): how much of a pane is left, 0..1.
+    pub fn glass_intact(&mut self, artboard: JsValue, node: JsValue) -> Result<f32, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let Some((primitive, _)) = self.mesh3d_node(artboard_id, node_id) else { return Ok(0.0) };
+        Ok(self.glass_runtime(node_id, primitive).map_or(0.0, |r| r.pane.intact_fraction()))
+    }
+
+    /// Script API (`ctx.glassRaycast3(origin, dir, max)`): the nearest
+    /// *still-standing* glass along a ray, over every visible pane in the
+    /// scene — holes let it through. Same hit shape as `ctx.raycast3`
+    /// (`normal` faces back towards the ray's origin), or null.
+    #[allow(clippy::too_many_arguments)]
+    pub fn glass_raycast(&mut self, artboard: JsValue, ox: f32, oy: f32, oz: f32, dx: f32, dy: f32, dz: f32, max_distance: f32) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let origin = glam::Vec3::new(ox, oy, oz);
+        let dir = glam::Vec3::new(dx, dy, dz).normalize_or_zero();
+        if dir == glam::Vec3::ZERO {
+            return to_js_value(&None::<crate::dto::RayHit3Dto>);
+        }
+        let panes: Vec<(NodeId, an1mbyt3_core::Primitive3D, glam::Mat4)> = {
+            let Some(artboard) = self.document.artboard(artboard_id) else { return to_js_value(&None::<crate::dto::RayHit3Dto>) };
+            // Only panes the renderer has met (every visible pane gets a
+            // runtime when first drawn) — not every node in the scene.
+            self.glass
+                .keys()
+                .copied()
+                .filter(|id| !artboard.is_effectively_deleted(*id) && crate::view3d::visible_chain(artboard, *id))
+                .filter_map(|id| match &artboard.node(id)?.kind {
+                    NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Mesh(mesh), .. }) if matches!(mesh.primitive, an1mbyt3_core::Primitive3D::Glass { .. }) => Some((id, mesh.primitive, artboard.world_matrix_3d(id)?)),
+                    _ => None,
+                })
+                .collect()
+        };
+        let mut best: Option<crate::dto::RayHit3Dto> = None;
+        for (id, primitive, world) in panes {
+            // Cheap reject: the ray's closest approach to the pane's centre
+            // vs its bounding radius.
+            let centre = world.transform_point3(glam::Vec3::ZERO);
+            let along = (centre - origin).dot(dir);
+            if let an1mbyt3_core::Primitive3D::Glass { width, height, .. } = primitive {
+                let reach = world.x_axis.truncate().length() * width * 0.5 + world.y_axis.truncate().length() * height * 0.5;
+                if along < -reach || along > max_distance + reach || (origin + dir * along).distance(centre) > reach {
+                    continue;
+                }
+            }
+            let inverse = world.inverse();
+            let local_origin = inverse.transform_point3(origin);
+            let local_dir = inverse.transform_vector3(dir);
+            let Some(runtime) = self.glass_runtime(id, primitive) else { continue };
+            let Some((t, _)) = runtime.pane.raycast(local_origin, local_dir, max_distance) else { continue };
+            if best.as_ref().is_some_and(|b| b.distance <= t) {
+                continue;
+            }
+            let point = origin + dir * t;
+            let mut normal = inverse.transpose().transform_vector3(glam::Vec3::Z).normalize_or_zero();
+            if normal.dot(dir) > 0.0 {
+                normal = -normal;
+            }
+            best = Some(crate::dto::RayHit3Dto { node: id, x: point.x, y: point.y, z: point.z, normal_x: normal.x, normal_y: normal.y, normal_z: normal.z, distance: t });
+        }
+        to_js_value(&best)
     }
 
     /// Recompiles every shader-graph material whose generated WGSL changed
@@ -10016,6 +10172,15 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// The + menu's Demos → "Shatterline" — a Smash Hit-style rail shooter:
+    /// throw chrome balls to break real fracturing glass (`Primitive3D::Glass`)
+    /// down an endless corridor, ten zones, crystals and multiball.
+    pub async fn load_shatter_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_shatter::build_demo_shatter(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     /// The + menu's Demos → "Toon Explosion" — a cartoon explosion from
     /// layered particle systems (smoke, fire, outlines, sparks, debris,
     /// shockwave) plus a starburst flash, comic words and screen shake.
@@ -11073,6 +11238,44 @@ impl an1mbyt3_geometry::BlockSource for VoxelStore {
     }
 }
 
+/// A breakable glass pane's runtime (`WasmEditor::glass`): the fracture
+/// state plus its GPU meshes — the intact pieces (tagged with the pane
+/// version they were built from; `None` inside once nothing is left) and
+/// this frame's shards.
+pub(crate) struct GlassRuntime {
+    /// The `Primitive3D::Glass` fields it was cut from (re-cut on change).
+    key: [u32; 6],
+    pane: an1mbyt3_geometry::GlassPane,
+    intact: Option<(u64, Option<std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>>)>,
+    shards: Option<std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>>,
+}
+
+impl GlassRuntime {
+    fn new(key: [u32; 6], pane: an1mbyt3_geometry::GlassPane) -> Self {
+        Self { key, pane, intact: None, shards: None }
+    }
+}
+
+/// A glass pane's runtime state in `glass`, (re)cut from `primitive` when
+/// it's new or its shape changed. `None` if it isn't glass.
+fn glass_entry(glass: &mut HashMap<NodeId, GlassRuntime>, node_id: NodeId, primitive: an1mbyt3_core::Primitive3D) -> Option<&mut GlassRuntime> {
+    let an1mbyt3_core::Primitive3D::Glass { width, height, thickness, shard, seed, anchors } = primitive else { return None };
+    let key = [width.to_bits(), height.to_bits(), thickness.to_bits(), shard.to_bits(), seed, anchors];
+    let runtime = glass.entry(node_id).or_insert_with(|| GlassRuntime::new(key, an1mbyt3_geometry::GlassPane::new(width, height, thickness, shard, seed, anchors)));
+    if runtime.key != key {
+        *runtime = GlassRuntime::new(key, an1mbyt3_geometry::GlassPane::new(width, height, thickness, shard, seed, anchors));
+    }
+    Some(runtime)
+}
+
+/// A stable per-node number (mixed into glass break seeds).
+fn node_id_hash(id: NodeId) -> u32 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    id.hash(&mut h);
+    h.finish() as u32
+}
+
 /// A block world's runtime state (`WasmEditor::voxel_worlds`): its blocks,
 /// the uploaded mesh of every non-empty region, and which regions need
 /// re-meshing.
@@ -11226,5 +11429,8 @@ fn mesh3d_key(primitive: &an1mbyt3_core::Primitive3D) -> Mesh3DKey {
         P::Model { .. } => (6, [0; 4]),
         // Block worlds draw through `voxel_draws` (meshed per region).
         P::Voxels { width, height, depth } => (7, [width, height, depth, 0]),
+        // Glass draws through `glass_draws` (its live, breakable state);
+        // only the shape matters here.
+        P::Glass { width, height, thickness, shard, seed, anchors } => (8, [width.to_bits() ^ thickness.to_bits().rotate_left(7), height.to_bits() ^ shard.to_bits().rotate_left(13), seed, anchors]),
     }
 }

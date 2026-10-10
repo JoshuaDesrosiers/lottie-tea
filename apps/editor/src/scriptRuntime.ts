@@ -171,6 +171,13 @@ export interface ScriptContext {
     wind(node: OpaqueId, wind: [number, number] | null): void
     reset(node: OpaqueId): void
   }
+  /** Breakable glass — see `ref.shatter3` / `ctx.glassRaycast3`. */
+  glass: {
+    shatter(node: OpaqueId, point: [number, number, number], velocity: [number, number, number], radius: number, floor: number): { broken: number; loose: number }
+    raycast(o: [number, number, number], d: [number, number, number], maxDistance: number): RayHit3D | null
+    reset(node: OpaqueId): void
+    intact(node: OpaqueId): number
+  }
   /** Streamed block worlds: load / drop a chunk — see `ref.setVoxelChunk`. */
   setVoxelChunk(node: OpaqueId, cx: number, cz: number, blocks: Uint8Array): void
   unloadVoxelChunk(node: OpaqueId, cx: number, cz: number): void
@@ -231,6 +238,11 @@ export interface ScriptContext {
    * unlimited), or `null`. `ignore`: a ref whose body the ray skips. Filled
    * in by `runScript`. */
   raycast3(origin: Vec3Like, direction: Vec3Like, maxDistance?: number, ignore?: ComponentRef | null): RaycastHit3 | null
+  /** **Breakable glass**: the nearest glass pane (`Glass` mesh) still
+   * standing along a ray — holes let it through, so a ball (or the camera)
+   * flies through what's already broken. `ref` is the pane; `normal` faces
+   * back at the ray. `null` when nothing's there. Filled in by `runScript`. */
+  glassRaycast3(origin: Vec3Like, direction: Vec3Like, maxDistance?: number): RaycastHit3 | null
   /** Contacts that began (`started: true`) or ended this frame — Unity's
    * `OnCollisionEnter2D`/`Exit2D` plus `OnTriggerEnter2D`/`Exit2D`
    * (`trigger: true` when either collider is a trigger) in one list. `a` /
@@ -498,6 +510,17 @@ export interface ComponentRef {
   setVoxelChunk(cx: number, cz: number, blocks: Uint8Array | number[]): void
   /** **Streamed block worlds**: drop a loaded chunk (and its meshes). */
   unloadVoxelChunk(cx: number, cz: number): void
+  /** **Breakable glass** (a `Glass` mesh): break it where something hit
+   * — `point` in world space (projected onto the pane), `velocity` the
+   * hitter's (m/s; shards fly along it). Options: `radius` (m, default
+   * 0.25) how far the break reaches, `floor` (world y shards land on,
+   * default 0; `null` = none). Pieces left hanging off nothing fall too.
+   * Returns `{ broken, loose }` (0 / 0 for a hit on a hole). */
+  shatter3(point: Vec3Like, velocity: Vec3Like, options?: { radius?: number; floor?: number | null }): { broken: number; loose: number }
+  /** **Breakable glass**: every piece back in place. */
+  resetGlass(): void
+  /** **Breakable glass**: how much is still standing, 0..1 (by area). */
+  readonly glassIntact: number
   /** **Cloth 2D**: take hold of the cloth's free point nearest world
    * `(x, y)` (within `radius`, default 40). `false` if none is there. Then
    * `dragCloth(x, y)` each frame and `releaseCloth()`. */
@@ -583,7 +606,8 @@ function frameNode(id: OpaqueId): ScriptNode | null {
 
 /** The node's Rigidbody 2D body type from this frame's snapshot. */
 function initialBodyType(ctx: ScriptContext, id: OpaqueId): 'Dynamic' | 'Kinematic' | 'Static' | null {
-  const node = ctx.nodes.find((n) => n.id.idx === id.idx && n.id.version === id.version)
+  // (The frame's id index, not a scan: this runs for every ref made.)
+  const node = frameNodes === ctx.nodes ? frameNode(id) : ctx.nodes.find((n) => n.id.idx === id.idx && n.id.version === id.version)
   const rb = node?.behaviors.find((b) => b.enabled && b.behavior.kind === 'Rigidbody2D')?.behavior
   return rb && rb.kind === 'Rigidbody2D' ? rb.bodyType : null
 }
@@ -900,6 +924,19 @@ function makeComponentRefFromState(
     resetCloth: {
       enumerable: false,
       value: () => ctx.cloth.reset(node.id),
+    },
+    shatter3: {
+      enumerable: false,
+      value: (point: Vec3Like, velocity: Vec3Like, options: { radius?: number; floor?: number | null } = {}) =>
+        ctx.glass.shatter(node.id, vec3Of(point), vec3Of(velocity), options.radius ?? 0.25, options.floor === null ? -Infinity : (options.floor ?? 0)),
+    },
+    resetGlass: {
+      enumerable: false,
+      value: () => ctx.glass.reset(node.id),
+    },
+    glassIntact: {
+      enumerable: false,
+      get: () => ctx.glass.intact(node.id),
     },
     setVoxelChunk: {
       enumerable: false,
@@ -1223,14 +1260,32 @@ export function runScript(source: string, ctx: ScriptContext): void {
     frameNodes = ctx.nodes
     frameIndex = null
   }
+  // One ref per node per frame, found through an id index: games call
+  // `getCompByID` hundreds of times a frame, and building a ref (its
+  // property accessors) each time dominated their frame time. Sharing it
+  // also keeps two lookups of the same node consistent within the frame.
+  const refCache = new Map<ScriptNode, ComponentRef>()
+  let byElementId: Map<string, ScriptNode> | null = null
+  const cachedRef = (node: ScriptNode): ComponentRef => {
+    let r = refCache.get(node)
+    if (!r) {
+      r = makeComponentRef(node, ctx)
+      refCache.set(node, r)
+    }
+    return r
+  }
   const getCompByID = (id: string): ComponentRef | null => {
-    const node = ctx.nodes.find((n) => n.elementId === id)
-    return node ? makeComponentRef(node, ctx) : null
+    if (!byElementId) {
+      byElementId = new Map()
+      for (const n of ctx.nodes) if (!byElementId.has(n.elementId)) byElementId.set(n.elementId, n)
+    }
+    const node = byElementId.get(id)
+    return node ? cachedRef(node) : null
   }
   const getCompByClass = (className: string): ComponentRef[] => ctx.nodes.filter((n) => n.classes.includes(className)).map((n) => makeComponentRef(n, ctx))
   const refById = (id: OpaqueId): ComponentRef | null => {
     const node = ctx.nodes.find((n) => n.id.idx === id.idx && n.id.version === id.version)
-    return node ? makeComponentRef(node, ctx) : null
+    return node ? cachedRef(node) : null
   }
   ctx.raycast = (ox, oy, dx, dy, maxDistance = Number.MAX_VALUE, ignore = null) => {
     const exclude = ignore ? (componentOpaqueIds.get(ignore) ?? null) : null
@@ -1240,6 +1295,10 @@ export function runScript(source: string, ctx: ScriptContext): void {
   ctx.raycast3 = (origin, direction, maxDistance = Number.MAX_VALUE, ignore = null) => {
     const exclude = ignore ? (componentOpaqueIds.get(ignore) ?? null) : null
     const hit = ctx.physics.raycast3(vec3Of(origin), vec3Of(direction), maxDistance, exclude)
+    return hit ? { ref: refById(hit.node), x: hit.x, y: hit.y, z: hit.z, normalX: hit.normalX, normalY: hit.normalY, normalZ: hit.normalZ, distance: hit.distance } : null
+  }
+  ctx.glassRaycast3 = (origin, direction, maxDistance = Number.MAX_VALUE) => {
+    const hit = ctx.glass.raycast(vec3Of(origin), vec3Of(direction), maxDistance)
     return hit ? { ref: refById(hit.node), x: hit.x, y: hit.y, z: hit.z, normalX: hit.normalX, normalY: hit.normalY, normalZ: hit.normalZ, distance: hit.distance } : null
   }
   ctx.spawn = (prefabName, x, y, parent = null) => {

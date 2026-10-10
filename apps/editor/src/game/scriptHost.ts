@@ -64,6 +64,8 @@ import {
   previewNode3DAnimation,
   burstParticles3D,
   setVoxels,
+  glassShatter,
+  glassRaycast,
   setVoxel,
   setVoxelChunk,
   unloadVoxelChunk,
@@ -478,6 +480,12 @@ export class ScriptHost {
           reset: (node) => flushed(() => editor.cloth_reset(node)),
         },
         unloadVoxelChunk: (node, cx, cz) => flushed(() => unloadVoxelChunk(editor, artboardId, node, cx, cz)),
+        glass: {
+          shatter: (node, point, velocity, radius, floor) => flushed(() => glassShatter(editor, artboardId, node, point, velocity, radius, floor)),
+          raycast: (o, d, maxDistance) => flushed(() => glassRaycast(editor, artboardId, o, d, maxDistance)),
+          reset: (node) => flushed(() => editor.glass_reset(artboardId, node)),
+          intact: (node) => flushed(() => editor.glass_intact(artboardId, node)),
+        },
         playSound: (name, options) => {
           const id = this.soundId(editor, name)
           if (!id) {
@@ -519,6 +527,7 @@ export class ScriptHost {
         // Replaced by `runScript` with ref-returning versions.
         raycast: () => null,
         raycast3: () => null,
+        glassRaycast3: () => null,
         collisions: [],
         setVisible: (node, value) => writes.push(4, node, value ? 1 : 0),
         spawnClone: (node) => flushed(() => duplicateNodes(editor, artboardId, [node]).newNodes[0] ?? null),

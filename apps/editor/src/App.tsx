@@ -169,6 +169,7 @@ import {
   loadLanDemo,
   loadBoomDemo,
   loadVoxelDemo,
+  loadShatterDemo,
   addNode3D,
   setNode3D,
   importModel,
@@ -2392,6 +2393,20 @@ function App() {
       })
   }
 
+  const handleLoadShatterDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadShatterDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
   const handleLoadVoxelDemo = () => {
     const editor = editorRef.current
     if (!editor) return
@@ -4412,6 +4427,7 @@ function App() {
             onLoadLanDemo={handleLoadLanDemo}
             onLoadBoomDemo={handleLoadBoomDemo}
             onLoadVoxelDemo={handleLoadVoxelDemo}
+            onLoadShatterDemo={handleLoadShatterDemo}
             onLoadTacticsDemo={handleLoadTacticsDemo}
             onLoadPhysicsDemo={handleLoadPhysicsDemo}
         onAddText={handleAddText}

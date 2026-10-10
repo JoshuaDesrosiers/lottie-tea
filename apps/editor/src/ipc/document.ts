@@ -999,6 +999,8 @@ export type Primitive3D =
   | { shape: 'Cone'; radius: number; height: number; segments: number }
   | { shape: 'Torus'; radius: number; tube: number; segments: number; sides: number }
   | { shape: 'Voxels'; width: number; height: number; depth: number }
+  /** Breakable glass: `anchors` bits 1 left, 2 right, 4 bottom, 8 top. */
+  | { shape: 'Glass'; width: number; height: number; thickness: number; shard: number; seed: number; anchors: number }
   | { shape: 'Model'; model: OpaqueId }
 
 export type Node3DContent =

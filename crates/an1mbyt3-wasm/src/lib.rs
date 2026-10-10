@@ -81,6 +81,7 @@ mod demo_responsive;
 mod demo_html;
 mod demo_physics3d;
 mod demo_voxel;
+mod demo_shatter;
 mod demo_boom;
 mod demo_lan;
 mod demo_cloth;

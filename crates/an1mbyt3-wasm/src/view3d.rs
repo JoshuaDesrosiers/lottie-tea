@@ -119,6 +119,7 @@ pub fn local_bounds_with(content: &Node3DContent, model_bounds: &dyn Fn(an1mbyt3
             Primitive3D::Plane { size, .. } => Vec3::new(size * 0.5, 0.01, size * 0.5),
             Primitive3D::Cylinder { radius, height, .. } | Primitive3D::Cone { radius, height, .. } => Vec3::new(radius, height * 0.5, radius),
             Primitive3D::Torus { radius, tube, .. } => Vec3::new(radius + tube, tube, radius + tube),
+            Primitive3D::Glass { width, height, thickness, .. } => Vec3::new(width * 0.5, height * 0.5, (thickness * 0.5).max(0.02)),
             Primitive3D::Model { .. } | Primitive3D::Voxels { .. } => unreachable!("handled above"),
         },
         // Cameras / lights / pivots: a small clickable box (their marker).

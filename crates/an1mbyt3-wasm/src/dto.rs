@@ -813,7 +813,15 @@ impl From<TrailDto> for an1mbyt3_core::TrailNode {
 }
 
 /// `WasmEditor::physics_raycast`'s hit.
-/// `physics3d_raycast`'s result.
+/// `glass_shatter`'s result: pieces knocked out / pieces that fell.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShatterDto {
+    pub broken: u32,
+    pub loose: u32,
+}
+
+/// `physics3d_raycast`'s (and `glass_raycast`'s) result.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RayHit3Dto {

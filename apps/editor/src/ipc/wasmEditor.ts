@@ -192,6 +192,11 @@ export async function loadVoxelDemo(editor: WasmEditor): Promise<AddArtboardResu
   return (await editor.load_voxel_demo()) as AddArtboardResult
 }
 
+/** Demos → "Shatterline" (Smash Hit-style glass-breaking rail shooter). */
+export async function loadShatterDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_shatter_demo()) as AddArtboardResult
+}
+
 /** Demos → "Toon Explosion" (layered particle explosion). */
 export async function loadBoomDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_boom_demo()) as AddArtboardResult
@@ -431,6 +436,16 @@ export function physics3dAddForce(editor: WasmEditor, artboard: OpaqueId, node: 
 }
 export function physics3dRaycast(editor: WasmEditor, artboard: OpaqueId, o: [number, number, number], d: [number, number, number], maxDistance: number, exclude: OpaqueId | null): RayHit3D | null {
   return editor.physics3d_raycast(artboard, o[0], o[1], o[2], d[0], d[1], d[2], maxDistance, exclude) as RayHit3D | null
+}
+
+/** Glass script API (`ref.shatter3`) — untracked runtime state. */
+export function glassShatter(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, p: [number, number, number], v: [number, number, number], radius: number, floor: number): { broken: number; loose: number } {
+  return editor.glass_shatter(artboard, node, p[0], p[1], p[2], v[0], v[1], v[2], radius, floor) as { broken: number; loose: number }
+}
+
+/** Glass script API (`ctx.glassRaycast3`): nearest standing glass. */
+export function glassRaycast(editor: WasmEditor, artboard: OpaqueId, o: [number, number, number], d: [number, number, number], maxDistance: number): RayHit3D | null {
+  return editor.glass_raycast(artboard, o[0], o[1], o[2], d[0], d[1], d[2], maxDistance) as RayHit3D | null
 }
 
 export function setArtboardGravity(editor: WasmEditor, artboard: OpaqueId, x: number, y: number): DocumentSummary {

@@ -55,6 +55,9 @@ pub fn primitive_mesh(primitive: &Primitive3D) -> Mesh3DData {
         // Block worlds are meshed from their runtime blocks
         // (`voxel::mesh_voxel_region`), not from the primitive alone.
         Primitive3D::Voxels { .. } => Mesh3DData::default(),
+        // Unbroken glass (the editor draws the live, breakable version from
+        // `glass::GlassPane`; this is the same pane, nothing broken).
+        Primitive3D::Glass { width, height, thickness, shard, seed, anchors } => crate::glass::GlassPane::new(width, height, thickness, shard, seed, anchors).intact_mesh(),
     }
 }
 

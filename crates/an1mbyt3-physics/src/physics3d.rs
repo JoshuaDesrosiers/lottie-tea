@@ -220,6 +220,12 @@ fn build_shape(artboard: &Artboard, id: NodeId, collider: &Collider3D, scale: Ve
                     let (b, v) = cuboid(size);
                     (b, collider.offset + size * 0.5, v)
                 }
+                // A glass pane's collider is the whole pane (holes are the
+                // game script's business — `ctx.glassRaycast3`).
+                Primitive3D::Glass { width, height, thickness, .. } => {
+                    let (b, v) = cuboid(Vec3::new(width, height, thickness.max(0.01)));
+                    (b, collider.offset, v)
+                }
                 Primitive3D::Model { model } => {
                     let (min, max) = model_bounds(model).unwrap_or((Vec3::splat(-0.5), Vec3::splat(0.5)));
                     let (b, v) = cuboid(max - min);
