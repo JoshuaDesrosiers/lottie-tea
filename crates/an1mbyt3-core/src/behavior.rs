@@ -116,6 +116,12 @@ pub enum NodeBehavior {
     /// A 3D particle emitter on a `Node3D` — see [`crate::ParticleSystem3D`].
     /// (Appended last.)
     ParticleSystem3D(crate::ParticleSystem3D),
+    /// Draws a 2D Particle System's / Liquid 2D's particles as liquid
+    /// (metaballs) — see [`crate::ParticleFluid2D`]. (Appended last.)
+    ParticleFluid2D(crate::ParticleFluid2D),
+    /// Converge / Attract / Repel / Drag for 2D particles — see
+    /// [`crate::ParticleBehaviors2D`]. (Appended last.)
+    ParticleBehaviors2D(crate::ParticleBehaviors2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

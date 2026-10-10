@@ -13,7 +13,7 @@
  * the document each frame, so changes show live in Design.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { LifeCurve, ParticleBehavior3D, ParticleBehaviorKind3D, ParticleSystem3DConfig } from '../ipc/document'
+import type { LifeCurve, ParticleBehavior3D, ParticleBehaviorKind3D, ParticleBehaviors2DConfig, ParticleFluid2DConfig, ParticleSystem3DConfig } from '../ipc/document'
 import { ColorSwatch } from './ColorPicker'
 import { NumberField } from './InspectorPanel'
 import { Slider } from './Slider'
@@ -210,8 +210,10 @@ const newBehavior = (kind: ParticleBehaviorKind3D): ParticleBehavior3D => ({
   space: 'Local',
 })
 
-function BehaviorCard({ value, onChange, onRemove }: { value: ParticleBehavior3D; onChange: (b: ParticleBehavior3D) => void; onRemove: () => void }) {
-  const info = BEHAVIOR_KINDS.find((k) => k.kind === value.kind) ?? BEHAVIOR_KINDS[0]
+function BehaviorCard({ value, onChange, onRemove, twoD = false }: { value: ParticleBehavior3D; onChange: (b: ParticleBehavior3D) => void; onRemove: () => void; twoD?: boolean }) {
+  const base = BEHAVIOR_KINDS.find((k) => k.kind === value.kind) ?? BEHAVIOR_KINDS[0]
+  // 2D works in pixels: Attract / Repel need far bigger pushes.
+  const info = twoD && (base.kind === 'Attract' || base.kind === 'Repel') ? { ...base, help: base.help.replace('m/s²', 'px/s²'), strength: [0, 3000, 10] as [number, number, number] } : base
   const update = (patch: Partial<ParticleBehavior3D>) => onChange({ ...value, ...patch })
   const usesPoint = value.kind !== 'Drag'
   return (
@@ -241,11 +243,11 @@ function BehaviorCard({ value, onChange, onRemove }: { value: ParticleBehavior3D
             <Segmented value={value.space} options={['Local', 'World'] as const} onChange={(space) => update({ space })} />
           </Row>
           <Stack label={value.space === 'Local' ? 'Point (local, relative to the emitter)' : 'Point (world)'}>
-            {[0, 1, 2].map((axis) => (
+            {(twoD ? [0, 1] : [0, 1, 2]).map((axis) => (
               <NumberField
                 key={axis}
                 label={'XYZ'[axis]}
-                step={0.1}
+                step={twoD ? 1 : 0.1}
                 value={value.point[axis]}
                 onCommit={(v) => update({ point: value.point.map((p, k) => (k === axis ? v : p)) as [number, number, number] })}
               />
@@ -257,11 +259,98 @@ function BehaviorCard({ value, onChange, onRemove }: { value: ParticleBehavior3D
   )
 }
 
+/** A behaviour stack (Converge / Attract / Repel / Drag, each with a life
+ * curve) — shared by Particle System 3D and Particle Behaviours 2D. */
+export function BehaviorList({ behaviors, onChange, twoD = false }: { behaviors: ParticleBehavior3D[]; onChange: (b: ParticleBehavior3D[]) => void; twoD?: boolean }) {
+  const [adding, setAdding] = useState(false)
+  const fresh = (kind: ParticleBehaviorKind3D): ParticleBehavior3D => {
+    const b = newBehavior(kind)
+    return twoD && (kind === 'Attract' || kind === 'Repel') ? { ...b, strength: 600 } : twoD && kind === 'Drag' ? { ...b, strength: 2 } : b
+  }
+  return (
+    <>
+      {behaviors.length === 0 && <p className="text-[10px] text-ink-dim">Converge, attract, repel or slow particles — each with its own strength curve over their life.</p>}
+      {behaviors.map((b, i) => (
+        <BehaviorCard
+          key={i}
+          value={b}
+          twoD={twoD}
+          onChange={(next) => onChange(behaviors.map((x, k) => (k === i ? next : x)))}
+          onRemove={() => onChange(behaviors.filter((_, k) => k !== i))}
+        />
+      ))}
+      {adding ? (
+        <div className="flex flex-wrap gap-1">
+          {BEHAVIOR_KINDS.map((k) => (
+            <button
+              key={k.kind}
+              type="button"
+              title={k.help}
+              onClick={() => {
+                setAdding(false)
+                onChange([...behaviors, fresh(k.kind)])
+              }}
+              className="rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20"
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <button type="button" onClick={() => setAdding(true)} className="flex items-center justify-center gap-1 rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink-dim hover:text-ink">
+          <PlusIcon /> Add behaviour
+        </button>
+      )}
+    </>
+  )
+}
+
+/** Particle Behaviours 2D — the behaviour stack for a 2D Particle System. */
+export function ParticleBehaviors2DFields({ config, onChange }: { config: ParticleBehaviors2DConfig; onChange: (c: ParticleBehaviors2DConfig) => void }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-[10px] leading-snug text-ink-dim">Works on this node's Particle System. Points are in pixels; Local follows the emitter.</p>
+      <BehaviorList twoD behaviors={config.behaviors} onChange={(behaviors) => onChange({ ...config, behaviors })} />
+    </div>
+  )
+}
+
+/** Particle Fluid 2D — draws this node's particles (or Liquid 2D) as one
+ * gooey liquid: metaballs that join with smooth necks. */
+export function ParticleFluid2DFields({ config, onChange }: { config: ParticleFluid2DConfig; onChange: (c: ParticleFluid2DConfig) => void }) {
+  const update = (patch: Partial<ParticleFluid2DConfig>) => onChange({ ...config, ...patch })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-[10px] leading-snug text-ink-dim">Draws this node's Particle System (or Liquid 2D) as one liquid: drops join with smooth necks when they near each other and pull apart like goo.</p>
+      <Row label="Colour">
+        <ColorSwatch value={config.color} onChange={(color) => update({ color })} />
+      </Row>
+      <Row label="Rim colour" title="A band round the liquid's outline (alpha 0 = none).">
+        <ColorSwatch value={config.edgeColor} onChange={(edgeColor) => update({ edgeColor })} />
+      </Row>
+      <Row label="Rim width">
+        <SliderNum value={config.edgeWidth} min={0} max={1} step={0.01} onChange={(edgeWidth) => update({ edgeWidth })} />
+      </Row>
+      <Row label="Stickiness" title="How far each drop's pull reaches (× its size): higher = drops join from further apart and stretch longer necks.">
+        <SliderNum value={config.stickiness} min={1} max={4} step={0.05} onChange={(stickiness) => update({ stickiness })} />
+      </Row>
+      <Row label="Threshold" title="Lower = fatter, more merged liquid; higher = thinner, separate drops.">
+        <SliderNum value={config.threshold} min={0.1} max={0.9} step={0.01} onChange={(threshold) => update({ threshold })} />
+      </Row>
+      <Row label="Gloss">
+        <SliderNum value={config.gloss} min={0} max={1} step={0.01} onChange={(gloss) => update({ gloss })} />
+      </Row>
+      <Row label="Smoothness" title="Outline detail: lower = smoother curves, more work per frame.">
+        <SliderNum value={config.detail} min={0.08} max={0.6} step={0.01} onChange={(detail) => update({ detail })} />
+      </Row>
+    </div>
+  )
+}
+
 // ---- the component ----
 
 export function ParticleSystem3DFields({ config, onChange, onBurst }: { config: ParticleSystem3DConfig; onChange: (c: ParticleSystem3DConfig) => void; onBurst?: () => void }) {
   const update = (patch: Partial<ParticleSystem3DConfig>) => onChange({ ...config, ...patch })
-  const [adding, setAdding] = useState(false)
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
@@ -404,37 +493,7 @@ export function ParticleSystem3DFields({ config, onChange, onBurst }: { config: 
       </Section>
 
       <Section title="Behaviours">
-        {config.behaviors.length === 0 && <p className="text-[10px] text-ink-dim">Converge, attract, repel or slow particles — each with its own strength curve over their life.</p>}
-        {config.behaviors.map((b, i) => (
-          <BehaviorCard
-            key={i}
-            value={b}
-            onChange={(next) => update({ behaviors: config.behaviors.map((x, k) => (k === i ? next : x)) })}
-            onRemove={() => update({ behaviors: config.behaviors.filter((_, k) => k !== i) })}
-          />
-        ))}
-        {adding ? (
-          <div className="flex flex-wrap gap-1">
-            {BEHAVIOR_KINDS.map((k) => (
-              <button
-                key={k.kind}
-                type="button"
-                title={k.help}
-                onClick={() => {
-                  setAdding(false)
-                  update({ behaviors: [...config.behaviors, newBehavior(k.kind)] })
-                }}
-                className="rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20"
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <button type="button" onClick={() => setAdding(true)} className="flex items-center justify-center gap-1 rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink-dim hover:text-ink">
-            <PlusIcon /> Add behaviour
-          </button>
-        )}
+        <BehaviorList behaviors={config.behaviors} onChange={(behaviors) => update({ behaviors })} />
       </Section>
     </div>
   )

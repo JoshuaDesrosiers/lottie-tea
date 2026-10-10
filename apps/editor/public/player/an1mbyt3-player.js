@@ -634,6 +634,9 @@ var g = class e {
 		if (t[2]) throw W(t[1]);
 		return W(t[0]);
 	}
+	load_goo_demo() {
+		return K.wasmeditor_load_goo_demo(this.__wbg_ptr);
+	}
 	load_html_demo() {
 		return K.wasmeditor_load_html_demo(this.__wbg_ptr);
 	}

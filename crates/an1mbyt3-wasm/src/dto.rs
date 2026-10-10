@@ -2100,6 +2100,8 @@ pub enum NodeBehaviorDto {
     UiEvents(an1mbyt3_core::UiEvents),
     PropertyBindings(an1mbyt3_core::PropertyBindings),
     ParticleSystem3D(an1mbyt3_core::ParticleSystem3D),
+    ParticleFluid2D(an1mbyt3_core::ParticleFluid2D),
+    ParticleBehaviors2D(an1mbyt3_core::ParticleBehaviors2D),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2144,6 +2146,8 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::UiEvents(e) => NodeBehaviorDto::UiEvents(e.clone()),
             an1mbyt3_core::NodeBehavior::PropertyBindings(b) => NodeBehaviorDto::PropertyBindings(b.clone()),
             an1mbyt3_core::NodeBehavior::ParticleSystem3D(p) => NodeBehaviorDto::ParticleSystem3D(p.clone()),
+            an1mbyt3_core::NodeBehavior::ParticleFluid2D(p) => NodeBehaviorDto::ParticleFluid2D(*p),
+            an1mbyt3_core::NodeBehavior::ParticleBehaviors2D(p) => NodeBehaviorDto::ParticleBehaviors2D(p.clone()),
         }
     }
 }
@@ -2190,6 +2194,8 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::UiEvents(e) => an1mbyt3_core::NodeBehavior::UiEvents(e),
             NodeBehaviorDto::PropertyBindings(b) => an1mbyt3_core::NodeBehavior::PropertyBindings(b),
             NodeBehaviorDto::ParticleSystem3D(p) => an1mbyt3_core::NodeBehavior::ParticleSystem3D(p),
+            NodeBehaviorDto::ParticleFluid2D(p) => an1mbyt3_core::NodeBehavior::ParticleFluid2D(p),
+            NodeBehaviorDto::ParticleBehaviors2D(p) => an1mbyt3_core::NodeBehavior::ParticleBehaviors2D(p),
         }
     }
 }

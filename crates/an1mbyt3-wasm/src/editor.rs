@@ -1283,7 +1283,13 @@ fn build_tilemap_mesh(tilemap: &an1mbyt3_core::TilemapNode) -> Mesh {
 /// carry those.
 fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId, node: &'a Node) -> Vec<DrawCall<'a>> {
     let mut draws = kind_draws(editor, artboard, node_id, node);
-    if let Some(config) = node.particle_system() {
+    // A Particle Fluid 2D draws the node's particles (or liquid) as one
+    // metaball body instead of individual discs.
+    let fluid = node.particle_fluid().is_some();
+    if fluid {
+        draws.extend(fluid_draws(editor, node_id));
+    }
+    if let (Some(config), false) = (node.particle_system(), fluid) {
         draws.extend(particle_draws(editor, artboard, node_id, config));
     }
     if node.trail().is_some() {
@@ -1295,7 +1301,7 @@ fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard,
     if node.tree().is_some() {
         draws.extend(tree_draws(editor, artboard, node_id));
     }
-    if let Some(config) = node.liquid() {
+    if let (Some(config), false) = (node.liquid(), fluid) {
         draws.extend(liquid_draws(editor, artboard, node_id, config));
     }
     draws
@@ -1335,6 +1341,140 @@ fn liquid_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboar
                 texture: None,
                 material: None,
             }
+        })
+        .collect()
+}
+
+/// `p` from an emitter's local space to world (the same component-wise
+/// composition `particle_draws` uses).
+fn emitter_to_world(emitter: an1mbyt3_core::Transform2D, p: Vec2) -> Vec2 {
+    let (sin, cos) = emitter.rotation.sin_cos();
+    let s = p * emitter.scale;
+    emitter.translation + Vec2::new(s.x * cos - s.y * sin, s.x * sin + s.y * cos)
+}
+
+/// The inverse of [`emitter_to_world`].
+fn world_to_emitter(emitter: an1mbyt3_core::Transform2D, p: Vec2) -> Vec2 {
+    let (sin, cos) = (-emitter.rotation).sin_cos();
+    let d = p - emitter.translation;
+    let r = Vec2::new(d.x * cos - d.y * sin, d.x * sin + d.y * cos);
+    r / emitter.scale.max(Vec2::splat(1e-6))
+}
+
+/// Particle Behaviours 2D, applied after the simulation's own step: each
+/// behaviour's strength is its curve at the particle's age. Converge pulls
+/// positions toward the point (at 1 they sit on it); Attract / Repel push
+/// velocity (px/s²); Drag slows it. `local` = the particles live in the
+/// emitter's space (targets are converted into it).
+fn apply_particle_behaviors_2d(fx: &an1mbyt3_core::ParticleBehaviors2D, particles: &mut [an1mbyt3_runtime::Particle], local: bool, emitter: an1mbyt3_core::Transform2D, dt: f32) {
+    use an1mbyt3_core::{ParticleBehaviorKind3D as K, PointSpace};
+    if dt <= 0.0 {
+        return;
+    }
+    for b in fx.behaviors.iter().filter(|b| b.enabled) {
+        let point = Vec2::new(b.point[0], b.point[1]);
+        let world = match b.space {
+            PointSpace::Local => emitter_to_world(emitter, point),
+            PointSpace::World => point,
+        };
+        let target = if local { world_to_emitter(emitter, world) } else { world };
+        for p in particles.iter_mut() {
+            let w = b.weight(p.normalized_age());
+            match b.kind {
+                K::Converge => {
+                    let k = w.clamp(0.0, 1.0);
+                    if k >= 0.999 {
+                        p.position = target;
+                        p.velocity = Vec2::ZERO;
+                    } else if k > 0.0 {
+                        // Frame-rate independent: k is "how gathered".
+                        p.position = p.position.lerp(target, 1.0 - (1.0 - k).powf(dt * 8.0));
+                    }
+                }
+                K::Attract | K::Repel => {
+                    let sign = if b.kind == K::Attract { 1.0 } else { -1.0 };
+                    let to = target - p.position;
+                    p.velocity += to / (to.length() + 8.0) * w * sign * dt;
+                }
+                K::Drag => p.velocity *= (-w.max(0.0) * dt).exp(),
+            }
+        }
+    }
+}
+
+/// The metaball blobs for a node with a Particle Fluid 2D: its Particle
+/// System's live particles (world space, sized as drawn, weighted by their
+/// colour's alpha) and/or its Liquid 2D's particles.
+fn fluid_blobs(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node_id: NodeId, node: &Node, fluid: &an1mbyt3_core::ParticleFluid2D) -> Vec<crate::metaball2d::Blob> {
+    let reach = fluid.stickiness.max(0.5);
+    let mut blobs = Vec::new();
+    if let (Some(config), Some(runtime)) = (node.particle_system(), editor.particle_runtimes.get(&node_id)) {
+        let emitter = artboard.world_transform(node_id);
+        let local = config.main.simulation_space == an1mbyt3_core::SimulationSpace::Local;
+        let scale = if local { (emitter.scale.x.abs() + emitter.scale.y.abs()) * 0.5 } else { 1.0 };
+        for p in runtime.particles() {
+            let age = p.normalized_age();
+            let size = p.base_size * sample_size_over_lifetime(&config.size_over_lifetime, age) * scale;
+            let alpha = config.main.start_color[3] * sample_color_over_lifetime(&config.color_over_lifetime, age).map_or(1.0, |c| c[3]);
+            let center = if local { emitter_to_world(emitter, p.position) } else { p.position };
+            // (The particle disc is `size` across.)
+            blobs.push(crate::metaball2d::Blob { center, radius: size * 0.5 * reach, weight: alpha });
+        }
+    }
+    if let Some(config) = node.liquid() {
+        let radius = config.particle_spacing.max(2.0) * 0.75 * reach;
+        for (center, _) in liquid_points(editor, artboard, node_id, config) {
+            blobs.push(crate::metaball2d::Blob { center, radius, weight: 1.0 });
+        }
+    }
+    blobs
+}
+
+/// The liquid's layers, back to front: the rim (whole outline, edge
+/// colour), the body (a slightly higher level, so the rim shows as a band
+/// round it), and a glossy highlight: the same drops at about half size,
+/// nudged up-left, the body colour lightened — a shine on every drop that
+/// merges along with them (a higher field level instead would flood dense
+/// clusters with shine).
+fn fluid_meshes(fluid: &an1mbyt3_core::ParticleFluid2D, blobs: &[crate::metaball2d::Blob]) -> Vec<(an1mbyt3_geometry::Mesh, [f32; 4])> {
+    use crate::metaball2d::{contour, to_path};
+    if blobs.is_empty() {
+        return Vec::new();
+    }
+    let th = fluid.threshold.clamp(0.05, 0.95);
+    let detail = fluid.detail.clamp(0.08, 0.6);
+    let mut out = Vec::new();
+    let has_rim = fluid.edge_color[3] > 0.001 && fluid.edge_width > 0.0;
+    if has_rim {
+        out.push((tessellate_path(&to_path(&contour(blobs, th, detail), Vec2::ZERO)), fluid.edge_color));
+    }
+    let body_th = if has_rim { (th * (1.0 + fluid.edge_width.clamp(0.0, 1.0) * 1.5)).min(0.97) } else { th };
+    out.push((tessellate_path(&to_path(&contour(blobs, body_th, detail), Vec2::ZERO)), fluid.color));
+    if fluid.gloss > 0.0 {
+        let small: Vec<crate::metaball2d::Blob> = blobs.iter().map(|b| crate::metaball2d::Blob { center: b.center + Vec2::new(-1.0, 1.0) * b.radius * 0.14, radius: b.radius * 0.42, ..*b }).collect();
+        let c = fluid.color;
+        let k = 0.6;
+        let shine = [c[0] + (1.0 - c[0]) * k, c[1] + (1.0 - c[1]) * k, c[2] + (1.0 - c[2]) * k, c[3] * fluid.gloss.clamp(0.0, 1.0) * 0.8];
+        out.push((tessellate_path(&to_path(&contour(&small, th, detail), Vec2::ZERO)), shine));
+    }
+    out
+}
+
+/// A node's Particle Fluid 2D layers (meshes are already in world space).
+fn fluid_draws(editor: &WasmEditor, node_id: NodeId) -> Vec<DrawCall<'_>> {
+    let Some((parts, bindings)) = editor.particle_fluid_gpu.get(&node_id) else { return Vec::new() };
+    parts
+        .iter()
+        .zip(bindings.iter())
+        .map(|((mesh, color), binding)| DrawCall {
+            mesh,
+            binding,
+            transform: an1mbyt3_core::Transform2D::default(),
+            fill_color: *color,
+            blend_mode: BlendMode::Normal,
+            gradient: None,
+            texture: None,
+            material: None,
         })
         .collect()
 }
@@ -2089,6 +2229,9 @@ pub struct WasmEditor {
     /// count grows back rather than freeing and re-allocating GPU resources
     /// every time the live count fluctuates.
     particle_bindings: HashMap<NodeId, Vec<DrawBinding>>,
+    /// Particle Fluid 2D: this frame's liquid meshes per node (world space,
+    /// back to front: rim, body, highlight) and the bindings they reuse.
+    particle_fluid_gpu: HashMap<NodeId, (Vec<(GpuMesh, [f32; 4])>, Vec<DrawBinding>)>,
     /// One draw binding per Liquid 2D particle (grown as the fluid grows).
     liquid_bindings: HashMap<NodeId, Vec<DrawBinding>>,
     /// Opaque-pixel bounding box per (image, tile index) — `u32::MAX` as the
@@ -2486,6 +2629,7 @@ impl WasmEditor {
             frame_stats: Default::default(),
             particle_mesh: None,
             particle_bindings: HashMap::new(),
+            particle_fluid_gpu: HashMap::new(),
             liquid_bindings: HashMap::new(),
             trail_runtimes: HashMap::new(),
             alpha_bounds_cache: std::cell::RefCell::new(HashMap::new()),
@@ -3197,9 +3341,41 @@ impl WasmEditor {
             let emitter_world = artboard.world_transform(node_id);
             let runtime = self.particle_runtimes.entry(node_id).or_default();
             an1mbyt3_runtime::step_particle_system(config, runtime, delta_seconds, emitter_world);
+            if let Some(fx) = node.particle_behaviors() {
+                let local = config.main.simulation_space == an1mbyt3_core::SimulationSpace::Local;
+                apply_particle_behaviors_2d(fx, runtime.particles_mut(), local, emitter_world, delta_seconds);
+            }
             let bindings = self.particle_bindings.entry(node_id).or_default();
             while bindings.len() < runtime.particles().len() {
                 bindings.push(self.renderer.create_draw_binding());
+            }
+        }
+
+        // Particle Fluid 2D: contour every liquid node's particles into
+        // metaball outlines (rim / body / highlight) and upload them.
+        let artboard = self.document.artboard(artboard_id).unwrap();
+        let fluids: Vec<(NodeId, an1mbyt3_core::ParticleFluid2D, Vec<crate::metaball2d::Blob>)> = artboard
+            .node_ids()
+            .filter(|id| !artboard.is_effectively_deleted(*id) && crate::lighting2d::effectively_visible(artboard, *id))
+            .filter_map(|id| {
+                let node = artboard.node(id)?;
+                let fluid = *node.particle_fluid()?;
+                Some((id, fluid, fluid_blobs(self, artboard, id, node, &fluid)))
+            })
+            .collect();
+        let live: std::collections::HashSet<NodeId> = fluids.iter().map(|(id, _, _)| *id).collect();
+        self.particle_fluid_gpu.retain(|id, _| live.contains(id));
+        for (node_id, fluid, blobs) in fluids {
+            let meshes: Vec<(an1mbyt3_geometry::Mesh, [f32; 4])> = fluid_meshes(&fluid, &blobs);
+            let entry = self.particle_fluid_gpu.entry(node_id).or_insert_with(|| (Vec::new(), Vec::new()));
+            entry.0.clear();
+            for (mesh, color) in meshes {
+                if !mesh.indices.is_empty() {
+                    entry.0.push((self.renderer.upload_mesh(&mesh), color));
+                }
+            }
+            while entry.1.len() < entry.0.len() {
+                entry.1.push(self.renderer.create_draw_binding());
             }
         }
 
@@ -4180,6 +4356,7 @@ impl WasmEditor {
         self.image_bindings.clear();
         self.particle_runtimes.clear();
         self.particle_bindings.clear();
+        self.particle_fluid_gpu.clear();
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
@@ -6333,6 +6510,8 @@ impl WasmEditor {
             "UiEvents" => B::UiEvents(an1mbyt3_core::UiEvents::default()),
             "PropertyBindings" => B::PropertyBindings(an1mbyt3_core::PropertyBindings::default()),
             "ParticleSystem3D" => B::ParticleSystem3D(an1mbyt3_core::ParticleSystem3D::default()),
+            "ParticleFluid2D" => B::ParticleFluid2D(an1mbyt3_core::ParticleFluid2D::default()),
+            "ParticleBehaviors2D" => B::ParticleBehaviors2D(an1mbyt3_core::ParticleBehaviors2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -9580,6 +9759,14 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// The + menu's Demos → "Goo Lab" — 2D particles as liquid (Particle
+    /// Fluid 2D) steered by behaviours (Particle Behaviours 2D).
+    pub async fn load_goo_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_goo::build_demo_goo(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     /// The + menu's Demos → "Reyna's Leer" — 3D particles (swirling bands,
     /// smoke, converging sparks) round a see-through shader-graph eye.
     pub async fn load_leer_demo(&mut self) -> Result<JsValue, JsValue> {
@@ -10178,6 +10365,7 @@ impl WasmEditor {
         self.active_artboard = None;
         self.particle_runtimes.clear();
         self.particle_bindings.clear();
+        self.particle_fluid_gpu.clear();
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
@@ -10348,6 +10536,7 @@ impl WasmEditor {
         self.active_artboard = None;
         self.particle_runtimes.clear();
         self.particle_bindings.clear();
+        self.particle_fluid_gpu.clear();
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
@@ -10436,6 +10625,7 @@ impl WasmEditor {
         self.active_artboard = None;
         self.particle_runtimes.clear();
         self.particle_bindings.clear();
+        self.particle_fluid_gpu.clear();
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;

@@ -101,6 +101,12 @@ impl ParticleSystemRuntime {
         &self.particles
     }
 
+    /// The live particles, for effects layered on the simulation (2D
+    /// particle behaviours: converge / attract / repel / drag).
+    pub fn particles_mut(&mut self) -> &mut [Particle] {
+        &mut self.particles
+    }
+
     /// Unity's `ParticleSystem.Emit(count)`: spawn `count` particles on the
     /// next step, on top of (and without disturbing) whatever is already
     /// alive and whatever the emission module is doing. Works even on a

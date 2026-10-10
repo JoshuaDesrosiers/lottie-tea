@@ -84,6 +84,7 @@ mod tree;
 mod drawing;
 pub mod events;
 pub mod particle3d;
+pub mod particle_fx2d;
 pub mod text_file;
 mod program;
 mod script;
@@ -111,6 +112,7 @@ pub use events::{ActionKind, BindTarget, Binding, EventAction, PropertyBindings,
 pub use text_file::{TextFile, FILE_REF_PREFIX};
 pub use cloth::{Cloth2D, ClothPatternKind, ClothPin};
 pub use tree::{Tree2D, TreeSpecies};
+pub use particle_fx2d::{ParticleBehaviors2D, ParticleFluid2D};
 pub use particle3d::{Emitter3DShape, LifeCurve, ParticleBehavior3D, ParticleBehaviorKind3D, ParticleBlend3D, ParticleSystem3D, PointSpace};
 pub use drawing::{DrawingAnimation, DrawingAsset, DrawingCel, DrawingCelContent, DrawingContent, DrawingLayer, Flipbook};
 pub use prefab::{has_node_refs, ref_uid, remap_node_refs, uid_ref, PrefabDefinition, PrefabLink, PrefabNode};

@@ -255,6 +255,22 @@ impl Node {
     }
 
     /// The node's enabled Liquid 2D, if any.
+    /// This node's enabled Particle Fluid 2D (liquid look for its particles).
+    pub fn particle_fluid(&self) -> Option<&crate::ParticleFluid2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::ParticleFluid2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Particle Behaviours 2D.
+    pub fn particle_behaviors(&self) -> Option<&crate::ParticleBehaviors2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::ParticleBehaviors2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     pub fn liquid(&self) -> Option<&crate::Liquid2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {
             crate::NodeBehavior::Liquid2D(value) if entry.enabled => Some(value),

@@ -1506,6 +1506,24 @@ export type NodeBehavior =
   | ({ kind: 'UiEvents' } & UiEventsConfig)
   | ({ kind: 'PropertyBindings' } & PropertyBindingsConfig)
   | ({ kind: 'ParticleSystem3D' } & ParticleSystem3DConfig)
+  | ({ kind: 'ParticleFluid2D' } & ParticleFluid2DConfig)
+  | ({ kind: 'ParticleBehaviors2D' } & ParticleBehaviors2DConfig)
+
+/** Mirrors `an1mbyt3_core::ParticleFluid2D` (gooey metaball liquid for 2D particles). */
+export interface ParticleFluid2DConfig {
+  color: [number, number, number, number]
+  edgeColor: [number, number, number, number]
+  edgeWidth: number
+  stickiness: number
+  threshold: number
+  gloss: number
+  detail: number
+}
+
+/** Mirrors `an1mbyt3_core::ParticleBehaviors2D`. */
+export interface ParticleBehaviors2DConfig {
+  behaviors: ParticleBehavior3D[]
+}
 
 /** A value over a particle's life: `[t, value]` points, `t` 0 (birth) → 1 (death). */
 export interface LifeCurve {
