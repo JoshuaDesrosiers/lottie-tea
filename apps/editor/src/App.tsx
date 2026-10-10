@@ -911,6 +911,18 @@ function App() {
     // Pointer (not mouse) events, so a finger on a touch screen moves the
     // game cursor too; `pointerdown` also places it, since a tap has no
     // hover-move before it.
+    // The canvas's page rect, cached: reading it every frame forces a full
+    // layout whenever the frame's HTML UI changed the DOM (a game HUD does,
+    // every frame). Refreshed on resize / scroll / pointer down.
+    let canvasRect: DOMRect | null = null
+    const invalidateCanvasRect = () => {
+      canvasRect = null
+    }
+    window.addEventListener('resize', invalidateCanvasRect)
+    window.addEventListener('scroll', invalidateCanvasRect, true)
+    window.addEventListener('pointerdown', invalidateCanvasRect, true)
+    const rectObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(invalidateCanvasRect) : null
+    if (canvasRef.current) rectObserver?.observe(canvasRef.current)
     const handleMouseMove = (event: PointerEvent) => {
       if (event.type === 'pointermove') mouseDelta = { x: mouseDelta.x + event.movementX, y: mouseDelta.y + event.movementY }
       mouseClient = { x: event.clientX, y: event.clientY }
@@ -1087,7 +1099,8 @@ function App() {
             // to Graph programs (`WasmEditor::render`).
             const programsRunning = modeRef.current === 'Playground' || programsEnabledRef.current
             if (programsRunning && canvasRef.current && currentArtboard) {
-              const rect = canvasRef.current.getBoundingClientRect()
+              canvasRect ??= canvasRef.current.getBoundingClientRect()
+              const rect = canvasRect
               const editor = editorRef.current
               const scriptsStart = performance.now()
               const sceneName = scriptHost.run(summary, {
@@ -1143,6 +1156,10 @@ function App() {
       cancelAnimationFrame(rafHandle)
       window.removeEventListener('pointermove', handleMouseMove)
       window.removeEventListener('pointerdown', handleMouseMove)
+      window.removeEventListener('resize', invalidateCanvasRect)
+      window.removeEventListener('scroll', invalidateCanvasRect, true)
+      window.removeEventListener('pointerdown', invalidateCanvasRect, true)
+      rectObserver?.disconnect()
       window.removeEventListener('wheel', handleGameWheel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

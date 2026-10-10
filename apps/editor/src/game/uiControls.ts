@@ -209,6 +209,9 @@ export class UiControls {
     const pressedNow = f.down && !this.wasDown
     const releasedNow = !f.down && this.wasDown
     this.wasDown = f.down
+    // Most game scenes have no UI controls: skip building the per-frame
+    // indexes below (they cost a few ms a frame in big scenes).
+    if (!nodes.some((n) => n.button || n.toggle || n.slider || n.scrollbar || n.scrollView)) return
     const byKey = new Map(nodes.map((n) => [keyOf(n.id), n]))
     const kids = new Map<string, ScriptNode[]>()
     for (const n of nodes) {
