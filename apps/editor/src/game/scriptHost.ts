@@ -15,6 +15,7 @@
  * fresh summaries, input state, and the camera hooks — everything that
  * differs between "inside the editor" and "standalone".
  */
+import { renderDpr } from './adaptiveResolution'
 import { audio, type SoundHandle } from './audio'
 import type { ArtboardSummary, OpaqueId, StateMachineDefSummary, StateMachineSummary } from '../ipc/document'
 import { SceneMirror, type ScriptNode } from './sceneMirror'
@@ -161,7 +162,8 @@ export function mouseToWorld(
   size: { width: number; height: number },
 ): { x: number; y: number } {
   const view = playgroundView(editor, artboard)
-  const dpr = window.devicePixelRatio || 1
+  // (The canvas buffer's density — the display ratio × adaptive scale.)
+  const dpr = renderDpr()
   const pan = view ? { x: view[0], y: view[1] } : camera.pan
   const zoom = view ? view[2] / dpr : camera.zoom
   return { x: pan.x + (canvasX - size.width / 2) / zoom, y: pan.y - (canvasY - size.height / 2) / zoom }

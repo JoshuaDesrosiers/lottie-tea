@@ -813,6 +813,14 @@ impl From<TrailDto> for an1mbyt3_core::TrailNode {
 }
 
 /// `WasmEditor::physics_raycast`'s hit.
+/// `adaptive_resolution`'s result.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdaptiveResolutionDto {
+    pub enabled: bool,
+    pub min_scale: f32,
+}
+
 /// `glass_shatter`'s result: pieces knocked out / pieces that fell.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -64,6 +64,12 @@ pub struct Document {
     /// After `text_files`, the newest trailing field (same padding note).
     #[serde(default)]
     properties: SlotMap<crate::PropertyId, crate::PropertyDef>,
+    /// Playback performance settings (adaptive resolution). After
+    /// `properties`, the newest trailing field: its all-zero encoding is
+    /// the default, so older `.teab` files padded with zero bytes load
+    /// with it on (see `AdaptiveResolution`).
+    #[serde(default)]
+    adaptive_resolution: AdaptiveResolution,
     #[serde(skip)]
     undo_stack: Vec<Command>,
     #[serde(skip)]
@@ -79,6 +85,30 @@ pub struct Document {
     /// didn't come from.
     #[serde(skip)]
     instance: DocumentInstance,
+}
+
+/// **Adaptive resolution** for playing the game (Playground and exported
+/// players): when frames run long — a big window, a 4K screen, a heavy
+/// post-effect stack — the scene renders at a lower internal resolution
+/// (smoothly upscaled) to hold the frame rate, and climbs back to native
+/// when there's headroom. Encoded so all-zero bytes mean "on, default
+/// floor" (older files are padded with zeros — see `Document`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct AdaptiveResolution {
+    /// Off: always native resolution (pixel-perfect / capture use).
+    pub disabled: bool,
+    /// The lowest it may go, in percent of native (0 = the default, 50 %).
+    pub min_percent: u8,
+}
+
+impl AdaptiveResolution {
+    pub fn enabled(&self) -> bool {
+        !self.disabled
+    }
+    /// The floor as a fraction (0.4 … 1).
+    pub fn min_scale(&self) -> f32 {
+        if self.min_percent == 0 { 0.5 } else { (self.min_percent as f32 / 100.0).clamp(0.4, 1.0) }
+    }
 }
 
 /// See `Document::instance`.
@@ -243,6 +273,21 @@ impl Document {
     }
 
     /// Every non-deleted property of every scene, in creation order.
+    /// The adaptive-resolution setting (see [`AdaptiveResolution`]).
+    pub fn adaptive_resolution(&self) -> AdaptiveResolution {
+        self.adaptive_resolution
+    }
+
+    /// Changes the adaptive-resolution setting. A project setting, not an
+    /// edit to the artwork: no undo entry, but it does count as a change
+    /// to save.
+    pub fn set_adaptive_resolution(&mut self, value: AdaptiveResolution) {
+        if self.adaptive_resolution != value {
+            self.adaptive_resolution = value;
+            self.revision += 1;
+        }
+    }
+
     pub fn properties(&self) -> impl Iterator<Item = (crate::PropertyId, &crate::PropertyDef)> {
         self.properties.iter().filter(|(_, p)| !p.deleted)
     }

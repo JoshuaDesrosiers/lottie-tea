@@ -8,6 +8,7 @@
  * so the overlay itself costs nothing measurable.
  */
 import type { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm'
+import { adaptiveResolution } from './adaptiveResolution'
 
 /** The engine's half (mirrors `profiler::FrameStats`). */
 export interface EngineFrameStats {
@@ -105,6 +106,7 @@ export class PerfMeter {
         '',
         ...STAGES.map((s) => `${LABELS[s].padEnd(10)} ${this.ema[s].toFixed(2).padStart(6)} ${bar(this.ema[s])}`),
         '',
+        `resolution ${Math.round(adaptiveResolution.scale * 100)}%`,
         `nodes ${this.counts.nodes}  draws ${this.counts.draws}`,
         `lights ${this.counts.lights}  bodies ${this.counts.bodies}`,
         `particles ${this.counts.particles}`,

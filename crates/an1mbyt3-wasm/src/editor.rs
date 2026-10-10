@@ -10172,6 +10172,32 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// Adaptive resolution (the game's playback setting): `{ enabled,
+    /// minScale }` — see `an1mbyt3_core::AdaptiveResolution`.
+    pub fn adaptive_resolution(&self) -> Result<JsValue, JsValue> {
+        let a = self.document.adaptive_resolution();
+        to_js_value(&crate::dto::AdaptiveResolutionDto { enabled: a.enabled(), min_scale: a.min_scale() })
+    }
+
+    /// Sets the adaptive-resolution setting (saved with the project).
+    pub fn set_adaptive_resolution(&mut self, enabled: bool, min_scale: f32) {
+        let min_percent = (min_scale.clamp(0.4, 1.0) * 100.0).round() as u8;
+        self.document.set_adaptive_resolution(an1mbyt3_core::AdaptiveResolution { disabled: !enabled, min_percent: if min_percent == 50 { 0 } else { min_percent } });
+    }
+
+    /// The renderer's internal resolution scale right now (0.4 … 1) — the
+    /// host's adaptive-resolution controller drives it (`set_dynamic_scale`).
+    pub fn dynamic_scale(&self) -> f32 {
+        self.renderer.dynamic_scale()
+    }
+
+    /// Renders the scene and post effects at `scale` of native size
+    /// (snapped to 5 % steps), upscaled smoothly. The host lowers it when
+    /// frames run long (see `game/adaptiveResolution.ts`).
+    pub fn set_dynamic_scale(&mut self, scale: f32) {
+        self.renderer.set_dynamic_scale(scale);
+    }
+
     /// The + menu's Demos → "Shatterline" — a Smash Hit-style rail shooter:
     /// throw chrome balls to break real fracturing glass (`Primitive3D::Glass`)
     /// down an endless corridor, ten zones, crystals and multiball.

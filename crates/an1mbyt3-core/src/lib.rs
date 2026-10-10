@@ -103,7 +103,7 @@ pub use blend_mode::BlendMode;
 pub use block_program::{BlockProgramDef, BlockScript, EventKind, Expr, ListExpr, MathFn, NodeRef, Statement};
 pub use command::Command;
 pub use component::{ComponentDefinition, ComponentInstance, ComponentVariant};
-pub use document::Document;
+pub use document::{AdaptiveResolution, Document};
 pub use easing::Easing;
 pub use font_asset::FontAsset;
 pub use gradient::{GradientDef, GradientKind, GradientStop};

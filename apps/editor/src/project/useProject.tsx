@@ -264,8 +264,17 @@ export function useProject({ editorRef, ready, playing, onReplaced, onChanged }:
     const timer = window.setInterval(() => {
       const editor = editorRef.current
       if (!editor) return
-      const instance = documentInstance(editor)
-      const revision = documentRevision(editor)
+      // An async editor call (a demo loading its images) holds the editor
+      // borrowed across awaits; touching it now would throw "recursive use
+      // of an object". Skip this tick — the next one sees the result.
+      let instance: number
+      let revision: number
+      try {
+        instance = documentInstance(editor)
+        revision = documentRevision(editor)
+      } catch {
+        return
+      }
       if (instance !== instanceRef.current) {
         // Replaced by something other than our own open (demo, import):
         // the project no longer describes this document.

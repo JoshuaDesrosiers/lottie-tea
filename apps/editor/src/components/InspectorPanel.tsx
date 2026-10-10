@@ -1965,6 +1965,46 @@ function AssetFields({ asset, onSetProcessing }: { asset: ImageAssetSummary; onS
   )
 }
 
+/**
+ * The project's **adaptive resolution** setting (Canvas section): while
+ * the game plays, heavy frames lower the internal resolution (smoothly
+ * upscaled) to hold the frame rate, down to `floor`. Off = always native
+ * (pixel-exact captures, pixel art that must never soften).
+ */
+function AdaptiveResolutionField({ editor }: { editor: WasmEditor | null }) {
+  const read = () => {
+    try {
+      return editor ? (editor.adaptive_resolution() as { enabled: boolean; minScale: number }) : null
+    } catch {
+      // Busy with an async load; the next render reads it.
+      return null
+    }
+  }
+  const [value, setValue] = useState(read)
+  if (!editor || !value) return null
+  const commit = (next: { enabled: boolean; minScale: number }) => {
+    editor.set_adaptive_resolution(next.enabled, next.minScale)
+    setValue(read())
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="While playing: if frames run long (big window, 4K, heavy post effects), render at a lower internal resolution and upscale smoothly to keep at least ~45 fps; climbs back to native when there's headroom. Off: always native.">
+        <input type="checkbox" checked={value.enabled} onChange={(e) => commit({ ...value, enabled: e.target.checked })} />
+        Adaptive resolution
+      </label>
+      {value.enabled && (
+        <>
+          <span className="text-[11px] text-ink-dim" title="The lowest internal resolution it may use, in percent of native.">
+            Lowest
+          </span>
+          <Slider min={40} max={100} step={5} value={Math.round(value.minScale * 100)} onChange={(v) => commit({ ...value, minScale: v / 100 })} />
+          <span className="text-right text-[10px] tabular-nums text-ink-dim">{Math.round(value.minScale * 100)}%</span>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function InspectorPanel({
   node,
   components,
@@ -2219,6 +2259,7 @@ export function InspectorPanel({
         <Slider min={1} max={64} step={1} value={artboard.resolutionScale} onChange={onSetArtboardResolutionScale} />
         <span className="text-right text-[10px] tabular-nums text-ink-dim">{artboard.resolutionScale}px</span>
       </div>
+      <AdaptiveResolutionField editor={editor} />
       <div className="flex flex-col gap-1">
         <span className="text-[11px] text-ink-dim" title="Physics 2D gravity in world units per second² (+Y is up). Each Rigidbody 2D multiplies it by its Gravity Scale; set Y to 0 for top-down games.">
           Gravity

@@ -469,7 +469,7 @@ impl Renderer {
         let targets = &self.lighting_targets;
         let (target_w, target_h) = self.post_target_dims();
         // Shadow softness 1 = a 24px blur radius at native resolution.
-        let softness_px = |softness: f32| softness.clamp(0.0, 1.0) * 24.0 / self.current_resolution_scale;
+        let softness_px = |softness: f32| softness.clamp(0.0, 1.0) * 24.0 / self.post_pixel_scale();
 
         let clear_pass = |encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView, color: [f32; 3]| {
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

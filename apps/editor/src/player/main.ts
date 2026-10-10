@@ -28,6 +28,7 @@ import { setPropertyDefs } from '../game/props'
 import { setProjectFiles } from '../game/projectFiles'
 import type { ArtboardSummary, DocumentSummary, OpaqueId } from '../ipc/document'
 import { normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from '../game/scriptHost'
+import { adaptiveResolution, renderDpr } from '../game/adaptiveResolution'
 import { PerfMeter } from '../game/perf'
 import { responsiveView } from '../game/screen'
 import { htmlOverlay } from '../game/htmlOverlay'
@@ -86,7 +87,7 @@ async function boot() {
   const sameId = (a: OpaqueId, b: OpaqueId) => a.idx === b.idx && a.version === b.version
   const currentScene = () => doc?.artboards.find((a) => sceneId && sameId(a.id, sceneId)) ?? doc?.artboards[0] ?? null
   const applySize = () => {
-    const dpr = window.devicePixelRatio || 1
+    const dpr = renderDpr()
     // The *visual* viewport: on phones `innerHeight`/100vh can include the
     // area under the browser's address bar.
     const vv = window.visualViewport
@@ -122,6 +123,8 @@ async function boot() {
     editor.resize(deviceW, deviceH)
   }
   window.addEventListener('resize', applySize)
+  // Adaptive resolution changed the buffer scale: re-apply the size.
+  adaptiveResolution.onChange = applySize
   window.visualViewport?.addEventListener('resize', applySize)
   window.addEventListener('orientationchange', () => setTimeout(applySize, 200))
 
@@ -232,7 +235,7 @@ async function boot() {
     try {
       const deltaSeconds = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.1)
       lastTime = now
-      const dpr = window.devicePixelRatio || 1
+      const dpr = renderDpr()
       const artboard = currentScene()
       if (artboard && !cameraOverridden) camera = fitCamera(artboard)
       editor.render(deltaSeconds, camera.pan.x, camera.pan.y, camera.zoom * dpr, -1, dpr, 0, 0, 0, 0, 0, 0)
@@ -288,6 +291,7 @@ async function boot() {
       mouseDelta = { x: 0, y: 0 }
       wheel = { x: 0, y: 0 }
       perf.endFrame(editor, deltaSeconds * 1000, now)
+      adaptiveResolution.update(editor, deltaSeconds * 1000, now, true)
     } catch (err) {
       // Logged sparingly: a per-frame error would otherwise flood the console.
       frameErrors++

@@ -273,6 +273,7 @@ import { CodeWorkspace, type CodeLocation } from './components/CodeWorkspace'
 import { gameNet } from './game/net'
 import { mouseToWorld, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from './game/scriptHost'
 import { BoneGizmos } from './components/BoneGizmos'
+import { adaptiveResolution, renderDpr } from './game/adaptiveResolution'
 import { PerfMeter } from './game/perf'
 import { buildGameHtml } from './game/exportGame'
 
@@ -1021,9 +1022,9 @@ function App() {
             deltaSeconds,
             cam.pan.x,
             cam.pan.y,
-            cam.zoom * (window.devicePixelRatio || 1),
+            cam.zoom * renderDpr(),
             playbackScrubTime ?? -1,
-            window.devicePixelRatio || 1,
+            renderDpr(),
             clearR,
             clearG,
             clearB,
@@ -1138,6 +1139,8 @@ function App() {
           mouseDelta = { x: 0, y: 0 }
           wheel = { x: 0, y: 0 }
           perf.endFrame(editorRef.current, deltaSeconds * 1000, now)
+          // Hold the frame rate at any window size while a game plays.
+          adaptiveResolution.update(editorRef.current, deltaSeconds * 1000, now, modeRef.current === 'Playground')
         } catch (err) {
           // The frame is skipped, the loop carries on. Reported in the game
           // Console (repeats collapse into a count there).
@@ -1200,7 +1203,8 @@ function App() {
       // should know or care about device pixels. Only the actual render
       // call (`frame()`'s `editor.render(...)`) needs the physical size, via
       // `editor.resize(...)` here plus the compensating `zoom` multiply there.
-      const dpr = window.devicePixelRatio || 1
+      // (`renderDpr`: the display's ratio × the adaptive-resolution scale.)
+      const dpr = renderDpr()
       const physicalW = Math.max(1, Math.round(w * dpr))
       const physicalH = Math.max(1, Math.round(h * dpr))
       canvas!.width = physicalW
@@ -1219,6 +1223,8 @@ function App() {
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) applySize(entry.contentRect.width, entry.contentRect.height)
     })
+    // Adaptive resolution changed the buffer scale: re-apply the size.
+    adaptiveResolution.onChange = () => applyCanvasSizeRef.current?.()
     observer.observe(container)
     return () => observer.disconnect()
   }, [])

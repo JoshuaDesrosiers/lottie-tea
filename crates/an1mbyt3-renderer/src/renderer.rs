@@ -20,6 +20,7 @@ use an1mbyt3_core::Transform2D;
 use an1mbyt3_geometry::Mesh;
 
 mod lighting;
+mod post;
 mod three_d;
 pub use three_d::{Blend3D, FluidLayer3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, MAX_POINT_LIGHTS};
 pub use lighting::{LightDraw, LightShadows, LightShape, LightVolumetric, Lighting, ShadowCasterShape, MAX_FREEFORM_POINTS};
@@ -756,16 +757,6 @@ pub struct Renderer {
     /// used both for `PostEffect::Blur`'s single draw and `PostEffect::Glow`'s
     /// plain-present base layer. See [`Renderer::render_with_post_effect`].
     post_replace_pipeline: wgpu::RenderPipeline,
-    /// Additively composites a post-process bind group's texture on top of
-    /// whatever's already in the target — `PostEffect::Glow`'s
-    /// thresholded/blurred bright-pass layer, added back over the plain
-    /// scene `post_replace_pipeline` already drew.
-    post_add_pipeline: wgpu::RenderPipeline,
-    /// Alpha-composites a post-process bind group's texture over whatever's
-    /// already there — only used for a post-effect chain's very last pass
-    /// (writing to the swapchain, over the already-drawn grid/chrome), see
-    /// `post_alpha_blend_pipeline`'s own construction-site doc comment.
-    post_alpha_blend_pipeline: wgpu::RenderPipeline,
     post_bind_group_layout: wgpu::BindGroupLayout,
     post_sampler: wgpu::Sampler,
     /// The offscreen render target every `render_with_post_effect` call
@@ -825,6 +816,14 @@ pub struct Renderer {
     /// targets at *this* scale (not silently snapping back to native)
     /// whenever the window/canvas itself resizes.
     current_resolution_scale: f32,
+    /// Adaptive resolution: the fraction (0.4 … 1) of native size the
+    /// scene and post targets render at, on top of
+    /// `current_resolution_scale` — lowered by the host when frames run
+    /// long (see [`Renderer::set_dynamic_scale`]) and upscaled smoothly.
+    dynamic_scale: f32,
+    /// The fused post-process chain's pipelines, mip targets and caches
+    /// (`renderer/post.rs`).
+    post: post::PostChain,
     /// Point/nearest-filtered counterpart to `post_sampler` (which is fixed
     /// Linear) — used only for `render_with_post_effects`'s very last pass
     /// (the one writing to the swapchain) when `current_resolution_scale >
@@ -1668,17 +1667,6 @@ impl Renderer {
             })
         };
         let post_replace_pipeline = build_post_pipeline("an1mbyt3 post-process replace pipeline", None);
-        let post_add_pipeline =
-            build_post_pipeline("an1mbyt3 post-process add pipeline", Some(wgpu_blend_state(BlendMode::Add)));
-        // Used only for a post-effect chain's *final* pass (the one writing
-        // straight to the swapchain) — see `render_with_post_effects`'s own
-        // doc comment on why the real scene renders with a transparent base
-        // and gets alpha-composited over the artboard grid/chrome at the
-        // very end, instead of the grid being just another draw in the same
-        // (possibly resolution-scaled/post-processed) content list.
-        let post_alpha_blend_pipeline =
-            build_post_pipeline("an1mbyt3 post-process alpha-blend pipeline", Some(wgpu_blend_state(BlendMode::Normal)));
-
         // A separate pipeline (not `post_replace_pipeline`) for
         // `Renderer::bake_image`, fixed to `Rgba8UnormSrgb` rather than
         // `config.format`: bake_image's readback interprets the result as
@@ -1734,6 +1722,7 @@ impl Renderer {
         let post_targets = build_post_targets(&device, render_format, config.width, config.height);
         let lighting = lighting::build_lighting_resources(&device, &queue, render_format, &image_bind_group_layout);
         let lighting_targets = lighting::build_lighting_targets(&device, render_format, config.width, config.height);
+        let post = post::PostChain::new(&device, render_format, &post_bind_group_layout, config.width, config.height);
 
         Self {
             uniform_pool: std::rc::Rc::new(std::cell::RefCell::new(UniformPool::new(&device))),
@@ -1751,8 +1740,6 @@ impl Renderer {
             uniform_bind_group_layout,
             transparent,
             post_replace_pipeline,
-            post_add_pipeline,
-            post_alpha_blend_pipeline,
             post_bind_group_layout,
             post_sampler,
             post_sampler_nearest,
@@ -1763,6 +1750,8 @@ impl Renderer {
             post_blur_intermediate_view: post_targets.blur_intermediate_view,
             post_stencil_view: post_targets.stencil_view,
             current_resolution_scale: 1.0,
+            dynamic_scale: 1.0,
+            post,
             textured_pipeline,
             material_resources: std::cell::OnceCell::new(),
             state_3d: Default::default(),
@@ -1819,6 +1808,7 @@ impl Renderer {
         self.post_blur_intermediate_view = targets.blur_intermediate_view;
         self.post_stencil_view = targets.stencil_view;
         self.lighting_targets = lighting::build_lighting_targets(&self.device, self.render_format, scaled_width, scaled_height);
+        self.post.resize(&self.device, self.render_format, scaled_width, scaled_height);
     }
 
     /// Sets `Artboard::resolution_scale`'s current value — a pixel block
@@ -1856,9 +1846,39 @@ impl Renderer {
     /// swapchain directly, so it's this size that matters for correct
     /// per-texel math, not the native surface size).
     fn post_target_dims(&self) -> (u32, u32) {
-        let width = ((self.config.width as f32) / self.current_resolution_scale).max(1.0) as u32;
-        let height = ((self.config.height as f32) / self.current_resolution_scale).max(1.0) as u32;
+        let scale = self.dynamic_scale / self.current_resolution_scale;
+        let width = ((self.config.width as f32) * scale).max(1.0) as u32;
+        let height = ((self.config.height as f32) * scale).max(1.0) as u32;
         (width, height)
+    }
+
+    /// Native pixels per post-target pixel (resolution block size ÷
+    /// adaptive scale) — for effects sized in screen pixels (2D light
+    /// softness) so they look the same whatever the internal resolution.
+    pub(crate) fn post_pixel_scale(&self) -> f32 {
+        self.current_resolution_scale / self.dynamic_scale
+    }
+
+    /// **Adaptive resolution**: render the scene and post effects at
+    /// `scale` (0.4 … 1, snapped to 1/20 steps so small adjustments don't
+    /// reallocate targets every frame) of native size, upscaled smoothly to
+    /// the window. The host lowers it when frames run long and raises it
+    /// back when there's headroom, so a big window or a heavy post stack
+    /// costs resolution, not frame rate. `1.0` = native (and the fast path
+    /// straight to the swapchain when nothing else needs the offscreen
+    /// targets).
+    pub fn set_dynamic_scale(&mut self, scale: f32) {
+        let snapped = ((scale.clamp(0.4, 1.0) * 20.0).round() / 20.0).clamp(0.4, 1.0);
+        if snapped == self.dynamic_scale {
+            return;
+        }
+        self.dynamic_scale = snapped;
+        self.rebuild_post_targets();
+    }
+
+    /// The current adaptive resolution scale (see [`Renderer::set_dynamic_scale`]).
+    pub fn dynamic_scale(&self) -> f32 {
+        self.dynamic_scale
     }
 
     /// Uploads `mesh`'s vertex/index data to the GPU once. See [`GpuMesh`]'s
@@ -2906,7 +2926,7 @@ impl Renderer {
         lighting: Option<&Lighting<'_>>,
     ) -> Result<(), RenderError> {
         let active: Vec<PostEffect> = effects.iter().copied().filter(|effect| *effect != PostEffect::None).collect();
-        if active.is_empty() && self.current_resolution_scale == 1.0 && lighting.is_none() {
+        if active.is_empty() && self.current_resolution_scale == 1.0 && self.dynamic_scale == 1.0 && lighting.is_none() {
             return self.render_with_masks(viewport_size, camera, clear_color, chrome, unmasked, masked);
         }
         if let Some(lighting) = lighting {
@@ -2929,8 +2949,6 @@ impl Renderer {
         // match *their* actual size, which is only the native surface size
         // when `resolution_scale == 1.0` (see `post_target_dims`'s own doc
         // comment).
-        let (post_width, post_height) = self.post_target_dims();
-        let texel_size = [1.0 / post_width as f32, 1.0 / post_height as f32];
 
         let current = match self.surface().get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
@@ -2963,216 +2981,18 @@ impl Renderer {
         // lighting on, the lit composite (`lighting_targets.lit_view`) is
         // what every later stage reads instead — see `renderer/lighting.rs`.
         self.draw_masked_scene(&mut encoder, &self.post_scene_view, &self.post_stencil_view, wgpu::LoadOp::Clear(TRANSPARENT), unmasked, masked, Some(self.post_target_dims()));
-        let scene_source: &wgpu::TextureView = match lighting {
+        let source = match lighting {
             Some(lighting) => {
                 self.draw_lighting(&mut encoder, viewport_size, camera, lighting);
-                &self.lighting_targets.lit_view
+                post::PostTarget::Lit
             }
-            None => &self.post_scene_view,
+            None => post::PostTarget::Scene,
         };
 
-        if active.is_empty() {
-            let sampler = if self.current_resolution_scale > 1.0 { &self.post_sampler_nearest } else { &self.post_sampler };
-            let binding = create_post_binding(&self.device, &self.post_bind_group_layout, sampler, scene_source);
-            let uniforms = PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], 0.0, 0.0], threshold_intensity: [0.0, 1.0, 0.0, 0.0], gradient_map_highlight: [0.0; 4] };
-            self.queue.write_buffer(&binding.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
-            {
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("an1mbyt3 resolution-scale-only present pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &swapchain_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
-                        depth_slice: None,
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
-                pass.set_pipeline(&self.post_alpha_blend_pipeline);
-                pass.set_bind_group(0, &binding.bind_group, &[]);
-                pass.draw(0..3, 0..1);
-            }
-            self.uniform_pool.borrow_mut().flush(&self.queue);
-        self.queue.submit(Some(encoder.finish()));
-            self.queue.present(current);
-            return Ok(());
-        }
-
-        // Drawn through the same masking-aware two-pass helper
-        // `render_with_masks` uses (see `draw_masked_scene`'s own doc
-        // comment) — this is the fix for clipping being silently dropped
-        // whenever a post effect was active: the offscreen scene texture
-        // every effect below reads from now respects stencil clips, instead
-        // of always being a flat, unmasked draw of everything. Clears to
-        // *transparent*, not `clear_color` — `chrome` already established
-        // the real background/grid on the swapchain; this content layer
-        // needs a transparent base so the final pass below can alpha-
-        // composite it back over that chrome correctly.
-        // One post-process draw: `binding`'s source texture through
-        // `pipeline`, into `dest_view` — `load` is `Clear` for a pass that
-        // starts `dest_view` fresh (every effect's first/only write to it)
-        // or `Load` for one that composites onto whatever a previous pass
-        // in this same effect already wrote there (Glow's additive third
-        // pass, over its own first pass's plain scene).
-        let run_post_pass = |encoder: &mut wgpu::CommandEncoder, pipeline: &wgpu::RenderPipeline, binding: &PostBinding, dest_view: &wgpu::TextureView, load: wgpu::LoadOp<wgpu::Color>| {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("an1mbyt3 post-process pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: dest_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load, store: wgpu::StoreOp::Store },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, &binding.bind_group, &[]);
-            pass.draw(0..3, 0..1);
-        };
-
-        let make_binding = |sampler: &wgpu::Sampler, encoder_source: &wgpu::TextureView, uniforms: PostUniforms| -> PostBinding {
-            let binding = create_post_binding(&self.device, &self.post_bind_group_layout, sampler, encoder_source);
-            self.queue.write_buffer(&binding.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
-            binding
-        };
-
-        let mut source_view = scene_source;
-        for (i, effect) in active.iter().enumerate() {
-            let is_last = i + 1 == active.len();
-            let dest_view = if is_last {
-                &swapchain_view
-            } else if i % 2 == 0 {
-                &self.post_ping_view
-            } else {
-                &self.post_pong_view
-            };
-            // Only the pass(es) writing straight to the swapchain (the
-            // chain's very last effect) ever need the nearest sampler — see
-            // `post_sampler_nearest`'s own doc comment. Every same-size
-            // intra-chain/intra-effect pass keeps using the regular linear
-            // one regardless.
-            let dest_sampler = if is_last && self.current_resolution_scale > 1.0 { &self.post_sampler_nearest } else { &self.post_sampler };
-            // An effect's *first* write to `dest_view` — every other kind of
-            // pass in this loop targets the always-scratch, always-`Clear`d
-            // `post_blur_intermediate_view`, or (Glow's own third pass) is
-            // already an intentional `post_add_pipeline`/`Load` composite
-            // regardless of `is_last`. Only this first `dest_view` write
-            // needs to switch from "replace + clear" (an intermediate
-            // ping/pong scratch texture, transparent-based) to "alpha-blend
-            // + load" (the swapchain, which `chrome` already drew into) —
-            // see this method's own doc comment.
-            let (dest_pipeline, dest_load) = if is_last {
-                (&self.post_alpha_blend_pipeline, wgpu::LoadOp::Load)
-            } else {
-                (&self.post_replace_pipeline, wgpu::LoadOp::Clear(TRANSPARENT))
-            };
-
-            match *effect {
-                // A real two-pass separable Gaussian (see `post_process.wgsl`'s
-                // `separable_blur` doc comment) — horizontal into the
-                // dedicated scratch texture, then vertical from there into
-                // `dest_view`. Always both passes, even for `radius <= 0.0`:
-                // each mode's own shader-side early-out already degrades
-                // that case to a single plain sample, so no extra branching
-                // is needed here to special-case it.
-                PostEffect::Blur { radius } => {
-                    let horizontal = make_binding(
-                        &self.post_sampler,
-                        source_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], radius, 5.0], threshold_intensity: [0.0, 1.0, 0.0, 0.0], gradient_map_highlight: [0.0; 4] },
-                    );
-                    run_post_pass(&mut encoder, &self.post_replace_pipeline, &horizontal, &self.post_blur_intermediate_view, wgpu::LoadOp::Clear(TRANSPARENT));
-
-                    let vertical = make_binding(
-                        dest_sampler,
-                        &self.post_blur_intermediate_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], radius, 6.0], threshold_intensity: [0.0, 1.0, 0.0, 0.0], gradient_map_highlight: [0.0; 4] },
-                    );
-                    run_post_pass(&mut encoder, dest_pipeline, &vertical, dest_view, dest_load);
-                }
-                // Three passes: the plain (unblurred) scene, then a
-                // thresholded horizontal blur of the bright pass into the
-                // scratch texture, then its vertical half additively
-                // composited back over the plain scene already in
-                // `dest_view` — same overall shape as before (plain +
-                // blurred-bright-pass, additive), just with the bright
-                // pass's blur now separable instead of one nested-loop box
-                // blur.
-                PostEffect::Glow { radius, threshold, intensity } => {
-                    let plain = make_binding(
-                        dest_sampler,
-                        source_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], 0.0, 0.0], threshold_intensity: [0.0, 1.0, 0.0, 0.0], gradient_map_highlight: [0.0; 4] },
-                    );
-                    run_post_pass(&mut encoder, dest_pipeline, &plain, dest_view, dest_load);
-
-                    let horizontal = make_binding(
-                        &self.post_sampler,
-                        source_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], radius, 5.0], threshold_intensity: [threshold, intensity, 1.0, 0.0], gradient_map_highlight: [0.0; 4] },
-                    );
-                    run_post_pass(&mut encoder, &self.post_replace_pipeline, &horizontal, &self.post_blur_intermediate_view, wgpu::LoadOp::Clear(TRANSPARENT));
-
-                    let vertical = make_binding(
-                        dest_sampler,
-                        &self.post_blur_intermediate_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], radius, 6.0], threshold_intensity: [0.0, intensity, 0.0, 0.0], gradient_map_highlight: [0.0; 4] },
-                    );
-                    run_post_pass(&mut encoder, &self.post_add_pipeline, &vertical, dest_view, wgpu::LoadOp::Load);
-                }
-                PostEffect::Pixelate { block_size } => {
-                    let binding = make_binding(
-                        dest_sampler,
-                        source_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], block_size, 1.0], threshold_intensity: [0.0, 0.0, 0.0, 0.0], gradient_map_highlight: [0.0; 4] },
-                    );
-                    run_post_pass(&mut encoder, dest_pipeline, &binding, dest_view, dest_load);
-                }
-                PostEffect::ColorGrading { brightness, contrast, saturation } => {
-                    let binding = make_binding(
-                        dest_sampler,
-                        source_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], 0.0, 2.0], threshold_intensity: [brightness, contrast, saturation, 0.0], gradient_map_highlight: [0.0; 4] },
-                    );
-                    run_post_pass(&mut encoder, dest_pipeline, &binding, dest_view, dest_load);
-                }
-                PostEffect::Posterize { levels } => {
-                    let binding = make_binding(
-                        dest_sampler,
-                        source_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], levels, 3.0], threshold_intensity: [0.0, 0.0, 0.0, 0.0], gradient_map_highlight: [0.0; 4] },
-                    );
-                    run_post_pass(&mut encoder, dest_pipeline, &binding, dest_view, dest_load);
-                }
-                PostEffect::GradientMap { shadow, highlight } => {
-                    let binding = make_binding(
-                        dest_sampler,
-                        source_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], 0.0, 4.0], threshold_intensity: linear_rgba(shadow), gradient_map_highlight: linear_rgba(highlight) },
-                    );
-                    run_post_pass(&mut encoder, dest_pipeline, &binding, dest_view, dest_load);
-                }
-                // One pass, same shape as GradientMap — see `post_process.wgsl`'s
-                // mode 7 for the math. Packing: color in the second vec4,
-                // (intensity, radius, blur) in the third.
-                PostEffect::Vignette { color, intensity, radius, blur } => {
-                    let binding = make_binding(
-                        dest_sampler,
-                        source_view,
-                        PostUniforms { texel_size_radius: [texel_size[0], texel_size[1], 0.0, 7.0], threshold_intensity: linear_rgba(color), gradient_map_highlight: [intensity, radius, blur, 0.0] },
-                    );
-                    run_post_pass(&mut encoder, dest_pipeline, &binding, dest_view, dest_load);
-                }
-                PostEffect::None => unreachable!("filtered out of `active` above"),
-            }
-
-            source_view = dest_view;
-        }
+        // The effect stack (fused where it can be — see `renderer/post.rs`),
+        // ending in the pass that presents onto the swapchain over the
+        // chrome. With no effects that's one plain upscale/present pass.
+        self.run_post_chain(&mut encoder, source, &active, &swapchain_view);
 
         self.uniform_pool.borrow_mut().flush(&self.queue);
         self.queue.submit(Some(encoder.finish()));
