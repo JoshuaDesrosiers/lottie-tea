@@ -637,6 +637,9 @@ var g = class e {
 	load_goo_demo() {
 		return K.wasmeditor_load_goo_demo(this.__wbg_ptr);
 	}
+	load_goo_shapes_demo() {
+		return K.wasmeditor_load_goo_shapes_demo(this.__wbg_ptr);
+	}
 	load_html_demo() {
 		return K.wasmeditor_load_html_demo(this.__wbg_ptr);
 	}

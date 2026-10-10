@@ -207,6 +207,11 @@ export async function loadClothDemo(editor: WasmEditor): Promise<AddArtboardResu
   return (await editor.load_cloth_demo()) as AddArtboardResult
 }
 
+/** Demos → "Goo Shapes" (Goo 2D on text / shapes / particles). */
+export async function loadGooShapesDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  return (await editor.load_goo_shapes_demo()) as AddArtboardResult
+}
+
 /** Demos → "Goo Lab" (2D liquid particles + behaviours). */
 export async function loadGooDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_goo_demo()) as AddArtboardResult

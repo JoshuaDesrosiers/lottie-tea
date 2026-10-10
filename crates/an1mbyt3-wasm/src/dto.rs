@@ -237,6 +237,57 @@ pub struct GradientStopDto {
     pub midpoint: f32,
 }
 
+/// Mirrors `an1mbyt3_core::Goo2D`, with its gradients as `GradientDefDto`
+/// (points as `{x, y}`, like a shape's fill gradient).
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Goo2DDto {
+    pub group: u32,
+    pub color: [f32; 4],
+    pub gradient: Option<GradientDefDto>,
+    pub edge_color: [f32; 4],
+    pub edge_gradient: Option<GradientDefDto>,
+    pub edge_width: f32,
+    pub reach: f32,
+    pub gloss: f32,
+    pub detail: f32,
+    pub hide_source: bool,
+}
+
+impl From<&an1mbyt3_core::Goo2D> for Goo2DDto {
+    fn from(g: &an1mbyt3_core::Goo2D) -> Self {
+        Self {
+            group: g.group,
+            color: g.color,
+            gradient: g.gradient.as_ref().map(Into::into),
+            edge_color: g.edge_color,
+            edge_gradient: g.edge_gradient.as_ref().map(Into::into),
+            edge_width: g.edge_width,
+            reach: g.reach,
+            gloss: g.gloss,
+            detail: g.detail,
+            hide_source: g.hide_source,
+        }
+    }
+}
+
+impl From<Goo2DDto> for an1mbyt3_core::Goo2D {
+    fn from(g: Goo2DDto) -> Self {
+        Self {
+            group: g.group,
+            color: g.color,
+            gradient: g.gradient.map(Into::into),
+            edge_color: g.edge_color,
+            edge_gradient: g.edge_gradient.map(Into::into),
+            edge_width: g.edge_width,
+            reach: g.reach,
+            gloss: g.gloss,
+            detail: g.detail,
+            hide_source: g.hide_source,
+        }
+    }
+}
+
 /// Mirrors `an1mbyt3_core::GradientDef` — the Fill tool's gradient
 /// authoring shape. `kind` reuses `an1mbyt3_core::GradientKind` directly —
 /// a plain fieldless enum, whose default `Serialize` output (the bare
@@ -2102,6 +2153,7 @@ pub enum NodeBehaviorDto {
     ParticleSystem3D(an1mbyt3_core::ParticleSystem3D),
     ParticleFluid2D(an1mbyt3_core::ParticleFluid2D),
     ParticleBehaviors2D(an1mbyt3_core::ParticleBehaviors2D),
+    Goo2D(Goo2DDto),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2148,6 +2200,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::ParticleSystem3D(p) => NodeBehaviorDto::ParticleSystem3D(p.clone()),
             an1mbyt3_core::NodeBehavior::ParticleFluid2D(p) => NodeBehaviorDto::ParticleFluid2D(*p),
             an1mbyt3_core::NodeBehavior::ParticleBehaviors2D(p) => NodeBehaviorDto::ParticleBehaviors2D(p.clone()),
+            an1mbyt3_core::NodeBehavior::Goo2D(g) => NodeBehaviorDto::Goo2D(g.into()),
         }
     }
 }
@@ -2196,6 +2249,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::ParticleSystem3D(p) => an1mbyt3_core::NodeBehavior::ParticleSystem3D(p),
             NodeBehaviorDto::ParticleFluid2D(p) => an1mbyt3_core::NodeBehavior::ParticleFluid2D(p),
             NodeBehaviorDto::ParticleBehaviors2D(p) => an1mbyt3_core::NodeBehavior::ParticleBehaviors2D(p),
+            NodeBehaviorDto::Goo2D(g) => an1mbyt3_core::NodeBehavior::Goo2D(g.into()),
         }
     }
 }

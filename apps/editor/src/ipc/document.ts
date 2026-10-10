@@ -1508,6 +1508,21 @@ export type NodeBehavior =
   | ({ kind: 'ParticleSystem3D' } & ParticleSystem3DConfig)
   | ({ kind: 'ParticleFluid2D' } & ParticleFluid2DConfig)
   | ({ kind: 'ParticleBehaviors2D' } & ParticleBehaviors2DConfig)
+  | ({ kind: 'Goo2D' } & Goo2DConfig)
+
+/** Mirrors `an1mbyt3_core::Goo2D`: any node as part of a gooey liquid group. */
+export interface Goo2DConfig {
+  group: number
+  color: [number, number, number, number]
+  gradient: GradientDef | null
+  edgeColor: [number, number, number, number]
+  edgeGradient: GradientDef | null
+  edgeWidth: number
+  reach: number
+  gloss: number
+  detail: number
+  hideSource: boolean
+}
 
 /** Mirrors `an1mbyt3_core::ParticleFluid2D` (gooey metaball liquid for 2D particles). */
 export interface ParticleFluid2DConfig {

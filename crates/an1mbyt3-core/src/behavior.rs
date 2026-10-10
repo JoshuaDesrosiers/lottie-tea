@@ -122,6 +122,9 @@ pub enum NodeBehavior {
     /// Converge / Attract / Repel / Drag for 2D particles — see
     /// [`crate::ParticleBehaviors2D`]. (Appended last.)
     ParticleBehaviors2D(crate::ParticleBehaviors2D),
+    /// Makes any node part of a gooey liquid group — see [`crate::Goo2D`].
+    /// (Appended last.)
+    Goo2D(crate::Goo2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

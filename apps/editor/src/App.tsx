@@ -164,6 +164,7 @@ import {
   loadTreesDemo,
   loadLeerDemo,
   loadGooDemo,
+  loadGooShapesDemo,
   loadClothDemo,
   loadLanDemo,
   loadBoomDemo,
@@ -2468,6 +2469,20 @@ function App() {
       })
   }
 
+  const handleLoadGooShapesDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadGooShapesDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
   const handleLoadGooDemo = () => {
     const editor = editorRef.current
     if (!editor) return
@@ -4392,6 +4407,7 @@ function App() {
             onLoadTreesDemo={handleLoadTreesDemo}
             onLoadLeerDemo={handleLoadLeerDemo}
             onLoadGooDemo={handleLoadGooDemo}
+            onLoadGooShapesDemo={handleLoadGooShapesDemo}
             onLoadClothDemo={handleLoadClothDemo}
             onLoadLanDemo={handleLoadLanDemo}
             onLoadBoomDemo={handleLoadBoomDemo}

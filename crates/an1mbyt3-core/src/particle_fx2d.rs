@@ -53,3 +53,57 @@ impl Default for ParticleFluid2D {
 pub struct ParticleBehaviors2D {
     pub behaviors: Vec<ParticleBehavior3D>,
 }
+
+/// **Goo 2D** — makes any node part of a liquid: shapes, text, sprites and
+/// particle systems. Every node in the same `group` melts into one body:
+/// each keeps its exact outline while it's alone, and as two get within
+/// `reach` of each other a smooth neck grows between them until they merge
+/// (signed-distance metaballs — the "gooey" vector effect, for anything).
+///
+/// The group is drawn once, at its first member's place in the draw order,
+/// with that member's look (colour or gradient fill, rim band colour or
+/// gradient, gloss). Gradients are in that first member's local space,
+/// like a shape's own gradient. `hide_source` hides each member's normal
+/// drawing (the goo replaces it); turn it off to keep, say, a text label
+/// drawn on top of the liquid it's part of.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Goo2D {
+    /// Members with the same number are one liquid.
+    pub group: u32,
+    /// Body colour, or a gradient (wins when set).
+    pub color: [f32; 4],
+    pub gradient: Option<crate::gradient::GradientDef>,
+    /// Rim band colour / gradient (alpha 0 and no gradient = no rim).
+    pub edge_color: [f32; 4],
+    pub edge_gradient: Option<crate::gradient::GradientDef>,
+    /// Rim thickness, world units.
+    pub edge_width: f32,
+    /// How far (world units) outside its outline a member starts pulling
+    /// on its neighbours — bigger = joins from further, longer necks.
+    pub reach: f32,
+    /// Glossy highlight strength (0 = flat).
+    pub gloss: f32,
+    /// Outline detail: grid cell size as a share of `reach` (smaller =
+    /// smoother, costlier).
+    pub detail: f32,
+    /// Hide the member's own drawing (the goo stands in for it).
+    pub hide_source: bool,
+}
+
+impl Default for Goo2D {
+    fn default() -> Self {
+        Self {
+            group: 0,
+            color: [0.2, 0.55, 1.0, 1.0],
+            gradient: None,
+            edge_color: [0.05, 0.18, 0.5, 1.0],
+            edge_gradient: None,
+            edge_width: 4.0,
+            reach: 28.0,
+            gloss: 0.4,
+            detail: 0.2,
+            hide_source: true,
+        }
+    }
+}

@@ -87,6 +87,7 @@ mod demo_cloth;
 mod demo_trees;
 mod demo_leer;
 mod demo_goo;
+mod demo_goo_shapes;
 mod view3d;
 mod demo_tactics_3d;
 mod demo_tactics;

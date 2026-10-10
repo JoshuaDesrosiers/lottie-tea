@@ -263,6 +263,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Goo 2D (member of a liquid group).
+    pub fn goo(&self) -> Option<&crate::Goo2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Goo2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Particle Behaviours 2D.
     pub fn particle_behaviors(&self) -> Option<&crate::ParticleBehaviors2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

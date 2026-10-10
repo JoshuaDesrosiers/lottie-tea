@@ -79,6 +79,13 @@ pub fn contour(blobs: &[Blob], threshold: f32, detail: f32) -> Vec<Vec<Vec2>> {
         }
     }
 
+    march(&field, w, h, origin, cell, threshold)
+}
+
+/// Marching squares over a `w × h` grid of field samples (row-major,
+/// corner `(i, j)` at `origin + (i, j) · cell`): the `threshold` outline as
+/// closed, Chaikin-smoothed polygons.
+fn march(field: &[f32], w: usize, h: usize, origin: Vec2, cell: f32, threshold: f32) -> Vec<Vec<Vec2>> {
     // Marching squares: segments between crossing points on cell edges.
     // Edge ids: horizontal (i,j)→(i+1,j) = 2·(j·w+i); vertical (i,j)→(i,j+1) = 2·(j·w+i)+1.
     let at = |i: usize, j: usize| field[j * w + i];
@@ -162,6 +169,172 @@ pub fn contour(blobs: &[Blob], threshold: f32, detail: f32) -> Vec<Vec<Vec2>> {
     loops
 }
 
+/// Anything that can be part of a gooey group (`an1mbyt3_core::Goo2D`), in
+/// world space: a disc (particles) or filled polygons (shapes, text,
+/// sprites — even-odd, so glyph holes stay holes).
+#[derive(Debug, Clone)]
+pub enum Source {
+    Circle { center: Vec2, radius: f32, weight: f32 },
+    Polygons { loops: Vec<Vec<Vec2>>, weight: f32 },
+}
+
+impl Source {
+    fn bounds(&self) -> (Vec2, Vec2) {
+        match self {
+            Source::Circle { center, radius, .. } => (*center - Vec2::splat(*radius), *center + Vec2::splat(*radius)),
+            Source::Polygons { loops, .. } => {
+                let mut min = Vec2::splat(f32::INFINITY);
+                let mut max = Vec2::splat(f32::NEG_INFINITY);
+                for p in loops.iter().flatten() {
+                    min = min.min(*p);
+                    max = max.max(*p);
+                }
+                (min, max)
+            }
+        }
+    }
+
+    fn weight(&self) -> f32 {
+        match self {
+            Source::Circle { weight, .. } | Source::Polygons { weight, .. } => *weight,
+        }
+    }
+
+    /// Signed distance from `p` to the outline (negative inside).
+    fn distance(&self, p: Vec2) -> f32 {
+        match self {
+            Source::Circle { center, radius, .. } => p.distance(*center) - radius,
+            Source::Polygons { loops, .. } => {
+                let mut best = f32::INFINITY;
+                let mut inside = false;
+                for ring in loops {
+                    let n = ring.len();
+                    for k in 0..n {
+                        let (a, b) = (ring[k], ring[(k + 1) % n]);
+                        let ab = b - a;
+                        let t = ((p - a).dot(ab) / ab.length_squared().max(1e-12)).clamp(0.0, 1.0);
+                        best = best.min(p.distance_squared(a + ab * t));
+                        if (a.y > p.y) != (b.y > p.y) && p.x < a.x + (p.y - a.y) / (b.y - a.y) * (b.x - a.x) {
+                            inside = !inside;
+                        }
+                    }
+                }
+                let d = best.sqrt();
+                if inside { -d } else { d }
+            }
+        }
+    }
+}
+
+/// The gooey outline of `sources` merged: each source's field is 1
+/// inside it and falls smoothly to 0 at `reach` outside its outline,
+/// shaped so a lone source's outline is exactly its own (the field there
+/// equals the threshold). Where sources come within `reach` of each other
+/// their fields add up and a smooth neck joins them. `level` (0..1) picks
+/// an outline *inside* the liquid (1 = the plain outline; smaller values
+/// sit deeper, for rim bands and highlights): it is the share of the way
+/// from the threshold down to "fully inside".
+pub fn contour_sources(sources: &[Source], reach: f32, inset: f32, detail: f32) -> Vec<Vec<Vec2>> {
+    let sources: Vec<&Source> = sources.iter().filter(|s| s.weight() > 0.0).collect();
+    if sources.is_empty() {
+        return Vec::new();
+    }
+    const THRESHOLD: f32 = 0.5;
+    let share = visible_share(THRESHOLD);
+    // The kernel's radius R and the outline's distance R0 from its "core",
+    // chosen so the field crosses THRESHOLD exactly on the outline and
+    // reaches 0 at `reach` outside it.
+    let reach = reach.max(0.5);
+    let big_r = reach / (1.0 - share);
+    let r0 = big_r * share;
+    let kernel = |d: f32| {
+        let x = ((d + r0).max(0.0) / big_r).min(1.0);
+        let q = 1.0 - x * x;
+        q * q * q
+    };
+    // An outline `inset` world units inside the liquid's edge.
+    let level = kernel(-inset.clamp(0.0, r0 * 0.98));
+
+    let mut min = Vec2::splat(f32::INFINITY);
+    let mut max = Vec2::splat(f32::NEG_INFINITY);
+    for s in &sources {
+        let (a, b) = s.bounds();
+        min = min.min(a);
+        max = max.max(b);
+    }
+    min -= Vec2::splat(reach);
+    max += Vec2::splat(reach);
+    let mut cell = (reach * detail.clamp(0.05, 1.0)).max(0.25);
+    let span = max - min;
+    while ((span.x / cell) as usize + 3) * ((span.y / cell) as usize + 3) > MAX_CELLS {
+        cell *= 1.25;
+    }
+    let origin = min - Vec2::splat(cell);
+    let w = (span.x / cell) as usize + 3;
+    let h = (span.y / cell) as usize + 3;
+    let mut field = vec![0.0f32; w * h];
+    for s in &sources {
+        let (a, b) = s.bounds();
+        let lo = ((a - Vec2::splat(reach) - origin) / cell).floor().max(Vec2::ZERO);
+        let hi = ((b + Vec2::splat(reach) - origin) / cell).ceil().min(Vec2::new((w - 1) as f32, (h - 1) as f32));
+        let weight = s.weight();
+        for j in lo.y as usize..=hi.y as usize {
+            for i in lo.x as usize..=hi.x as usize {
+                let p = origin + Vec2::new(i as f32, j as f32) * cell;
+                let k = kernel(s.distance(p));
+                if k > 0.0 {
+                    field[j * w + i] += weight * k;
+                }
+            }
+        }
+    }
+    march(&field, w, h, origin, cell, level)
+}
+
+/// A path flattened to polygons (cubics sampled), each point mapped by `to`.
+pub fn flatten_path(path: &an1mbyt3_core::Path, to: impl Fn(Vec2) -> Vec2) -> Vec<Vec<Vec2>> {
+    use an1mbyt3_core::PathCommand as C;
+    let mut loops = Vec::new();
+    let mut ring: Vec<Vec2> = Vec::new();
+    let mut cur = Vec2::ZERO;
+    for c in &path.commands {
+        match *c {
+            C::MoveTo(p) => {
+                if ring.len() >= 3 {
+                    loops.push(std::mem::take(&mut ring));
+                }
+                ring.clear();
+                cur = p;
+                ring.push(to(p));
+            }
+            C::LineTo(p) => {
+                cur = p;
+                ring.push(to(p));
+            }
+            C::CubicTo { control1, control2, to: end } => {
+                const STEPS: usize = 12;
+                for k in 1..=STEPS {
+                    let t = k as f32 / STEPS as f32;
+                    let u = 1.0 - t;
+                    let p = cur * (u * u * u) + control1 * (3.0 * u * u * t) + control2 * (3.0 * u * t * t) + end * (t * t * t);
+                    ring.push(to(p));
+                }
+                cur = end;
+            }
+            C::Close => {
+                if ring.len() >= 3 {
+                    loops.push(std::mem::take(&mut ring));
+                }
+                ring.clear();
+            }
+        }
+    }
+    if ring.len() >= 3 {
+        loops.push(ring);
+    }
+    loops
+}
+
 /// One round of Chaikin corner cutting on a closed polygon (rounds off the
 /// grid's tiny facets).
 fn chaikin(poly: &[Vec2]) -> Vec<Vec2> {
@@ -210,6 +383,17 @@ mod tests {
         let visible = r * visible_share(0.5);
         let expected = std::f32::consts::PI * visible * visible;
         assert!((area(&loops[0]) - expected).abs() / expected < 0.05, "{} vs {}", area(&loops[0]), expected);
+    }
+
+    #[test]
+    fn a_lone_square_keeps_its_outline_and_two_close_ones_merge() {
+        let square = |x: f32| Source::Polygons { loops: vec![vec![Vec2::new(x, 0.0), Vec2::new(x + 40.0, 0.0), Vec2::new(x + 40.0, 40.0), Vec2::new(x, 40.0)]], weight: 1.0 };
+        let alone = contour_sources(&[square(0.0)], 20.0, 0.0, 0.1);
+        assert_eq!(alone.len(), 1);
+        // Corners round off a little, but the area is the square's.
+        assert!((area(&alone[0]) - 1600.0).abs() / 1600.0 < 0.06, "{}", area(&alone[0]));
+        assert_eq!(contour_sources(&[square(0.0), square(100.0)], 20.0, 0.0, 0.1).len(), 2, "apart");
+        assert_eq!(contour_sources(&[square(0.0), square(50.0)], 20.0, 0.0, 0.1).len(), 1, "a neck joins them");
     }
 
     #[test]

@@ -1282,6 +1282,20 @@ fn build_tilemap_mesh(tilemap: &an1mbyt3_core::TilemapNode) -> Mesh {
 /// components (Particle System, Trail Renderer) — Unity-style, any node can
 /// carry those.
 fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId, node: &'a Node) -> Vec<DrawCall<'a>> {
+    // Goo 2D: a group's liquid is drawn at its first member, under the
+    // member's own drawing (which "Hide source" leaves out entirely).
+    if let Some(goo) = node.goo() {
+        let mut draws = goo_draws(editor, artboard, node_id);
+        if !goo.hide_source {
+            draws.extend(node_draws_plain(editor, artboard, node_id, node));
+        }
+        return draws;
+    }
+    node_draws_plain(editor, artboard, node_id, node)
+}
+
+/// [`node_draws`] without Goo 2D.
+fn node_draws_plain<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId, node: &'a Node) -> Vec<DrawCall<'a>> {
     let mut draws = kind_draws(editor, artboard, node_id, node);
     // A Particle Fluid 2D draws the node's particles (or liquid) as one
     // metaball body instead of individual discs.
@@ -1458,6 +1472,119 @@ fn fluid_meshes(fluid: &an1mbyt3_core::ParticleFluid2D, blobs: &[crate::metaball
         out.push((tessellate_path(&to_path(&contour(&small, th, detail), Vec2::ZERO)), shine));
     }
     out
+}
+
+/// A Goo 2D member's sources, in world space: a shape's path, a text's
+/// glyph outlines, a sprite's rectangle, a particle system's particles (as
+/// drawn) and a Liquid 2D's particles.
+fn goo_sources(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node_id: NodeId, node: &Node) -> Vec<crate::metaball2d::Source> {
+    use crate::metaball2d::{flatten_path, Source};
+    let world = artboard.world_transform(node_id).to_affine2();
+    let to = |p: Vec2| world.transform_point2(p);
+    let mut out = Vec::new();
+    match &node.kind {
+        NodeKind::Shape(shape) => {
+            let loops = flatten_path(&shape.path, to);
+            if !loops.is_empty() {
+                out.push(Source::Polygons { loops, weight: shape.fill_color[3].max(0.01) });
+            }
+        }
+        NodeKind::Text(text) => {
+            if let Some(font) = editor.font_cache.get(&text.font) {
+                // Laid out exactly as the text is drawn (centred on its advance).
+                let glyphs = an1mbyt3_text::shape_text(font, &text.content, text.size_px);
+                let advance: f32 = glyphs.iter().map(|g| g.advance.x).sum();
+                let mut pen = Vec2::new(-advance / 2.0, 0.0);
+                let mut loops = Vec::new();
+                for g in &glyphs {
+                    let offset = pen + g.offset;
+                    loops.extend(flatten_path(&an1mbyt3_text::glyph_outline(font, g.glyph_id, text.size_px), |p| to(p + offset)));
+                    pen += g.advance;
+                }
+                if !loops.is_empty() {
+                    out.push(Source::Polygons { loops, weight: 1.0 });
+                }
+            }
+        }
+        NodeKind::Image(image) => {
+            let (hw, hh) = (image.width / 2.0, image.height / 2.0);
+            out.push(Source::Polygons { loops: vec![vec![to(Vec2::new(-hw, -hh)), to(Vec2::new(hw, -hh)), to(Vec2::new(hw, hh)), to(Vec2::new(-hw, hh))]], weight: 1.0 });
+        }
+        _ => {}
+    }
+    if let (Some(config), Some(runtime)) = (node.particle_system(), editor.particle_runtimes.get(&node_id)) {
+        let emitter = artboard.world_transform(node_id);
+        let local = config.main.simulation_space == an1mbyt3_core::SimulationSpace::Local;
+        let scale = if local { (emitter.scale.x.abs() + emitter.scale.y.abs()) * 0.5 } else { 1.0 };
+        for p in runtime.particles() {
+            let age = p.normalized_age();
+            let size = p.base_size * sample_size_over_lifetime(&config.size_over_lifetime, age) * scale;
+            let alpha = config.main.start_color[3] * sample_color_over_lifetime(&config.color_over_lifetime, age).map_or(1.0, |c| c[3]);
+            let center = if local { emitter_to_world(emitter, p.position) } else { p.position };
+            out.push(Source::Circle { center, radius: size * 0.5, weight: alpha });
+        }
+    }
+    if let Some(config) = node.liquid() {
+        let radius = config.particle_spacing.max(2.0) * 0.6;
+        for (center, _) in liquid_points(editor, artboard, node_id, config) {
+            out.push(Source::Circle { center, radius, weight: 1.0 });
+        }
+    }
+    out
+}
+
+/// A Goo 2D group's layers, back to front, in the owner's space: the rim
+/// (whole outline, edge colour/gradient), the body (`edge_width` inside it,
+/// fill colour/gradient), and a soft highlight (deeper inside, nudged up
+/// and left, the fill lightened).
+fn goo_meshes(goo: &an1mbyt3_core::Goo2D, sources: &[crate::metaball2d::Source], to_owner: glam::Affine2) -> Vec<(an1mbyt3_geometry::Mesh, [f32; 4], Option<an1mbyt3_core::GradientDef>)> {
+    use crate::metaball2d::contour_sources;
+    if sources.is_empty() {
+        return Vec::new();
+    }
+    let reach = goo.reach.max(1.0);
+    let detail = goo.detail.clamp(0.08, 0.6);
+    let local = |loops: Vec<Vec<Vec2>>, shift: Vec2| -> an1mbyt3_geometry::Mesh {
+        let mapped: Vec<Vec<Vec2>> = loops.into_iter().map(|ring| ring.into_iter().map(|p| to_owner.transform_point2(p + shift)).collect()).collect();
+        tessellate_path(&crate::metaball2d::to_path(&mapped, Vec2::ZERO))
+    };
+    let mut out = Vec::new();
+    let has_rim = goo.edge_width > 0.0 && (goo.edge_color[3] > 0.001 || goo.edge_gradient.is_some());
+    if has_rim {
+        out.push((local(contour_sources(sources, reach, 0.0, detail), Vec2::ZERO), goo.edge_color, goo.edge_gradient.clone()));
+    }
+    let body_inset = if has_rim { goo.edge_width } else { 0.0 };
+    out.push((local(contour_sources(sources, reach, body_inset, detail), Vec2::ZERO), goo.color, goo.gradient.clone()));
+    if goo.gloss > 0.0 {
+        let base = goo.gradient.as_ref().and_then(|g| g.stops.first().map(|s| s.color)).unwrap_or(goo.color);
+        let k = 0.6;
+        let shine = [base[0] + (1.0 - base[0]) * k, base[1] + (1.0 - base[1]) * k, base[2] + (1.0 - base[2]) * k, goo.gloss.clamp(0.0, 1.0) * 0.4];
+        // Deep inside, so only thick parts (blobs, merged bulges) catch a
+        // glint — thin strokes like letters stay clean.
+        let inset = body_inset + reach * 0.62;
+        out.push((local(contour_sources(sources, reach, inset, detail), Vec2::new(-1.0, 1.0) * reach * 0.12), shine, None));
+    }
+    out
+}
+
+/// A Goo 2D group's layers, drawn with its owner's world transform.
+fn goo_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId) -> Vec<DrawCall<'a>> {
+    let Some((parts, bindings)) = editor.goo_gpu.get(&node_id) else { return Vec::new() };
+    let transform = artboard.world_transform(node_id);
+    parts
+        .iter()
+        .zip(bindings.iter())
+        .map(|((mesh, color, gradient), binding)| DrawCall {
+            mesh,
+            binding,
+            transform,
+            fill_color: *color,
+            blend_mode: BlendMode::Normal,
+            gradient: gradient.as_ref(),
+            texture: None,
+            material: None,
+        })
+        .collect()
 }
 
 /// A node's Particle Fluid 2D layers (meshes are already in world space).
@@ -2232,6 +2359,9 @@ pub struct WasmEditor {
     /// Particle Fluid 2D: this frame's liquid meshes per node (world space,
     /// back to front: rim, body, highlight) and the bindings they reuse.
     particle_fluid_gpu: HashMap<NodeId, (Vec<(GpuMesh, [f32; 4])>, Vec<DrawBinding>)>,
+    /// Goo 2D: each group's liquid meshes, keyed by the group's first
+    /// member (drawn there, in that node's space): (mesh, colour, gradient).
+    goo_gpu: HashMap<NodeId, (Vec<(GpuMesh, [f32; 4], Option<an1mbyt3_core::GradientDef>)>, Vec<DrawBinding>)>,
     /// One draw binding per Liquid 2D particle (grown as the fluid grows).
     liquid_bindings: HashMap<NodeId, Vec<DrawBinding>>,
     /// Opaque-pixel bounding box per (image, tile index) — `u32::MAX` as the
@@ -2630,6 +2760,7 @@ impl WasmEditor {
             particle_mesh: None,
             particle_bindings: HashMap::new(),
             particle_fluid_gpu: HashMap::new(),
+            goo_gpu: HashMap::new(),
             liquid_bindings: HashMap::new(),
             trail_runtimes: HashMap::new(),
             alpha_bounds_cache: std::cell::RefCell::new(HashMap::new()),
@@ -3372,6 +3503,40 @@ impl WasmEditor {
             for (mesh, color) in meshes {
                 if !mesh.indices.is_empty() {
                     entry.0.push((self.renderer.upload_mesh(&mesh), color));
+                }
+            }
+            while entry.1.len() < entry.0.len() {
+                entry.1.push(self.renderer.create_draw_binding());
+            }
+        }
+
+        // Goo 2D: every group's members (shapes, text, sprites, particles)
+        // as signed-distance sources, merged into one liquid outline and
+        // tessellated in the group owner's (first member's) space.
+        let artboard = self.document.artboard(artboard_id).unwrap();
+        let mut groups: Vec<(u32, NodeId, an1mbyt3_core::Goo2D, Vec<crate::metaball2d::Source>)> = Vec::new();
+        for id in artboard.node_ids() {
+            if artboard.is_effectively_deleted(id) || !crate::lighting2d::effectively_visible(artboard, id) {
+                continue;
+            }
+            let Some(node) = artboard.node(id) else { continue };
+            let Some(goo) = node.goo() else { continue };
+            let sources = goo_sources(self, artboard, id, node);
+            match groups.iter_mut().find(|g| g.0 == goo.group) {
+                Some(g) => g.3.extend(sources),
+                None => groups.push((goo.group, id, goo.clone(), sources)),
+            }
+        }
+        let owners: std::collections::HashSet<NodeId> = groups.iter().map(|g| g.1).collect();
+        self.goo_gpu.retain(|id, _| owners.contains(id));
+        for (_, owner, goo, sources) in groups {
+            let to_owner = artboard.world_transform(owner).to_affine2().inverse();
+            let meshes = goo_meshes(&goo, &sources, to_owner);
+            let entry = self.goo_gpu.entry(owner).or_insert_with(|| (Vec::new(), Vec::new()));
+            entry.0.clear();
+            for (mesh, color, gradient) in meshes {
+                if !mesh.indices.is_empty() {
+                    entry.0.push((self.renderer.upload_mesh(&mesh), color, gradient));
                 }
             }
             while entry.1.len() < entry.0.len() {
@@ -4357,6 +4522,7 @@ impl WasmEditor {
         self.particle_runtimes.clear();
         self.particle_bindings.clear();
         self.particle_fluid_gpu.clear();
+        self.goo_gpu.clear();
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
@@ -6512,6 +6678,7 @@ impl WasmEditor {
             "ParticleSystem3D" => B::ParticleSystem3D(an1mbyt3_core::ParticleSystem3D::default()),
             "ParticleFluid2D" => B::ParticleFluid2D(an1mbyt3_core::ParticleFluid2D::default()),
             "ParticleBehaviors2D" => B::ParticleBehaviors2D(an1mbyt3_core::ParticleBehaviors2D::default()),
+            "Goo2D" => B::Goo2D(an1mbyt3_core::Goo2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -9759,6 +9926,14 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
+    /// The + menu's Demos → "Goo Shapes" — Goo 2D on text, shapes and
+    /// particles: members of one group melt together (gradient fills).
+    pub async fn load_goo_shapes_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_goo_shapes::build_demo_goo_shapes(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     /// The + menu's Demos → "Goo Lab" — 2D particles as liquid (Particle
     /// Fluid 2D) steered by behaviours (Particle Behaviours 2D).
     pub async fn load_goo_demo(&mut self) -> Result<JsValue, JsValue> {
@@ -10366,6 +10541,7 @@ impl WasmEditor {
         self.particle_runtimes.clear();
         self.particle_bindings.clear();
         self.particle_fluid_gpu.clear();
+        self.goo_gpu.clear();
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
@@ -10537,6 +10713,7 @@ impl WasmEditor {
         self.particle_runtimes.clear();
         self.particle_bindings.clear();
         self.particle_fluid_gpu.clear();
+        self.goo_gpu.clear();
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;
@@ -10626,6 +10803,7 @@ impl WasmEditor {
         self.particle_runtimes.clear();
         self.particle_bindings.clear();
         self.particle_fluid_gpu.clear();
+        self.goo_gpu.clear();
         self.liquid_bindings.clear();
         self.trail_runtimes.clear();
         self.physics = None;

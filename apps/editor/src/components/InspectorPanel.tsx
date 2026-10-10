@@ -84,6 +84,7 @@ import {
 import { PropertyBindingsFields, ScenePropertiesFields, UiEventsFields } from './EventFields'
 import { FontPicker, IconPicker } from './FontPicker'
 import { iconFamily, isIconFamily, type IconStyle } from '../game/googleFonts'
+import { Goo2DFields } from './GooFields'
 import { ParticleBehaviors2DFields, ParticleFluid2DFields, ParticleSystem3DFields } from './Particle3DFields'
 import { addGoogleFont, burstParticles3D, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
 import { gameConsole } from '../game/console'
@@ -745,6 +746,10 @@ function BehaviorsFields({
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
       }
+      case 'Goo2D': {
+        const { kind: _k, ...config } = behavior
+        return <Goo2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Goo2D', ...c })} />
+      }
       case 'ParticleFluid2D': {
         const { kind: _k, ...config } = behavior
         return <ParticleFluid2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'ParticleFluid2D', ...c })} />
@@ -1388,7 +1393,7 @@ function ClassTagsField({ value, onChange }: { value: string[]; onChange: (value
 
 const RADIANS_TO_DEGREES = 180 / Math.PI
 
-const GRADIENT_KINDS: GradientKind[] = ['Linear', 'Radial', 'Conic', 'Bilinear']
+export const GRADIENT_KINDS: GradientKind[] = ['Linear', 'Radial', 'Conic', 'Bilinear']
 const BLEND_MODES: BlendMode[] = ['Normal', 'Multiply', 'Screen', 'Add']
 
 /** A non-native `<select>` replacement — a button showing the current
@@ -1639,7 +1644,7 @@ function FillField({
  * plus an "Add Stop" button that inserts a new one at the midpoint of
  * whichever gap is currently largest — the same "put it somewhere useful,
  * not always at the end" convenience Affinity's own stop-add offers. */
-function GradientStopList({ gradient, onChange }: { gradient: GradientDef; onChange: (value: GradientDef) => void }) {
+export function GradientStopList({ gradient, onChange }: { gradient: GradientDef; onChange: (value: GradientDef) => void }) {
   const setStop = (index: number, patch: Partial<GradientDef['stops'][number]>) => {
     const stops = gradient.stops.map((s, i) => (i === index ? { ...s, ...patch } : s))
     onChange({ ...gradient, stops: [...stops].sort((a, b) => a.offset - b.offset) })
