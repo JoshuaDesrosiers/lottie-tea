@@ -125,6 +125,9 @@ pub enum NodeBehavior {
     /// Makes any node part of a gooey liquid group — see [`crate::Goo2D`].
     /// (Appended last.)
     Goo2D(crate::Goo2D),
+    /// Opt-in smooth edges for the node's liquid — see
+    /// [`crate::Antialias2D`]. (Appended last.)
+    Antialias2D(crate::Antialias2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

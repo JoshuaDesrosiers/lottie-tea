@@ -271,6 +271,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Antialias 2D (smooth liquid edges), if any.
+    pub fn antialias(&self) -> Option<&crate::Antialias2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Antialias2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Particle Behaviours 2D.
     pub fn particle_behaviors(&self) -> Option<&crate::ParticleBehaviors2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

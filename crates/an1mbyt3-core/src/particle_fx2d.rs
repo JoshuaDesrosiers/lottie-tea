@@ -107,3 +107,22 @@ impl Default for Goo2D {
         }
     }
 }
+
+/// **Antialias** — opt-in smooth edges for a node's GPU-drawn liquid (its
+/// Goo 2D group, if it's the group's first member, or its Particle Fluid
+/// 2D). Without it, liquid edges are **hard**: a pixel is in or out, so
+/// low-resolution / pixel-art scenes stay crisp. With it, edges get a
+/// `softness`-pixel anti-aliased ramp (1 = standard antialiasing, more =
+/// softer). A separate component (not a field) so files saved before it
+/// load unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Antialias2D {
+    pub softness: f32,
+}
+
+impl Default for Antialias2D {
+    fn default() -> Self {
+        Self { softness: 1.0 }
+    }
+}

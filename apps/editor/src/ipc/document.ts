@@ -1509,6 +1509,13 @@ export type NodeBehavior =
   | ({ kind: 'ParticleFluid2D' } & ParticleFluid2DConfig)
   | ({ kind: 'ParticleBehaviors2D' } & ParticleBehaviors2DConfig)
   | ({ kind: 'Goo2D' } & Goo2DConfig)
+  | ({ kind: 'Antialias2D' } & Antialias2DConfig)
+
+/** Mirrors `an1mbyt3_core::Antialias2D`: opt-in smooth liquid edges. */
+export interface Antialias2DConfig {
+  /** Edge ramp width in screen pixels (1 = standard antialiasing). */
+  softness: number
+}
 
 /** Mirrors `an1mbyt3_core::Goo2D`: any node as part of a gooey liquid group. */
 export interface Goo2DConfig {

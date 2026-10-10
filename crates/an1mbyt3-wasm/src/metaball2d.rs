@@ -275,6 +275,47 @@ pub struct Field {
 }
 
 impl Field {
+    /// Grid size in samples, the first sample's world position, and the
+    /// spacing — for uploading the field as a texture (`goo_gpu`).
+    pub fn layout(&self) -> (usize, usize, Vec2, f32) {
+        (self.w, self.h, self.origin, self.cell)
+    }
+
+    /// The samples, row-major.
+    pub fn samples(&self) -> &[f32] {
+        &self.data
+    }
+
+    /// Splats `blobs` into a field with *this* field's grid (anything off
+    /// the grid is dropped) — a second field aligned sample-for-sample
+    /// (the particle fluid's highlight, packed into the same texture).
+    pub fn blobs_on_grid(&self, blobs: &[Blob]) -> Vec<f32> {
+        let (w, h, origin, cell) = (self.w, self.h, self.origin, self.cell);
+        let mut data = vec![0.0f32; w * h];
+        if w == 0 || h == 0 {
+            return data;
+        }
+        for b in blobs.iter().filter(|b| b.radius > 0.0 && b.weight > 0.0) {
+            let r2 = b.radius * b.radius;
+            let lo = ((b.center - Vec2::splat(b.radius) - origin) / cell).floor().max(Vec2::ZERO);
+            let hi = ((b.center + Vec2::splat(b.radius) - origin) / cell).ceil().min(Vec2::new((w - 1) as f32, (h - 1) as f32));
+            if lo.x > hi.x || lo.y > hi.y {
+                continue;
+            }
+            for j in lo.y as usize..=hi.y as usize {
+                let y = origin.y + j as f32 * cell - b.center.y;
+                for i in lo.x as usize..=hi.x as usize {
+                    let x = origin.x + i as f32 * cell - b.center.x;
+                    let q = 1.0 - (x * x + y * y) / r2;
+                    if q > 0.0 {
+                        data[j * w + i] += b.weight * q * q * q;
+                    }
+                }
+            }
+        }
+        data
+    }
+
     /// The outline where the field passes `level`.
     pub fn contour(&self, level: f32) -> Vec<Vec<Vec2>> {
         if self.w < 2 || self.h < 2 {

@@ -94,7 +94,32 @@ function PaintField({ label, color, gradient, onColor, onGradient }: { label: st
   )
 }
 
-export function Goo2DFields({ config, onChange }: { config: Goo2DConfig; onChange: (c: Goo2DConfig) => void }) {
+/**
+ * Edge quality for GPU-drawn liquids. Off (the default): hard edges — a
+ * pixel is liquid or it isn't, so low-resolution and pixel-art scenes stay
+ * crisp. On: an anti-aliased ramp `softness` screen pixels wide. Stored as
+ * the node's Antialias 2D component.
+ */
+export function AntialiasFields({ value, onChange, standalone = false }: { value: number | null; onChange: (softness: number | null) => void; standalone?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      {!standalone && (
+        <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Off: hard, pixel-crisp edges (best for pixel art and low resolutions). On: smooth anti-aliased edges.">
+          <input type="checkbox" checked={value !== null} onChange={(e) => onChange(e.target.checked ? 1 : null)} />
+          Antialias edges
+        </label>
+      )}
+      {value !== null && (
+        <Row label="Softness (px)" title="Width of the smooth edge in screen pixels: 1 = standard antialiasing, more = softer.">
+          <SliderNum value={value} min={0.25} max={6} step={0.05} digits={2} onChange={(v) => onChange(v)} />
+        </Row>
+      )}
+      {standalone && <p className="text-[10px] leading-snug text-ink-dim">Smooths this node&apos;s liquid edges (its Goo 2D group or Particle Fluid 2D). Remove for hard, pixel-crisp edges.</p>}
+    </div>
+  )
+}
+
+export function Goo2DFields({ config, onChange, antialias = null, onAntialias }: { config: Goo2DConfig; onChange: (c: Goo2DConfig) => void; antialias?: number | null; onAntialias?: (softness: number | null) => void }) {
   const update = (patch: Partial<Goo2DConfig>) => onChange({ ...config, ...patch })
   return (
     <div className="flex flex-col gap-1.5">
@@ -122,6 +147,7 @@ export function Goo2DFields({ config, onChange }: { config: Goo2DConfig; onChang
         <input type="checkbox" checked={config.hideSource} onChange={(e) => update({ hideSource: e.target.checked })} />
         Hide the original (the goo replaces it)
       </label>
+      {onAntialias && <AntialiasFields value={antialias} onChange={onAntialias} />}
     </div>
   )
 }

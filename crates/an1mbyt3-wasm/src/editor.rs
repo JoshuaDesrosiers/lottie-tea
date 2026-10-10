@@ -1459,38 +1459,92 @@ fn fluid_blobs(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node_id:
     blobs
 }
 
-/// The liquid's layers, back to front: the rim (whole outline, edge
-/// colour), the body (a slightly higher level, so the rim shows as a band
-/// round it), and a glossy highlight: the same drops at about half size,
-/// nudged up-left, the body colour lightened — a shine on every drop that
-/// merges along with them (a higher field level instead would flood dense
-/// clusters with shine).
-fn fluid_meshes(fluid: &an1mbyt3_core::ParticleFluid2D, blobs: &[crate::metaball2d::Blob], cell: f32) -> Vec<(an1mbyt3_geometry::Mesh, [f32; 4])> {
-    if blobs.is_empty() {
-        return Vec::new();
+/// A liquid on the GPU (see `goo_gpu`): its field texture, the quad it's
+/// drawn on, and which compiled shader draws it.
+pub(crate) struct LiquidGpu {
+    texture: Option<an1mbyt3_renderer::DataTexture>,
+    mesh: Option<GpuMesh>,
+    shader: String,
+    /// Fingerprint of the look `shader` was generated from.
+    look_key: u64,
+    binding: DrawBinding,
+}
+
+impl LiquidGpu {
+    fn new(renderer: &Renderer) -> Self {
+        Self { texture: None, mesh: None, shader: String::new(), look_key: 0, binding: renderer.create_draw_binding() }
     }
+
+    /// Uploads `field` (+ `second` on its grid), rebuilds the quad in the
+    /// draw's space (`to_draw`: world → it), and makes sure `look`'s shader
+    /// is compiled (once per distinct look).
+    fn update(&mut self, renderer: &Renderer, materials: &mut HashMap<String, an1mbyt3_renderer::GpuMaterial>, field: &crate::metaball2d::Field, second: Option<&[f32]>, look: &crate::goo_gpu::Look, to_draw: glam::Affine2) {
+        let (w, h, bytes) = crate::goo_gpu::pack(field, second);
+        renderer.write_data_texture(&mut self.texture, w, h, &bytes);
+        let capacity = self.texture.as_ref().map_or((w, h), |t| t.size());
+        let quad = crate::goo_gpu::quad(field, capacity, to_draw);
+        match self.mesh.as_mut() {
+            Some(mesh) => renderer.rewrite_mesh(mesh, &quad),
+            None => self.mesh = Some(renderer.upload_mesh_with_headroom(&quad, 1.0)),
+        }
+        // The shader only changes with the look (settings), not per frame.
+        let look_key = fingerprint_debug(look) | 1;
+        if look_key == self.look_key {
+            return;
+        }
+        self.look_key = look_key;
+        let wgsl = crate::goo_gpu::shader(look);
+        if !materials.contains_key(&wgsl) {
+            match renderer.compile_material(&wgsl) {
+                Ok(m) => {
+                    materials.insert(wgsl.clone(), m);
+                }
+                // Every look's WGSL is validated by tests (`goo_gpu`); a
+                // failure here just leaves the liquid undrawn.
+                Err(_) => {}
+            }
+        }
+        self.shader = wgsl;
+    }
+
+    /// Its draw (`transform`: the draw's space → world).
+    fn draw<'a>(&'a self, materials: &'a HashMap<String, an1mbyt3_renderer::GpuMaterial>, transform: an1mbyt3_core::Transform2D) -> Option<DrawCall<'a>> {
+        Some(DrawCall {
+            mesh: self.mesh.as_ref()?,
+            binding: &self.binding,
+            transform,
+            fill_color: [1.0; 4],
+            blend_mode: BlendMode::Normal,
+            gradient: None,
+            texture: Some(&self.texture.as_ref()?.image),
+            material: Some(materials.get(&self.shader)?),
+        })
+    }
+}
+
+/// A Particle Fluid 2D's look: the rim (whole outline, edge colour), the
+/// body (a slightly higher level, so the rim shows as a band round it),
+/// and a glossy highlight from the same drops at about half size nudged
+/// up-left (packed as the texture's second field) — a shine that merges
+/// and stretches along with the drops.
+fn fluid_look(fluid: &an1mbyt3_core::ParticleFluid2D, antialias: Option<f32>) -> crate::goo_gpu::Look {
+    use crate::goo_gpu::{Highlight, Look, Paint};
     let th = fluid.threshold.clamp(0.05, 0.95);
-    let detail = cell;
-    let mut out = Vec::new();
     let has_rim = fluid.edge_color[3] > 0.001 && fluid.edge_width > 0.0;
-    // One field for the rim and the body (two outlines of it).
-    let field = crate::metaball2d::Field::from_blobs(blobs, detail);
-    if has_rim {
-        out.push((an1mbyt3_geometry::tessellate_polygons(&field.contour(th), Vec2::ZERO), fluid.edge_color));
-    }
     let body_th = if has_rim { (th * (1.0 + fluid.edge_width.clamp(0.0, 1.0) * 1.5)).min(0.97) } else { th };
-    out.push((an1mbyt3_geometry::tessellate_polygons(&field.contour(body_th), Vec2::ZERO), fluid.color));
-    if fluid.gloss > 0.0 {
-        // The same drops at about half size, nudged up-left: a liquid
-        // highlight that merges and stretches along with the drops (the
-        // look — plain dots don't flow). Built on the fast field/tess path.
-        let small: Vec<crate::metaball2d::Blob> = blobs.iter().map(|b| crate::metaball2d::Blob { center: b.center + Vec2::new(-1.0, 1.0) * b.radius * 0.14, radius: b.radius * 0.42, ..*b }).collect();
-        let c = fluid.color;
-        let k = 0.6;
-        let shine = [c[0] + (1.0 - c[0]) * k, c[1] + (1.0 - c[1]) * k, c[2] + (1.0 - c[2]) * k, c[3] * fluid.gloss.clamp(0.0, 1.0) * 0.8];
-        out.push((an1mbyt3_geometry::tessellate_polygons(&crate::metaball2d::Field::from_blobs(&small, detail).contour(th), Vec2::ZERO), shine));
+    let c = fluid.color;
+    let k = 0.6;
+    Look {
+        rim: has_rim.then(|| (th, Paint::Solid(fluid.edge_color))),
+        body: (body_th, Paint::Solid(fluid.color)),
+        highlight: (fluid.gloss > 0.0).then(|| Highlight {
+            level: th,
+            color: [c[0] + (1.0 - c[0]) * k, c[1] + (1.0 - c[1]) * k, c[2] + (1.0 - c[2]) * k, c[3] * fluid.gloss.clamp(0.0, 1.0) * 0.8],
+            offset_texels: Vec2::ZERO,
+            second_field: true,
+        }),
+        antialias,
     }
-    out
 }
 
 /// A Goo 2D member's sources, in world space: a shape's path, a text's
@@ -1569,78 +1623,41 @@ fn fingerprint_debug<T: std::fmt::Debug>(value: &T) -> u64 {
     h.finish()
 }
 
-/// A Goo 2D group's layers, back to front, in the owner's space: the rim
-/// (whole outline, edge colour/gradient), the body (`edge_width` inside it,
-/// fill colour/gradient), and a soft highlight (deeper inside, nudged up
-/// and left, the fill lightened).
-fn goo_meshes(goo: &an1mbyt3_core::Goo2D, sources: &[crate::metaball2d::Source], to_owner: glam::Affine2, cache: &mut crate::metaball2d::SourceCache) -> Vec<(an1mbyt3_geometry::Mesh, [f32; 4], Option<an1mbyt3_core::GradientDef>)> {
-    if sources.is_empty() {
-        return Vec::new();
-    }
+/// A Goo 2D group's look: the rim (whole outline, edge colour/gradient),
+/// the body (`edge_width` inside it, fill colour/gradient), and a soft
+/// highlight (deeper inside, nudged up and left, the fill lightened).
+fn goo_look(goo: &an1mbyt3_core::Goo2D, field: &crate::metaball2d::Field, antialias: Option<f32>) -> crate::goo_gpu::Look {
+    use crate::goo_gpu::{Highlight, Look, Paint};
+    let paint = |color: [f32; 4], gradient: &Option<an1mbyt3_core::GradientDef>| gradient.clone().map_or(Paint::Solid(color), Paint::Gradient);
     let reach = goo.reach.max(1.0);
-    let detail = goo.detail.clamp(0.08, 0.6);
-    let local = |loops: Vec<Vec<Vec2>>, shift: Vec2| -> an1mbyt3_geometry::Mesh {
-        let mapped: Vec<Vec<Vec2>> = loops.into_iter().map(|ring| ring.into_iter().map(|p| to_owner.transform_point2(p + shift)).collect()).collect();
-        an1mbyt3_geometry::tessellate_polygons(&mapped, Vec2::ZERO)
-    };
-    // One field for the whole group; every layer is an outline of it.
-    let field = crate::metaball2d::Field::from_sources_cached(sources, reach, detail, Some(cache));
-    let mut out = Vec::new();
     let has_rim = goo.edge_width > 0.0 && (goo.edge_color[3] > 0.001 || goo.edge_gradient.is_some());
-    if has_rim {
-        out.push((local(field.contour(field.level_for_inset(0.0)), Vec2::ZERO), goo.edge_color, goo.edge_gradient.clone()));
-    }
     let body_inset = if has_rim { goo.edge_width } else { 0.0 };
-    out.push((local(field.contour(field.level_for_inset(body_inset)), Vec2::ZERO), goo.color, goo.gradient.clone()));
-    if goo.gloss > 0.0 {
-        let base = goo.gradient.as_ref().and_then(|g| g.stops.first().map(|s| s.color)).unwrap_or(goo.color);
-        let k = 0.6;
-        let shine = [base[0] + (1.0 - base[0]) * k, base[1] + (1.0 - base[1]) * k, base[2] + (1.0 - base[2]) * k, goo.gloss.clamp(0.0, 1.0) * 0.4];
+    let (_, _, _, cell) = field.layout();
+    let base = goo.gradient.as_ref().and_then(|g| g.stops.first().map(|s| s.color)).unwrap_or(goo.color);
+    let k = 0.6;
+    Look {
+        rim: has_rim.then(|| (field.level_for_inset(0.0), paint(goo.edge_color, &goo.edge_gradient))),
+        body: (field.level_for_inset(body_inset), paint(goo.color, &goo.gradient)),
         // Deep inside, so only thick parts (blobs, merged bulges) catch a
-        // glint — thin strokes like letters stay clean.
-        let inset = body_inset + reach * 0.62;
-        out.push((local(field.contour(field.level_for_inset(inset)), Vec2::new(-1.0, 1.0) * reach * 0.12), shine, None));
+        // glint; shown nudged up-left (so the field is read down-right).
+        highlight: (goo.gloss > 0.0).then(|| Highlight {
+            level: field.level_for_inset(body_inset + reach * 0.62),
+            color: [base[0] + (1.0 - base[0]) * k, base[1] + (1.0 - base[1]) * k, base[2] + (1.0 - base[2]) * k, goo.gloss.clamp(0.0, 1.0) * 0.4],
+            offset_texels: Vec2::new(1.0, -1.0) * reach * 0.12 / cell,
+            second_field: false,
+        }),
+        antialias,
     }
-    out
 }
 
-/// A Goo 2D group's layers, drawn with its owner's world transform.
+/// A Goo 2D group's liquid, drawn with its owner's world transform.
 fn goo_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId) -> Vec<DrawCall<'a>> {
-    let Some((parts, bindings)) = editor.goo_gpu.get(&node_id) else { return Vec::new() };
-    let transform = artboard.world_transform(node_id);
-    parts
-        .iter()
-        .zip(bindings.iter())
-        .map(|((mesh, color, gradient), binding)| DrawCall {
-            mesh,
-            binding,
-            transform,
-            fill_color: *color,
-            blend_mode: BlendMode::Normal,
-            gradient: gradient.as_ref(),
-            texture: None,
-            material: None,
-        })
-        .collect()
+    editor.goo_gpu.get(&node_id).and_then(|g| g.draw(&editor.liquid_materials, artboard.world_transform(node_id))).into_iter().collect()
 }
 
-/// A node's Particle Fluid 2D layers (meshes are already in world space).
+/// A node's Particle Fluid 2D liquid (its quad is in world space).
 fn fluid_draws(editor: &WasmEditor, node_id: NodeId) -> Vec<DrawCall<'_>> {
-    let Some((parts, bindings)) = editor.particle_fluid_gpu.get(&node_id) else { return Vec::new() };
-    parts
-        .iter()
-        .zip(bindings.iter())
-        .map(|((mesh, color), binding)| DrawCall {
-            mesh,
-            binding,
-            transform: an1mbyt3_core::Transform2D::default(),
-            fill_color: *color,
-            blend_mode: BlendMode::Normal,
-            gradient: None,
-            texture: None,
-            material: None,
-        })
-        .collect()
+    editor.particle_fluid_gpu.get(&node_id).and_then(|g| g.draw(&editor.liquid_materials, an1mbyt3_core::Transform2D::default())).into_iter().collect()
 }
 
 /// A Particle System component's live particles.
@@ -2397,10 +2414,13 @@ pub struct WasmEditor {
     particle_bindings: HashMap<NodeId, Vec<DrawBinding>>,
     /// Particle Fluid 2D: this frame's liquid meshes per node (world space,
     /// back to front: rim, body, highlight) and the bindings they reuse.
-    particle_fluid_gpu: HashMap<NodeId, (Vec<(GpuMesh, [f32; 4])>, Vec<DrawBinding>)>,
+    particle_fluid_gpu: HashMap<NodeId, LiquidGpu>,
     /// Goo 2D: each group's liquid meshes, keyed by the group's first
     /// member (drawn there, in that node's space): (mesh, colour, gradient).
-    goo_gpu: HashMap<NodeId, (Vec<(GpuMesh, [f32; 4], Option<an1mbyt3_core::GradientDef>)>, Vec<DrawBinding>)>,
+    goo_gpu: HashMap<NodeId, LiquidGpu>,
+    /// Compiled liquid shaders (`goo_gpu::shader`), keyed by their WGSL —
+    /// liquids with the same look share one pipeline.
+    liquid_materials: HashMap<String, an1mbyt3_renderer::GpuMaterial>,
     /// Last built input fingerprint per goo owner / fluid node: unchanged
     /// liquids (still text, a paused emitter) skip the rebuild entirely.
     goo_keys: HashMap<NodeId, u64>,
@@ -2811,6 +2831,7 @@ impl WasmEditor {
             particle_bindings: HashMap::new(),
             particle_fluid_gpu: HashMap::new(),
             goo_gpu: HashMap::new(),
+            liquid_materials: HashMap::new(),
             goo_keys: HashMap::new(),
             goo_field_cache: Default::default(),
             fluid_keys: HashMap::new(),
@@ -3555,31 +3576,24 @@ impl WasmEditor {
         self.particle_fluid_gpu.retain(|id, _| live.contains(id));
         self.fluid_keys.retain(|id, _| live.contains(id));
         for (node_id, fluid, blobs, cell) in fluids {
-            let key = crate::metaball2d::fingerprint_blobs(&blobs, fingerprint_debug(&fluid) ^ cell.to_bits() as u64);
+            let key = crate::metaball2d::fingerprint_blobs(&blobs, fingerprint_debug(&(fluid, artboard.node(node_id).and_then(|n| n.antialias().copied()))) ^ cell.to_bits() as u64);
             if self.fluid_keys.get(&node_id) == Some(&key) && self.particle_fluid_gpu.contains_key(&node_id) {
                 continue;
             }
             self.fluid_keys.insert(node_id, key);
-            let meshes: Vec<(an1mbyt3_geometry::Mesh, [f32; 4])> = fluid_meshes(&fluid, &blobs, cell);
-            let entry = self.particle_fluid_gpu.entry(node_id).or_insert_with(|| (Vec::new(), Vec::new()));
-            // Refill last frame's GPU buffers in place where they fit.
-            let mut old = std::mem::take(&mut entry.0).into_iter();
-            for (mesh, color) in meshes {
-                if mesh.indices.is_empty() {
-                    continue;
-                }
-                let gpu = match old.next() {
-                    Some((mut gpu, _)) => {
-                        self.renderer.rewrite_mesh(&mut gpu, &mesh);
-                        gpu
-                    }
-                    None => self.renderer.upload_mesh_with_headroom(&mesh, 1.5),
-                };
-                entry.0.push((gpu, color));
+            // The liquid's field (and its highlight drops on the same grid)
+            // becomes a small texture; a shader draws it per pixel.
+            let field = crate::metaball2d::Field::from_blobs(&blobs, cell);
+            if field.layout().0 == 0 {
+                self.particle_fluid_gpu.remove(&node_id);
+                continue;
             }
-            while entry.1.len() < entry.0.len() {
-                entry.1.push(self.renderer.create_draw_binding());
-            }
+            let highlight: Vec<crate::metaball2d::Blob> = blobs.iter().map(|b| crate::metaball2d::Blob { center: b.center + Vec2::new(-1.0, 1.0) * b.radius * 0.14, radius: b.radius * 0.42, ..*b }).collect();
+            let second = field.blobs_on_grid(&highlight);
+            let aa = artboard.node(node_id).and_then(|n| n.antialias()).map(|a| a.softness.max(0.05));
+            let look = fluid_look(&fluid, aa);
+            let slot = self.particle_fluid_gpu.entry(node_id).or_insert_with(|| LiquidGpu::new(&self.renderer));
+            slot.update(&self.renderer, &mut self.liquid_materials, &field, Some(&second), &look, glam::Affine2::IDENTITY);
         }
 
         self.sections.fluid2d_ms = crate::profiler::now_ms() - tf;
@@ -3609,7 +3623,7 @@ impl WasmEditor {
         self.goo_keys.retain(|id, _| owners.contains(id));
         for (_, owner, goo, sources) in groups {
             let to_owner = artboard.world_transform(owner).to_affine2().inverse();
-            let mut extra = fingerprint_debug(&goo);
+            let mut extra = fingerprint_debug(&(&goo, artboard.node(owner).and_then(|n| n.antialias().copied())));
             for v in to_owner.to_cols_array() {
                 extra = extra.rotate_left(7) ^ v.to_bits() as u64;
             }
@@ -3619,28 +3633,19 @@ impl WasmEditor {
             }
             self.goo_keys.insert(owner, key);
             let t_mesh = crate::profiler::now_ms();
-            let meshes = goo_meshes(&goo, &sources, to_owner, &mut self.goo_field_cache);
+            // One field for the whole group (still members' patches come
+            // from the cache), drawn per pixel on the GPU.
+            let field = crate::metaball2d::Field::from_sources_cached(&sources, goo.reach.max(1.0), goo.detail.clamp(0.08, 0.6), Some(&mut self.goo_field_cache));
             mesh_ms += crate::profiler::now_ms() - t_mesh;
             let t_upload = crate::profiler::now_ms();
-            let entry = self.goo_gpu.entry(owner).or_insert_with(|| (Vec::new(), Vec::new()));
-            // Refill last frame's GPU buffers in place where they fit.
-            let mut old = std::mem::take(&mut entry.0).into_iter();
-            for (mesh, color, gradient) in meshes {
-                if mesh.indices.is_empty() {
-                    continue;
-                }
-                let gpu = match old.next() {
-                    Some((mut gpu, _, _)) => {
-                        self.renderer.rewrite_mesh(&mut gpu, &mesh);
-                        gpu
-                    }
-                    None => self.renderer.upload_mesh_with_headroom(&mesh, 1.5),
-                };
-                entry.0.push((gpu, color, gradient));
+            if field.layout().0 == 0 {
+                self.goo_gpu.remove(&owner);
+                continue;
             }
-            while entry.1.len() < entry.0.len() {
-                entry.1.push(self.renderer.create_draw_binding());
-            }
+            let aa = artboard.node(owner).and_then(|n| n.antialias()).map(|a| a.softness.max(0.05));
+            let look = goo_look(&goo, &field, aa);
+            let slot = self.goo_gpu.entry(owner).or_insert_with(|| LiquidGpu::new(&self.renderer));
+            slot.update(&self.renderer, &mut self.liquid_materials, &field, None, &look, to_owner);
             upload_ms += crate::profiler::now_ms() - t_upload;
         }
 
@@ -6794,6 +6799,7 @@ impl WasmEditor {
             "ParticleFluid2D" => B::ParticleFluid2D(an1mbyt3_core::ParticleFluid2D::default()),
             "ParticleBehaviors2D" => B::ParticleBehaviors2D(an1mbyt3_core::ParticleBehaviors2D::default()),
             "Goo2D" => B::Goo2D(an1mbyt3_core::Goo2D::default()),
+            "Antialias2D" => B::Antialias2D(an1mbyt3_core::Antialias2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };

@@ -102,6 +102,7 @@ mod script_scene;
 mod text_bounds;
 mod particles3d;
 mod metaball2d;
+mod goo_gpu;
 mod demo_ninja;
 mod lighting2d;
 mod dto;

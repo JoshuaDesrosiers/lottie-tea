@@ -18,6 +18,7 @@ import { ColorSwatch } from './ColorPicker'
 import { NumberField } from './InspectorPanel'
 import { Slider } from './Slider'
 import { PlusIcon, TrashIcon } from './icons'
+import { AntialiasFields } from './GooFields'
 
 function Row({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
   return (
@@ -317,7 +318,7 @@ export function ParticleBehaviors2DFields({ config, onChange }: { config: Partic
 
 /** Particle Fluid 2D — draws this node's particles (or Liquid 2D) as one
  * gooey liquid: metaballs that join with smooth necks. */
-export function ParticleFluid2DFields({ config, onChange }: { config: ParticleFluid2DConfig; onChange: (c: ParticleFluid2DConfig) => void }) {
+export function ParticleFluid2DFields({ config, onChange, antialias = null, onAntialias }: { config: ParticleFluid2DConfig; onChange: (c: ParticleFluid2DConfig) => void; antialias?: number | null; onAntialias?: (softness: number | null) => void }) {
   const update = (patch: Partial<ParticleFluid2DConfig>) => onChange({ ...config, ...patch })
   return (
     <div className="flex flex-col gap-1.5">
@@ -343,6 +344,7 @@ export function ParticleFluid2DFields({ config, onChange }: { config: ParticleFl
       <Row label="Smoothness" title="Outline detail: lower = smoother curves, more work per frame.">
         <SliderNum value={config.detail} min={0.08} max={0.6} step={0.01} onChange={(detail) => update({ detail })} />
       </Row>
+      {onAntialias && <AntialiasFields value={antialias} onChange={onAntialias} />}
     </div>
   )
 }

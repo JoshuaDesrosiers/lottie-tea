@@ -84,7 +84,7 @@ import {
 import { PropertyBindingsFields, ScenePropertiesFields, UiEventsFields } from './EventFields'
 import { FontPicker, IconPicker } from './FontPicker'
 import { iconFamily, isIconFamily, type IconStyle } from '../game/googleFonts'
-import { Goo2DFields } from './GooFields'
+import { AntialiasFields, Goo2DFields } from './GooFields'
 import { ParticleBehaviors2DFields, ParticleFluid2DFields, ParticleSystem3DFields } from './Particle3DFields'
 import { addGoogleFont, burstParticles3D, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
 import { gameConsole } from '../game/console'
@@ -673,6 +673,14 @@ function BehaviorsFields({
     return definition ? definition.name : 'Script (missing)'
   }
   const replaceAt = (index: number, behavior: NodeBehavior) => onChange(behaviors.map((b, i) => (i === index ? { ...b, behavior } : b)))
+  // Liquids' "Antialias edges" toggle lives on the liquid's own fields but
+  // is stored as the node's Antialias 2D component (null = hard edges).
+  const antialiasEntry = behaviors.find((b) => b.behavior.kind === 'Antialias2D' && b.enabled)
+  const antialias = antialiasEntry && antialiasEntry.behavior.kind === 'Antialias2D' ? antialiasEntry.behavior.softness : null
+  const setAntialias = (softness: number | null) => {
+    const rest = behaviors.filter((b) => b.behavior.kind !== 'Antialias2D')
+    onChange(softness === null ? rest : [...rest, { behavior: { kind: 'Antialias2D', softness }, enabled: true }])
+  }
 
   /** The editor for one Unity component's settings. */
   const componentBody = (behavior: NodeBehavior, index: number): ReactNode => {
@@ -746,13 +754,17 @@ function BehaviorsFields({
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
       }
+      case 'Antialias2D': {
+        const { kind: _k, ...config } = behavior
+        return <AntialiasFields value={config.softness} onChange={(softness) => replaceAt(index, { kind: 'Antialias2D', softness: softness ?? 1 })} standalone />
+      }
       case 'Goo2D': {
         const { kind: _k, ...config } = behavior
-        return <Goo2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Goo2D', ...c })} />
+        return <Goo2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Goo2D', ...c })} antialias={antialias} onAntialias={setAntialias} />
       }
       case 'ParticleFluid2D': {
         const { kind: _k, ...config } = behavior
-        return <ParticleFluid2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'ParticleFluid2D', ...c })} />
+        return <ParticleFluid2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'ParticleFluid2D', ...c })} antialias={antialias} onAntialias={setAntialias} />
       }
       case 'ParticleBehaviors2D': {
         const { kind: _k, ...config } = behavior

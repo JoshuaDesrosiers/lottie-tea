@@ -378,6 +378,26 @@ pub struct GpuImageTexture {
     bind_group: wgpu::BindGroup,
 }
 
+/// A small, **linear** (not sRGB) RGBA8 texture that's rewritten every
+/// frame — data for a shader rather than a picture (e.g. a goo liquid's
+/// distance field, 16-bit values split across two channels so linear
+/// filtering stays exact). Its storage only ever grows; a smaller write
+/// fills the top-left corner, so shaders should map UVs with
+/// `textureDimensions` (the capacity), not the written size.
+pub struct DataTexture {
+    texture: wgpu::Texture,
+    pub image: GpuImageTexture,
+    width: u32,
+    height: u32,
+}
+
+impl DataTexture {
+    /// The texture's full (capacity) size in texels.
+    pub fn size(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+}
+
 /// `an1mbyt3_core::BlendMode` (see that type's own doc comment for why it
 /// lives there, not here) — how a draw's color combines with whatever's
 /// already in the framebuffer, AN1MBYT3_BUILD_PLAN.md §6's "compositing,
@@ -1890,14 +1910,19 @@ impl Renderer {
     /// in `gpu`'s existing buffers; otherwise replaces `gpu` with a fresh
     /// upload that has 50 % headroom, so a mesh that changes every frame
     /// (a liquid's outline) settles into reusing its buffers. Never use on
-    /// a `GpuMesh` other draws still read this frame. Meshes without UVs only.
+    /// a `GpuMesh` other draws still read this frame. A mesh with UVs
+    /// (one per vertex) keeps them; one without must stay without.
     pub fn rewrite_mesh(&self, gpu: &mut GpuMesh, mesh: &Mesh) {
         let vbytes = (mesh.positions.len() * 8) as u64;
         let ibytes = (mesh.indices.len() * 4) as u64;
-        let fits = !gpu.has_vertex_uv && mesh.uvs.is_empty() && vbytes <= gpu.vertex_buffer.size() && ibytes <= gpu.index_buffer.size() && vbytes > 0 && ibytes > 0;
+        let with_uv = !mesh.uvs.is_empty() && mesh.uvs.len() == mesh.positions.len();
+        let fits = gpu.has_vertex_uv == with_uv && vbytes <= gpu.vertex_buffer.size() && ibytes <= gpu.index_buffer.size() && vbytes > 0 && ibytes > 0;
         if !fits {
             *gpu = self.upload_mesh_with_headroom(mesh, 1.5);
             return;
+        }
+        if with_uv {
+            self.queue.write_buffer(&gpu.uv_buffer, 0, bytemuck::cast_slice(&mesh.uvs));
         }
         self.queue.write_buffer(&gpu.vertex_buffer, 0, bytemuck::cast_slice(&mesh.positions));
         self.queue.write_buffer(&gpu.index_buffer, 0, bytemuck::cast_slice(&mesh.indices));
@@ -1921,7 +1946,14 @@ impl Renderer {
         let mut indices = mesh.indices.clone();
         let real = indices.len();
         indices.resize(grow(real), 0);
-        let mut gpu = self.upload_mesh(&Mesh { positions, indices, uvs: Vec::new() });
+        let uvs = if !mesh.uvs.is_empty() && mesh.uvs.len() == mesh.positions.len() {
+            let mut uvs = mesh.uvs.clone();
+            uvs.resize(positions.len(), [0.0, 0.0]);
+            uvs
+        } else {
+            Vec::new()
+        };
+        let mut gpu = self.upload_mesh(&Mesh { positions, indices, uvs });
         gpu.index_count = real as u32;
         let mut local_min = [f32::MAX, f32::MAX];
         let mut local_max = [f32::MIN, f32::MIN];
@@ -2103,6 +2135,49 @@ impl Renderer {
         });
 
         GpuImageTexture { bind_group }
+    }
+
+    /// Writes `rgba` (`width × height` RGBA8 texels) into `target`,
+    /// (re)creating it — with 25 % headroom, linear-filtered, clamped —
+    /// when it's missing or too small.
+    pub fn write_data_texture(&self, target: &mut Option<DataTexture>, width: u32, height: u32, rgba: &[u8]) {
+        let (width, height) = (width.max(1), height.max(1));
+        if target.as_ref().is_none_or(|t| t.width < width || t.height < height) {
+            let (cw, ch) = ((width as f32 * 1.25).ceil() as u32, (height as f32 * 1.25).ceil() as u32);
+            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("an1mbyt3 data texture"),
+                size: wgpu::Extent3d { width: cw, height: ch, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("an1mbyt3 data sampler"),
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            });
+            let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("an1mbyt3 data texture bind group"),
+                layout: &self.image_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) },
+                ],
+            });
+            *target = Some(DataTexture { texture, image: GpuImageTexture { bind_group }, width: cw, height: ch });
+        }
+        let t = target.as_ref().expect("created above");
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo { texture: &t.texture, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            rgba,
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(width * 4), rows_per_image: Some(height) },
+            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        );
     }
 
     /// Creates an `Rgba8UnormSrgb` texture and immediately writes `rgba`
