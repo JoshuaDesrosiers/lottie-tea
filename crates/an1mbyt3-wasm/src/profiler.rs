@@ -43,6 +43,30 @@ pub struct FrameStats {
     pub bodies: u32,
     /// Particles alive across every Particle System.
     pub particles: u32,
+    /// Sub-timings of the newer, heavier features (also counted inside
+    /// the stage totals above): the whole 3D scene build, 3D particle
+    /// simulation + quads, Particle Fluid 2D contouring, Goo 2D groups.
+    pub scene3d_ms: f64,
+    pub particles3d_ms: f64,
+    pub fluid2d_ms: f64,
+    pub goo_ms: f64,
+    /// Inside `goo_ms`: gathering members' outlines, building the liquid
+    /// meshes, uploading them.
+    pub goo_sources_ms: f64,
+    pub goo_mesh_ms: f64,
+    pub goo_upload_ms: f64,
+}
+
+/// The sub-timings above, filled in by the code that runs them.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Sections {
+    pub scene3d_ms: f64,
+    pub particles3d_ms: f64,
+    pub fluid2d_ms: f64,
+    pub goo_ms: f64,
+    pub goo_sources_ms: f64,
+    pub goo_mesh_ms: f64,
+    pub goo_upload_ms: f64,
 }
 
 /// Running stopwatch for one frame: `lap()` returns ms since the last lap.

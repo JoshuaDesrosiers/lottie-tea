@@ -228,3 +228,70 @@ mod tests {
         assert!(mesh.indices.is_empty());
     }
 }
+
+thread_local! {
+    /// One fill tessellator reused across calls: its internal buffers grow
+    /// once instead of being reallocated for every liquid outline, every
+    /// frame (`tessellate_polygons` runs several times a frame).
+    static FILL: std::cell::RefCell<FillTessellator> = std::cell::RefCell::new(FillTessellator::new());
+}
+
+/// Tessellates closed polygons (even-odd, so nested rings are holes),
+/// each point shifted by `offset`, straight from point lists — no
+/// intermediate [`Path`], and a reused tessellator. What per-frame
+/// generated outlines (metaball liquids) use.
+pub fn tessellate_polygons(loops: &[Vec<glam::Vec2>], offset: glam::Vec2) -> Mesh {
+    let mut builder = LyonPath::builder();
+    for ring in loops {
+        let Some(first) = ring.first() else { continue };
+        if ring.len() < 3 {
+            continue;
+        }
+        builder.begin(point(first.x + offset.x, first.y + offset.y));
+        for p in &ring[1..] {
+            builder.line_to(point(p.x + offset.x, p.y + offset.y));
+        }
+        builder.end(true);
+    }
+    let lyon_path = builder.build();
+    let mut geometry: VertexBuffers<[f32; 2], u32> = VertexBuffers::new();
+    let ok = FILL.with(|t| {
+        t.borrow_mut()
+            .tessellate_path(
+                &lyon_path,
+                &FillOptions::default().with_fill_rule(lyon::tessellation::FillRule::EvenOdd),
+                &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+                    let p = vertex.position();
+                    [p.x, p.y]
+                }),
+            )
+            .is_ok()
+    });
+    if !ok {
+        return Mesh { positions: Vec::new(), indices: Vec::new(), uvs: Vec::new() };
+    }
+    Mesh { positions: geometry.vertices, indices: geometry.indices, uvs: Vec::new() }
+}
+
+/// Filled discs as one mesh (a 16-sided fan each) — no tessellation at
+/// all. Overlapping discs simply overlap.
+pub fn discs_mesh(discs: &[(glam::Vec2, f32)]) -> Mesh {
+    const SIDES: u32 = 16;
+    let mut positions = Vec::with_capacity(discs.len() * (SIDES as usize + 1));
+    let mut indices = Vec::with_capacity(discs.len() * SIDES as usize * 3);
+    for &(c, r) in discs {
+        if r <= 0.0 {
+            continue;
+        }
+        let base = positions.len() as u32;
+        positions.push([c.x, c.y]);
+        for k in 0..SIDES {
+            let a = k as f32 / SIDES as f32 * std::f32::consts::TAU;
+            positions.push([c.x + a.cos() * r, c.y + a.sin() * r]);
+        }
+        for k in 0..SIDES {
+            indices.extend_from_slice(&[base, base + 1 + k, base + 1 + (k + 1) % SIDES]);
+        }
+    }
+    Mesh { positions, indices, uvs: Vec::new() }
+}

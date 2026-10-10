@@ -35,5 +35,5 @@ pub use mesh3d::{primitive_mesh, Mesh3DData};
 pub use voxel::{mesh_voxel_region, voxel_atlas, BlockDef, BlockSource, VoxelGrid, BLOCKS, VOXEL_MATERIAL_WGSL};
 pub use model3d::{parse_gltf, ChannelPath, ModelChannel, ModelClip, ModelData, ModelNode, ModelPrimitive};
 pub use skin::{skin_mesh, SkinBinding, VertexWeight};
-pub use tessellate::{tessellate_path, tessellate_stroke, StrokeCap, StrokeJoin, StrokeStyle};
+pub use tessellate::{discs_mesh, tessellate_path, tessellate_polygons, tessellate_stroke, StrokeCap, StrokeJoin, StrokeStyle};
 pub use trim::{dash_path, trim_path, trim_path_with_offset};

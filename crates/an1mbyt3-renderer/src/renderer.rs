@@ -1850,7 +1850,8 @@ impl Renderer {
         let index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("an1mbyt3 mesh index buffer"),
             contents: bytemuck::cast_slice(&mesh.indices),
-            usage: wgpu::BufferUsages::INDEX,
+            // COPY_DST: `rewrite_mesh` refills it in place.
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
         });
 
         // Real per-vertex UVs only when `mesh.uvs` actually has one entry per
@@ -1883,6 +1884,56 @@ impl Renderer {
         }
 
         GpuMesh { vertex_buffer, uv_buffer, has_vertex_uv, index_buffer, index_count: mesh.indices.len() as u32, local_min, local_max }
+    }
+
+    /// Refills `gpu` with `mesh` in place (no new GPU buffers) when it fits
+    /// in `gpu`'s existing buffers; otherwise replaces `gpu` with a fresh
+    /// upload that has 50 % headroom, so a mesh that changes every frame
+    /// (a liquid's outline) settles into reusing its buffers. Never use on
+    /// a `GpuMesh` other draws still read this frame. Meshes without UVs only.
+    pub fn rewrite_mesh(&self, gpu: &mut GpuMesh, mesh: &Mesh) {
+        let vbytes = (mesh.positions.len() * 8) as u64;
+        let ibytes = (mesh.indices.len() * 4) as u64;
+        let fits = !gpu.has_vertex_uv && mesh.uvs.is_empty() && vbytes <= gpu.vertex_buffer.size() && ibytes <= gpu.index_buffer.size() && vbytes > 0 && ibytes > 0;
+        if !fits {
+            *gpu = self.upload_mesh_with_headroom(mesh, 1.5);
+            return;
+        }
+        self.queue.write_buffer(&gpu.vertex_buffer, 0, bytemuck::cast_slice(&mesh.positions));
+        self.queue.write_buffer(&gpu.index_buffer, 0, bytemuck::cast_slice(&mesh.indices));
+        gpu.index_count = mesh.indices.len() as u32;
+        let mut local_min = [f32::MAX, f32::MAX];
+        let mut local_max = [f32::MIN, f32::MIN];
+        for &[x, y] in &mesh.positions {
+            local_min = [local_min[0].min(x), local_min[1].min(y)];
+            local_max = [local_max[0].max(x), local_max[1].max(y)];
+        }
+        gpu.local_min = local_min;
+        gpu.local_max = local_max;
+    }
+
+    /// [`Renderer::upload_mesh`] with buffers `headroom`× larger than
+    /// needed (zero-padded), for meshes [`Renderer::rewrite_mesh`] refills.
+    pub fn upload_mesh_with_headroom(&self, mesh: &Mesh, headroom: f32) -> GpuMesh {
+        let grow = |n: usize| ((n as f32 * headroom.max(1.0)).ceil() as usize).max(n).max(3);
+        let mut positions = mesh.positions.clone();
+        positions.resize(grow(mesh.positions.len()), [0.0, 0.0]);
+        let mut indices = mesh.indices.clone();
+        let real = indices.len();
+        indices.resize(grow(real), 0);
+        let mut gpu = self.upload_mesh(&Mesh { positions, indices, uvs: Vec::new() });
+        gpu.index_count = real as u32;
+        let mut local_min = [f32::MAX, f32::MAX];
+        let mut local_max = [f32::MIN, f32::MIN];
+        for &[x, y] in &mesh.positions {
+            local_min = [local_min[0].min(x), local_min[1].min(y)];
+            local_max = [local_max[0].max(x), local_max[1].max(y)];
+        }
+        if !mesh.positions.is_empty() {
+            gpu.local_min = local_min;
+            gpu.local_max = local_max;
+        }
+        gpu
     }
 
     /// Allocates one instance's uniform buffer + bind group — see
