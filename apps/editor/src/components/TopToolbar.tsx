@@ -252,7 +252,7 @@ function ShapesMenu({
       children: [
         { kind: 'item', label: 'SVG…', icon: <OpenIcon />, onSelect: onImportSvg },
         { kind: 'item', label: 'Image…', icon: <ImageIcon />, onSelect: onImportImage },
-        { kind: 'item', label: '3D Model (glTF / GLB)…', icon: <CameraKindIcon />, onSelect: onImportModel },
+        { kind: 'item', label: '3D Model (glTF / GLB / VRM)…', icon: <CameraKindIcon />, onSelect: onImportModel },
         { kind: 'item', label: 'Audio…', icon: <SparkleIcon />, onSelect: onImportAudio },
       ],
     },

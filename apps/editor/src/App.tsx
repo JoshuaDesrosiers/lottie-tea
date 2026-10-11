@@ -2194,7 +2194,8 @@ function App() {
   /** Import → 3D Model: a glTF / GLB file, plus every texture / buffer it
    * references (read from beside it), as a new Node3D at the origin. */
   const handleImportModel = () => {
-    const artboard = artboards[0]
+    // Into the scene you're looking at (not just the first one).
+    const artboard = activeArtboard
     const editor = editorRef.current
     if (!editor || !artboard) return
     ;(async () => {
