@@ -32,7 +32,8 @@ import { useProject } from './project/useProject'
 import { PrefabBar } from './components/PrefabBar'
 import { ASSET_DRAG_MIME, ProjectBrowser, type DraggedAsset } from './components/ProjectBrowser'
 import { ShaderDock } from './components/ShaderDock'
-import { useView3D } from './game/useView3D'
+import { useView3D, type GizmoMode } from './game/useView3D'
+import { ToolbarMenu, ViewPresetMenu } from './components/ToolbarMenu'
 import { audio } from './game/audio'
 import {
   applyPrefabInstance,
@@ -1610,6 +1611,9 @@ function App() {
   // canvas's 2D/3D toggle says 3D (see `useView3D`).
   const sceneHas3D = !!activeArtboard?.nodes.some((n) => n.node3d)
   const view3dActive = mode === 'Design' && sceneHas3D && sceneView === '3D'
+  // 3D view: gizmo mode (W / E / R) and the selected avatar bone.
+  const [gizmoMode, setGizmoMode] = useState<GizmoMode>(0)
+  const [selectedBone, setSelectedBone] = useState<string | null>(null)
   useView3D({
     canvasRef,
     editor: editorRef.current,
@@ -1630,7 +1634,84 @@ function App() {
     onCommit: (node, value) => {
       if (editorRef.current && activeArtboard) setDoc(setNode3D(editorRef.current, activeArtboard.id, node, value))
     },
+    gizmoMode,
+    onGizmoMode: setGizmoMode,
+    selectedBone,
+    onSelectBone: setSelectedBone,
+    onCommitBehaviors: (node, behaviors) => {
+      if (editorRef.current && activeArtboard) setDoc(setNodeBehaviors(editorRef.current, activeArtboard.id, node, behaviors))
+    },
   })
+
+  // Unity's 2D / 3D scene-view switch and the 3D view's tools, in the top
+  // toolbar (after the scene picker).
+  const sceneViewControls =
+    mode === 'Design' && sceneHas3D ? (
+      <div className="flex items-center gap-0.5 text-[11px]">
+        {(['2D', '3D'] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setSceneView(v)}
+            title={v === '3D' ? 'Scene view: right-drag orbit (+ WASD/QE fly), middle-drag pan, wheel zoom, F frame, W/E/R move/rotate/scale' : 'Edit the 2D layer (HUD, sprites)'}
+            className={`rounded px-2 py-0.5 font-medium ${sceneView === v ? 'bg-accent/15 text-accent' : 'text-ink-dim hover:text-ink'}`}
+          >
+            {v}
+          </button>
+        ))}
+        {view3dActive && activeArtboard && (
+          <>
+            <span className="mx-1 h-4 w-px bg-overlay/10" />
+            {(
+              [
+                [0, 'Move', 'Move (W)'],
+                [1, 'Rotate', 'Rotate (E)'],
+                [2, 'Scale', 'Scale (R)'],
+              ] as const
+            ).map(([m, label, title]) => (
+              <button
+                key={m}
+                onClick={() => setGizmoMode(m)}
+                title={title}
+                className={`rounded px-2 py-0.5 ${gizmoMode === m ? 'bg-accent/15 text-accent' : 'text-ink-dim hover:text-ink'}`}
+              >
+                {label}
+              </button>
+            ))}
+            <span className="mx-1 h-4 w-px bg-overlay/10" />
+            <ViewPresetMenu onPick={(preset) => editorRef.current?.view3d_view(preset)} />
+            <ToolbarMenu
+              label="Camera"
+              items={[
+                {
+                  label: 'Align camera to view',
+                  title: "Move the Playground camera (the amber one, or the selected Camera 3D) to exactly where you're looking from now. Undoable.",
+                  onClick: () => {
+                    const editor = editorRef.current
+                    if (!editor) return
+                    const result = editor.view3d_align_camera(activeArtboard.id, selection?.nodeId ?? null)
+                    if (result) setDoc(result as DocumentSummary)
+                    else window.alert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
+                  },
+                },
+                {
+                  label: 'View through camera',
+                  title: 'Look through the Playground camera (the amber one, or the selected Camera 3D): see exactly what Playground will show.',
+                  onClick: () => {
+                    const editor = editorRef.current
+                    if (editor && !editor.view3d_look_through(activeArtboard.id, selection?.nodeId ?? null)) window.alert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
+                  },
+                },
+              ]}
+            />
+            {selectedBone && (
+              <span className="ml-1 rounded bg-accent/15 px-1.5 py-0.5 text-accent" title="Drag the rings to pose this bone (Esc to let go)">
+                Bone: {selectedBone}
+              </span>
+            )}
+          </>
+        )}
+      </div>
+    ) : null
 
   // Playground shows only the game: no selection widgets of any kind
   // (handles, path edit, tile painting, gradient / bone gizmos).
@@ -4131,52 +4212,6 @@ function App() {
         }}
       >
         <CanvasArea canvasRef={canvasRef} onMouseDown={handleCanvasMouseDown} onDoubleClick={handleCanvasDoubleClick} />
-        {mode === 'Design' && sceneHas3D && (
-          // Unity's 2D / 3D scene-view switch.
-          <div className="pointer-events-auto absolute left-1/2 top-14 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-md border border-panel-border bg-panel p-0.5 text-[11px] backdrop-blur-panel">
-            {(['2D', '3D'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setSceneView(v)}
-                title={v === '3D' ? 'Scene view: right-drag orbit, middle-drag pan, wheel zoom, F frame, click to select, drag the arrows to move' : 'Edit the 2D layer (HUD, sprites)'}
-                className={`rounded px-2.5 py-1 font-medium ${sceneView === v ? 'bg-accent text-white' : 'text-ink-dim hover:text-ink'}`}
-              >
-                {v}
-              </button>
-            ))}
-            {view3dActive && activeArtboard && (
-              <>
-                <span className="mx-1 h-4 w-px bg-panel-border" />
-                {/* The amber camera with the frame in front of it is what
-                    Playground looks through; the 2D layer (HUD) is drawn on
-                    that frame. These place it without a rotate gizmo. */}
-                <button
-                  onClick={() => {
-                    const editor = editorRef.current
-                    if (!editor) return
-                    const result = editor.view3d_align_camera(activeArtboard.id, selection?.nodeId ?? null)
-                    if (result) setDoc(result as DocumentSummary)
-                    else window.alert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
-                  }}
-                  title="Move the Playground camera (the amber one, or the selected Camera 3D) to exactly where you're looking from now. Undoable."
-                  className="rounded px-2 py-1 text-ink-dim hover:bg-overlay/10 hover:text-ink"
-                >
-                  Align camera to view
-                </button>
-                <button
-                  onClick={() => {
-                    const editor = editorRef.current
-                    if (editor && !editor.view3d_look_through(activeArtboard.id, selection?.nodeId ?? null)) window.alert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
-                  }}
-                  title="Look through the Playground camera (the amber one, or the selected Camera 3D): see exactly what Playground will show."
-                  className="rounded px-2 py-1 text-ink-dim hover:bg-overlay/10 hover:text-ink"
-                >
-                  View through camera
-                </button>
-              </>
-            )}
-          </div>
-        )}
       </div>
       {/* Manual zoom widget — bottom-*center* of the canvas, not a literal
           corner: `Layers`/`Inspector` are dockable to *either* screen edge
@@ -4500,14 +4535,22 @@ function App() {
         onImportAudio={handleImportAudio}
         onAddTrail={handleAddTrail}
         sceneSwitcher={
-          <SceneSwitcher
-            scenes={allArtboards}
-            activeScene={activeArtboard}
-            onSelect={handleSelectScene}
-            onAdd={handleAddScene}
-            onRename={handleRenameScene}
-            onDelete={handleDeleteScene}
-          />
+          <>
+            <SceneSwitcher
+              scenes={allArtboards}
+              activeScene={activeArtboard}
+              onSelect={handleSelectScene}
+              onAdd={handleAddScene}
+              onRename={handleRenameScene}
+              onDelete={handleDeleteScene}
+            />
+            {sceneViewControls && (
+              <>
+                <div className="mx-1 h-4 w-px bg-overlay/10" />
+                {sceneViewControls}
+              </>
+            )}
+          </>
         }
         onAddBone={handleAddBone}
         onPaintActionBarTargetChange={setPaintActionBarTarget}

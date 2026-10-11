@@ -2394,6 +2394,14 @@ pub struct WasmEditor {
     view3d_camera: crate::view3d::EditorCamera3D,
     /// The node the gizmo / selection box is drawn for.
     view3d_selected: Option<NodeId>,
+    /// Move / rotate / scale (W / E / R).
+    view3d_mode: crate::view3d::GizmoMode,
+    /// A selected bone of the selected avatar (humanoid name): the gizmo
+    /// rotates it, writing into the node's active VRM pose.
+    view3d_bone: Option<String>,
+    /// While dragging a bone: its world rotation without the pose's own
+    /// rotation (`world = basis * pose`), from the drag's start.
+    view3d_bone_basis: Option<glam::Quat>,
     /// The gizmo handle under the mouse / being dragged (highlighted).
     view3d_hot: Option<crate::view3d::GizmoHandle>,
     /// The last `render` call's device pixel ratio (CSS px -> canvas px).
@@ -2888,6 +2896,9 @@ impl WasmEditor {
             view3d_camera: crate::view3d::EditorCamera3D::default(),
             view3d_selected: None,
             view3d_hot: None,
+            view3d_mode: crate::view3d::GizmoMode::Move,
+            view3d_bone: None,
+            view3d_bone_basis: None,
             last_device_pixel_ratio: 1.0,
             preview_screen: None,
             last_screen: None,
@@ -8540,25 +8551,59 @@ impl WasmEditor {
                 for (a, b) in crate::view3d::box_edges(world, min, max) {
                     draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&cube), crate::view3d::bar_between(a, b, thickness), [1.0, 0.6, 0.15, 1.0]) });
                 }
-                // Move gizmo: X red, Y green, Z blue (yellow when hot), and a
-                // centre cube for dragging on the ground plane.
-                let origin = world.transform_point3(Vec3::ZERO);
-                let scale = cam.gizmo_scale(origin);
-                let cylinder = self.mesh3d(&Primitive3D::cylinder());
-                for (handle, color, rotation) in [
-                    (crate::view3d::GizmoHandle::X, [0.95, 0.25, 0.25, 1.0], glam::Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2)),
-                    (crate::view3d::GizmoHandle::Y, [0.35, 0.9, 0.3, 1.0], glam::Quat::IDENTITY),
-                    (crate::view3d::GizmoHandle::Z, [0.3, 0.5, 1.0, 1.0], glam::Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
-                ] {
-                    let color = if self.view3d_hot == Some(handle) { [1.0, 0.9, 0.2, 1.0] } else { color };
-                    let axis = handle.axis();
-                    let shaft = Mat4::from_scale_rotation_translation(Vec3::new(0.04 * scale, scale, 0.04 * scale), rotation, origin + axis * scale * 0.5);
-                    let tip = Mat4::from_scale_rotation_translation(Vec3::new(0.14 * scale, 0.28 * scale, 0.14 * scale), rotation, origin + axis * scale * 1.1);
-                    draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&cylinder), shaft, color) });
-                    draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&cone), tip, color) });
+                // An avatar's bones: sticks between humanoid joints, the
+                // selected bone orange — click one to pose it.
+                if let Some(selected_id) = self.view3d_selected {
+                    let bones = self.view3d_bone_list(selected_id);
+                    if !bones.is_empty() {
+                        let ball = self.mesh3d(&Primitive3D::sphere());
+                        for (name, pos, parent) in &bones {
+                            let s3 = cam.gizmo_scale(*pos);
+                            let hot = self.view3d_bone.as_deref() == Some(name.as_str());
+                            let color = if hot { [1.0, 0.6, 0.15, 1.0] } else { [0.45, 0.85, 1.0, 0.9] };
+                            draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&ball), Mat4::from_scale_rotation_translation(Vec3::splat(s3 * if hot { 0.075 } else { 0.05 }), glam::Quat::IDENTITY, *pos), color) });
+                            if let Some(p) = parent.and_then(|p| bones.get(p)) {
+                                draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&cube), crate::view3d::bar_between(p.1, *pos, s3 * 0.012), [0.45, 0.85, 1.0, 0.6]) });
+                            }
+                        }
+                    }
                 }
-                let centre_color = if self.view3d_hot == Some(crate::view3d::GizmoHandle::Plane) { [1.0, 0.9, 0.2, 1.0] } else { [0.95, 0.95, 0.95, 1.0] };
-                draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(cube, Mat4::from_scale_rotation_translation(Vec3::splat(0.16 * scale), glam::Quat::IDENTITY, origin), centre_color) });
+                // The gizmo, in its mode: X red, Y green, Z blue (yellow when
+                // hot). Move: arrows + a centre cube for the ground plane;
+                // rotate: a ring per axis; scale: cube tips (local axes) + a
+                // centre cube for uniform scale.
+                if let Some((origin, axes, mode)) = self.view3d_gizmo_frame(world) {
+                    let scale = cam.gizmo_scale(origin);
+                    let cylinder = self.mesh3d(&Primitive3D::cylinder());
+                    let ring = self.mesh3d(&Primitive3D::Torus { radius: 1.0, tube: 0.014, segments: 72, sides: 6 });
+                    let colors = [[0.95, 0.25, 0.25, 1.0], [0.35, 0.9, 0.3, 1.0], [0.3, 0.5, 1.0, 1.0]];
+                    let handles = [crate::view3d::GizmoHandle::X, crate::view3d::GizmoHandle::Y, crate::view3d::GizmoHandle::Z];
+                    for (i, handle) in handles.into_iter().enumerate() {
+                        let color = if self.view3d_hot == Some(handle) { [1.0, 0.9, 0.2, 1.0] } else { colors[i] };
+                        let axis = axes[i];
+                        // Turns +Y (the primitives' long axis) onto this axis.
+                        let rotation = glam::Quat::from_rotation_arc(Vec3::Y, axis);
+                        match mode {
+                            crate::view3d::GizmoMode::Rotate => {
+                                draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&ring), Mat4::from_scale_rotation_translation(Vec3::splat(scale), rotation, origin), color) });
+                            }
+                            _ => {
+                                let shaft = Mat4::from_scale_rotation_translation(Vec3::new(0.04 * scale, scale, 0.04 * scale), rotation, origin + axis * scale * 0.5);
+                                draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&cylinder), shaft, color) });
+                                let tip = if mode == crate::view3d::GizmoMode::Scale {
+                                    (std::rc::Rc::clone(&cube), Mat4::from_scale_rotation_translation(Vec3::splat(0.16 * scale), rotation, origin + axis * scale * 1.08))
+                                } else {
+                                    (std::rc::Rc::clone(&cone), Mat4::from_scale_rotation_translation(Vec3::new(0.14 * scale, 0.28 * scale, 0.14 * scale), rotation, origin + axis * scale * 1.1))
+                                };
+                                draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(tip.0, tip.1, color) });
+                            }
+                        }
+                    }
+                    if mode != crate::view3d::GizmoMode::Rotate {
+                        let centre_color = if self.view3d_hot == Some(crate::view3d::GizmoHandle::Plane) { [1.0, 0.9, 0.2, 1.0] } else { [0.95, 0.95, 0.95, 1.0] };
+                        draws.push(MeshDraw3D { overlay: true, ..MeshDraw3D::new(std::rc::Rc::clone(&cube), Mat4::from_scale_rotation_translation(Vec3::splat(0.16 * scale), glam::Quat::IDENTITY, origin), centre_color) });
+                    }
+                }
             }
         }
 
@@ -8693,15 +8738,68 @@ impl WasmEditor {
         (glam::Vec2::new(x * ratio, y * ratio), glam::Vec2::new(self.canvas_width.max(1) as f32, self.canvas_height.max(1) as f32))
     }
 
-    /// The selected node's world position (the gizmo origin), if any.
-    fn view3d_selected_origin(&self, artboard: ArtboardId) -> Option<glam::Vec3> {
-        let id = self.view3d_selected?;
-        Some(self.document.artboard(artboard)?.world_matrix_3d(id)?.transform_point3(glam::Vec3::ZERO))
+    /// The selected node's world matrix, if any.
+    fn view3d_selected_world(&self, artboard: ArtboardId) -> Option<glam::Mat4> {
+        self.document.artboard(artboard)?.world_matrix_3d(self.view3d_selected?)
+    }
+
+    /// The selected avatar's bones for the overlay / picking: (humanoid
+    /// name, world position, index of its parent bone in this list). Empty
+    /// for non-VRM nodes or before the model has drawn once.
+    fn view3d_bone_list(&self, node: NodeId) -> Vec<(String, glam::Vec3, Option<usize>)> {
+        let Some(inst) = self.model_instances.get(&node) else { return Vec::new() };
+        let Some(model) = inst.model.and_then(|m| self.model_gpu.get(&m)) else { return Vec::new() };
+        let Some(vrm) = &model.data.vrm else { return Vec::new() };
+        let mut names: Vec<(&String, usize)> = vrm.humanoid.iter().map(|(n, i)| (n, *i)).filter(|(_, i)| *i < inst.last_pose.len()).collect();
+        names.sort_by_key(|(_, i)| *i);
+        let index_of: HashMap<usize, usize> = names.iter().enumerate().map(|(k, (_, i))| (*i, k)).collect();
+        names
+            .iter()
+            .map(|(name, i)| {
+                let pos = (inst.last_world * inst.last_pose[*i]).transform_point3(glam::Vec3::ZERO);
+                // The nearest ancestor that is itself a humanoid bone.
+                let mut p = model.parents.get(*i).copied().flatten();
+                let mut parent = None;
+                while let Some(j) = p {
+                    if let Some(k) = index_of.get(&j) {
+                        parent = Some(*k);
+                        break;
+                    }
+                    p = model.parents.get(j).copied().flatten();
+                }
+                ((*name).clone(), pos, parent)
+            })
+            .collect()
+    }
+
+    /// Where the gizmo is and how it's oriented: (origin, handle axes,
+    /// mode). A selected bone gets a rotate gizmo at its joint; a node gets
+    /// the current mode, world axes (scale: the node's own axes).
+    fn view3d_gizmo_frame(&self, node_world: glam::Mat4) -> Option<(glam::Vec3, [glam::Vec3; 3], crate::view3d::GizmoMode)> {
+        let world_axes = [glam::Vec3::X, glam::Vec3::Y, glam::Vec3::Z];
+        if let (Some(bone), Some(node)) = (&self.view3d_bone, self.view3d_selected) {
+            if let Some((_, pos, _)) = self.view3d_bone_list(node).into_iter().find(|(n, _, _)| n == bone) {
+                return Some((pos, world_axes, crate::view3d::GizmoMode::Rotate));
+            }
+        }
+        let origin = node_world.transform_point3(glam::Vec3::ZERO);
+        let axes = if self.view3d_mode == crate::view3d::GizmoMode::Scale {
+            [0, 1, 2].map(|i| node_world.transform_vector3(world_axes[i]).normalize_or(world_axes[i]))
+        } else {
+            world_axes
+        };
+        Some((origin, axes, self.view3d_mode))
+    }
+
+    fn view3d_gizmo_hit(&self, artboard: ArtboardId, point: glam::Vec2, viewport: glam::Vec2) -> Option<crate::view3d::GizmoHandle> {
+        let world = self.view3d_selected_world(artboard)?;
+        let (origin, axes, mode) = self.view3d_gizmo_frame(world)?;
+        crate::view3d::gizmo_hit_mode(&self.view3d_camera, mode, origin, axes, point, viewport)
     }
 
     /// A click at canvas point `(x, y)` (CSS px): `{ handle }` (0 X, 1 Y,
-    /// 2 Z, 3 ground plane) if it's on the gizmo, else `{ node }` — the
-    /// Node3D under it, or `null` for empty space.
+    /// 2 Z, 3 centre) if it's on the gizmo, `{ bone }` for a joint of the
+    /// selected avatar, else `{ node }` — the Node3D under it, or `null`.
     pub fn view3d_pick(&mut self, artboard: JsValue, x: f32, y: f32) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let (point, viewport) = self.view3d_point(x, y);
@@ -8709,13 +8807,26 @@ impl WasmEditor {
         struct Pick {
             handle: Option<u8>,
             node: Option<NodeId>,
+            bone: Option<String>,
         }
-        if let Some(origin) = self.view3d_selected_origin(artboard_id) {
-            if let Some(h) = crate::view3d::gizmo_hit(&self.view3d_camera, origin, point, viewport) {
-                return to_js_value(&Pick { handle: Some(h.index()), node: None });
+        if let Some(h) = self.view3d_gizmo_hit(artboard_id, point, viewport) {
+            return to_js_value(&Pick { handle: Some(h.index()), node: None, bone: None });
+        }
+        // The selected avatar's joints (nearest on screen, within 10 px).
+        if let Some(selected) = self.view3d_selected {
+            let mut best: Option<(f32, String)> = None;
+            for (name, pos, _) in self.view3d_bone_list(selected) {
+                let Some(p) = self.view3d_camera.project(pos, viewport) else { continue };
+                let d = p.distance(point);
+                if d < 10.0 && best.as_ref().is_none_or(|(b, _)| d < *b) {
+                    best = Some((d, name));
+                }
+            }
+            if let Some((_, name)) = best {
+                return to_js_value(&Pick { handle: None, node: Some(selected), bone: Some(name) });
             }
         }
-        let Some(a) = self.document.artboard(artboard_id) else { return to_js_value(&Pick { handle: None, node: None }) };
+        let Some(a) = self.document.artboard(artboard_id) else { return to_js_value(&Pick { handle: None, node: None, bone: None }) };
         let (o, d) = self.view3d_camera.ray(point, viewport);
         let bounds = self.model_bounds_map();
         let mut best = crate::view3d::pick_with_distance(a, o, d, &|m| bounds.get(&m).copied());
@@ -8739,7 +8850,7 @@ impl WasmEditor {
                 }
             }
         }
-        to_js_value(&Pick { handle: None, node: best.map(|(_, id)| id) })
+        to_js_value(&Pick { handle: None, node: best.map(|(_, id)| id), bone: None })
     }
 
     /// Hover feedback: highlights the gizmo handle under `(x, y)`, or
@@ -8751,27 +8862,203 @@ impl WasmEditor {
             return Ok(());
         }
         let (point, viewport) = self.view3d_point(x, y);
-        self.view3d_hot = self.view3d_selected_origin(artboard_id).and_then(|origin| crate::view3d::gizmo_hit(&self.view3d_camera, origin, point, viewport));
+        self.view3d_hot = self.view3d_gizmo_hit(artboard_id, point, viewport);
         Ok(())
     }
 
-    /// Dragging gizmo `handle` from `(x0, y0)` to `(x1, y1)` (CSS px), with
-    /// the node at `start` (world position, `[x, y, z]`) when the drag
-    /// began: the node's new world position `[x, y, z]`.
-    pub fn view3d_drag(&self, handle: u8, start: Vec<f32>, x0: f32, y0: f32, x1: f32, y1: f32) -> Vec<f32> {
-        let start = glam::Vec3::new(start.first().copied().unwrap_or(0.0), start.get(1).copied().unwrap_or(0.0), start.get(2).copied().unwrap_or(0.0));
+    /// W / E / R: the gizmo's mode (0 move, 1 rotate, 2 scale).
+    pub fn view3d_set_gizmo_mode(&mut self, mode: u8) {
+        self.view3d_mode = crate::view3d::GizmoMode::from_index(mode);
+    }
+
+    /// Selects one of the selected avatar's bones (humanoid name; `""` =
+    /// none) — its joint gets a rotate gizmo.
+    pub fn view3d_select_bone(&mut self, bone: String) {
+        self.view3d_bone = (!bone.is_empty()).then_some(bone);
+        self.view3d_bone_basis = None;
+    }
+
+    /// Dragging gizmo `handle` of the selected node from `(x0, y0)` to
+    /// `(x1, y1)` (CSS px), the node's local transform at the drag's start
+    /// being `start` = `[px, py, pz, rx, ry, rz, sx, sy, sz]` (rotation in
+    /// Euler degrees): the new local transform, same layout. Moves and
+    /// rotations happen in world space and are converted through the
+    /// parent, so nested nodes follow the gizmo exactly. `snap`: 0.25 m,
+    /// 15°, 0.1 × steps.
+    #[allow(clippy::too_many_arguments)]
+    pub fn view3d_drag_transform(&self, artboard: JsValue, handle: u8, start: Vec<f32>, x0: f32, y0: f32, x1: f32, y1: f32, snap: bool) -> Result<Vec<f32>, JsValue> {
+        use crate::view3d::{GizmoHandle, GizmoMode};
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let v = |i: usize| start.get(i).copied().unwrap_or(0.0);
+        let mut t = an1mbyt3_core::Transform3D { position: glam::Vec3::new(v(0), v(1), v(2)), rotation_degrees: glam::Vec3::new(v(3), v(4), v(5)), scale: glam::Vec3::new(v(6), v(7), v(8)) };
+        let Some(world) = self.view3d_selected_world(artboard_id) else { return Ok(start) };
+        let Some((origin, axes, mode)) = self.view3d_gizmo_frame(world) else { return Ok(start) };
+        // The parent's world matrix (world = parent × local).
+        let parent = world * t.matrix().inverse();
         let (from, viewport) = self.view3d_point(x0, y0);
         let (to, _) = self.view3d_point(x1, y1);
         let cam = &self.view3d_camera;
-        let moved = match crate::view3d::GizmoHandle::from_index(handle) {
-            Some(crate::view3d::GizmoHandle::Plane) => match (crate::view3d::ground_point(cam, from, viewport, start.y), crate::view3d::ground_point(cam, to, viewport, start.y)) {
-                (Some(a), Some(b)) => start + (b - a),
-                _ => start,
-            },
-            Some(h) => start + h.axis() * crate::view3d::axis_drag(cam, start, h.axis(), from, to, viewport),
-            None => start,
+        let Some(h) = GizmoHandle::from_index(handle) else { return Ok(start) };
+        match mode {
+            GizmoMode::Move => {
+                let start_world = parent.transform_point3(t.position);
+                let moved = match h {
+                    GizmoHandle::Plane => match (crate::view3d::ground_point(cam, from, viewport, start_world.y), crate::view3d::ground_point(cam, to, viewport, start_world.y)) {
+                        (Some(a), Some(b)) => start_world + (b - a),
+                        _ => start_world,
+                    },
+                    _ => {
+                        let axis = axes[h.index() as usize];
+                        start_world + axis * crate::view3d::axis_drag(cam, origin, axis, from, to, viewport)
+                    }
+                };
+                let mut local = parent.inverse().transform_point3(moved);
+                if snap {
+                    local = (local / 0.25).round() * 0.25;
+                }
+                t.position = local;
+            }
+            GizmoMode::Rotate => {
+                if h == GizmoHandle::Plane {
+                    return Ok(start);
+                }
+                let axis = axes[h.index() as usize];
+                let mut angle = crate::view3d::ring_drag(cam, origin, axis, from, to, viewport);
+                if snap {
+                    let step = 15f32.to_radians();
+                    angle = (angle / step).round() * step;
+                }
+                let (_, parent_rot, _) = parent.to_scale_rotation_translation();
+                let local = parent_rot.inverse() * glam::Quat::from_axis_angle(axis, angle) * parent_rot * t.rotation();
+                t.set_rotation(local.normalize());
+            }
+            GizmoMode::Scale => {
+                let gizmo = cam.gizmo_scale(origin).max(1e-4);
+                let factor = |amount: f32| {
+                    let f = (1.0 + amount).max(0.01);
+                    if snap { ((f * 10.0).round() / 10.0).max(0.1) } else { f }
+                };
+                match h {
+                    GizmoHandle::Plane => {
+                        let f = factor(((to.x - from.x) - (to.y - from.y)) / 200.0);
+                        t.scale *= f;
+                    }
+                    _ => {
+                        let i = h.index() as usize;
+                        let f = factor(crate::view3d::axis_drag(cam, origin, axes[i], from, to, viewport) / gizmo);
+                        t.scale[i] *= f;
+                    }
+                }
+            }
+        }
+        let (p, r, s) = (t.position, t.rotation_degrees, t.scale);
+        Ok(vec![p.x, p.y, p.z, r.x, r.y, r.z, s.x, s.y, s.z])
+    }
+
+    /// Start dragging the selected bone of `node`, whose active pose has it
+    /// at `start` (Euler degrees `[x, y, z]`). `false` if the bone isn't
+    /// drawn yet.
+    pub fn view3d_bone_drag_begin(&mut self, node: JsValue, start: Vec<f32>) -> Result<bool, JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        let Some(bone) = self.view3d_bone.clone() else { return Ok(false) };
+        let Some(inst) = self.model_instances.get(&node_id) else { return Ok(false) };
+        let Some(model) = inst.model.and_then(|m| self.model_gpu.get(&m)) else { return Ok(false) };
+        let Some(index) = Self::model_bone(model, &bone) else { return Ok(false) };
+        let Some(m) = inst.last_pose.get(index) else { return Ok(false) };
+        let (_, world_rot, _) = (inst.last_world * *m).to_scale_rotation_translation();
+        let v = |i: usize| start.get(i).copied().unwrap_or(0.0).to_radians();
+        let q = glam::Quat::from_euler(glam::EulerRot::YXZ, v(1), v(0), v(2));
+        self.view3d_bone_basis = Some(world_rot * q.inverse());
+        Ok(true)
+    }
+
+    /// Dragging the bone's rotate gizmo: the pose's new Euler degrees
+    /// `[x, y, z]` for the bone (the ring turns the bone about that world
+    /// axis), from `start` (its degrees when the drag began).
+    #[allow(clippy::too_many_arguments)]
+    pub fn view3d_bone_drag(&self, artboard: JsValue, handle: u8, start: Vec<f32>, x0: f32, y0: f32, x1: f32, y1: f32, snap: bool) -> Result<Vec<f32>, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let (Some(basis), Some(h)) = (self.view3d_bone_basis, crate::view3d::GizmoHandle::from_index(handle)) else { return Ok(start) };
+        if h == crate::view3d::GizmoHandle::Plane {
+            return Ok(start);
+        }
+        let Some(world) = self.view3d_selected_world(artboard_id) else { return Ok(start) };
+        let Some((origin, axes, _)) = self.view3d_gizmo_frame(world) else { return Ok(start) };
+        let (from, viewport) = self.view3d_point(x0, y0);
+        let (to, _) = self.view3d_point(x1, y1);
+        let axis = axes[h.index() as usize];
+        let mut angle = crate::view3d::ring_drag(&self.view3d_camera, origin, axis, from, to, viewport);
+        if snap {
+            let step = 15f32.to_radians();
+            angle = (angle / step).round() * step;
+        }
+        let v = |i: usize| start.get(i).copied().unwrap_or(0.0).to_radians();
+        let q = glam::Quat::from_euler(glam::EulerRot::YXZ, v(1), v(0), v(2));
+        let next = (basis.inverse() * glam::Quat::from_axis_angle(axis, angle) * basis * q).normalize();
+        let (y, x, z) = next.to_euler(glam::EulerRot::YXZ);
+        let r = |a: f32| (a.to_degrees() * 100.0).round() / 100.0;
+        Ok(vec![r(x), r(y), r(z)])
+    }
+
+    /// Untracked live preview of one bone in one VRM pose (bone gizmo
+    /// drags): adds the bone to the pose if it isn't there.
+    #[allow(clippy::too_many_arguments)]
+    pub fn preview_vrm_pose_bone(&mut self, artboard: JsValue, node: JsValue, pose: &str, bone: &str, x: f32, y: f32, z: f32) -> Result<(), JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let Some(n) = self.document.artboard_mut(artboard_id).and_then(|a| a.node_mut(node_id)) else { return Ok(()) };
+        for entry in &mut n.behaviors {
+            if let an1mbyt3_core::NodeBehavior::VrmPoses(p) = &mut entry.behavior {
+                if let Some(target) = p.poses.iter_mut().find(|q| q.name == pose) {
+                    match target.bones.iter_mut().find(|b| b.bone == bone) {
+                        Some(b) => b.rotation = [x, y, z],
+                        None => target.bones.push(an1mbyt3_core::BonePose { bone: bone.to_string(), rotation: [x, y, z], offset: [0.0; 3] }),
+                    }
+                }
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    /// Hold right mouse + WASD / QE: fly the view `forward`, `right`, `up`
+    /// metres (the orbit point travels with it).
+    pub fn view3d_fly(&mut self, forward: f32, right: f32, up: f32) {
+        let cam = &mut self.view3d_camera;
+        let eye = cam.eye();
+        let f = (cam.target - eye).normalize_or(glam::Vec3::NEG_Z);
+        let r = f.cross(glam::Vec3::Y).normalize_or(glam::Vec3::X);
+        cam.target += f * forward + r * right + glam::Vec3::Y * up;
+    }
+
+    /// Wheel zoom toward the point under the cursor (CSS px).
+    pub fn view3d_zoom_at(&mut self, delta: f32, x: f32, y: f32) {
+        let (point, viewport) = self.view3d_point(x, y);
+        let cam = &mut self.view3d_camera;
+        let (o, d) = cam.ray(point, viewport);
+        let before = cam.distance;
+        cam.zoom(delta);
+        let f = cam.distance / before.max(1e-4);
+        // The point at the orbit depth under the cursor stays put.
+        let p = o + d * before;
+        cam.target = p + (cam.target - p) * f;
+    }
+
+    /// View presets: `"front"`, `"back"`, `"left"`, `"right"`, `"top"`,
+    /// `"bottom"`, `"persp"`.
+    pub fn view3d_view(&mut self, preset: &str) {
+        let cam = &mut self.view3d_camera;
+        let (yaw, pitch) = match preset {
+            "front" => (0.0, 0.0),
+            "back" => (180.0, 0.0),
+            "right" => (90.0, 0.0),
+            "left" => (-90.0, 0.0),
+            "top" => (0.0, 89.0),
+            "bottom" => (0.0, -89.0),
+            _ => (30.0, 28.0),
         };
-        vec![moved.x, moved.y, moved.z]
+        cam.yaw = yaw;
+        cam.pitch = pitch;
     }
 
     /// The + menu's 3D items: a Node3D with a primitive mesh (`"Cube"`,

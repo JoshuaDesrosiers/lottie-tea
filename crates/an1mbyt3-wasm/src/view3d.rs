@@ -187,14 +187,6 @@ pub enum GizmoHandle {
 }
 
 impl GizmoHandle {
-    pub fn axis(self) -> Vec3 {
-        match self {
-            GizmoHandle::X => Vec3::X,
-            GizmoHandle::Y => Vec3::Y,
-            GizmoHandle::Z => Vec3::Z,
-            GizmoHandle::Plane => Vec3::ZERO,
-        }
-    }
     pub fn index(self) -> u8 {
         self as u8
     }
@@ -210,22 +202,91 @@ fn segment_distance(p: Vec2, a: Vec2, b: Vec2) -> f32 {
     (a + ab * t).distance(p)
 }
 
-/// Which gizmo handle (at world `origin`) is under the viewport point.
-pub fn gizmo_hit(camera: &EditorCamera3D, origin: Vec3, point: Vec2, viewport: Vec2) -> Option<GizmoHandle> {
+/// What the gizmo does: move (arrows), rotate (rings), scale (cube tips).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GizmoMode {
+    #[default]
+    Move,
+    Rotate,
+    Scale,
+}
+
+impl GizmoMode {
+    pub fn from_index(i: u8) -> Self {
+        match i {
+            1 => GizmoMode::Rotate,
+            2 => GizmoMode::Scale,
+            _ => GizmoMode::Move,
+        }
+    }
+}
+
+/// Points around a rotate-gizmo ring (world space): the circle of radius
+/// `radius` at `origin` perpendicular to `axis`.
+pub fn ring_points(origin: Vec3, axis: Vec3, radius: f32, count: usize) -> Vec<Vec3> {
+    let a = axis.normalize_or(Vec3::Y);
+    let u = a.any_orthonormal_vector();
+    let v = a.cross(u);
+    (0..=count).map(|i| {
+        let t = i as f32 / count as f32 * std::f32::consts::TAU;
+        origin + (u * t.cos() + v * t.sin()) * radius
+    }).collect()
+}
+
+/// Which handle of a gizmo in `mode` (at `origin`, with handle directions
+/// `axes`) is under the viewport point. Rotate: the rings (`X/Y/Z` = the
+/// ring around that axis); Move / Scale: the axis shafts, and the centre
+/// (`Plane` = ground move / uniform scale).
+pub fn gizmo_hit_mode(camera: &EditorCamera3D, mode: GizmoMode, origin: Vec3, axes: [Vec3; 3], point: Vec2, viewport: Vec2) -> Option<GizmoHandle> {
     let scale = camera.gizmo_scale(origin);
+    let handles = [GizmoHandle::X, GizmoHandle::Y, GizmoHandle::Z];
+    if mode == GizmoMode::Rotate {
+        let mut best: Option<(f32, GizmoHandle)> = None;
+        for (i, handle) in handles.into_iter().enumerate() {
+            let ring: Vec<Vec2> = ring_points(origin, axes[i], scale, 48).into_iter().filter_map(|p| camera.project(p, viewport)).collect();
+            for w in ring.windows(2) {
+                let d = segment_distance(point, w[0], w[1]);
+                if d < 9.0 && best.is_none_or(|(b, _)| d < b) {
+                    best = Some((d, handle));
+                }
+            }
+        }
+        return best.map(|(_, h)| h);
+    }
     let o = camera.project(origin, viewport)?;
     if o.distance(point) < 14.0 {
         return Some(GizmoHandle::Plane);
     }
     let mut best: Option<(f32, GizmoHandle)> = None;
-    for handle in [GizmoHandle::X, GizmoHandle::Y, GizmoHandle::Z] {
-        let Some(tip) = camera.project(origin + handle.axis() * scale * 1.15, viewport) else { continue };
+    for (i, handle) in handles.into_iter().enumerate() {
+        let Some(tip) = camera.project(origin + axes[i] * scale * 1.15, viewport) else { continue };
         let d = segment_distance(point, o, tip);
         if d < 10.0 && best.is_none_or(|(b, _)| d < b) {
             best = Some((d, handle));
         }
     }
     best.map(|(_, h)| h)
+}
+
+/// A rotate-ring drag: the angle (radians, right-handed about `axis`)
+/// swept around the gizmo centre on screen from `from` to `to`.
+pub fn ring_drag(camera: &EditorCamera3D, origin: Vec3, axis: Vec3, from: Vec2, to: Vec2, viewport: Vec2) -> f32 {
+    let Some(c) = camera.project(origin, viewport) else { return 0.0 };
+    let (a, b) = (from - c, to - c);
+    if a.length() < 2.0 || b.length() < 2.0 {
+        return 0.0;
+    }
+    let mut d = b.y.atan2(b.x) - a.y.atan2(a.x);
+    while d > std::f32::consts::PI {
+        d -= std::f32::consts::TAU;
+    }
+    while d < -std::f32::consts::PI {
+        d += std::f32::consts::TAU;
+    }
+    // Screen y points down, so a clockwise-looking sweep is +d; seen from
+    // the side the axis points to, a positive rotation looks anticlockwise.
+    let toward_eye = axis.dot(camera.eye() - origin) > 0.0;
+    if toward_eye { -d } else { d }
 }
 
 /// How far (meters) a drag from `from` to `to` (pixels) moves along `axis`
@@ -295,6 +356,17 @@ mod tests {
         let b = cam.project(Vec3::X * 2.0, viewport).unwrap();
         let moved = axis_drag(&cam, Vec3::ZERO, Vec3::X, a, b, viewport);
         assert!((moved - 2.0).abs() < 0.15, "{moved}");
+    }
+
+    #[test]
+    fn ring_drag_quarter_turn_matches_sign() {
+        let cam = EditorCamera3D { target: Vec3::ZERO, yaw: 0.0, pitch: 0.0, distance: 10.0, fov_degrees: 55.0 };
+        let viewport = Vec2::new(800.0, 600.0);
+        let c = cam.project(Vec3::ZERO, viewport).unwrap();
+        // Looking down -Z at +Z axis toward the eye: right → up on screen is
+        // anticlockwise = +90° about +Z.
+        let d = ring_drag(&cam, Vec3::ZERO, Vec3::Z, c + Vec2::new(100.0, 0.0), c + Vec2::new(0.0, -100.0), viewport);
+        assert!((d - std::f32::consts::FRAC_PI_2).abs() < 0.01, "{d}");
     }
 
     #[test]

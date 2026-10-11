@@ -189,7 +189,7 @@ var g = class e {
 		return U(a[0]);
 	}
 	add_bitmap_drawing(e, t) {
-		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = V(t, G.__wbindgen_malloc), a = W;
+		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = B(t, G.__wbindgen_malloc), a = W;
 		return G.wasmeditor_add_bitmap_drawing(this.__wbg_ptr, n, r, i, a);
 	}
 	add_blank_shape_node(e, t) {
@@ -228,11 +228,11 @@ var g = class e {
 		return U(o[0]);
 	}
 	add_drawing_cel_image(e, t) {
-		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = V(t, G.__wbindgen_malloc), a = W;
+		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = B(t, G.__wbindgen_malloc), a = W;
 		return G.wasmeditor_add_drawing_cel_image(this.__wbg_ptr, n, r, i, a);
 	}
 	add_font(e, t) {
-		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = V(t, G.__wbindgen_malloc), a = W, o = G.wasmeditor_add_font(this.__wbg_ptr, n, r, i, a);
+		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = B(t, G.__wbindgen_malloc), a = W, o = G.wasmeditor_add_font(this.__wbg_ptr, n, r, i, a);
 		if (o[2]) throw U(o[1]);
 		return U(o[0]);
 	}
@@ -327,7 +327,7 @@ var g = class e {
 		return U(n[0]);
 	}
 	add_tilemap_node(e, t, n, r, i, a, o, s, c) {
-		let l = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), u = W, d = V(r, G.__wbindgen_malloc), f = W;
+		let l = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), u = W, d = B(r, G.__wbindgen_malloc), f = W;
 		return G.wasmeditor_add_tilemap_node(this.__wbg_ptr, e, t, l, u, d, f, i, a, o, s, c);
 	}
 	add_toon_material(e, t) {
@@ -408,12 +408,12 @@ var g = class e {
 		return i[0] >>> 0;
 	}
 	cloth_wind(e, t) {
-		var n = B(t) ? 0 : Ye(t, G.__wbindgen_malloc), r = W;
+		var n = z(t) ? 0 : V(t, G.__wbindgen_malloc), r = W;
 		let i = G.wasmeditor_cloth_wind(this.__wbg_ptr, e, n, r);
 		if (i[1]) throw U(i[0]);
 	}
 	commit_bone_pose(e, t, n) {
-		let r = Ye(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_commit_bone_pose(this.__wbg_ptr, e, t, r, i);
+		let r = V(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_commit_bone_pose(this.__wbg_ptr, e, t, r, i);
 		if (a[2]) throw U(a[1]);
 		return U(a[0]);
 	}
@@ -624,20 +624,20 @@ var g = class e {
 		return U(a[0]);
 	}
 	import_audio(e, t) {
-		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = V(t, G.__wbindgen_malloc), a = W, o = G.wasmeditor_import_audio(this.__wbg_ptr, n, r, i, a);
+		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = B(t, G.__wbindgen_malloc), a = W, o = G.wasmeditor_import_audio(this.__wbg_ptr, n, r, i, a);
 		if (o[2]) throw U(o[1]);
 		return U(o[0]);
 	}
 	import_image(e, t, n) {
-		let r = H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), i = W, a = V(n, G.__wbindgen_malloc), o = W;
+		let r = H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), i = W, a = B(n, G.__wbindgen_malloc), o = W;
 		return G.wasmeditor_import_image(this.__wbg_ptr, e, r, i, a, o);
 	}
 	import_image_asset(e, t) {
-		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = V(t, G.__wbindgen_malloc), a = W;
+		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = B(t, G.__wbindgen_malloc), a = W;
 		return G.wasmeditor_import_image_asset(this.__wbg_ptr, n, r, i, a);
 	}
 	import_model(e, t, n, r, i, a) {
-		let o = H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), s = W, c = V(n, G.__wbindgen_malloc), l = W, u = Ze(r, G.__wbindgen_malloc), d = W, f = V(i, G.__wbindgen_malloc), p = W, m = Je(a, G.__wbindgen_malloc), h = W, g = G.wasmeditor_import_model(this.__wbg_ptr, e, o, s, c, l, u, d, f, p, m, h);
+		let o = H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), s = W, c = B(n, G.__wbindgen_malloc), l = W, u = Ze(r, G.__wbindgen_malloc), d = W, f = B(i, G.__wbindgen_malloc), p = W, m = Ye(a, G.__wbindgen_malloc), h = W, g = G.wasmeditor_import_model(this.__wbg_ptr, e, o, s, c, l, u, d, f, p, m, h);
 		if (g[2]) throw U(g[1]);
 		return U(g[0]);
 	}
@@ -704,7 +704,7 @@ var g = class e {
 		return U(e[0]);
 	}
 	load_project(e, t, n, r) {
-		let i = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W, o = Ze(t, G.__wbindgen_malloc), s = W, c = Je(n, G.__wbindgen_malloc), l = W, u = V(r, G.__wbindgen_malloc), d = W;
+		let i = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W, o = Ze(t, G.__wbindgen_malloc), s = W, c = Ye(n, G.__wbindgen_malloc), l = W, u = B(r, G.__wbindgen_malloc), d = W;
 		return G.wasmeditor_load_project(this.__wbg_ptr, i, a, o, s, c, l, u, d);
 	}
 	load_responsive_demo() {
@@ -727,7 +727,7 @@ var g = class e {
 		return G.wasmeditor_load_tea(this.__wbg_ptr, t, n);
 	}
 	load_teab(e) {
-		let t = V(e, G.__wbindgen_malloc), n = W;
+		let t = B(e, G.__wbindgen_malloc), n = W;
 		return G.wasmeditor_load_teab(this.__wbg_ptr, t, n);
 	}
 	load_torture_demo() {
@@ -951,7 +951,7 @@ var g = class e {
 		if (l[1]) throw U(l[0]);
 	}
 	preview_node3d_transform(e, t, n) {
-		let r = Ye(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_preview_node3d_transform(this.__wbg_ptr, e, t, r, i);
+		let r = V(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_preview_node3d_transform(this.__wbg_ptr, e, t, r, i);
 		if (a[1]) throw U(a[0]);
 	}
 	preview_node_anchor(e, t, n, r, i, a) {
@@ -995,8 +995,12 @@ var g = class e {
 		if (a[1]) throw U(a[0]);
 	}
 	preview_tilemap_tiles(e, t, n) {
-		let r = Je(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_preview_tilemap_tiles(this.__wbg_ptr, e, t, r, i);
+		let r = Ye(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_preview_tilemap_tiles(this.__wbg_ptr, e, t, r, i);
 		if (a[1]) throw U(a[0]);
+	}
+	preview_vrm_pose_bone(e, t, n, r, i, a, o) {
+		let s = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), c = W, l = H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), u = W, d = G.wasmeditor_preview_vrm_pose_bone(this.__wbg_ptr, e, t, s, c, l, u, i, a, o);
+		if (d[1]) throw U(d[0]);
 	}
 	static project_asset_paths(e) {
 		let t = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), n = W, r = G.wasmeditor_project_asset_paths(t, n);
@@ -1219,7 +1223,7 @@ var g = class e {
 		return U(r[0]);
 	}
 	set_audio_file(e, t) {
-		var n = B(t) ? 0 : H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W;
+		var n = z(t) ? 0 : H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W;
 		let i = G.wasmeditor_set_audio_file(this.__wbg_ptr, e, n, r);
 		if (i[1]) throw U(i[0]);
 	}
@@ -1268,7 +1272,7 @@ var g = class e {
 		return U(r[0]);
 	}
 	set_image_file(e, t) {
-		var n = B(t) ? 0 : H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W;
+		var n = z(t) ? 0 : H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W;
 		let i = G.wasmeditor_set_image_file(this.__wbg_ptr, e, n, r);
 		if (i[1]) throw U(i[0]);
 	}
@@ -1502,7 +1506,7 @@ var g = class e {
 		return U(r[0]);
 	}
 	set_tile(e, t, n, r, i) {
-		let a = G.wasmeditor_set_tile(this.__wbg_ptr, e, t, n, r, B(i) ? 2 ** 53 - 1 : i >>> 0);
+		let a = G.wasmeditor_set_tile(this.__wbg_ptr, e, t, n, r, z(i) ? 2 ** 53 - 1 : i >>> 0);
 		if (a[2]) throw U(a[1]);
 		return U(a[0]);
 	}
@@ -1573,7 +1577,7 @@ var g = class e {
 		return U(n[0]);
 	}
 	update_bitmap_drawing(e, t) {
-		let n = V(t, G.__wbindgen_malloc), r = W;
+		let n = B(t, G.__wbindgen_malloc), r = W;
 		return G.wasmeditor_update_bitmap_drawing(this.__wbg_ptr, e, n, r);
 	}
 	update_drawing(e, t) {
@@ -1596,10 +1600,25 @@ var g = class e {
 		if (n[2]) throw U(n[1]);
 		return U(n[0]);
 	}
-	view3d_drag(e, t, n, r, i, a) {
-		let o = Ye(t, G.__wbindgen_malloc), s = W, c = G.wasmeditor_view3d_drag(this.__wbg_ptr, e, o, s, n, r, i, a);
-		var l = k(c[0], c[1]).slice();
-		return G.__wbindgen_free(c[0], c[1] * 4, 4), l;
+	view3d_bone_drag(e, t, n, r, i, a, o, s) {
+		let c = V(n, G.__wbindgen_malloc), l = W, u = G.wasmeditor_view3d_bone_drag(this.__wbg_ptr, e, t, c, l, r, i, a, o, s);
+		if (u[3]) throw U(u[2]);
+		var d = k(u[0], u[1]).slice();
+		return G.__wbindgen_free(u[0], u[1] * 4, 4), d;
+	}
+	view3d_bone_drag_begin(e, t) {
+		let n = V(t, G.__wbindgen_malloc), r = W, i = G.wasmeditor_view3d_bone_drag_begin(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw U(i[1]);
+		return i[0] !== 0;
+	}
+	view3d_drag_transform(e, t, n, r, i, a, o, s) {
+		let c = V(n, G.__wbindgen_malloc), l = W, u = G.wasmeditor_view3d_drag_transform(this.__wbg_ptr, e, t, c, l, r, i, a, o, s);
+		if (u[3]) throw U(u[2]);
+		var d = k(u[0], u[1]).slice();
+		return G.__wbindgen_free(u[0], u[1] * 4, 4), d;
+	}
+	view3d_fly(e, t, n) {
+		G.wasmeditor_view3d_fly(this.__wbg_ptr, e, t, n);
 	}
 	view3d_frame(e, t) {
 		let n = G.wasmeditor_view3d_frame(this.__wbg_ptr, e, t);
@@ -1629,14 +1648,28 @@ var g = class e {
 		let t = G.wasmeditor_view3d_select(this.__wbg_ptr, e);
 		if (t[1]) throw U(t[0]);
 	}
+	view3d_select_bone(e) {
+		let t = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), n = W;
+		G.wasmeditor_view3d_select_bone(this.__wbg_ptr, t, n);
+	}
 	view3d_set_enabled(e) {
 		G.wasmeditor_view3d_set_enabled(this.__wbg_ptr, e);
+	}
+	view3d_set_gizmo_mode(e) {
+		G.wasmeditor_view3d_set_gizmo_mode(this.__wbg_ptr, e);
+	}
+	view3d_view(e) {
+		let t = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), n = W;
+		G.wasmeditor_view3d_view(this.__wbg_ptr, t, n);
 	}
 	view3d_zoom(e) {
 		G.wasmeditor_view3d_zoom(this.__wbg_ptr, e);
 	}
+	view3d_zoom_at(e, t, n) {
+		G.wasmeditor_view3d_zoom_at(this.__wbg_ptr, e, t, n);
+	}
 	voxel_chunk_set(e, t, n, r, i) {
-		let a = V(i, G.__wbindgen_malloc), o = W, s = G.wasmeditor_voxel_chunk_set(this.__wbg_ptr, e, t, n, r, a, o);
+		let a = B(i, G.__wbindgen_malloc), o = W, s = G.wasmeditor_voxel_chunk_set(this.__wbg_ptr, e, t, n, r, a, o);
 		if (s[1]) throw U(s[0]);
 	}
 	voxel_chunk_unload(e, t, n, r) {
@@ -1649,7 +1682,7 @@ var g = class e {
 		return o[0] !== 0;
 	}
 	voxels_set(e, t, n) {
-		let r = V(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_voxels_set(this.__wbg_ptr, e, t, r, i);
+		let r = B(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_voxels_set(this.__wbg_ptr, e, t, r, i);
 		if (a[1]) throw U(a[0]);
 	}
 };
@@ -1675,7 +1708,7 @@ var _ = class e {
 		G.wasmplayer_fire_trigger(this.__wbg_ptr, t, n);
 	}
 	load_teab(e) {
-		let t = V(e, G.__wbindgen_malloc), n = W;
+		let t = B(e, G.__wbindgen_malloc), n = W;
 		return G.wasmplayer_load_teab(this.__wbg_ptr, t, n);
 	}
 	pause() {
@@ -1740,11 +1773,11 @@ function v() {
 			},
 			__wbg___wbindgen_bigint_get_as_i64_c4ecf48528083721: function(e, t) {
 				let n = t, r = typeof n == "bigint" ? n : void 0;
-				F().setBigInt64(e + 8, B(r) ? BigInt(0) : r, !0), F().setInt32(e + 0, !B(r), !0);
+				F().setBigInt64(e + 8, z(r) ? BigInt(0) : r, !0), F().setInt32(e + 0, !z(r), !0);
 			},
 			__wbg___wbindgen_boolean_get_c9c83ebd41b34df3: function(e) {
 				let t = e, n = typeof t == "boolean" ? t : void 0;
-				return B(n) ? 16777215 : +!!n;
+				return z(n) ? 16777215 : +!!n;
 			},
 			__wbg___wbindgen_debug_string_a57024b9c6e4a48b: function(e, t) {
 				let n = H(Oe(t), G.__wbindgen_malloc, G.__wbindgen_realloc), r = W;
@@ -1780,11 +1813,11 @@ function v() {
 			},
 			__wbg___wbindgen_number_get_136b9679cab35cfb: function(e, t) {
 				let n = t, r = typeof n == "number" ? n : void 0;
-				F().setFloat64(e + 8, B(r) ? 0 : r, !0), F().setInt32(e + 0, !B(r), !0);
+				F().setFloat64(e + 8, z(r) ? 0 : r, !0), F().setInt32(e + 0, !z(r), !0);
 			},
 			__wbg___wbindgen_string_get_d154f1e671052120: function(e, t) {
 				let n = t, r = typeof n == "string" ? n : void 0;
-				var i = B(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
+				var i = z(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
 				F().setInt32(e + 4, a, !0), F().setInt32(e + 0, i, !0);
 			},
 			__wbg___wbindgen_throw_bb96b2010945f0bc: function(e, t) {
@@ -1800,7 +1833,7 @@ function v() {
 				e.activeTexture(t >>> 0);
 			},
 			__wbg_addEventListener_3b8edc02c33d9f77: function() {
-				return z(function(e, t, n, r) {
+				return R(function(e, t, n, r) {
 					e.addEventListener(I(t, n), r);
 				}, arguments);
 			},
@@ -1814,7 +1847,7 @@ function v() {
 				e.beginQuery(t >>> 0, n);
 			},
 			__wbg_beginRenderPass_aa22c432e793359a: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.beginRenderPass(t);
 				}, arguments);
 			},
@@ -1912,12 +1945,12 @@ function v() {
 				e.bufferSubData(t >>> 0, n, r);
 			},
 			__wbg_call_1c5886ab9c57d1c7: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.call(t);
 				}, arguments);
 			},
 			__wbg_call_35dba3c747ad7521: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					return e.call(t, n);
 				}, arguments);
 			},
@@ -1985,7 +2018,7 @@ function v() {
 				e.compressedTexSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u);
 			},
 			__wbg_configure_0e4789c0f6b35c8e: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					e.configure(t);
 				}, arguments);
 			},
@@ -2002,12 +2035,12 @@ function v() {
 				e.copyTexSubImage3D(t >>> 0, n, r, i, a, o, s, c, l);
 			},
 			__wbg_copyTextureToBuffer_ed6e67a77ecb768d: function() {
-				return z(function(e, t, n, r) {
+				return R(function(e, t, n, r) {
 					e.copyTextureToBuffer(t, n, r);
 				}, arguments);
 			},
 			__wbg_createBindGroupLayout_49a7e2b3d076afcf: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.createBindGroupLayout(t);
 				}, arguments);
 			},
@@ -2015,98 +2048,98 @@ function v() {
 				return e.createBindGroup(t);
 			},
 			__wbg_createBuffer_0726dd2ab09ea1d2: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.createBuffer(t);
 				}, arguments);
 			},
 			__wbg_createBuffer_44b37c222efbd326: function(e) {
 				let t = e.createBuffer();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createBuffer_af6c411fe2b091f8: function(e) {
 				let t = e.createBuffer();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createCommandEncoder_ec1f40f0cb4d09df: function(e, t) {
 				return e.createCommandEncoder(t);
 			},
 			__wbg_createFramebuffer_4dc2fb6bd93463a5: function(e) {
 				let t = e.createFramebuffer();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createFramebuffer_e6d8917bf9291c65: function(e) {
 				let t = e.createFramebuffer();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createPipelineLayout_2c8cd4528b06c108: function(e, t) {
 				return e.createPipelineLayout(t);
 			},
 			__wbg_createProgram_2ebbd17565e0ede7: function(e) {
 				let t = e.createProgram();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createProgram_81b37242eadef893: function(e) {
 				let t = e.createProgram();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createQuery_5ef5edffbd3a678d: function(e) {
 				let t = e.createQuery();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createRenderPipeline_cf98d4d699bfb03c: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.createRenderPipeline(t);
 				}, arguments);
 			},
 			__wbg_createRenderbuffer_be624f81e06a0cfd: function(e) {
 				let t = e.createRenderbuffer();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createRenderbuffer_cd2638d5dda9c277: function(e) {
 				let t = e.createRenderbuffer();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createSampler_c8ffb3c8d565f704: function(e, t) {
 				return e.createSampler(t);
 			},
 			__wbg_createSampler_f1aedbf47c21745a: function(e) {
 				let t = e.createSampler();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createShaderModule_2e44fc7677c6288b: function(e, t) {
 				return e.createShaderModule(t);
 			},
 			__wbg_createShader_9a8e5f335caac850: function(e, t) {
 				let n = e.createShader(t >>> 0);
-				return B(n) ? 0 : O(n);
+				return z(n) ? 0 : O(n);
 			},
 			__wbg_createShader_f8638cf4c19a1d2d: function(e, t) {
 				let n = e.createShader(t >>> 0);
-				return B(n) ? 0 : O(n);
+				return z(n) ? 0 : O(n);
 			},
 			__wbg_createTexture_1bac74c999b8a48e: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.createTexture(t);
 				}, arguments);
 			},
 			__wbg_createTexture_42c791197006c64a: function(e) {
 				let t = e.createTexture();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createTexture_c74740f68b5c2a93: function(e) {
 				let t = e.createTexture();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createVertexArrayOES_f7e8c94194c4e075: function(e) {
 				let t = e.createVertexArrayOES();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createVertexArray_abd18ded26b75653: function(e) {
 				let t = e.createVertexArray();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_createView_ceaf2f5881adbd34: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.createView(t);
 				}, arguments);
 			},
@@ -2206,7 +2239,7 @@ function v() {
 			},
 			__wbg_document_ac38448dbfd31a57: function(e) {
 				let t = e.document;
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_done_669171204c3dcae2: function(e) {
 				return e.done;
@@ -2272,7 +2305,7 @@ function v() {
 			},
 			__wbg_fenceSync_57ab30f550e5a5a2: function(e, t, n) {
 				let r = e.fenceSync(t >>> 0, n >>> 0);
-				return B(r) ? 0 : O(r);
+				return z(r) ? 0 : O(r);
 			},
 			__wbg_finish_4d91de5e927dd13f: function(e, t) {
 				return e.finish(t);
@@ -2323,57 +2356,57 @@ function v() {
 				e.getBufferSubData(t >>> 0, n, r);
 			},
 			__wbg_getContext_123ddade3a0fb2f5: function() {
-				return z(function(e, t, n, r) {
+				return R(function(e, t, n, r) {
 					let i = e.getContext(I(t, n), r);
-					return B(i) ? 0 : O(i);
+					return z(i) ? 0 : O(i);
 				}, arguments);
 			},
 			__wbg_getContext_53c8c42beb820370: function() {
-				return z(function(e, t, n, r) {
+				return R(function(e, t, n, r) {
 					let i = e.getContext(I(t, n), r);
-					return B(i) ? 0 : O(i);
+					return z(i) ? 0 : O(i);
 				}, arguments);
 			},
 			__wbg_getContext_71c33f14b63da593: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					let r = e.getContext(I(t, n));
-					return B(r) ? 0 : O(r);
+					return z(r) ? 0 : O(r);
 				}, arguments);
 			},
 			__wbg_getContext_c5236e0057b35024: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					let r = e.getContext(I(t, n));
-					return B(r) ? 0 : O(r);
+					return z(r) ? 0 : O(r);
 				}, arguments);
 			},
 			__wbg_getCurrentTexture_20714d1bd9051cab: function() {
-				return z(function(e) {
+				return R(function(e) {
 					return e.getCurrentTexture();
 				}, arguments);
 			},
 			__wbg_getExtension_8e8c3be603d4f5ce: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					let r = e.getExtension(I(t, n));
-					return B(r) ? 0 : O(r);
+					return z(r) ? 0 : O(r);
 				}, arguments);
 			},
 			__wbg_getIndexedParameter_fa6cca29d50de787: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					return e.getIndexedParameter(t >>> 0, n >>> 0);
 				}, arguments);
 			},
 			__wbg_getMappedRange_d0bf3141224111b6: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					return e.getMappedRange(t, n);
 				}, arguments);
 			},
 			__wbg_getParameter_19325d4aa1b66856: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.getParameter(t >>> 0);
 				}, arguments);
 			},
 			__wbg_getParameter_7ddbe9f9606f6a80: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return e.getParameter(t >>> 0);
 				}, arguments);
 			},
@@ -2383,12 +2416,12 @@ function v() {
 			},
 			__wbg_getProgramInfoLog_50a07d12dddd0da6: function(e, t, n) {
 				let r = t.getProgramInfoLog(n);
-				var i = B(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
+				var i = z(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
 				F().setInt32(e + 4, a, !0), F().setInt32(e + 0, i, !0);
 			},
 			__wbg_getProgramInfoLog_72665662cf78b5a2: function(e, t, n) {
 				let r = t.getProgramInfoLog(n);
-				var i = B(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
+				var i = z(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
 				F().setInt32(e + 4, a, !0), F().setInt32(e + 0, i, !0);
 			},
 			__wbg_getProgramParameter_1f5cceb73030e823: function(e, t, n) {
@@ -2402,12 +2435,12 @@ function v() {
 			},
 			__wbg_getShaderInfoLog_337a0567e83283d1: function(e, t, n) {
 				let r = t.getShaderInfoLog(n);
-				var i = B(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
+				var i = z(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
 				F().setInt32(e + 4, a, !0), F().setInt32(e + 0, i, !0);
 			},
 			__wbg_getShaderInfoLog_663a9b136ab42b32: function(e, t, n) {
 				let r = t.getShaderInfoLog(n);
-				var i = B(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
+				var i = z(r) ? 0 : H(r, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W;
 				F().setInt32(e + 4, a, !0), F().setInt32(e + 0, i, !0);
 			},
 			__wbg_getShaderParameter_95d4ad40668ee798: function(e, t, n) {
@@ -2418,11 +2451,11 @@ function v() {
 			},
 			__wbg_getSupportedExtensions_63e3eaba880055c5: function(e) {
 				let t = e.getSupportedExtensions();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_getSupportedProfiles_7cd826b4eff5e8fc: function(e) {
 				let t = e.getSupportedProfiles();
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_getSyncParameter_3eb3ecefa061c5ee: function(e, t, n) {
 				return e.getSyncParameter(t, n >>> 0);
@@ -2432,21 +2465,21 @@ function v() {
 			},
 			__wbg_getUniformLocation_11fd99fee70965dc: function(e, t, n, r) {
 				let i = e.getUniformLocation(t, I(n, r));
-				return B(i) ? 0 : O(i);
+				return z(i) ? 0 : O(i);
 			},
 			__wbg_getUniformLocation_c493d2f5f1a6213d: function(e, t, n, r) {
 				let i = e.getUniformLocation(t, I(n, r));
-				return B(i) ? 0 : O(i);
+				return z(i) ? 0 : O(i);
 			},
 			__wbg_get_36debceb6d43d7a1: function(e, t) {
 				let n = e[t >>> 0];
-				return B(n) ? 0 : O(n);
+				return z(n) ? 0 : O(n);
 			},
 			__wbg_get_c0c8f8d7da0c03dd: function(e, t) {
 				return e[t >>> 0];
 			},
 			__wbg_get_d173c0308df22d37: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return Reflect.get(e, t);
 				}, arguments);
 			},
@@ -2523,7 +2556,7 @@ function v() {
 				return t;
 			},
 			__wbg_invalidateFramebuffer_9a711eeb3940aba0: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					e.invalidateFramebuffer(t >>> 0, n);
 				}, arguments);
 			},
@@ -2571,9 +2604,9 @@ function v() {
 				return e.mapAsync(t >>> 0, n, r);
 			},
 			__wbg_matchMedia_0e2963d34f3ddd40: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					let r = e.matchMedia(I(t, n));
-					return B(r) ? 0 : O(r);
+					return z(r) ? 0 : O(r);
 				}, arguments);
 			},
 			__wbg_matches_72427e51457a4411: function(e) {
@@ -2685,7 +2718,7 @@ function v() {
 				return /* @__PURE__ */ Error();
 			},
 			__wbg_new_652118cdee90118f: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return new OffscreenCanvas(e >>> 0, t >>> 0);
 				}, arguments);
 			},
@@ -2724,7 +2757,7 @@ function v() {
 				return new Uint8Array(e, t >>> 0, n >>> 0);
 			},
 			__wbg_next_42cf16ee0dafc9e2: function() {
-				return z(function(e) {
+				return R(function(e) {
 					return e.next();
 				}, arguments);
 			},
@@ -2741,13 +2774,13 @@ function v() {
 				return e.onSubmittedWorkDone();
 			},
 			__wbg_parse_817cdcbb0323649b: function() {
-				return z(function(e, t) {
+				return R(function(e, t) {
 					return JSON.parse(I(e, t));
 				}, arguments);
 			},
 			__wbg_performance_821a3767f0dce300: function(e) {
 				let t = e.performance;
-				return B(t) ? 0 : O(t);
+				return z(t) ? 0 : O(t);
 			},
 			__wbg_pixelStorei_11bdfb5bc6a39d28: function(e, t, n) {
 				e.pixelStorei(t >>> 0, n);
@@ -2771,14 +2804,14 @@ function v() {
 				e.queryCounterEXT(t, n >>> 0);
 			},
 			__wbg_querySelectorAll_9b6a612499ecb916: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					return e.querySelectorAll(I(t, n));
 				}, arguments);
 			},
 			__wbg_querySelector_2c472eddb417c6b3: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					let r = e.querySelector(I(t, n));
-					return B(r) ? 0 : O(r);
+					return z(r) ? 0 : O(r);
 				}, arguments);
 			},
 			__wbg_queueMicrotask_ac694eae12e92dfb: function(e) {
@@ -2794,22 +2827,22 @@ function v() {
 				e.readBuffer(t >>> 0);
 			},
 			__wbg_readPixels_0033d2834b498dda: function() {
-				return z(function(e, t, n, r, i, a, o, s) {
+				return R(function(e, t, n, r, i, a, o, s) {
 					e.readPixels(t, n, r, i, a >>> 0, o >>> 0, s);
 				}, arguments);
 			},
 			__wbg_readPixels_0e3230bf7a891882: function() {
-				return z(function(e, t, n, r, i, a, o, s) {
+				return R(function(e, t, n, r, i, a, o, s) {
 					e.readPixels(t, n, r, i, a >>> 0, o >>> 0, s);
 				}, arguments);
 			},
 			__wbg_readPixels_8f8bde9ee420ba35: function() {
-				return z(function(e, t, n, r, i, a, o, s) {
+				return R(function(e, t, n, r, i, a, o, s) {
 					e.readPixels(t, n, r, i, a >>> 0, o >>> 0, s);
 				}, arguments);
 			},
 			__wbg_removeEventListener_aa653c6b402cc27e: function() {
-				return z(function(e, t, n, r) {
+				return R(function(e, t, n, r) {
 					e.removeEventListener(I(t, n), r);
 				}, arguments);
 			},
@@ -2847,7 +2880,7 @@ function v() {
 				e.scissor(t, n, r, i);
 			},
 			__wbg_setBindGroup_268fd1714fff0ef5: function() {
-				return z(function(e, t, n, r, i, a, o) {
+				return R(function(e, t, n, r, i, a, o) {
 					e.setBindGroup(t >>> 0, n, M(r, i), a, o >>> 0);
 				}, arguments);
 			},
@@ -2879,7 +2912,7 @@ function v() {
 				e[t] = n;
 			},
 			__wbg_set_8155bb79a948541b: function() {
-				return z(function(e, t, n) {
+				return R(function(e, t, n) {
 					return Reflect.set(e, t, n);
 				}, arguments);
 			},
@@ -3423,19 +3456,19 @@ function v() {
 			},
 			__wbg_static_accessor_GLOBAL_THIS_466428f93b4eaa76: function() {
 				let e = typeof globalThis > "u" ? null : globalThis;
-				return B(e) ? 0 : O(e);
+				return z(e) ? 0 : O(e);
 			},
 			__wbg_static_accessor_GLOBAL_c7aea38d4de089bc: function() {
 				let e = typeof global > "u" ? null : global;
-				return B(e) ? 0 : O(e);
+				return z(e) ? 0 : O(e);
 			},
 			__wbg_static_accessor_SELF_42d4fae05e59267a: function() {
 				let e = typeof self > "u" ? null : self;
-				return B(e) ? 0 : O(e);
+				return z(e) ? 0 : O(e);
 			},
 			__wbg_static_accessor_WINDOW_e0db14a0eba6a812: function() {
 				let e = typeof window > "u" ? null : window;
-				return B(e) ? 0 : O(e);
+				return z(e) ? 0 : O(e);
 			},
 			__wbg_stencilFuncSeparate_1455ac65895207da: function(e, t, n, r, i) {
 				e.stencilFuncSeparate(t >>> 0, n >>> 0, r, i >>> 0);
@@ -3471,27 +3504,27 @@ function v() {
 				e.submit(j(t, n));
 			},
 			__wbg_texImage2D_053488112c3d702f: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texImage2D_2854247ff7d047a1: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texImage2D_44740302c934daf1: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texImage3D_d23f7d2f9e66b916: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u) {
 					e.texImage3D(t >>> 0, n, r, i, a, o, s, c >>> 0, l >>> 0, u);
 				}, arguments);
 			},
 			__wbg_texImage3D_faae3ea3f2969ecc: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u) {
 					e.texImage3D(t >>> 0, n, r, i, a, o, s, c >>> 0, l >>> 0, u);
 				}, arguments);
 			},
@@ -3508,77 +3541,77 @@ function v() {
 				e.texStorage3D(t >>> 0, n, r >>> 0, i, a, o);
 			},
 			__wbg_texSubImage2D_1b383b66dfe35010: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_205cfbaea80e77e6: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_606540d3e650e0bb: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_62ae3d4b2700f7cd: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_6eb05d8f455f99ba: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_a035d2307e014a73: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_ad5a64d8f68a2d0d: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_cb9ad676165c5da5: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l) {
+				return R(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_09e44c66b4ac6bc6: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_16678785ac62fd6b: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_3ee8764dfdcb6746: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_53489be691cee78d: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_73d365baf8dad003: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_8a2331639ee1ee0e: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_9b0bd9fd73d7bb1c: function() {
-				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return R(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
@@ -3745,29 +3778,29 @@ function v() {
 				return e.width;
 			},
 			__wbg_writeBuffer_8b5bd251a89198bc: function() {
-				return z(function(e, t, n, r, i, a, o) {
+				return R(function(e, t, n, r, i, a, o) {
 					e.writeBuffer(t, n, N(r, i), a, o);
 				}, arguments);
 			},
 			__wbg_writeTexture_53ba204c494b042c: function() {
-				return z(function(e, t, n, r, i, a) {
+				return R(function(e, t, n, r, i, a) {
 					e.writeTexture(t, N(n, r), i, a);
 				}, arguments);
 			},
 			__wbindgen_cast_0000000000000001: function(e, t) {
-				return qe(e, t, b);
+				return Je(e, t, b);
 			},
 			__wbindgen_cast_0000000000000002: function(e, t) {
-				return qe(e, t, x);
+				return Je(e, t, x);
 			},
 			__wbindgen_cast_0000000000000003: function(e, t) {
-				return qe(e, t, y);
+				return Je(e, t, y);
 			},
 			__wbindgen_cast_0000000000000004: function(e, t) {
-				return qe(e, t, S);
+				return Je(e, t, S);
 			},
 			__wbindgen_cast_0000000000000005: function(e, t) {
-				return qe(e, t, C);
+				return Je(e, t, C);
 			},
 			__wbindgen_cast_0000000000000006: function(e) {
 				return e;
@@ -3991,13 +4024,13 @@ function j(e, t) {
 	return r;
 }
 function Me(e, t) {
-	return e >>>= 0, Ue().subarray(e / 2, e / 2 + t);
+	return e >>>= 0, We().subarray(e / 2, e / 2 + t);
 }
 function M(e, t) {
-	return e >>>= 0, Ge().subarray(e / 4, e / 4 + t);
+	return e >>>= 0, Ke().subarray(e / 4, e / 4 + t);
 }
 function N(e, t) {
-	return e >>>= 0, R().subarray(e / 1, e / 1 + t);
+	return e >>>= 0, L().subarray(e / 1, e / 1 + t);
 }
 var P = null;
 function F() {
@@ -4026,19 +4059,19 @@ function He() {
 function I(e, t) {
 	return tt(e >>> 0, t);
 }
-var L = null;
-function Ue() {
-	return (L === null || L.byteLength === 0) && (L = new Uint16Array(G.memory.buffer)), L;
+var Ue = null;
+function We() {
+	return (Ue === null || Ue.byteLength === 0) && (Ue = new Uint16Array(G.memory.buffer)), Ue;
 }
-var We = null;
-function Ge() {
-	return (We === null || We.byteLength === 0) && (We = new Uint32Array(G.memory.buffer)), We;
+var Ge = null;
+function Ke() {
+	return (Ge === null || Ge.byteLength === 0) && (Ge = new Uint32Array(G.memory.buffer)), Ge;
 }
-var Ke = null;
-function R() {
-	return (Ke === null || Ke.byteLength === 0) && (Ke = new Uint8Array(G.memory.buffer)), Ke;
+var qe = null;
+function L() {
+	return (qe === null || qe.byteLength === 0) && (qe = new Uint8Array(G.memory.buffer)), qe;
 }
-function z(e, t) {
+function R(e, t) {
 	try {
 		return e.apply(this, t);
 	} catch (e) {
@@ -4046,10 +4079,10 @@ function z(e, t) {
 		G.__wbindgen_exn_store(t);
 	}
 }
-function B(e) {
+function z(e) {
 	return e == null;
 }
-function qe(e, t, n) {
+function Je(e, t, n) {
 	let r = {
 		a: e,
 		b: t,
@@ -4068,15 +4101,15 @@ function qe(e, t, n) {
 		--r.cnt === 0 && (G.__wbindgen_destroy_closure(r.a, r.b), r.a = 0, De.unregister(r));
 	}, De.register(i, r, r), i;
 }
-function Je(e, t) {
+function Ye(e, t) {
 	let n = t(e.length * 4, 4) >>> 0;
-	return Ge().set(e, n / 4), W = e.length, n;
+	return Ke().set(e, n / 4), W = e.length, n;
+}
+function B(e, t) {
+	let n = t(e.length * 1, 1) >>> 0;
+	return L().set(e, n / 1), W = e.length, n;
 }
 function V(e, t) {
-	let n = t(e.length * 1, 1) >>> 0;
-	return R().set(e, n / 1), W = e.length, n;
-}
-function Ye(e, t) {
 	let n = t(e.length * 4, 4) >>> 0;
 	return Pe().set(e, n / 4), W = e.length, n;
 }
@@ -4095,9 +4128,9 @@ function Ze(e, t) {
 function H(e, t, n) {
 	if (n === void 0) {
 		let n = nt.encode(e), r = t(n.length, 1) >>> 0;
-		return R().subarray(r, r + n.length).set(n), W = n.length, r;
+		return L().subarray(r, r + n.length).set(n), W = n.length, r;
 	}
-	let r = e.length, i = t(r, 1) >>> 0, a = R(), o = 0;
+	let r = e.length, i = t(r, 1) >>> 0, a = L(), o = 0;
 	for (; o < r; o++) {
 		let t = e.charCodeAt(o);
 		if (t > 127) break;
@@ -4105,7 +4138,7 @@ function H(e, t, n) {
 	}
 	if (o !== r) {
 		o !== 0 && (e = e.slice(o)), i = n(i, r, r = o + e.length * 3, 1) >>> 0;
-		let t = R().subarray(i + o, i + r), a = nt.encodeInto(e, t);
+		let t = L().subarray(i + o, i + r), a = nt.encodeInto(e, t);
 		o += a.written, i = n(i, r, o, 1) >>> 0;
 	}
 	return W = o, i;
@@ -4124,7 +4157,7 @@ function tt(e, t) {
 	return et += t, et >= $e && (Qe = new TextDecoder("utf-8", {
 		ignoreBOM: !0,
 		fatal: !0
-	}), Qe.decode(), et = t), Qe.decode(R().subarray(e, e + t));
+	}), Qe.decode(), et = t), Qe.decode(L().subarray(e, e + t));
 }
 var nt = new TextEncoder();
 "encodeInto" in nt || (nt.encodeInto = function(e, t) {
@@ -4136,7 +4169,7 @@ var nt = new TextEncoder();
 });
 var W = 0, G;
 function rt(e, t) {
-	return G = e.exports, P = null, Ne = null, Fe = null, Le = null, ze = null, Ve = null, L = null, We = null, Ke = null, G.__wbindgen_start(), G;
+	return G = e.exports, P = null, Ne = null, Fe = null, Le = null, ze = null, Ve = null, Ue = null, Ge = null, qe = null, G.__wbindgen_start(), G;
 }
 async function it(e, t) {
 	if (typeof Response == "function" && e instanceof Response) {
