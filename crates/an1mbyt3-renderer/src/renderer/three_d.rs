@@ -31,6 +31,11 @@ use super::Renderer;
 pub const MAX_POINT_LIGHTS: usize = 8;
 /// Per-draw uniform stride (wgpu's minimum dynamic-offset alignment).
 const DRAW_STRIDE: u64 = 256;
+/// Joints one skeleton can have (the shader's `MAX_JOINTS`), and the bytes
+/// of one skeleton's slot in the joint palette buffer (16 KiB: also the
+/// smallest uniform-block limit WebGL2 guarantees).
+pub const MAX_JOINTS: usize = 256;
+const JOINT_SLOT: u64 = (MAX_JOINTS * 64) as u64;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 const SHADER_SOURCE: &str = include_str!("three_d.wgsl");
 const FLUID_SHADER_SOURCE: &str = include_str!("fluid3d.wgsl");
@@ -82,11 +87,14 @@ fn fs_material(in: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
-/// A 3D mesh on the GPU (interleaved position / normal / UV).
+/// A 3D mesh on the GPU (interleaved position / normal / UV), plus — for a
+/// skinned mesh — a second buffer of per-vertex joint indices and weights
+/// (`upload_mesh_3d_skinned`).
 pub struct GpuMesh3D {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
+    skin_buffer: Option<wgpu::Buffer>,
 }
 
 /// A shader-graph material compiled for the 3D pass — one pipeline per
@@ -95,11 +103,20 @@ pub struct GpuMaterial3D {
     pipeline: wgpu::RenderPipeline,
     transparent: wgpu::RenderPipeline,
     additive: wgpu::RenderPipeline,
+    double_sided: wgpu::RenderPipeline,
+    /// The same, skinned on the GPU (characters).
+    skinned: wgpu::RenderPipeline,
+    skinned_double_sided: wgpu::RenderPipeline,
+    skinned_transparent: wgpu::RenderPipeline,
 }
 
 impl GpuMaterial3D {
-    fn for_blend(&self, blend: Blend3D) -> &wgpu::RenderPipeline {
+    fn for_blend(&self, blend: Blend3D, double_sided: bool, skinned: bool) -> &wgpu::RenderPipeline {
         match blend {
+            Blend3D::Opaque if skinned && double_sided => &self.skinned_double_sided,
+            Blend3D::Opaque if skinned => &self.skinned,
+            Blend3D::Transparent | Blend3D::Additive if skinned => &self.skinned_transparent,
+            Blend3D::Opaque if double_sided => &self.double_sided,
             Blend3D::Opaque => &self.pipeline,
             Blend3D::Transparent => &self.transparent,
             Blend3D::Additive => &self.additive,
@@ -189,11 +206,21 @@ pub struct MeshDraw3D {
     pub overlay: bool,
     /// Opaque / see-through / glowing (see `Blend3D`).
     pub blend: Blend3D,
+    /// Draw both faces (only with a `material`, opaque).
+    pub double_sided: bool,
+    /// Skinned on the GPU: this skeleton's joint matrices (model space,
+    /// `world × inverse bind`; draws sharing a skeleton share the `Rc`).
+    /// The mesh must have been uploaded with `upload_mesh_3d_skinned`.
+    pub joints: Option<Rc<Vec<Mat4>>>,
+    /// > 0: draw this skinned mesh as a toon **outline** instead — pushed
+    /// out along its normals by this many model units, front faces culled,
+    /// flat `color` (fogged).
+    pub outline: f32,
 }
 
 impl MeshDraw3D {
     pub fn new(mesh: Rc<GpuMesh3D>, model: Mat4, color: [f32; 4]) -> Self {
-        Self { mesh, model, color, shininess: 0.3, unlit: false, material: None, texture: None, overlay: false, blend: Blend3D::Opaque }
+        Self { mesh, model, color, shininess: 0.3, unlit: false, material: None, texture: None, overlay: false, blend: Blend3D::Opaque, double_sided: false, joints: None, outline: 0.0 }
     }
 }
 
@@ -284,6 +311,12 @@ pub(crate) struct Resources3D {
     draw_layout: wgpu::BindGroupLayout,
     /// (capacity in draws, buffer, bind group) — regrown when a frame has more.
     draws: RefCell<(u64, wgpu::Buffer, wgpu::BindGroup)>,
+    /// (capacity in skeleton slots, joint palette buffer) — group 1's
+    /// binding 1; regrowing it rebuilds `draws`' bind group.
+    joints: RefCell<(u64, wgpu::Buffer)>,
+    /// Skinned draws without a material, and toon outlines.
+    skinned_pipeline: wgpu::RenderPipeline,
+    outline_pipeline: wgpu::RenderPipeline,
     /// (width, height, view) of the current depth buffer.
     depth: RefCell<Option<(u32, u32, wgpu::TextureView)>>,
 }
@@ -295,30 +328,52 @@ pub(crate) struct State3D {
     scene: RefCell<Option<Scene3D>>,
 }
 
-fn draw_buffer(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, capacity: u64) -> (u64, wgpu::Buffer, wgpu::BindGroup) {
+fn draw_buffer(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, capacity: u64, joints: &wgpu::Buffer) -> (u64, wgpu::Buffer, wgpu::BindGroup) {
     let buffer = device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("an1mbyt3 3D draw uniforms"),
         size: capacity * DRAW_STRIDE,
         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
-    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+    let bind_group = draw_bind_group(device, layout, &buffer, joints);
+    (capacity, buffer, bind_group)
+}
+
+fn draw_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, draws: &wgpu::Buffer, joints: &wgpu::Buffer) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("an1mbyt3 3D draw bind group"),
         layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &buffer, offset: 0, size: wgpu::BufferSize::new(std::mem::size_of::<DrawUniforms3D>() as u64) }),
-        }],
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: draws, offset: 0, size: wgpu::BufferSize::new(std::mem::size_of::<DrawUniforms3D>() as u64) }),
+            },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: joints, offset: 0, size: wgpu::BufferSize::new(JOINT_SLOT) }) },
+        ],
+    })
+}
+
+fn joint_buffer(device: &wgpu::Device, slots: u64) -> (u64, wgpu::Buffer) {
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("an1mbyt3 3D joint palettes"),
+        size: slots.max(1) * JOINT_SLOT,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
     });
-    (capacity, buffer, bind_group)
+    (slots.max(1), buffer)
 }
 
 /// Which kind of mesh pipeline to build.
 #[derive(Clone, Copy, PartialEq)]
 enum MeshPass {
     Opaque,
+    /// Opaque, both faces drawn (cloth, hair cards, leaves — glTF
+    /// `doubleSided` materials).
+    OpaqueDoubleSided,
     /// Editor gizmos: always on top.
     Overlay,
+    /// Toon outlines: opaque, front faces culled (an inverted hull).
+    Outline,
     Transparent,
     Additive,
 }
@@ -329,16 +384,33 @@ const ADDITIVE_BLEND: wgpu::BlendState = wgpu::BlendState {
     alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::Zero, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
 };
 
-/// A mesh pipeline: `entry` fragment stage, for one `MeshPass`.
+/// A mesh pipeline: `entry` fragment stage, for one `MeshPass`; `skinned`
+/// takes the joint/weight buffer too and skins in the vertex stage
+/// (`vs_skinned`, or `vs_skinned_outline` for outlines).
 fn mesh_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat, layout: &wgpu::PipelineLayout, module: &wgpu::ShaderModule, entry: &str, pass: MeshPass) -> wgpu::RenderPipeline {
+    mesh_pipeline_with(device, format, layout, module, entry, pass, false)
+}
+
+fn mesh_pipeline_with(device: &wgpu::Device, format: wgpu::TextureFormat, layout: &wgpu::PipelineLayout, module: &wgpu::ShaderModule, entry: &str, pass: MeshPass, skinned: bool) -> wgpu::RenderPipeline {
     let overlay = pass == MeshPass::Overlay;
     // See-through and glowing surfaces test depth (opaque things hide
     // them) but don't write it (they never hide each other or particles).
-    let writes_depth = pass == MeshPass::Opaque;
+    let writes_depth = matches!(pass, MeshPass::Opaque | MeshPass::OpaqueDoubleSided | MeshPass::Outline);
+    let vertex_entry = match (skinned, pass) {
+        (true, MeshPass::Outline) => "vs_skinned_outline",
+        (true, _) => "vs_skinned",
+        _ => "vs_main",
+    };
+    let base_layout = wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] };
+    let skin_layout = wgpu::VertexBufferLayout { array_stride: 24, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![3 => Uint16x4, 4 => Float32x4] };
+    let buffers_skinned = [Some(base_layout.clone()), Some(skin_layout)];
+    let buffers_plain = [Some(base_layout)];
     let blend = if pass == MeshPass::Additive { ADDITIVE_BLEND } else { wgpu::BlendState::ALPHA_BLENDING };
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(match pass {
             MeshPass::Opaque => "an1mbyt3 3D mesh pipeline",
+            MeshPass::OpaqueDoubleSided => "an1mbyt3 3D double-sided mesh pipeline",
+            MeshPass::Outline => "an1mbyt3 3D outline pipeline",
             MeshPass::Overlay => "an1mbyt3 3D overlay pipeline",
             MeshPass::Transparent => "an1mbyt3 3D transparent pipeline",
             MeshPass::Additive => "an1mbyt3 3D additive pipeline",
@@ -346,15 +418,18 @@ fn mesh_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat, layout: &wg
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module,
-            entry_point: Some("vs_main"),
+            entry_point: Some(vertex_entry),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
-            buffers: &[Some(wgpu::VertexBufferLayout {
-                array_stride: 32,
-                step_mode: wgpu::VertexStepMode::Vertex,
-                attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2],
-            })],
+            buffers: if skinned { &buffers_skinned } else { &buffers_plain },
         },
-        primitive: wgpu::PrimitiveState { cull_mode: Some(wgpu::Face::Back), ..Default::default() },
+        primitive: wgpu::PrimitiveState {
+            cull_mode: match pass {
+                MeshPass::OpaqueDoubleSided => None,
+                MeshPass::Outline => Some(wgpu::Face::Front),
+                _ => Some(wgpu::Face::Back),
+            },
+            ..Default::default()
+        },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: DEPTH_FORMAT,
             depth_write_enabled: Some(writes_depth),
@@ -522,7 +597,18 @@ impl Renderer {
                 count: None,
             };
             let scene_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("an1mbyt3 3D scene layout"), entries: &[uniform_entry(false)] });
-            let draw_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("an1mbyt3 3D draw layout"), entries: &[uniform_entry(true)] });
+            let draw_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("an1mbyt3 3D draw layout"),
+                entries: &[
+                    uniform_entry(true),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: true, min_binding_size: wgpu::BufferSize::new(JOINT_SLOT) },
+                        count: None,
+                    },
+                ],
+            });
             let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("an1mbyt3 3D pipeline layout"),
                 bind_group_layouts: &[Some(&scene_layout), Some(&draw_layout)],
@@ -538,6 +624,8 @@ impl Renderer {
             let overlay_pipeline = mesh_pipeline(device, self.render_format, &layout, &shader, "fs_main", MeshPass::Overlay);
             let transparent_pipeline = mesh_pipeline(device, self.render_format, &layout, &shader, "fs_main", MeshPass::Transparent);
             let additive_pipeline = mesh_pipeline(device, self.render_format, &layout, &shader, "fs_main", MeshPass::Additive);
+            let skinned_pipeline = mesh_pipeline_with(device, self.render_format, &layout, &shader, "fs_main", MeshPass::Opaque, true);
+            let outline_pipeline = mesh_pipeline_with(device, self.render_format, &layout, &shader, "fs_outline", MeshPass::Outline, true);
             // Particles only read the scene uniforms (group 0).
             let particle_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("an1mbyt3 3D particle pipeline layout"),
@@ -591,7 +679,9 @@ impl Renderer {
                 layout: &scene_layout,
                 entries: &[wgpu::BindGroupEntry { binding: 0, resource: scene_buffer.as_entire_binding() }],
             });
-            let draws = RefCell::new(draw_buffer(device, &draw_layout, 64));
+            let joints = joint_buffer(device, 2);
+            let draws = RefCell::new(draw_buffer(device, &draw_layout, 64, &joints.1));
+            let joints = RefCell::new(joints);
             Resources3D {
                 density_pipeline,
                 composite_pipeline,
@@ -600,7 +690,7 @@ impl Renderer {
                 fluid_uniforms,
                 fluid_sampler,
                 fluid_target: RefCell::new(None),
-                pipeline, overlay_pipeline, transparent_pipeline, additive_pipeline, particle_pipeline, particle_vertices, material_layout, scene_buffer, scene_bind_group, draw_layout, draws, depth: RefCell::new(None) }
+                pipeline, overlay_pipeline, transparent_pipeline, additive_pipeline, particle_pipeline, particle_vertices, material_layout, scene_buffer, scene_bind_group, draw_layout, draws, joints, skinned_pipeline, outline_pipeline, depth: RefCell::new(None) }
         })
     }
 
@@ -632,7 +722,16 @@ impl Renderer {
             source: wgpu::ShaderSource::Wgsl(Self::material_shader_source_3d(fragment).into()),
         });
         let build = |pass| mesh_pipeline(&self.device, self.render_format, &res.material_layout, &module, "fs_material", pass);
-        Ok(GpuMaterial3D { pipeline: build(MeshPass::Opaque), transparent: build(MeshPass::Transparent), additive: build(MeshPass::Additive) })
+        let skinned = |pass| mesh_pipeline_with(&self.device, self.render_format, &res.material_layout, &module, "fs_material", pass, true);
+        Ok(GpuMaterial3D {
+            pipeline: build(MeshPass::Opaque),
+            transparent: build(MeshPass::Transparent),
+            additive: build(MeshPass::Additive),
+            double_sided: build(MeshPass::OpaqueDoubleSided),
+            skinned: skinned(MeshPass::Opaque),
+            skinned_double_sided: skinned(MeshPass::OpaqueDoubleSided),
+            skinned_transparent: skinned(MeshPass::Transparent),
+        })
     }
 
     /// Uploads a 3D mesh once; share it between draws via `Rc`.
@@ -651,14 +750,83 @@ impl Renderer {
         let vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("an1mbyt3 3D vertices"),
             contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            // COPY_DST: deforming meshes (skinned characters, morphs) are
+            // rewritten in place every frame (`rewrite_mesh_3d`).
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         let index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("an1mbyt3 3D indices"),
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });
-        GpuMesh3D { vertex_buffer, index_buffer, index_count: if mesh.indices.is_empty() { 0 } else { indices.len() as u32 } }
+        GpuMesh3D { vertex_buffer, index_buffer, index_count: if mesh.indices.is_empty() { 0 } else { indices.len() as u32 }, skin_buffer: None }
+    }
+
+    /// Uploads a skinned mesh: its vertices plus, per vertex, up to four
+    /// joint indices (into its skeleton's joint list) and weights — skinned
+    /// on the GPU when drawn with `MeshDraw3D::joints`.
+    pub fn upload_mesh_3d_skinned(&self, mesh: &Mesh3DData, joints: &[[u16; 4]], weights: &[[f32; 4]]) -> GpuMesh3D {
+        let mut gpu = self.upload_mesh_3d(mesh);
+        let count = mesh.positions.len().max(1);
+        let mut bytes: Vec<u8> = Vec::with_capacity(count * 24);
+        for v in 0..count {
+            let j = joints.get(v).copied().unwrap_or([0; 4]);
+            let w = weights.get(v).copied().unwrap_or([1.0, 0.0, 0.0, 0.0]);
+            for k in j {
+                bytes.extend_from_slice(&k.min((MAX_JOINTS - 1) as u16).to_le_bytes());
+            }
+            for k in w {
+                bytes.extend_from_slice(&k.to_le_bytes());
+            }
+        }
+        gpu.skin_buffer = Some(self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("an1mbyt3 3D skin weights"), contents: &bytes, usage: wgpu::BufferUsages::VERTEX }));
+        gpu
+    }
+
+    /// Rewrites a mesh's vertices in place (same vertex count and indices
+    /// as when it was uploaded) — how a skinned / morphed mesh is updated
+    /// every frame without allocating new GPU buffers. Returns `false` (and
+    /// writes nothing) if the vertex count changed.
+    pub fn rewrite_mesh_3d(&self, gpu: &GpuMesh3D, mesh: &Mesh3DData) -> bool {
+        let count = mesh.positions.len();
+        if count == 0 || gpu.vertex_buffer.size() != (count * 8 * 4) as u64 {
+            return false;
+        }
+        let mut vertices: Vec<f32> = Vec::with_capacity(count * 8);
+        for i in 0..count {
+            vertices.extend_from_slice(&mesh.positions[i]);
+            vertices.extend_from_slice(mesh.normals.get(i).unwrap_or(&[0.0, 1.0, 0.0]));
+            vertices.extend_from_slice(mesh.uvs.get(i).unwrap_or(&[0.0, 0.0]));
+        }
+        self.queue.write_buffer(&gpu.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+        true
+    }
+
+    /// [`Renderer::rewrite_mesh_3d`] from vertices already in the 3D
+    /// layout (position, normal, UV: 8 floats each) — no repacking.
+    pub fn rewrite_mesh_3d_interleaved(&self, gpu: &GpuMesh3D, vertices: &[f32]) -> bool {
+        if vertices.is_empty() || gpu.vertex_buffer.size() != (vertices.len() * 4) as u64 {
+            return false;
+        }
+        self.queue.write_buffer(&gpu.vertex_buffer, 0, bytemuck::cast_slice(vertices));
+        true
+    }
+
+    /// Uploads a mesh from interleaved vertices (8 floats each) + indices.
+    pub fn upload_mesh_3d_interleaved(&self, vertices: &[f32], indices: &[u32]) -> GpuMesh3D {
+        let vertices: Vec<f32> = if vertices.is_empty() { vec![0.0; 8] } else { vertices.to_vec() };
+        let index_data: Vec<u32> = if indices.is_empty() { vec![0, 0, 0] } else { indices.to_vec() };
+        let vertex_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("an1mbyt3 3D vertices (deforming)"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+        let index_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("an1mbyt3 3D indices"),
+            contents: bytemuck::cast_slice(&index_data),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        GpuMesh3D { vertex_buffer, index_buffer, index_count: if indices.is_empty() { 0 } else { index_data.len() as u32 }, skin_buffer: None }
     }
 
     /// The 3D scene to draw (under the 2D layer) on following frames;
@@ -700,12 +868,45 @@ impl Renderer {
         }
         self.queue.write_buffer(&res.scene_buffer, 0, bytemuck::bytes_of(&uniforms));
 
+        // Each draw's joint palette offset (0 = unskinned).
+        let mut joint_slot: Vec<u32> = Vec::new();
         // Per-draw uniforms (grow the buffer if this frame has more).
         let count = scene.draws.len() as u64;
         {
+            // Joint palettes: one slot per distinct skeleton this frame.
+            let mut palettes: Vec<&Rc<Vec<Mat4>>> = Vec::new();
+            joint_slot.clear();
+            for d in &scene.draws {
+                let slot = d.joints.as_ref().map_or(0, |j| match palettes.iter().position(|p| Rc::ptr_eq(p, j)) {
+                    Some(i) => i,
+                    None => {
+                        palettes.push(j);
+                        palettes.len() - 1
+                    }
+                });
+                joint_slot.push((slot as u64 * JOINT_SLOT) as u32);
+            }
+            let mut joints = res.joints.borrow_mut();
             let mut draws = res.draws.borrow_mut();
+            let mut rebind = false;
+            if palettes.len() as u64 > joints.0 {
+                *joints = joint_buffer(&self.device, (palettes.len() as u64).next_power_of_two());
+                rebind = true;
+            }
+            if !palettes.is_empty() {
+                let mut bytes = vec![0u8; palettes.len() * JOINT_SLOT as usize];
+                for (i, p) in palettes.iter().enumerate() {
+                    for (k, m) in p.iter().take(MAX_JOINTS).enumerate() {
+                        let at = i * JOINT_SLOT as usize + k * 64;
+                        bytes[at..at + 64].copy_from_slice(bytemuck::cast_slice(&m.to_cols_array()));
+                    }
+                }
+                self.queue.write_buffer(&joints.1, 0, &bytes);
+            }
             if count > draws.0 {
-                *draws = draw_buffer(&self.device, &res.draw_layout, count.next_power_of_two());
+                *draws = draw_buffer(&self.device, &res.draw_layout, count.next_power_of_two(), &joints.1);
+            } else if rebind {
+                draws.2 = draw_bind_group(&self.device, &res.draw_layout, &draws.1, &joints.1);
             }
             let mut bytes = vec![0u8; (count * DRAW_STRIDE) as usize];
             for (i, d) in scene.draws.iter().enumerate() {
@@ -713,7 +914,7 @@ impl Renderer {
                     model: d.model.to_cols_array_2d(),
                     normal_matrix: d.model.inverse().transpose().to_cols_array_2d(),
                     color: d.color,
-                    params: [d.shininess, if d.unlit || d.overlay { 1.0 } else { 0.0 }, 0.0, 0.0],
+                    params: [d.shininess, if d.unlit || d.overlay { 1.0 } else { 0.0 }, d.outline, 0.0],
                 };
                 let at = i * DRAW_STRIDE as usize;
                 bytes[at..at + std::mem::size_of::<DrawUniforms3D>()].copy_from_slice(bytemuck::bytes_of(&u));
@@ -785,9 +986,15 @@ impl Renderer {
 
         let mut bound: *const wgpu::RenderPipeline = std::ptr::null();
         let draw_mesh = |pass: &mut wgpu::RenderPass, i: usize, d: &MeshDraw3D, bound: &mut *const wgpu::RenderPipeline| {
+            // Skinned on the GPU only with both a skeleton and the mesh's
+            // joint/weight buffer.
+            let skinned = d.joints.is_some() && d.mesh.skin_buffer.is_some();
+            let outline = skinned && d.outline > 0.0;
             let pipeline: &wgpu::RenderPipeline = match (&d.material, d.overlay) {
+                _ if outline => &res.outline_pipeline,
                 (_, true) => &res.overlay_pipeline,
-                (Some(m), false) => m.for_blend(d.blend),
+                (Some(m), false) => m.for_blend(d.blend, d.double_sided, skinned),
+                (None, false) if skinned => &res.skinned_pipeline,
                 (None, false) => match d.blend {
                     Blend3D::Opaque => &res.pipeline,
                     Blend3D::Transparent => &res.transparent_pipeline,
@@ -797,16 +1004,21 @@ impl Renderer {
             if !std::ptr::eq(*bound, pipeline) {
                 pass.set_pipeline(pipeline);
                 pass.set_bind_group(0, &res.scene_bind_group, &[]);
-                if d.material.is_some() && !d.overlay {
+                if d.material.is_some() && !d.overlay && !outline {
                     pass.set_bind_group(3, &materials.globals_bind_group, &[]);
                 }
                 *bound = pipeline;
             }
-            if d.material.is_some() && !d.overlay {
+            if d.material.is_some() && !d.overlay && !outline {
                 pass.set_bind_group(2, &d.texture.as_ref().unwrap_or(&materials.white).bind_group, &[]);
             }
-            pass.set_bind_group(1, &draws.2, &[(i as u64 * DRAW_STRIDE) as u32]);
+            pass.set_bind_group(1, &draws.2, &[(i as u64 * DRAW_STRIDE) as u32, joint_slot.get(i).copied().unwrap_or(0)]);
             pass.set_vertex_buffer(0, d.mesh.vertex_buffer.slice(..));
+            if skinned {
+                if let Some(skin) = &d.mesh.skin_buffer {
+                    pass.set_vertex_buffer(1, skin.slice(..));
+                }
+            }
             pass.set_index_buffer(d.mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..d.mesh.index_count, 0, 0..1);
         };

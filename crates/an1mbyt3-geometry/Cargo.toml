@@ -9,6 +9,8 @@ publish.workspace = true
 an1mbyt3-core = { path = "../an1mbyt3-core" }
 lyon = { workspace = true }
 glam = { workspace = true }
+# VRM extensions (`vrm.rs`) are read straight from the glTF JSON.
+serde_json = { workspace = true }
 # glTF / GLB model import (`model3d.rs`). No default features: no file-system
 # import or image decoding here (the editor resolves external files from
 # the document and decodes textures itself) — keeps it wasm-friendly.

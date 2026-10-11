@@ -1797,6 +1797,36 @@ struct GpuModel {
     data: an1mbyt3_geometry::ModelData,
     /// Per primitive: its mesh and base-colour texture.
     primitives: Vec<(std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>, Option<an1mbyt3_renderer::GpuImageTexture>)>,
+    /// The rest pose and each node's parent (spring bones need both).
+    rest: Vec<(glam::Vec3, glam::Quat, glam::Vec3)>,
+    parents: Vec<Option<usize>>,
+}
+
+/// One model node's runtime state (see `WasmEditor::model_instances`).
+#[derive(Default)]
+struct ModelInstance {
+    model: Option<an1mbyt3_core::ModelId>,
+    /// Script bone poses: node → a rotation on top of the animated local
+    /// rotation, and a translation added to it (hips root motion).
+    bones: HashMap<usize, glam::Quat>,
+    offsets: HashMap<usize, glam::Vec3>,
+    /// Expression name → weight 0..1.
+    expressions: HashMap<String, f32>,
+    springs: an1mbyt3_geometry::vrm::SpringSim,
+    /// Per primitive: this instance's own deformed mesh, when it needs one
+    /// (morphed expressions; CPU-morphed unskinned meshes).
+    meshes: Vec<Option<std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>>>,
+    /// Reused interleaved vertex buffer (morphed / deformed vertices).
+    scratch: Vec<f32>,
+    /// Per primitive: the morph weights its own mesh copy was last built
+    /// with (skinned + morphed primitives re-upload only on change).
+    morph_keys: Vec<Vec<f32>>,
+    /// Per primitive: its toon and outline materials, once compiled.
+    toon_materials: Vec<Option<(Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>, Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>)>>,
+    /// Last frame's model-space node matrices and the node's world matrix
+    /// (bone positions for scripts: hitboxes, effects, camera targets).
+    last_pose: Vec<glam::Mat4>,
+    last_world: glam::Mat4,
 }
 
 /// One model node's animation playback (base + overlay clips).
@@ -2359,6 +2389,12 @@ pub struct WasmEditor {
     /// The built-in material textured model meshes draw with (Sample
     /// Texture × Tint), compiled once.
     textured_material_3d: Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>,
+    /// Per model node: script poses (bone overrides, expressions), spring
+    /// bones and the deformed meshes of skinned / morphed models (VRM
+    /// avatars). Runtime only — reset on entering/leaving Playground.
+    model_instances: HashMap<NodeId, ModelInstance>,
+    /// Generated 3D material shaders (MToon toon / outline), by WGSL.
+    wgsl_materials_3d: HashMap<String, std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>,
     /// Block worlds' runtime blocks and their meshed regions, by the
     /// `Primitive3D::Voxels` node (scripts fill them; see `VoxelWorld`).
     voxel_worlds: HashMap<NodeId, VoxelWorld>,
@@ -2821,6 +2857,8 @@ impl WasmEditor {
             particles3d: Default::default(),
             flipbook_clocks: HashMap::new(),
             textured_material_3d: None,
+            model_instances: HashMap::new(),
+            wgsl_materials_3d: HashMap::new(),
             voxel_worlds: HashMap::new(),
             glass: HashMap::new(),
             voxel_atlas_gpu: None,
@@ -3029,8 +3067,10 @@ impl WasmEditor {
         self.state_machine_active = is_state_machine;
         self.animate_mode_active = is_animate;
         if is_playground != self.playground_active {
-            // Whole glass again, every run (and back in Design).
+            // Whole glass again, every run (and back in Design); models
+            // back in their authored pose.
             self.glass.clear();
+            self.model_instances.clear();
         }
         self.playground_active = is_playground;
         self.document_summary()
@@ -7361,6 +7401,8 @@ impl WasmEditor {
         }
         let asset = self.document.model(id)?;
         let data = an1mbyt3_geometry::parse_gltf(&asset.source, &|uri| asset.file(uri).map(|b| b.to_vec())).ok()?;
+        // Smooth for painted avatars (VRM); hard texels for low-poly palette models.
+        let filter = if data.vrm.is_some() { an1mbyt3_renderer::ImageFilterMode::Linear } else { an1mbyt3_renderer::ImageFilterMode::Nearest };
         let textures: Vec<Option<an1mbyt3_renderer::GpuImageTexture>> = data
             .images
             .iter()
@@ -7369,15 +7411,21 @@ impl WasmEditor {
                 let (rgba, w, h) = an1mbyt3_image::decode_any_to_rgba(bytes).ok()?;
                 // Nearest: low-poly models ship small palette textures.
                 // Repeat: glTF's default sampler wraps (atlas models rely on it).
-                Some(self.renderer.upload_texture_wrapped(w, h, &rgba, an1mbyt3_renderer::ImageFilterMode::Nearest, true))
+                Some(self.renderer.upload_texture_wrapped(w, h, &rgba, filter, true))
             })
             .collect();
         let primitives = data
             .primitives
             .iter()
-            .map(|p| (std::rc::Rc::new(self.renderer.upload_mesh_3d(&p.mesh)), p.image.and_then(|i| textures.get(i).cloned().flatten())))
+            .map(|p| {
+                // Skinned meshes carry their joints / weights to the GPU.
+                let gpu = if p.skin.is_some() { self.renderer.upload_mesh_3d_skinned(&p.mesh, &p.joints, &p.weights) } else { self.renderer.upload_mesh_3d(&p.mesh) };
+                (std::rc::Rc::new(gpu), p.image.and_then(|i| textures.get(i).cloned().flatten()))
+            })
             .collect();
-        let gpu = std::rc::Rc::new(GpuModel { data, primitives });
+        let rest = data.rest_pose();
+        let parents = data.parents();
+        let gpu = std::rc::Rc::new(GpuModel { data, primitives, rest, parents });
         self.model_gpu.insert(id, std::rc::Rc::clone(&gpu));
         Some(gpu)
     }
@@ -7431,20 +7479,263 @@ impl WasmEditor {
             let t = if i == 1 || mesh.animation_loop { t % duration } else { t.min(duration) };
             layers[i] = (Some(clip), t);
         }
-        let pose = model.data.pose_layers(&layers);
-        for (prim, (gpu_mesh, texture)) in model.data.primitives.iter().zip(&model.primitives) {
+        let data = &model.data;
+        let mut local = data.local_pose(&layers);
+        // Runtime state (taken out of the map so `self` stays free below).
+        let mut inst = self.model_instances.remove(&node_id).unwrap_or_default();
+        if inst.model != Some(model_id) {
+            inst = ModelInstance { model: Some(model_id), ..ModelInstance::default() };
+        }
+        // Script poses go on top of the animation.
+        for (&n, q) in &inst.bones {
+            if let Some(l) = local.get_mut(n) {
+                l.1 = (l.1 * *q).normalize();
+            }
+        }
+        for (&n, offset) in &inst.offsets {
+            if let Some(l) = local.get_mut(n) {
+                l.0 += *offset;
+            }
+        }
+        // Hair / skirts / ribbons swing (in world space, so moving the
+        // avatar moves them).
+        if let Some(vrm) = data.vrm.as_ref().filter(|v| !v.springs.is_empty()) {
+            inst.springs.step(vrm, &model.rest, &mut local, world, delta, &|l| data.world_pose(l), &model.parents);
+        }
+        let pose = data.world_pose(&local);
+        // Expressions → morph weights per glTF mesh.
+        let mut morphs: HashMap<usize, Vec<f32>> = HashMap::new();
+        if let Some(vrm) = &data.vrm {
+            for (name, &weight) in &inst.expressions {
+                let Some(e) = vrm.expression(name).map(|i| &vrm.expressions[i]) else { continue };
+                let weight = if e.is_binary { if weight > 0.5 { 1.0 } else { 0.0 } } else { weight.clamp(0.0, 1.0) };
+                for &(mesh_index, target, w) in &e.binds {
+                    let v = morphs.entry(mesh_index).or_default();
+                    if v.len() <= target {
+                        v.resize(target + 1, 0.0);
+                    }
+                    v[target] = (v[target] + w * weight).min(1.0);
+                }
+            }
+        }
+        inst.meshes.resize(data.primitives.len(), None);
+        inst.toon_materials.resize(data.primitives.len(), None);
+        inst.morph_keys.resize(data.primitives.len(), Vec::new());
+        // Skeletons: one joint palette each, skinned on the GPU.
+        let palettes: Vec<std::rc::Rc<Vec<glam::Mat4>>> = data.joint_palettes(&pose).into_iter().map(std::rc::Rc::new).collect();
+        let no_morphs = Vec::new();
+        for (i, (prim, (gpu_mesh, texture))) in data.primitives.iter().zip(&model.primitives).enumerate() {
             let c = prim.base_color;
             let color = [mesh.color[0] * c[0], mesh.color[1] * c[1], mesh.color[2] * c[2], mesh.color[3] * c[3]];
-            let local = pose.get(prim.node).copied().unwrap_or(glam::Mat4::IDENTITY);
+            let toon = data.vrm.as_ref().and_then(|v| prim.material.and_then(|m| v.toon.get(m).copied().flatten()));
+            // Skinned / morphed: deform on the CPU, rewrite the GPU mesh in
+            // place (the result is already in model space).
+            let weights = morphs.get(&prim.mesh_index).unwrap_or(&no_morphs);
+            let palette = prim.skin.and_then(|s| palettes.get(s)).cloned();
+            let (draw_mesh, model_matrix) = if palette.is_some() {
+                // Skinned on the GPU. Morphs (expressions) are applied to
+                // this instance's own copy of the mesh, only when they change.
+                let morphing = !prim.morph_positions.is_empty() && (weights.iter().any(|w| *w != 0.0) || inst.meshes[i].is_some());
+                if morphing && (inst.meshes[i].is_none() || inst.morph_keys[i] != *weights) {
+                    data.morph_primitive_interleaved(i, weights, &mut inst.scratch);
+                    let slot = &mut inst.meshes[i];
+                    if !slot.as_ref().is_some_and(|g| self.renderer.rewrite_mesh_3d_interleaved(g, &inst.scratch)) {
+                        let mut base = prim.mesh.clone();
+                        for (v, chunk) in inst.scratch.chunks_exact(8).enumerate() {
+                            base.positions[v] = [chunk[0], chunk[1], chunk[2]];
+                            base.normals[v] = [chunk[3], chunk[4], chunk[5]];
+                        }
+                        *slot = Some(std::rc::Rc::new(self.renderer.upload_mesh_3d_skinned(&base, &prim.joints, &prim.weights)));
+                    }
+                    inst.morph_keys[i] = weights.clone();
+                }
+                (inst.meshes[i].clone().unwrap_or_else(|| std::rc::Rc::clone(gpu_mesh)), world)
+            } else if data.deforms(i) {
+                // Morph-only (no skeleton): on the CPU.
+                data.skin_primitive_interleaved(i, &pose, weights, &mut inst.scratch);
+                let slot = &mut inst.meshes[i];
+                if !slot.as_ref().is_some_and(|g| self.renderer.rewrite_mesh_3d_interleaved(g, &inst.scratch)) {
+                    *slot = Some(std::rc::Rc::new(self.renderer.upload_mesh_3d_interleaved(&inst.scratch, &prim.mesh.indices)));
+                }
+                (std::rc::Rc::clone(slot.as_ref().expect("just set")), world)
+            } else {
+                (std::rc::Rc::clone(gpu_mesh), world * pose.get(prim.node).copied().unwrap_or(glam::Mat4::IDENTITY))
+            };
+            let blend = if prim.alpha == an1mbyt3_geometry::AlphaMode::Blend || color[3] < 0.999 { an1mbyt3_renderer::Blend3D::Transparent } else { an1mbyt3_renderer::Blend3D::Opaque };
+            if let Some(toon) = toon {
+                // MToon: our generated toon shader, drawn unlit (it lights itself).
+                let cutoff = match prim.alpha {
+                    an1mbyt3_geometry::AlphaMode::Mask(c) => Some(c),
+                    _ => None,
+                };
+                if inst.toon_materials[i].is_none() {
+                    let toon_m = self.wgsl_material_3d(an1mbyt3_geometry::vrm::toon_wgsl(&toon, cutoff));
+                    inst.toon_materials[i] = Some((toon_m, None));
+                }
+                let (toon_material, _) = inst.toon_materials[i].clone().expect("just set");
+                draws.push(an1mbyt3_renderer::MeshDraw3D {
+                    unlit: true,
+                    material: toon_material,
+                    texture: texture.clone(),
+                    blend,
+                    double_sided: prim.double_sided,
+                    joints: palette.clone(),
+                    ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(&draw_mesh), model_matrix, color)
+                });
+                // The ink line: the same skinned mesh pushed out along its
+                // normals in the vertex shader, front faces culled.
+                if toon.outline_width > 0.0 && palette.is_some() && blend == an1mbyt3_renderer::Blend3D::Opaque {
+                    let o = toon.outline;
+                    draws.push(an1mbyt3_renderer::MeshDraw3D {
+                        unlit: true,
+                        joints: palette.clone(),
+                        outline: toon.outline_width,
+                        ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(&draw_mesh), model_matrix, [o[0], o[1], o[2], 1.0])
+                    });
+                }
+                continue;
+            }
             let draw_material = material.clone().or_else(|| texture.as_ref().and(textured.clone()));
             draws.push(an1mbyt3_renderer::MeshDraw3D {
                 shininess: mesh.shininess,
                 unlit: mesh.unlit,
                 material: draw_material,
                 texture: texture.clone(),
-                ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(gpu_mesh), world * local, color)
+                blend,
+                double_sided: prim.double_sided,
+                joints: palette,
+                ..an1mbyt3_renderer::MeshDraw3D::new(draw_mesh, model_matrix, color)
             });
         }
+        inst.last_pose = pose;
+        inst.last_world = world;
+        self.model_instances.insert(node_id, inst);
+    }
+
+    /// A generated 3D material (MToon toon, outline), compiled once per
+    /// distinct WGSL.
+    fn wgsl_material_3d(&mut self, wgsl: String) -> Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>> {
+        if let Some(m) = self.wgsl_materials_3d.get(&wgsl) {
+            return Some(std::rc::Rc::clone(m));
+        }
+        let compiled = std::rc::Rc::new(self.renderer.compile_material_3d(&wgsl).ok()?);
+        self.wgsl_materials_3d.insert(wgsl, std::rc::Rc::clone(&compiled));
+        Some(compiled)
+    }
+
+    /// The imported model a 3D node shows (and the node), if it is one.
+    fn model_of(&mut self, artboard: JsValue, node: JsValue) -> Result<Option<(NodeId, std::rc::Rc<GpuModel>)>, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let model_id = match self.document.artboard(artboard_id).and_then(|a| a.node(node_id)).map(|n| &n.kind) {
+            Some(NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Mesh(an1mbyt3_core::Mesh3D { primitive: an1mbyt3_core::Primitive3D::Model { model }, .. }), .. })) => *model,
+            _ => return Ok(None),
+        };
+        Ok(self.gpu_model(model_id).map(|m| (node_id, m)))
+    }
+
+    /// A bone by humanoid name (VRM: `hips`, `leftUpperArm` …) or by the
+    /// model's own node name.
+    fn model_bone(model: &GpuModel, name: &str) -> Option<usize> {
+        model.data.vrm.as_ref().and_then(|v| v.bone(name)).or_else(|| model.data.nodes.iter().position(|n| n.name == name)).or_else(|| model.data.nodes.iter().position(|n| n.name.eq_ignore_ascii_case(name)))
+    }
+
+    /// Script API (`ref.setBone3`): turns a bone (humanoid name or node
+    /// name) by Euler degrees (Y-X-Z, in the bone's own space) on top of
+    /// its animated pose — `0, 0, 0` puts it back. Returns `false` for an
+    /// unknown bone.
+    #[allow(clippy::too_many_arguments)]
+    pub fn model_set_bone(&mut self, artboard: JsValue, node: JsValue, bone: String, x: f32, y: f32, z: f32) -> Result<bool, JsValue> {
+        let Some((node_id, model)) = self.model_of(artboard, node)? else { return Ok(false) };
+        let Some(index) = Self::model_bone(&model, &bone) else { return Ok(false) };
+        let inst = self.model_instances.entry(node_id).or_default();
+        if x == 0.0 && y == 0.0 && z == 0.0 {
+            inst.bones.remove(&index);
+        } else {
+            inst.bones.insert(index, glam::Quat::from_euler(glam::EulerRot::YXZ, y.to_radians(), x.to_radians(), z.to_radians()));
+        }
+        Ok(true)
+    }
+
+    /// Script API (`ref.setBoneOffset3`): moves a bone (usually `hips`, for
+    /// crouches, hops and lunges) by `x, y, z` in its parent's space.
+    #[allow(clippy::too_many_arguments)]
+    pub fn model_set_bone_offset(&mut self, artboard: JsValue, node: JsValue, bone: String, x: f32, y: f32, z: f32) -> Result<bool, JsValue> {
+        let Some((node_id, model)) = self.model_of(artboard, node)? else { return Ok(false) };
+        let Some(index) = Self::model_bone(&model, &bone) else { return Ok(false) };
+        let inst = self.model_instances.entry(node_id).or_default();
+        if x == 0.0 && y == 0.0 && z == 0.0 {
+            inst.offsets.remove(&index);
+        } else {
+            inst.offsets.insert(index, glam::Vec3::new(x, y, z));
+        }
+        Ok(true)
+    }
+
+    /// Script API (`ref.clearBones3()`): every scripted bone pose off.
+    pub fn model_clear_bones(&mut self, artboard: JsValue, node: JsValue) -> Result<(), JsValue> {
+        if let Some((node_id, _)) = self.model_of(artboard, node)? {
+            let inst = self.model_instances.entry(node_id).or_default();
+            inst.bones.clear();
+            inst.offsets.clear();
+        }
+        Ok(())
+    }
+
+    /// Script API (`ref.setExpression3`): a VRM expression's weight (0..1)
+    /// — `happy`, `angry`, `sad`, `surprised`, `blink`, mouth shapes
+    /// `aa`/`ih`/`ou`/`ee`/`oh` …
+    pub fn model_set_expression(&mut self, artboard: JsValue, node: JsValue, name: String, weight: f32) -> Result<bool, JsValue> {
+        let Some((node_id, model)) = self.model_of(artboard, node)? else { return Ok(false) };
+        let known = model.data.vrm.as_ref().is_some_and(|v| v.expression(&name).is_some());
+        let inst = self.model_instances.entry(node_id).or_default();
+        if weight <= 0.0 {
+            inst.expressions.remove(&name);
+        } else {
+            inst.expressions.insert(name, weight);
+        }
+        Ok(known)
+    }
+
+    /// Script API (`ref.bone3(name)`): a bone's world position last frame,
+    /// `[x, y, z]`, or null.
+    pub fn model_bone_position(&mut self, artboard: JsValue, node: JsValue, bone: String) -> Result<JsValue, JsValue> {
+        let Some((node_id, model)) = self.model_of(artboard, node)? else { return Ok(JsValue::NULL) };
+        let Some(index) = Self::model_bone(&model, &bone) else { return Ok(JsValue::NULL) };
+        let Some(inst) = self.model_instances.get(&node_id) else { return Ok(JsValue::NULL) };
+        let Some(m) = inst.last_pose.get(index) else { return Ok(JsValue::NULL) };
+        let p = (inst.last_world * *m).transform_point3(glam::Vec3::ZERO);
+        to_js_value(&[p.x, p.y, p.z])
+    }
+
+    /// Script API (`ref.modelInfo3`): `{ vrm, version, name, forwardZ,
+    /// bones, expressions, clips }` — what a model offers to script.
+    pub fn model_info(&mut self, artboard: JsValue, node: JsValue) -> Result<JsValue, JsValue> {
+        let Some((_, model)) = self.model_of(artboard, node)? else { return Ok(JsValue::NULL) };
+        let data = &model.data;
+        let mut bones: Vec<String> = match &data.vrm {
+            Some(v) => v.humanoid.keys().cloned().collect(),
+            None => data.nodes.iter().map(|n| n.name.clone()).filter(|n| !n.is_empty()).collect(),
+        };
+        bones.sort();
+        to_js_value(&crate::dto::ModelInfoDto {
+            vrm: data.vrm.is_some(),
+            version: data.vrm.as_ref().map_or(0, |v| v.version),
+            name: data.vrm.as_ref().map_or_else(String::new, |v| v.name.clone()),
+            forward_z: data.vrm.as_ref().map_or(1.0, |v| v.forward_z),
+            bones,
+            expressions: data.vrm.as_ref().map(|v| v.expressions.iter().map(|e| e.name.clone()).collect()).unwrap_or_default(),
+            clips: data.animations.iter().map(|c| c.name.clone()).collect(),
+        })
+    }
+
+    /// Script API (`ref.resetSprings3()`): hair and cloth settle from the
+    /// current pose (after a teleport, a scene cut).
+    pub fn model_reset_springs(&mut self, artboard: JsValue, node: JsValue) -> Result<(), JsValue> {
+        if let Some((node_id, _)) = self.model_of(artboard, node)? {
+            self.model_instances.entry(node_id).or_default().springs.reset();
+        }
+        Ok(())
     }
 
     /// File → Import → 3D Model: adds a glTF / GLB model (plus the files it

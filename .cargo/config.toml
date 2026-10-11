@@ -1,0 +1,6 @@
+# WebAssembly SIMD (128-bit) for the browser / WebView build: glam's vector
+# and matrix maths (skinning characters, particles, physics) compiles to
+# SIMD instructions instead of scalar code. Supported by every current
+# browser engine (Chromium 91+, Firefox 89+, Safari 16.4+) and WebView2.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

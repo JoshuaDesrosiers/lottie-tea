@@ -813,6 +813,19 @@ impl From<TrailDto> for an1mbyt3_core::TrailNode {
 }
 
 /// `WasmEditor::physics_raycast`'s hit.
+/// `model_info`'s result.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInfoDto {
+    pub vrm: bool,
+    pub version: u8,
+    pub name: String,
+    pub forward_z: f32,
+    pub bones: Vec<String>,
+    pub expressions: Vec<String>,
+    pub clips: Vec<String>,
+}
+
 /// `adaptive_resolution`'s result.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]

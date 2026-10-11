@@ -171,6 +171,16 @@ export interface ScriptContext {
     wind(node: OpaqueId, wind: [number, number] | null): void
     reset(node: OpaqueId): void
   }
+  /** Imported models / VRM avatars — see `ref.setBone3` etc. */
+  model3: {
+    setBone(node: OpaqueId, bone: string, x: number, y: number, z: number): boolean
+    setBoneOffset(node: OpaqueId, bone: string, x: number, y: number, z: number): boolean
+    clearBones(node: OpaqueId): void
+    setExpression(node: OpaqueId, name: string, weight: number): boolean
+    bonePosition(node: OpaqueId, bone: string): [number, number, number] | null
+    info(node: OpaqueId): ModelInfo3 | null
+    resetSprings(node: OpaqueId): void
+  }
   /** Breakable glass — see `ref.shatter3` / `ctx.glassRaycast3`. */
   glass: {
     shatter(node: OpaqueId, point: [number, number, number], velocity: [number, number, number], radius: number, floor: number): { broken: number; loose: number }
@@ -362,6 +372,23 @@ export interface PhysicsHost {
   events: readonly ContactEvent[]
 }
 
+/** `ref.modelInfo3`: what an imported model / VRM avatar offers scripts. */
+export interface ModelInfo3 {
+  /** A VRM avatar (humanoid bones, expressions, spring bones, MToon). */
+  vrm: boolean
+  /** VRM 0 or 1. */
+  version: number
+  name: string
+  /** +1 if it faces +Z (VRM 1.0), −1 for −Z (VRM 0.x). */
+  forwardZ: number
+  /** Humanoid bone names (VRM) or node names. */
+  bones: string[]
+  /** Expression names (`happy`, `aa`, `blink` …). */
+  expressions: string[]
+  /** Animation clips in the file. */
+  clips: string[]
+}
+
 /** `ctx.raycast3`'s hit — Unity's `RaycastHit`. */
 export interface RaycastHit3 {
   ref: ComponentRef | null
@@ -525,6 +552,31 @@ export interface ComponentRef {
   crack3(point: Vec3Like, options?: { radius?: number; amount?: number }): number
   /** **Breakable glass**: every piece back in place. */
   resetGlass(): void
+  /** **Models / VRM avatars**: turn a bone by Euler degrees (`{x, y, z}`,
+   * applied Y-X-Z in the bone's own space) on top of its animation — a
+   * humanoid name (`hips`, `spine`, `chest`, `neck`, `head`,
+   * `leftUpperArm`, `leftLowerArm`, `leftHand`, `leftUpperLeg`,
+   * `leftLowerLeg`, `leftFoot`, and `right…`) or a node name. `{0,0,0}`
+   * puts it back. Returns `false` for an unknown bone. Set every frame
+   * you're animating. */
+  setBone3(bone: string, rotation: Vec3Like): boolean
+  /** **Models / VRM avatars**: move a bone (usually `hips`: crouch, hop,
+   * lunge) by `{x, y, z}` metres in its parent's space. */
+  setBoneOffset3(bone: string, offset: Vec3Like): boolean
+  /** **Models / VRM avatars**: every scripted bone pose off. */
+  clearBones3(): void
+  /** **VRM avatars**: an expression's weight 0..1 — `happy`, `angry`,
+   * `sad`, `relaxed`, `surprised`, `blink`, `blinkLeft`/`Right`, mouth
+   * shapes `aa` `ih` `ou` `ee` `oh`, `lookUp`… (see `modelInfo3`). */
+  setExpression3(name: string, weight: number): boolean
+  /** **Models / VRM avatars**: a bone's world position (last frame) —
+   * hitboxes, effects, camera targets. `null` if unknown. */
+  bone3(bone: string): { x: number; y: number; z: number } | null
+  /** **Models / VRM avatars**: hair / cloth settle from the current pose. */
+  resetSprings3(): void
+  /** **Models / VRM avatars**: what this model offers (bones,
+   * expressions, clips, VRM version, which way it faces). */
+  readonly modelInfo3: ModelInfo3 | null
   /** **Breakable glass**: how much is still standing, 0..1 (by area). */
   readonly glassIntact: number
   /** **Cloth 2D**: take hold of the cloth's free point nearest world
@@ -939,6 +991,43 @@ function makeComponentRefFromState(
     resetGlass: {
       enumerable: false,
       value: () => ctx.glass.reset(node.id),
+    },
+    setBone3: {
+      enumerable: false,
+      value: (bone: string, rotation: Vec3Like) => {
+        const [x, y, z] = vec3Of(rotation)
+        return ctx.model3.setBone(node.id, bone, x, y, z)
+      },
+    },
+    setBoneOffset3: {
+      enumerable: false,
+      value: (bone: string, offset: Vec3Like) => {
+        const [x, y, z] = vec3Of(offset)
+        return ctx.model3.setBoneOffset(node.id, bone, x, y, z)
+      },
+    },
+    clearBones3: {
+      enumerable: false,
+      value: () => ctx.model3.clearBones(node.id),
+    },
+    setExpression3: {
+      enumerable: false,
+      value: (name: string, weight: number) => ctx.model3.setExpression(node.id, name, weight),
+    },
+    bone3: {
+      enumerable: false,
+      value: (bone: string) => {
+        const p = ctx.model3.bonePosition(node.id, bone)
+        return p ? { x: p[0], y: p[1], z: p[2] } : null
+      },
+    },
+    resetSprings3: {
+      enumerable: false,
+      value: () => ctx.model3.resetSprings(node.id),
+    },
+    modelInfo3: {
+      enumerable: false,
+      get: () => ctx.model3.info(node.id),
     },
     crack3: {
       enumerable: false,

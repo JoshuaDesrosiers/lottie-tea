@@ -75,7 +75,7 @@ import {
   setStateMachineNumberInput,
 } from '../ipc/wasmEditor'
 import type { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm'
-import { runScript } from '../scriptRuntime'
+import { runScript, type ModelInfo3 } from '../scriptRuntime'
 
 /** Keyboard names scripts and Blocks see: `" "` -> `"space"`, arrows ->
  * `"up"`/`"down"`/`"left"`/`"right"`, everything else lowercased. */
@@ -482,6 +482,15 @@ export class ScriptHost {
           reset: (node) => flushed(() => editor.cloth_reset(node)),
         },
         unloadVoxelChunk: (node, cx, cz) => flushed(() => unloadVoxelChunk(editor, artboardId, node, cx, cz)),
+        model3: {
+          setBone: (node, bone, x, y, z) => flushed(() => editor.model_set_bone(artboardId, node, bone, x, y, z)),
+          setBoneOffset: (node, bone, x, y, z) => flushed(() => editor.model_set_bone_offset(artboardId, node, bone, x, y, z)),
+          clearBones: (node) => flushed(() => editor.model_clear_bones(artboardId, node)),
+          setExpression: (node, name, weight) => flushed(() => editor.model_set_expression(artboardId, node, name, weight)),
+          bonePosition: (node, bone) => flushed(() => editor.model_bone_position(artboardId, node, bone) as [number, number, number] | null),
+          info: (node) => flushed(() => editor.model_info(artboardId, node) as ModelInfo3 | null),
+          resetSprings: (node) => flushed(() => editor.model_reset_springs(artboardId, node)),
+        },
         glass: {
           shatter: (node, point, velocity, radius, floor) => flushed(() => glassShatter(editor, artboardId, node, point, velocity, radius, floor)),
           raycast: (o, d, maxDistance) => flushed(() => glassRaycast(editor, artboardId, o, d, maxDistance)),

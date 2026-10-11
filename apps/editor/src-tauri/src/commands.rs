@@ -63,7 +63,7 @@ pub async fn pick_open_audio_path(app: tauri::AppHandle) -> Option<String> {
 /// the textures / buffers it references from beside it.)
 #[tauri::command]
 pub async fn pick_open_model_path(app: tauri::AppHandle) -> Option<String> {
-    app.dialog().file().add_filter("3D models (glTF)", &["glb", "gltf"]).blocking_pick_file().map(|path| path.to_string())
+    app.dialog().file().add_filter("3D models (glTF, VRM)", &["glb", "gltf", "vrm"]).blocking_pick_file().map(|path| path.to_string())
 }
 
 /// Same "dedicated filter, not a generalized picker" reasoning as

@@ -752,10 +752,43 @@ var g = class e {
 		if (t[2]) throw U(t[1]);
 		return U(t[0]);
 	}
+	model_bone_position(e, t, n) {
+		let r = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), i = W, a = G.wasmeditor_model_bone_position(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw U(a[1]);
+		return U(a[0]);
+	}
+	model_clear_bones(e, t) {
+		let n = G.wasmeditor_model_clear_bones(this.__wbg_ptr, e, t);
+		if (n[1]) throw U(n[0]);
+	}
 	model_clips(e) {
 		let t = G.wasmeditor_model_clips(this.__wbg_ptr, e);
 		if (t[2]) throw U(t[1]);
 		return U(t[0]);
+	}
+	model_info(e, t) {
+		let n = G.wasmeditor_model_info(this.__wbg_ptr, e, t);
+		if (n[2]) throw U(n[1]);
+		return U(n[0]);
+	}
+	model_reset_springs(e, t) {
+		let n = G.wasmeditor_model_reset_springs(this.__wbg_ptr, e, t);
+		if (n[1]) throw U(n[0]);
+	}
+	model_set_bone(e, t, n, r, i, a) {
+		let o = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), s = W, c = G.wasmeditor_model_set_bone(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw U(c[1]);
+		return c[0] !== 0;
+	}
+	model_set_bone_offset(e, t, n, r, i, a) {
+		let o = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), s = W, c = G.wasmeditor_model_set_bone_offset(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw U(c[1]);
+		return c[0] !== 0;
+	}
+	model_set_expression(e, t, n, r) {
+		let i = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W, o = G.wasmeditor_model_set_expression(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw U(o[1]);
+		return o[0] !== 0;
 	}
 	move_node_forward(e, t) {
 		let n = G.wasmeditor_move_node_forward(this.__wbg_ptr, e, t);
@@ -3720,7 +3753,7 @@ function v() {
 	};
 }
 function y(e, t, n) {
-	G.wasm_bindgen__convert__closures_____invoke__h36fbaf31d1926eb4(e, t, n);
+	G.wasm_bindgen__convert__closures_____invoke__h42ca6ee2155cb4f8(e, t, n);
 }
 function b(e, t, n) {
 	let r = G.wasm_bindgen__convert__closures_____invoke__h8a34eac7d22ddaa9(e, t, n);
@@ -5632,6 +5665,47 @@ function or(e, t, n, r, i, a) {
 			enumerable: !1,
 			value: () => a.glass.reset(s.id)
 		},
+		setBone3: {
+			enumerable: !1,
+			value: (e, t) => {
+				let [n, r, i] = Q(t);
+				return a.model3.setBone(s.id, e, n, r, i);
+			}
+		},
+		setBoneOffset3: {
+			enumerable: !1,
+			value: (e, t) => {
+				let [n, r, i] = Q(t);
+				return a.model3.setBoneOffset(s.id, e, n, r, i);
+			}
+		},
+		clearBones3: {
+			enumerable: !1,
+			value: () => a.model3.clearBones(s.id)
+		},
+		setExpression3: {
+			enumerable: !1,
+			value: (e, t) => a.model3.setExpression(s.id, e, t)
+		},
+		bone3: {
+			enumerable: !1,
+			value: (e) => {
+				let t = a.model3.bonePosition(s.id, e);
+				return t ? {
+					x: t[0],
+					y: t[1],
+					z: t[2]
+				} : null;
+			}
+		},
+		resetSprings3: {
+			enumerable: !1,
+			value: () => a.model3.resetSprings(s.id)
+		},
+		modelInfo3: {
+			enumerable: !1,
+			get: () => a.model3.info(s.id)
+		},
 		crack3: {
 			enumerable: !1,
 			value: (e, t = {}) => a.glass.crack(s.id, Q(e), t.radius ?? .35, t.amount ?? .5)
@@ -6276,6 +6350,15 @@ var Mr = class {
 					reset: (e) => f(() => n.cloth_reset(e))
 				},
 				unloadVoxelChunk: (e, t, r) => f(() => Ut(n, s, e, t, r)),
+				model3: {
+					setBone: (e, t, r, i, a) => f(() => n.model_set_bone(s, e, t, r, i, a)),
+					setBoneOffset: (e, t, r, i, a) => f(() => n.model_set_bone_offset(s, e, t, r, i, a)),
+					clearBones: (e) => f(() => n.model_clear_bones(s, e)),
+					setExpression: (e, t, r) => f(() => n.model_set_expression(s, e, t, r)),
+					bonePosition: (e, t) => f(() => n.model_bone_position(s, e, t)),
+					info: (e) => f(() => n.model_info(s, e)),
+					resetSprings: (e) => f(() => n.model_reset_springs(s, e))
+				},
 				glass: {
 					shatter: (e, t, r, i, a) => f(() => yt(n, s, e, t, r, i, a)),
 					raycast: (e, t, r) => f(() => bt(n, s, e, t, r)),

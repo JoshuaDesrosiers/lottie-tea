@@ -44,6 +44,16 @@ struct Draw {
 @group(1) @binding(0)
 var<uniform> uniforms: Draw;
 
+// Skinned meshes: this draw's skeleton — each joint's `world × inverse
+// bind` matrix in model space (a dynamic-offset slot per skeleton; unused
+// by unskinned draws). Uniform, not storage, so WebGL2 runs it too.
+const MAX_JOINTS: u32 = 256u;
+struct Joints {
+    m: array<mat4x4<f32>, 256>,
+};
+@group(1) @binding(1)
+var<uniform> joints: Joints;
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
@@ -79,6 +89,71 @@ fn vs_main(in: VertexInput) -> VertexOutput {
         out.local_position = world.xy;
     }
     return out;
+}
+
+// ---- skinned meshes (characters): skinned on the GPU ----
+
+struct SkinnedInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    // Up to four joints (indices into `joints`) and their weights.
+    @location(3) joint_ids: vec4<u32>,
+    @location(4) weights: vec4<f32>,
+};
+
+fn skin_matrix(j: vec4<u32>, w: vec4<f32>) -> mat4x4<f32> {
+    let total = max(w.x + w.y + w.z + w.w, 0.0001);
+    let m = joints.m[min(j.x, MAX_JOINTS - 1u)] * w.x
+        + joints.m[min(j.y, MAX_JOINTS - 1u)] * w.y
+        + joints.m[min(j.z, MAX_JOINTS - 1u)] * w.z
+        + joints.m[min(j.w, MAX_JOINTS - 1u)] * w.w;
+    return m * (1.0 / total);
+}
+
+fn finish_vertex(model_pos: vec4<f32>, model_normal: vec3<f32>, uv: vec2<f32>) -> VertexOutput {
+    var out: VertexOutput;
+    let world = uniforms.model * model_pos;
+    out.world = world.xyz;
+    out.clip = scene.view_proj * world;
+    out.normal = (uniforms.normal_matrix * vec4<f32>(model_normal, 0.0)).xyz;
+    out.uv = uv;
+    let n = abs(out.normal);
+    if n.y >= n.x && n.y >= n.z {
+        out.local_position = world.xz;
+    } else if n.x >= n.z {
+        out.local_position = world.zy;
+    } else {
+        out.local_position = world.xy;
+    }
+    return out;
+}
+
+@vertex
+fn vs_skinned(in: SkinnedInput) -> VertexOutput {
+    let s = skin_matrix(in.joint_ids, in.weights);
+    return finish_vertex(s * vec4<f32>(in.position, 1.0), (s * vec4<f32>(in.normal, 0.0)).xyz, in.uv);
+}
+
+// Toon outlines (inverted hull): the skinned mesh pushed out along its
+// normals by `uniforms.params.z` (model units); drawn with front faces
+// culled, so only a rim round the silhouette shows.
+@vertex
+fn vs_skinned_outline(in: SkinnedInput) -> VertexOutput {
+    let s = skin_matrix(in.joint_ids, in.weights);
+    let n = normalize((s * vec4<f32>(in.normal, 0.0)).xyz);
+    let p = s * vec4<f32>(in.position, 1.0) + vec4<f32>(n * uniforms.params.z, 0.0);
+    return finish_vertex(p, n, in.uv);
+}
+
+@fragment
+fn fs_outline(in: VertexOutput) -> @location(0) vec4<f32> {
+    var rgb = uniforms.color.rgb;
+    if scene.fog.a > 0.0 {
+        let d = length(scene.camera_pos.xyz - in.world) * scene.fog.a;
+        rgb = mix(scene.fog.rgb, rgb, clamp(exp(-d * d), 0.0, 1.0));
+    }
+    return vec4<f32>(rgb, 1.0);
 }
 
 @fragment
