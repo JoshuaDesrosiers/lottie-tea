@@ -771,6 +771,17 @@ var g = class e {
 		if (n[2]) throw U(n[1]);
 		return U(n[0]);
 	}
+	model_pose(e, t) {
+		let n, r;
+		try {
+			let o = G.wasmeditor_model_pose(this.__wbg_ptr, e, t);
+			var i = o[0], a = o[1];
+			if (o[3]) throw i = 0, a = 0, U(o[2]);
+			return n = i, r = a, I(i, a);
+		} finally {
+			G.__wbindgen_free(n, r, 1);
+		}
+	}
 	model_reset_springs(e, t) {
 		let n = G.wasmeditor_model_reset_springs(this.__wbg_ptr, e, t);
 		if (n[1]) throw U(n[0]);
@@ -787,6 +798,11 @@ var g = class e {
 	}
 	model_set_expression(e, t, n, r) {
 		let i = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W, o = G.wasmeditor_model_set_expression(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw U(o[1]);
+		return o[0] !== 0;
+	}
+	model_set_pose(e, t, n, r) {
+		let i = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W, o = G.wasmeditor_model_set_pose(this.__wbg_ptr, e, t, i, a, r);
 		if (o[2]) throw U(o[1]);
 		return o[0] !== 0;
 	}
@@ -1544,6 +1560,11 @@ var g = class e {
 		if (u[2]) throw U(u[1]);
 		return U(u[0]);
 	}
+	view3d_align_camera(e, t) {
+		let n = G.wasmeditor_view3d_align_camera(this.__wbg_ptr, e, t);
+		if (n[2]) throw U(n[1]);
+		return U(n[0]);
+	}
 	view3d_drag(e, t, n, r, i, a) {
 		let o = Ye(t, G.__wbindgen_malloc), s = W, c = G.wasmeditor_view3d_drag(this.__wbg_ptr, e, o, s, n, r, i, a);
 		var l = k(c[0], c[1]).slice();
@@ -1556,6 +1577,11 @@ var g = class e {
 	view3d_hover(e, t, n, r) {
 		let i = G.wasmeditor_view3d_hover(this.__wbg_ptr, e, t, n, r);
 		if (i[1]) throw U(i[0]);
+	}
+	view3d_look_through(e, t) {
+		let n = G.wasmeditor_view3d_look_through(this.__wbg_ptr, e, t);
+		if (n[2]) throw U(n[1]);
+		return n[0] !== 0;
 	}
 	view3d_orbit(e, t) {
 		G.wasmeditor_view3d_orbit(this.__wbg_ptr, e, t);
@@ -5702,6 +5728,14 @@ function or(e, t, n, r, i, a) {
 			enumerable: !1,
 			value: () => a.model3.resetSprings(s.id)
 		},
+		setPose3: {
+			enumerable: !1,
+			value: (e, t = {}) => a.model3.setPose(s.id, String(e ?? ""), t.blend ?? -1)
+		},
+		pose3: {
+			enumerable: !1,
+			get: () => a.model3.pose(s.id)
+		},
 		modelInfo3: {
 			enumerable: !1,
 			get: () => a.model3.info(s.id)
@@ -6357,7 +6391,9 @@ var Mr = class {
 					setExpression: (e, t, r) => f(() => n.model_set_expression(s, e, t, r)),
 					bonePosition: (e, t) => f(() => n.model_bone_position(s, e, t)),
 					info: (e) => f(() => n.model_info(s, e)),
-					resetSprings: (e) => f(() => n.model_reset_springs(s, e))
+					resetSprings: (e) => f(() => n.model_reset_springs(s, e)),
+					setPose: (e, t, r) => f(() => n.model_set_pose(s, e, t, r)),
+					pose: (e) => f(() => n.model_pose(s, e))
 				},
 				glass: {
 					shatter: (e, t, r, i, a) => f(() => yt(n, s, e, t, r, i, a)),

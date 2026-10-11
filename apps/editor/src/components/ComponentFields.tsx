@@ -1468,6 +1468,7 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   ParticleFluid2D: 'Particle Fluid 2D (goo)',
   Goo2D: 'Goo 2D (liquid group)',
   Antialias2D: 'Antialias (smooth liquid edges)',
+  VrmPoses: 'VRM Poses (states)',
   ParticleBehaviors2D: 'Particle Behaviours 2D',
   PropertyBindings: 'Property Binding',
   UiSlider: 'UI Slider',
@@ -1476,7 +1477,7 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings', 'ParticleSystem3D', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings', 'ParticleSystem3D', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D', 'VrmPoses']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D'] },
@@ -1486,7 +1487,7 @@ const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Effects 3D', kinds: ['ParticleSystem3D'] },
   { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
   { title: 'Audio', kinds: ['AudioSource'] },
-  { title: 'Animation', kinds: ['Flipbook'] },
+  { title: 'Animation', kinds: ['Flipbook', 'VrmPoses'] },
   { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiHtml'] },
   { title: 'Layout', kinds: ['UiLayout', 'UiLayoutItem', 'UiShowWhen'] },
   { title: 'Events & Data', kinds: ['UiEvents', 'PropertyBindings'] },

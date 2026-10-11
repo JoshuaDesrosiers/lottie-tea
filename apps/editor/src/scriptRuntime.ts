@@ -180,6 +180,8 @@ export interface ScriptContext {
     bonePosition(node: OpaqueId, bone: string): [number, number, number] | null
     info(node: OpaqueId): ModelInfo3 | null
     resetSprings(node: OpaqueId): void
+    setPose(node: OpaqueId, name: string, blend: number): boolean
+    pose(node: OpaqueId): string
   }
   /** Breakable glass — see `ref.shatter3` / `ctx.glassRaycast3`. */
   glass: {
@@ -574,6 +576,13 @@ export interface ComponentRef {
   bone3(bone: string): { x: number; y: number; z: number } | null
   /** **Models / VRM avatars**: hair / cloth settle from the current pose. */
   resetSprings3(): void
+  /** **VRM Poses**: crossfade to one of this avatar's poses (its VRM Poses
+   * component — Guard, Punch, Kick …) over the component's blend time, or
+   * `{ blend: seconds }`. `''` goes back to the component's selected pose.
+   * `false` if there's no such pose. */
+  setPose3(name: string, options?: { blend?: number }): boolean
+  /** **VRM Poses**: the pose this avatar is showing (or blending to). */
+  readonly pose3: string
   /** **Models / VRM avatars**: what this model offers (bones,
    * expressions, clips, VRM version, which way it faces). */
   readonly modelInfo3: ModelInfo3 | null
@@ -1024,6 +1033,14 @@ function makeComponentRefFromState(
     resetSprings3: {
       enumerable: false,
       value: () => ctx.model3.resetSprings(node.id),
+    },
+    setPose3: {
+      enumerable: false,
+      value: (name: string, options: { blend?: number } = {}) => ctx.model3.setPose(node.id, String(name ?? ''), options.blend ?? -1),
+    },
+    pose3: {
+      enumerable: false,
+      get: () => ctx.model3.pose(node.id),
     },
     modelInfo3: {
       enumerable: false,

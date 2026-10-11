@@ -128,6 +128,9 @@ pub enum NodeBehavior {
     /// Opt-in smooth edges for the node's liquid — see
     /// [`crate::Antialias2D`]. (Appended last.)
     Antialias2D(crate::Antialias2D),
+    /// Named poses ("states") for a VRM / model avatar — see
+    /// [`crate::VrmPoses`]. (Appended last.)
+    VrmPoses(crate::VrmPoses),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

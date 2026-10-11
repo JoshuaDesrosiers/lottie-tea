@@ -2184,6 +2184,7 @@ pub enum NodeBehaviorDto {
     ParticleBehaviors2D(an1mbyt3_core::ParticleBehaviors2D),
     Goo2D(Goo2DDto),
     Antialias2D(an1mbyt3_core::Antialias2D),
+    VrmPoses(an1mbyt3_core::VrmPoses),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2232,6 +2233,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::ParticleBehaviors2D(p) => NodeBehaviorDto::ParticleBehaviors2D(p.clone()),
             an1mbyt3_core::NodeBehavior::Goo2D(g) => NodeBehaviorDto::Goo2D(g.into()),
             an1mbyt3_core::NodeBehavior::Antialias2D(a) => NodeBehaviorDto::Antialias2D(*a),
+            an1mbyt3_core::NodeBehavior::VrmPoses(p) => NodeBehaviorDto::VrmPoses(p.clone()),
         }
     }
 }
@@ -2282,6 +2284,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::ParticleBehaviors2D(p) => an1mbyt3_core::NodeBehavior::ParticleBehaviors2D(p),
             NodeBehaviorDto::Goo2D(g) => an1mbyt3_core::NodeBehavior::Goo2D(g.into()),
             NodeBehaviorDto::Antialias2D(a) => an1mbyt3_core::NodeBehavior::Antialias2D(a),
+            NodeBehaviorDto::VrmPoses(p) => an1mbyt3_core::NodeBehavior::VrmPoses(p),
         }
     }
 }

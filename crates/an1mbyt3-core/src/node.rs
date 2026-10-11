@@ -271,6 +271,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled VRM Poses (avatar states), if any.
+    pub fn vrm_poses(&self) -> Option<&crate::VrmPoses> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::VrmPoses(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Antialias 2D (smooth liquid edges), if any.
     pub fn antialias(&self) -> Option<&crate::Antialias2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

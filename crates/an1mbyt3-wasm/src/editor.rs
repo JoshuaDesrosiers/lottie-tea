@@ -1812,6 +1812,13 @@ struct ModelInstance {
     offsets: HashMap<usize, glam::Vec3>,
     /// Expression name → weight 0..1.
     expressions: HashMap<String, f32>,
+    /// VRM Poses: the pose a script switched to (`ref.setPose3`; `None` =
+    /// the component's active one) and its crossfade seconds, and the
+    /// blended pose right now (bone → rotation, offset; expressions).
+    pose_override: Option<String>,
+    pose_blend: Option<f32>,
+    pose_bones: HashMap<usize, (glam::Quat, glam::Vec3)>,
+    pose_expressions: HashMap<String, f32>,
     springs: an1mbyt3_geometry::vrm::SpringSim,
     /// Per primitive: this instance's own deformed mesh, when it needs one
     /// (morphed expressions; CPU-morphed unskinned meshes).
@@ -6849,6 +6856,7 @@ impl WasmEditor {
             "ParticleBehaviors2D" => B::ParticleBehaviors2D(an1mbyt3_core::ParticleBehaviors2D::default()),
             "Goo2D" => B::Goo2D(an1mbyt3_core::Goo2D::default()),
             "Antialias2D" => B::Antialias2D(an1mbyt3_core::Antialias2D::default()),
+            "VrmPoses" => B::VrmPoses(an1mbyt3_core::VrmPoses::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -7455,6 +7463,7 @@ impl WasmEditor {
         mesh: &an1mbyt3_core::Mesh3D,
         material: Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>,
         delta: f32,
+        poses: Option<&an1mbyt3_core::VrmPoses>,
         draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>,
     ) {
         let Some(model) = self.gpu_model(model_id) else { return };
@@ -7486,6 +7495,56 @@ impl WasmEditor {
         if inst.model != Some(model_id) {
             inst = ModelInstance { model: Some(model_id), ..ModelInstance::default() };
         }
+        // VRM Poses: blend toward the current pose (instantly in Design, so
+        // editing shows straight away; crossfaded in Playground).
+        if let Some(poses) = poses {
+            let name = inst.pose_override.clone().unwrap_or_else(|| poses.active.clone());
+            let mut target_bones: HashMap<usize, (glam::Quat, glam::Vec3)> = HashMap::new();
+            let mut target_expressions: HashMap<String, f32> = HashMap::new();
+            if let Some(pose) = poses.pose(&name) {
+                for b in &pose.bones {
+                    let Some(index) = Self::model_bone(&model, &b.bone) else { continue };
+                    let r = b.rotation;
+                    target_bones.insert(index, (glam::Quat::from_euler(glam::EulerRot::YXZ, r[1].to_radians(), r[0].to_radians(), r[2].to_radians()), glam::Vec3::from(b.offset)));
+                }
+                for e in &pose.expressions {
+                    target_expressions.insert(e.name.clone(), e.weight);
+                }
+            }
+            let blend = inst.pose_blend.unwrap_or(poses.blend);
+            let k = if self.playground_active && blend > 0.0 { 1.0 - (-delta * 4.0 / blend).exp() } else { 1.0 };
+            let keys: std::collections::HashSet<usize> = inst.pose_bones.keys().chain(target_bones.keys()).copied().collect();
+            for key in keys {
+                let (cq, co) = inst.pose_bones.get(&key).copied().unwrap_or((glam::Quat::IDENTITY, glam::Vec3::ZERO));
+                let (tq, to) = target_bones.get(&key).copied().unwrap_or((glam::Quat::IDENTITY, glam::Vec3::ZERO));
+                let next = (cq.slerp(tq, k).normalize(), co.lerp(to, k));
+                if !target_bones.contains_key(&key) && next.0.angle_between(glam::Quat::IDENTITY) < 1e-3 && next.1.length() < 1e-4 {
+                    inst.pose_bones.remove(&key);
+                } else {
+                    inst.pose_bones.insert(key, next);
+                }
+            }
+            let names: std::collections::HashSet<String> = inst.pose_expressions.keys().chain(target_expressions.keys()).cloned().collect();
+            for name in names {
+                let c = inst.pose_expressions.get(&name).copied().unwrap_or(0.0);
+                let t = target_expressions.get(&name).copied().unwrap_or(0.0);
+                let next = c + (t - c) * k;
+                if next.abs() < 1e-3 && t == 0.0 {
+                    inst.pose_expressions.remove(&name);
+                } else {
+                    inst.pose_expressions.insert(name, next);
+                }
+            }
+        } else {
+            inst.pose_bones.clear();
+            inst.pose_expressions.clear();
+        }
+        for (&n, (q, offset)) in &inst.pose_bones {
+            if let Some(l) = local.get_mut(n) {
+                l.1 = (l.1 * *q).normalize();
+                l.0 += *offset;
+            }
+        }
         // Script poses go on top of the animation.
         for (&n, q) in &inst.bones {
             if let Some(l) = local.get_mut(n) {
@@ -7506,7 +7565,12 @@ impl WasmEditor {
         // Expressions → morph weights per glTF mesh.
         let mut morphs: HashMap<usize, Vec<f32>> = HashMap::new();
         if let Some(vrm) = &data.vrm {
-            for (name, &weight) in &inst.expressions {
+            // The pose's expressions, with the script's on top.
+            let mut all: HashMap<&String, f32> = inst.pose_expressions.iter().map(|(k, v)| (k, *v)).collect();
+            for (k, v) in &inst.expressions {
+                all.insert(k, *v);
+            }
+            for (name, &weight) in &all {
                 let Some(e) = vrm.expression(name).map(|i| &vrm.expressions[i]) else { continue };
                 let weight = if e.is_binary { if weight > 0.5 { 1.0 } else { 0.0 } } else { weight.clamp(0.0, 1.0) };
                 for &(mesh_index, target, w) in &e.binds {
@@ -7727,6 +7791,28 @@ impl WasmEditor {
             expressions: data.vrm.as_ref().map(|v| v.expressions.iter().map(|e| e.name.clone()).collect()).unwrap_or_default(),
             clips: data.animations.iter().map(|c| c.name.clone()).collect(),
         })
+    }
+
+    /// Script API (`ref.setPose3(name, blend)`): crossfade to one of the
+    /// node's VRM Poses over `blend` seconds (negative = the component's
+    /// blend time). An empty name goes back to the component's active pose.
+    pub fn model_set_pose(&mut self, artboard: JsValue, node: JsValue, name: String, blend: f32) -> Result<bool, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard.clone())?;
+        let node_id: NodeId = parse_id(node)?;
+        let known = self.document.artboard(artboard_id).and_then(|a| a.node(node_id)).and_then(|n| n.vrm_poses()).is_some_and(|p| name.is_empty() || p.pose(&name).is_some());
+        let inst = self.model_instances.entry(node_id).or_default();
+        inst.pose_override = if name.is_empty() { None } else { Some(name) };
+        inst.pose_blend = (blend >= 0.0).then_some(blend);
+        Ok(known)
+    }
+
+    /// Script API (`ref.pose3`): the VRM pose the node is showing (or
+    /// blending to).
+    pub fn model_pose(&mut self, artboard: JsValue, node: JsValue) -> Result<String, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let active = self.document.artboard(artboard_id).and_then(|a| a.node(node_id)).and_then(|n| n.vrm_poses()).map(|p| p.active.clone()).unwrap_or_default();
+        Ok(self.model_instances.get(&node_id).and_then(|i| i.pose_override.clone()).unwrap_or(active))
     }
 
     /// Script API (`ref.resetSprings3()`): hair and cloth settle from the
@@ -8044,6 +8130,7 @@ impl WasmEditor {
         let mut sun: Option<(Vec3, Vec3)> = None;
         let mut points = Vec::new();
         let mut emitters: Vec<(NodeId, Mat4, an1mbyt3_core::ParticleSystem3D)> = Vec::new();
+        let mut vrm_poses: HashMap<NodeId, an1mbyt3_core::VrmPoses> = HashMap::new();
         let mut any_3d = false;
         for id in artboard.node_ids() {
             if artboard.is_effectively_deleted(id) {
@@ -8060,6 +8147,9 @@ impl WasmEditor {
                 if let (true, an1mbyt3_core::NodeBehavior::ParticleSystem3D(p)) = (entry.enabled, &entry.behavior) {
                     emitters.push((id, world, p.clone()));
                 }
+            }
+            if let Some(poses) = node.vrm_poses() {
+                vrm_poses.insert(id, poses.clone());
             }
             match n.content {
                 Node3DContent::Mesh(mesh) => meshes.push((id, world, mesh)),
@@ -8167,7 +8257,7 @@ impl WasmEditor {
         for (node_id, model, mesh) in meshes {
             let material = mesh.material.and_then(|id| self.material3d(id));
             if let Primitive3D::Model { model: model_id } = mesh.primitive {
-                self.model_draws(node_id, model_id, model, &mesh, material, delta, &mut draws);
+                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), &mut draws);
                 continue;
             }
             if let Primitive3D::Voxels { width, height, depth } = mesh.primitive {

@@ -85,6 +85,7 @@ import { PropertyBindingsFields, ScenePropertiesFields, UiEventsFields } from '.
 import { FontPicker, IconPicker } from './FontPicker'
 import { iconFamily, isIconFamily, type IconStyle } from '../game/googleFonts'
 import { AntialiasFields, Goo2DFields } from './GooFields'
+import { VrmPosesFields } from './VrmPosesFields'
 import { ParticleBehaviors2DFields, ParticleFluid2DFields, ParticleSystem3DFields } from './Particle3DFields'
 import { addGoogleFont, burstParticles3D, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
 import { gameConsole } from '../game/console'
@@ -753,6 +754,10 @@ function BehaviorsFields({
       case 'UiEvents': {
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
+      }
+      case 'VrmPoses': {
+        const { kind: _k, ...config } = behavior
+        return <VrmPosesFields config={config} editor={editor} artboardId={artboard?.id ?? null} nodeId={node.id} onChange={(c) => replaceAt(index, { kind: 'VrmPoses', ...c })} />
       }
       case 'Antialias2D': {
         const { kind: _k, ...config } = behavior

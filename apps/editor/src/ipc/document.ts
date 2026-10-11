@@ -1512,6 +1512,31 @@ export type NodeBehavior =
   | ({ kind: 'ParticleBehaviors2D' } & ParticleBehaviors2DConfig)
   | ({ kind: 'Goo2D' } & Goo2DConfig)
   | ({ kind: 'Antialias2D' } & Antialias2DConfig)
+  | ({ kind: 'VrmPoses' } & VrmPosesConfig)
+
+/** Mirrors `an1mbyt3_core::BonePose`: one bone in a VRM pose — Euler
+ * degrees (Y-X-Z, bone space, on top of the rest pose) and an offset. */
+export interface VrmBonePose {
+  bone: string
+  rotation: [number, number, number]
+  offset: [number, number, number]
+}
+
+/** Mirrors `an1mbyt3_core::VrmPose`: a named pose ("state"). */
+export interface VrmPose {
+  name: string
+  bones: VrmBonePose[]
+  expressions: { name: string; weight: number }[]
+}
+
+/** Mirrors `an1mbyt3_core::VrmPoses`: named poses on a VRM avatar node;
+ * `active` shows in Design, scripts switch with `ref.setPose3`. */
+export interface VrmPosesConfig {
+  poses: VrmPose[]
+  active: string
+  /** Crossfade seconds when a script switches pose. */
+  blend: number
+}
 
 /** Mirrors `an1mbyt3_core::Antialias2D`: opt-in smooth liquid edges. */
 export interface Antialias2DConfig {

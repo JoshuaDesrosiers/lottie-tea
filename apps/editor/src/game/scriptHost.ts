@@ -490,6 +490,8 @@ export class ScriptHost {
           bonePosition: (node, bone) => flushed(() => editor.model_bone_position(artboardId, node, bone) as [number, number, number] | null),
           info: (node) => flushed(() => editor.model_info(artboardId, node) as ModelInfo3 | null),
           resetSprings: (node) => flushed(() => editor.model_reset_springs(artboardId, node)),
+          setPose: (node, name, blend) => flushed(() => editor.model_set_pose(artboardId, node, name, blend)),
+          pose: (node) => flushed(() => editor.model_pose(artboardId, node)),
         },
         glass: {
           shatter: (node, point, velocity, radius, floor) => flushed(() => glassShatter(editor, artboardId, node, point, velocity, radius, floor)),
