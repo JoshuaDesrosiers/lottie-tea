@@ -293,15 +293,16 @@ export function VrmPosesFields({
   const updatePose = (patch: Partial<VrmPose>) => setPoses(poses.map((p, i) => (i === activeIndex ? { ...p, ...patch } : p)))
 
   const boneOf = (bone: string): VrmBonePose => pose.bones.find((b) => b.bone === bone) ?? { bone, rotation: [0, 0, 0], offset: [0, 0, 0] }
+  // Entries stay in place (even at zero, even reset): animation tracks
+  // point at them, so they must never vanish or move.
   const setBone = (value: VrmBonePose) => {
-    const zero = value.rotation.every((v) => v === 0) && value.offset.every((v) => v === 0)
-    const rest = pose.bones.filter((b) => b.bone !== value.bone)
-    updatePose({ bones: zero ? rest : [...rest, value] })
+    const at = pose.bones.findIndex((b) => b.bone === value.bone)
+    updatePose({ bones: at >= 0 ? pose.bones.map((b, i) => (i === at ? value : b)) : [...pose.bones, value] })
   }
   const expressionOf = (name: string) => pose.expressions.find((e) => e.name === name)?.weight ?? 0
   const setExpression = (name: string, weight: number) => {
-    const rest = pose.expressions.filter((e) => e.name !== name)
-    updatePose({ expressions: weight === 0 ? rest : [...rest, { name, weight }] })
+    const at = pose.expressions.findIndex((e) => e.name === name)
+    updatePose({ expressions: at >= 0 ? pose.expressions.map((e, i) => (i === at ? { name, weight } : e)) : [...pose.expressions, { name, weight }] })
   }
 
   const applyPreset = (key: string) => {
@@ -333,7 +334,8 @@ export function VrmPosesFields({
   const [draftName, setDraftName] = useState(pose.name)
   useEffect(() => setDraftName(pose.name), [pose.name])
 
-  const posedCount = (bones: string[]) => pose.bones.filter((b) => bones.includes(b.bone)).length
+  const isPosed = (b: VrmBonePose) => b.rotation.some((v) => v !== 0) || b.offset.some((v) => v !== 0)
+  const posedCount = (bones: string[]) => pose.bones.filter((b) => bones.includes(b.bone) && isPosed(b)).length
 
   return (
     <div className="flex flex-col gap-2">
@@ -390,7 +392,7 @@ export function VrmPosesFields({
         <button type="button" className={pill} onClick={() => mirror('right')} title="Copy the right side's angles to the left, mirrored">
           R→L
         </button>
-        <button type="button" className={pill} onClick={() => updatePose({ bones: [], expressions: [] })} title="Back to the rest pose">
+        <button type="button" className={pill} onClick={() => updatePose({ bones: pose.bones.map((b) => ({ ...b, rotation: [0, 0, 0], offset: [0, 0, 0] })), expressions: pose.expressions.map((e) => ({ ...e, weight: 0 })) })} title="Back to the rest pose">
           Reset
         </button>
       </div>
@@ -446,7 +448,7 @@ export function VrmPosesFields({
       })}
 
       {!!info?.expressions.length && (
-        <Section title="Expressions" badge={pose.expressions.length}>
+        <Section title="Expressions" badge={pose.expressions.filter((e) => e.weight !== 0).length}>
           {info.expressions.map((name) => (
             <div key={name} className="flex items-center gap-2">
               <span className="w-20 shrink-0 truncate text-[10px] text-ink-dim">{name}</span>

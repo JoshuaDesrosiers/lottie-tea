@@ -67,7 +67,7 @@ pub fn field_kind(path: &str) -> PropertyKind {
 pub fn read(node: &Node, path: &str) -> Option<[f32; 4]> {
     let (root, pointer) = split(path)?;
     let value = root_value(node, root)?;
-    leaf_read(value.pointer(&pointer)?).map(|(v, _)| v)
+    leaf_read(resolve(&value, &pointer)?).map(|(v, _)| v)
 }
 
 /// Writes `v` into the field (keeping its shape). `false` if the path
@@ -89,7 +89,7 @@ pub fn write(node: &mut Node, path: &str, v: [f32; 4]) -> bool {
         };
     }
     let Some(mut value) = root_value(node, root) else { return false };
-    let Some(leaf) = value.pointer_mut(&pointer) else { return false };
+    let Some(leaf) = resolve_mut(&mut value, &pointer) else { return false };
     if !leaf_write(leaf, v) {
         return false;
     }
@@ -188,6 +188,48 @@ fn behavior_name(b: &crate::NodeBehavior) -> Option<String> {
     }
 }
 
+/// A list entry's own name (`name` / `bone` / `label` / `id`), if it has one.
+fn own_name(v: &Value) -> Option<&str> {
+    let obj = v.as_object()?;
+    ["name", "bone", "label", "id"].iter().find_map(|k| obj.get(*k).and_then(Value::as_str).filter(|s| !s.is_empty()))
+}
+
+/// Follows a pointer like a JSON pointer, plus one extension: in a list, a
+/// segment `=name` picks the entry with that own name — so a track on
+/// "pose Guard, bone leftUpperArm" keeps pointing at it when entries are
+/// added, removed or reordered (a plain index wouldn't).
+fn resolve<'a>(root: &'a Value, pointer: &str) -> Option<&'a Value> {
+    let mut v = root;
+    for raw in pointer.split('/').skip(1) {
+        let seg = unescape(raw);
+        v = match v {
+            Value::Object(map) => map.get(&seg)?,
+            Value::Array(items) => match seg.strip_prefix('=') {
+                Some(name) => items.iter().find(|i| own_name(i) == Some(name))?,
+                None => items.get(seg.parse::<usize>().ok()?)?,
+            },
+            _ => return None,
+        };
+    }
+    Some(v)
+}
+
+fn resolve_mut<'a>(root: &'a mut Value, pointer: &str) -> Option<&'a mut Value> {
+    let mut v = root;
+    for raw in pointer.split('/').skip(1) {
+        let seg = unescape(raw);
+        v = match v {
+            Value::Object(map) => map.get_mut(&seg)?,
+            Value::Array(items) => match seg.strip_prefix('=') {
+                Some(name) => items.iter_mut().find(|i| own_name(i) == Some(name))?,
+                None => items.get_mut(seg.parse::<usize>().ok()?)?,
+            },
+            _ => return None,
+        };
+    }
+    Some(v)
+}
+
 /// JSON-pointer escaping for one segment (`~` → `~0`, `/` → `~1`) — only
 /// needed for odd map keys; component names never contain either.
 fn escape(s: &str) -> String {
@@ -282,15 +324,17 @@ fn walk(v: &Value, path: &str, label: &[String], depth: usize, out: &mut Vec<Fie
         // its own name when it has one (`name` / `bone` / `label`).
         Value::Array(items) if items.len() <= 256 => {
             for (i, child) in items.iter().enumerate() {
-                if let Value::Object(obj) = child {
-                    let own = ["name", "bone", "label", "id"].iter().find_map(|k| obj.get(*k).and_then(Value::as_str).filter(|s| !s.is_empty()));
+                if child.is_object() {
+                    // Addressed by name when it's unique in the list.
+                    let own = own_name(child).filter(|n| items.iter().filter(|o| own_name(o) == Some(*n)).count() == 1);
                     // A named entry stands for its list ("Guard", not
                     // "poses › Guard").
                     let mut next = if own.is_some() && label.len() > 1 { label[..label.len() - 1].to_vec() } else { label.to_vec() };
                     // `=` marks an entry's own name (shown verbatim, not
                     // reworded like a field key).
                     next.push(own.map_or_else(|| format!("#{}", i + 1), |n| format!("={n}")));
-                    walk(child, &format!("{path}/{i}"), &next, depth + 1, out);
+                    let seg = own.map_or_else(|| i.to_string(), |n| format!("={}", escape(n)));
+                    walk(child, &format!("{path}/{seg}"), &next, depth + 1, out);
                 }
             }
         }
@@ -339,8 +383,15 @@ mod tests {
             p.poses[0].bones.push(crate::BonePose { bone: "leftUpperArm".into(), rotation: [0.0, 0.0, -70.0], offset: [0.0; 3] });
         }
         let fields = list(&node);
-        let arm = fields.iter().find(|f| f.path == "behavior/VrmPoses/poses/0/bones/0/rotation").expect("pose bone listed");
+        let arm = fields.iter().find(|f| f.path == "behavior/VrmPoses/poses/=Rest/bones/=leftUpperArm/rotation").expect("pose bone listed by name");
         assert_eq!(arm.label, vec!["VrmPoses", "=Rest", "=leftUpperArm", "rotation"]);
+        // Still found after another bone is inserted before it.
+        if let crate::NodeBehavior::VrmPoses(p) = &mut node.behaviors[1].behavior {
+            p.poses[0].bones.insert(0, crate::BonePose { bone: "head".into(), rotation: [5.0, 0.0, 0.0], offset: [0.0; 3] });
+        }
+        assert!(write(&mut node, &arm.path, [0.0, 0.0, -30.0, 0.0]));
+        assert_eq!(read(&node, &arm.path), Some([0.0, 0.0, -30.0, 0.0]));
+        assert_eq!(read(&node, "behavior/VrmPoses/poses/0/bones/0/rotation"), Some([5.0, 0.0, 0.0, 0.0]), "old index paths still resolve");
         assert_ne!(field_kind("a"), field_kind("b"));
     }
 }
