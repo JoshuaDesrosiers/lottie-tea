@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { DocumentSummary, ImageAssetSummary, MaterialSummary, Node3D, Node3DContent, OpaqueId, Primitive3D, ToonStyle, Vec3Tuple } from '../ipc/document'
-import { addToonMaterial, modelClips, modelExtractMaterials, materialToon, setMaterialToon, type WasmEditor } from '../ipc/wasmEditor'
+import { addToonMaterial, modelClips, modelExtractMaterials, materialToon, pickAndImportHumanoidAnimation, setMaterialToon, type WasmEditor } from '../ipc/wasmEditor'
 import { ToonMaterialFields } from './ToonMaterialFields'
 import { ColorSwatch } from './ColorPicker'
 import { Dropdown, NumberField } from './InspectorPanel'
@@ -232,6 +232,20 @@ export function Node3DFields({
             </button>
           </Row>
           {worn?.kind === 'Toon' && editToon && <div className="rounded-md border border-line/50 p-2">{toonFields(worn.id)}</div>}
+          {modelId && editor && artboardId && nodeId && onDocumentChange && (
+            <button
+              type="button"
+              onClick={() =>
+                pickAndImportHumanoidAnimation(editor, artboardId, nodeId)
+                  .then((doc) => doc && onDocumentChange(doc))
+                  .catch((err) => window.alert(`Couldn't use that animation: ${err}`))
+              }
+              className="rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20 hover:text-accent"
+              title="Play any humanoid animation on this avatar: a VRMA file, or a GLB / VRM with a humanoid skeleton (Mixamo → Blender → GLB works)"
+            >
+              Import animation (.vrma / .glb)…
+            </button>
+          )}
           {modelId && !content.material && (slotMaterials.length > 0 || (editor && artboardId && nodeId)) && (
             <div className="flex flex-col gap-1.5 rounded-md border border-line/50 p-2">
               <div className="flex items-center gap-1">

@@ -1561,6 +1561,18 @@ export type NodeBehavior =
   | ({ kind: 'VrmPoses' } & VrmPosesConfig)
   | ({ kind: 'Ragdoll3D' } & Ragdoll3DConfig)
   | ({ kind: 'MaterialSlots' } & MaterialSlotsConfig)
+  | ({ kind: 'HumanoidAnimator' } & HumanoidAnimatorConfig)
+
+/** Mirrors `an1mbyt3_core::HumanoidAnimator`: imported humanoid clips
+ * (VRMA, Mixamo-style GLB …) retargeted onto a VRM avatar. */
+export interface HumanoidAnimatorConfig {
+  clips: { name: string; source: OpaqueId | null; clip: string }[]
+  playing: string
+  looping: boolean
+  speed: number
+  blend: number
+  preview: boolean
+}
 
 /** Mirrors `an1mbyt3_core::MaterialSlots`: per-object material overrides
  * on an imported model's material slots (glTF material index). */

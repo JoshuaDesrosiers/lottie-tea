@@ -493,6 +493,8 @@ export class ScriptHost {
           setPose: (node, name, blend) => flushed(() => editor.model_set_pose(artboardId, node, name, blend)),
           pose: (node) => flushed(() => editor.model_pose(artboardId, node)),
           ragdoll: (node, on, v) => flushed(() => editor.model_ragdoll(artboardId, node, on, v[0], v[1], v[2])),
+          playAnim: (node, name, loop, speed, blend) => flushed(() => editor.model_play_anim(artboardId, node, name, loop, speed, blend)),
+          animState: (node) => flushed(() => editor.model_anim_state(artboardId, node) as { clip: string; time: number } | null),
           isRagdoll: (node) => flushed(() => editor.model_is_ragdoll(artboardId, node)),
           ragdollHit: (node, bone, i) => flushed(() => editor.model_ragdoll_hit(artboardId, node, bone, i[0], i[1], i[2])),
         },

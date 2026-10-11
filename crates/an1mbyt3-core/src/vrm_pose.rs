@@ -86,3 +86,40 @@ impl Default for Ragdoll3D {
         Self { start_ragdolled: false, mass: 60.0, flexibility: 1.0, thickness: 1.0 }
     }
 }
+
+/// **Humanoid Animator** on a VRM avatar: animation clips imported from
+/// other files (VRMA, or a glTF / VRM with a humanoid skeleton — e.g. a
+/// Mixamo character exported to GLB), *retargeted* onto this avatar's
+/// bones, so any humanoid motion plays on any VRM. One clip plays at a
+/// time (crossfading on switch); scripts switch with `ref.playAnim3`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HumanoidAnimator {
+    pub clips: Vec<HumanoidClipRef>,
+    /// The clip playing (by name); `""` = none.
+    pub playing: String,
+    pub looping: bool,
+    /// Playback speed (1 = as authored).
+    pub speed: f32,
+    /// Crossfade seconds when the clip changes.
+    pub blend: f32,
+    /// Also play in Design (so you see it while you build the scene).
+    pub preview: bool,
+}
+
+impl Default for HumanoidAnimator {
+    fn default() -> Self {
+        Self { clips: Vec::new(), playing: String::new(), looping: true, speed: 1.0, blend: 0.25, preview: true }
+    }
+}
+
+/// One clip an animator can play: its name here, the imported file it
+/// comes from (a model asset) and which clip in that file.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HumanoidClipRef {
+    pub name: String,
+    pub source: Option<crate::ModelId>,
+    /// The clip's name in the source file (`""` = its first clip).
+    pub clip: String,
+}

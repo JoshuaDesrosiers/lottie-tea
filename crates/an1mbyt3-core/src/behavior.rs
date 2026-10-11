@@ -136,6 +136,9 @@ pub enum NodeBehavior {
     /// [`crate::MaterialSlots`]: per-object material overrides on a model's
     /// material slots. (Appended last.)
     MaterialSlots(crate::MaterialSlots),
+    /// [`crate::HumanoidAnimator`]: retargeted humanoid animation clips on
+    /// a VRM avatar. (Appended last.)
+    HumanoidAnimator(crate::HumanoidAnimator),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

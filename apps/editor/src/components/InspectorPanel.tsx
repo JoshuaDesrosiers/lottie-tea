@@ -86,6 +86,7 @@ import { FontPicker, IconPicker } from './FontPicker'
 import { iconFamily, isIconFamily, type IconStyle } from '../game/googleFonts'
 import { AntialiasFields, Goo2DFields } from './GooFields'
 import { VrmPosesFields } from './VrmPosesFields'
+import { pickAndImportHumanoidAnimation } from '../ipc/wasmEditor'
 import { ParticleBehaviors2DFields, ParticleFluid2DFields, ParticleSystem3DFields } from './Particle3DFields'
 import { addGoogleFont, burstParticles3D, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
 import { gameConsole } from '../game/console'
@@ -754,6 +755,75 @@ function BehaviorsFields({
       case 'UiEvents': {
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
+      }
+      case 'HumanoidAnimator': {
+        const { kind: _k, ...config } = behavior
+        const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'HumanoidAnimator', ...config, ...patch })
+        const importClip = () => {
+          if (!editor || !artboard) return
+          pickAndImportHumanoidAnimation(editor, artboard.id, node.id)
+            .then((doc) => doc && onDocumentChange(doc))
+            .catch((err) => window.alert(`Couldn't use that animation: ${err}`))
+        }
+        return (
+          <div className="flex flex-col gap-1.5">
+            {config.clips.length === 0 && <p className="text-[10px] leading-snug text-ink-dim">No clips yet. Import a VRMA file, or a GLB / VRM with a humanoid skeleton (e.g. a Mixamo animation exported to GLB from Blender).</p>}
+            {config.clips.map((c, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  checked={config.playing === c.name}
+                  onChange={() => set({ playing: c.name })}
+                  title="Play this clip"
+                />
+                <input
+                  value={c.name}
+                  onChange={(e) => {
+                    const name = e.target.value
+                    set({ clips: config.clips.map((x, j) => (j === i ? { ...x, name } : x)), playing: config.playing === c.name ? name : config.playing })
+                  }}
+                  className="min-w-0 flex-1 rounded bg-overlay/5 px-1.5 py-0.5 text-[11px] text-ink"
+                  title={`Clip "${c.clip || 'first'}" of the imported file — rename it here (scripts play it by this name)`}
+                />
+                <button type="button" className="text-[11px] text-ink-dim hover:text-red-400" onClick={() => set({ clips: config.clips.filter((_, j) => j !== i), playing: config.playing === c.name ? '' : config.playing })} title="Remove this clip">
+                  ×
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={importClip} className="rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20 hover:text-accent">
+              + Import animation (.vrma / .glb)
+            </button>
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+              <input type="checkbox" checked={config.playing === ''} onChange={(e) => set({ playing: e.target.checked ? '' : (config.clips[0]?.name ?? '') })} />
+              None (stand still)
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+              <input type="checkbox" checked={config.looping} onChange={(e) => set({ looping: e.target.checked })} />
+              Loop
+            </label>
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Play it in Design too, so you see it while you work">
+              <input type="checkbox" checked={config.preview} onChange={(e) => set({ preview: e.target.checked })} />
+              Preview in Design
+            </label>
+            {(
+              [
+                ['Speed', 'speed', 0, 3, 0.05],
+                ['Blend (s)', 'blend', 0, 1.5, 0.05],
+              ] as const
+            ).map(([label, key, min, max, step]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-24 shrink-0 text-[11px] text-ink-dim">{label}</span>
+                <div className="min-w-0 flex-1">
+                  <Slider value={config[key]} min={min} max={max} step={step} onChange={(v) => set({ [key]: v })} />
+                </div>
+                <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-ink-dim">{config[key].toFixed(2)}</span>
+              </div>
+            ))}
+            <p className="text-[10px] leading-snug text-ink-dim">
+              Any humanoid motion, on this avatar. Script: <code className="text-ink">ref.playAnim3(&apos;Walk&apos;, {'{ blend: 0.2 }'})</code>; VRM Poses and <code className="text-ink">setBone3</code> layer on top.
+            </p>
+          </div>
+        )
       }
       case 'MaterialSlots': {
         const { kind: _k, ...config } = behavior

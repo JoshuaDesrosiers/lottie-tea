@@ -628,6 +628,11 @@ var g = class e {
 		if (o[2]) throw U(o[1]);
 		return U(o[0]);
 	}
+	import_humanoid_animation(e, t, n, r) {
+		let i = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W, o = B(t, G.__wbindgen_malloc), s = W, c = G.wasmeditor_import_humanoid_animation(this.__wbg_ptr, i, a, o, s, n, r);
+		if (c[2]) throw U(c[1]);
+		return U(c[0]);
+	}
 	import_image(e, t, n) {
 		let r = H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), i = W, a = B(n, G.__wbindgen_malloc), o = W;
 		return G.wasmeditor_import_image(this.__wbg_ptr, e, r, i, a, o);
@@ -766,6 +771,11 @@ var g = class e {
 		if (t[2]) throw U(t[1]);
 		return U(t[0]);
 	}
+	model_anim_state(e, t) {
+		let n = G.wasmeditor_model_anim_state(this.__wbg_ptr, e, t);
+		if (n[2]) throw U(n[1]);
+		return U(n[0]);
+	}
 	model_bone_position(e, t, n) {
 		let r = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), i = W, a = G.wasmeditor_model_bone_position(this.__wbg_ptr, e, t, r, i);
 		if (a[2]) throw U(a[1]);
@@ -794,6 +804,11 @@ var g = class e {
 		let n = G.wasmeditor_model_is_ragdoll(this.__wbg_ptr, e, t);
 		if (n[2]) throw U(n[1]);
 		return n[0] !== 0;
+	}
+	model_play_anim(e, t, n, r, i, a) {
+		let o = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), s = W, c = G.wasmeditor_model_play_anim(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw U(c[1]);
+		return c[0] !== 0;
 	}
 	model_pose(e, t) {
 		let n, r;
@@ -5827,6 +5842,14 @@ function or(e, t, n, r, i, a) {
 				0
 			])
 		},
+		playAnim3: {
+			enumerable: !1,
+			value: (e, t = {}) => a.model3.playAnim(s.id, String(e ?? ""), t.loop === void 0 ? -1 : +!!t.loop, t.speed ?? -1, t.blend ?? -1)
+		},
+		anim3: {
+			enumerable: !1,
+			get: () => a.model3.animState(s.id)
+		},
 		isRagdoll3: {
 			enumerable: !1,
 			get: () => a.model3.isRagdoll(s.id)
@@ -6494,6 +6517,8 @@ var Mr = class {
 					setPose: (e, t, r) => f(() => n.model_set_pose(s, e, t, r)),
 					pose: (e) => f(() => n.model_pose(s, e)),
 					ragdoll: (e, t, r) => f(() => n.model_ragdoll(s, e, t, r[0], r[1], r[2])),
+					playAnim: (e, t, r, i, a) => f(() => n.model_play_anim(s, e, t, r, i, a)),
+					animState: (e) => f(() => n.model_anim_state(s, e)),
 					isRagdoll: (e) => f(() => n.model_is_ragdoll(s, e)),
 					ragdollHit: (e, t, r) => f(() => n.model_ragdoll_hit(s, e, t, r[0], r[1], r[2]))
 				},

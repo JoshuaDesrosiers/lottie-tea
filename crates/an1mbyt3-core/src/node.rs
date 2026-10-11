@@ -279,6 +279,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Humanoid Animator, if any.
+    pub fn humanoid_animator(&self) -> Option<&crate::HumanoidAnimator> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::HumanoidAnimator(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Material Overrides, if any.
     pub fn material_slots(&self) -> Option<&crate::MaterialSlots> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

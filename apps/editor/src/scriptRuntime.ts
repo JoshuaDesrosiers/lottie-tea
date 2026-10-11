@@ -183,6 +183,8 @@ export interface ScriptContext {
     setPose(node: OpaqueId, name: string, blend: number): boolean
     pose(node: OpaqueId): string
     ragdoll(node: OpaqueId, on: boolean, velocity: [number, number, number]): boolean
+    playAnim(node: OpaqueId, name: string, loop: number, speed: number, blend: number): boolean
+    animState(node: OpaqueId): { clip: string; time: number } | null
     isRagdoll(node: OpaqueId): boolean
     ragdollHit(node: OpaqueId, bone: string, impulse: [number, number, number]): boolean
   }
@@ -589,6 +591,12 @@ export interface ComponentRef {
   /** **Ragdoll 3D**: go limp (`true`, optionally flung at `velocity` m/s)
    * or get back up (`false`). VRM avatars, Playground. */
   ragdoll3(on: boolean, options?: { velocity?: Vec3Like }): boolean
+  /** **Humanoid Animator**: play one of the avatar's imported clips
+   * (crossfading), optionally overriding `loop` / `speed` / `blend`. `''`
+   * goes back to the component's own clip. */
+  playAnim3(name: string, options?: { loop?: boolean; speed?: number; blend?: number }): boolean
+  /** **Humanoid Animator**: what's playing — `{ clip, time }` or null. */
+  readonly anim3: { clip: string; time: number } | null
   /** **Ragdoll 3D**: is the avatar limp right now? */
   readonly isRagdoll3: boolean
   /** **Ragdoll 3D**: knock one limb of a limp avatar (`'head'`, `'chest'`,
@@ -1056,6 +1064,15 @@ function makeComponentRefFromState(
     ragdoll3: {
       enumerable: false,
       value: (on: boolean, options: { velocity?: Vec3Like } = {}) => ctx.model3.ragdoll(node.id, !!on, options.velocity ? vec3Of(options.velocity) : [0, 0, 0]),
+    },
+    playAnim3: {
+      enumerable: false,
+      value: (name: string, options: { loop?: boolean; speed?: number; blend?: number } = {}) =>
+        ctx.model3.playAnim(node.id, String(name ?? ''), options.loop === undefined ? -1 : options.loop ? 1 : 0, options.speed ?? -1, options.blend ?? -1),
+    },
+    anim3: {
+      enumerable: false,
+      get: () => ctx.model3.animState(node.id),
     },
     isRagdoll3: {
       enumerable: false,

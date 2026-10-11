@@ -1882,6 +1882,8 @@ struct GpuModel {
     /// The rest pose and each node's parent (spring bones need both).
     rest: Vec<(glam::Vec3, glam::Quat, glam::Vec3)>,
     parents: Vec<Option<usize>>,
+    /// VRM avatars: the skeleton retargeted humanoid clips play on.
+    humanoid: Option<an1mbyt3_geometry::retarget::HumanoidTarget>,
 }
 
 /// One model node's runtime state (see `WasmEditor::model_instances`).
@@ -1902,6 +1904,12 @@ struct ModelInstance {
     /// velocity), and while limp, which glTF node each physics part drives
     /// (+ its humanoid name, for hits).
     ragdoll_request: Option<(bool, glam::Vec3)>,
+    /// Humanoid Animator playback: the clip and its time, the clip fading
+    /// out (and how much is left of the fade, 1 → 0), and a script's
+    /// override (`ref.playAnim3`: name, loop, speed, blend).
+    anim: Option<(String, f32)>,
+    anim_prev: Option<(String, f32, f32)>,
+    anim_override: Option<(String, Option<bool>, Option<f32>, Option<f32>)>,
     ragdoll_bones: Option<Vec<(usize, String)>>,
     /// `start_ragdolled` already acted on this Playground run.
     ragdoll_started: bool,
@@ -2499,6 +2507,8 @@ pub struct WasmEditor {
     /// bones and the deformed meshes of skinned / morphed models (VRM
     /// avatars). Runtime only — reset on entering/leaving Playground.
     model_instances: HashMap<NodeId, ModelInstance>,
+    /// Retargetable clips parsed from imported animation files (by asset).
+    humanoid_clips: HashMap<an1mbyt3_core::ModelId, std::rc::Rc<Vec<an1mbyt3_geometry::retarget::HumanoidClip>>>,
     /// Ragdolls to create once the scene's physics world exists (made while
     /// drawing, where the avatar's bone poses are known).
     pending_ragdolls: Vec<(NodeId, Vec<an1mbyt3_physics::physics3d::RagdollPart>, glam::Vec3)>,
@@ -2979,6 +2989,7 @@ impl WasmEditor {
             model_instances: HashMap::new(),
             toon_gpu: [None, None],
             pending_ragdolls: Vec::new(),
+            humanoid_clips: HashMap::new(),
             toon_preview_base: HashMap::new(),
             voxel_worlds: HashMap::new(),
             glass: HashMap::new(),
@@ -7045,6 +7056,7 @@ impl WasmEditor {
             "VrmPoses" => B::VrmPoses(an1mbyt3_core::VrmPoses::default()),
             "Ragdoll3D" => B::Ragdoll3D(an1mbyt3_core::Ragdoll3D::default()),
             "MaterialSlots" => B::MaterialSlots(an1mbyt3_core::MaterialSlots::default()),
+            "HumanoidAnimator" => B::HumanoidAnimator(an1mbyt3_core::HumanoidAnimator::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -7623,7 +7635,8 @@ impl WasmEditor {
             .collect();
         let rest = data.rest_pose();
         let parents = data.parents();
-        let gpu = std::rc::Rc::new(GpuModel { data, primitives, rest, parents });
+        let humanoid = an1mbyt3_geometry::retarget::HumanoidTarget::of(&data);
+        let gpu = std::rc::Rc::new(GpuModel { data, primitives, rest, parents, humanoid });
         self.model_gpu.insert(id, std::rc::Rc::clone(&gpu));
         Some(gpu)
     }
@@ -7656,6 +7669,7 @@ impl WasmEditor {
         poses: Option<&an1mbyt3_core::VrmPoses>,
         node_toon: Option<&an1mbyt3_core::ToonMaterial>,
         slot_overrides: Option<&an1mbyt3_core::MaterialSlots>,
+        animator: Option<&an1mbyt3_core::HumanoidAnimator>,
         draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>,
     ) {
         let Some(model) = self.gpu_model(model_id) else { return };
@@ -7686,6 +7700,51 @@ impl WasmEditor {
         let mut inst = self.model_instances.remove(&node_id).unwrap_or_default();
         if inst.model != Some(model_id) {
             inst = ModelInstance { model: Some(model_id), ..ModelInstance::default() };
+        }
+        // Humanoid Animator: the playing clip (crossfaded from the last one),
+        // retargeted onto this avatar's bones. Poses and scripts go on top.
+        if let (Some(a), Some(target)) = (animator, model.humanoid.as_ref()) {
+            if self.playground_active || a.preview {
+                let (want, looping, speed, blend) = match &inst.anim_override {
+                    Some((n, l, s, b)) => (n.clone(), l.unwrap_or(a.looping), s.unwrap_or(a.speed), b.unwrap_or(a.blend)),
+                    None => (a.playing.clone(), a.looping, a.speed, a.blend),
+                };
+                if inst.anim.as_ref().map(|(n, _)| n.as_str()) != Some(want.as_str()) {
+                    let old = inst.anim.take();
+                    inst.anim_prev = old.map(|(n, t)| (n, t, 1.0));
+                    inst.anim = (!want.is_empty()).then(|| (want.clone(), 0.0));
+                }
+                let mut pose = None;
+                if let Some((name, t)) = inst.anim.as_mut() {
+                    if let Some((clips, i)) = self.humanoid_clip(a, name) {
+                        let clip = &clips[i];
+                        *t += delta * speed;
+                        let d = clip.duration;
+                        *t = if looping { t.rem_euclid(d) } else { t.clamp(0.0, d) };
+                        pose = Some(clip.sample(*t));
+                    }
+                }
+                if let Some((name, t, fade)) = inst.anim_prev.as_mut() {
+                    *fade -= if blend > 0.0 { delta / blend } else { 1.0 };
+                    *t += delta * speed;
+                    let prev = self.humanoid_clip(a, name).map(|(clips, i)| {
+                        let c = &clips[i];
+                        c.sample(if looping { t.rem_euclid(c.duration) } else { t.min(c.duration) })
+                    });
+                    if *fade <= 0.0 {
+                        inst.anim_prev = None;
+                    } else if let Some(prev) = prev {
+                        let w = 1.0 - *fade;
+                        pose = Some(match pose {
+                            Some(p) => prev.blend(&p, w),
+                            None => prev.blend(&an1mbyt3_geometry::retarget::HumanoidPose::default(), w),
+                        });
+                    }
+                }
+                if let Some(pose) = pose {
+                    target.apply(&pose, 1.0, &model.rest, &mut local);
+                }
+            }
         }
         // VRM Poses: blend toward the current pose (instantly in Design, so
         // editing shows straight away; crossfaded in Playground).
@@ -8146,6 +8205,111 @@ impl WasmEditor {
         Ok(())
     }
 
+    /// The retargetable clips of an imported animation file (cached).
+    fn humanoid_clips_of(&mut self, source: an1mbyt3_core::ModelId) -> std::rc::Rc<Vec<an1mbyt3_geometry::retarget::HumanoidClip>> {
+        if let Some(c) = self.humanoid_clips.get(&source) {
+            return std::rc::Rc::clone(c);
+        }
+        let clips = self
+            .document
+            .model(source)
+            .and_then(|asset| {
+                let data = an1mbyt3_geometry::parse_gltf(&asset.source, &|uri| asset.file(uri).map(|b| b.to_vec())).ok()?;
+                let json = an1mbyt3_geometry::vrm::gltf_json(&asset.source);
+                an1mbyt3_geometry::retarget::humanoid_clips(&data, json.as_ref()).ok()
+            })
+            .unwrap_or_default();
+        let rc = std::rc::Rc::new(clips);
+        self.humanoid_clips.insert(source, std::rc::Rc::clone(&rc));
+        rc
+    }
+
+    /// The clip an animator calls `name`.
+    /// (Shared, not copied: the cached clips and the index of this one.)
+    fn humanoid_clip(&mut self, animator: &an1mbyt3_core::HumanoidAnimator, name: &str) -> Option<(std::rc::Rc<Vec<an1mbyt3_geometry::retarget::HumanoidClip>>, usize)> {
+        let r = animator.clips.iter().find(|c| c.name == name)?;
+        let clips = self.humanoid_clips_of(r.source?);
+        let i = clips.iter().position(|c| c.name == r.clip).or(if clips.is_empty() { None } else { Some(0) })?;
+        Some((clips, i))
+    }
+
+    /// Import → "Avatar animation": an animation file (VRMA, or a glTF /
+    /// GLB / VRM with a humanoid skeleton) as an asset; its clips are added
+    /// to `node`'s Humanoid Animator (made if missing) when `node` is a VRM
+    /// avatar. Returns `{ document, clips: [names] }`; errors if the file
+    /// has no humanoid animation.
+    pub fn import_humanoid_animation(&mut self, name: String, source: Vec<u8>, artboard: JsValue, node: JsValue) -> Result<JsValue, JsValue> {
+        let data = an1mbyt3_geometry::parse_gltf(&source, &|_| None).map_err(|e| JsValue::from_str(&format!("not a readable animation file: {e}")))?;
+        let json = an1mbyt3_geometry::vrm::gltf_json(&source);
+        let clips = an1mbyt3_geometry::retarget::humanoid_clips(&data, json.as_ref()).map_err(|e| JsValue::from_str(&e))?;
+        let model = self.document.add_model(an1mbyt3_core::ModelAsset { name: name.clone(), source, files: Vec::new(), deleted: false });
+        let stem = name.rsplit(['/', '\\']).next().unwrap_or(&name).rsplit_once('.').map_or(name.as_str(), |(s, _)| s).to_string();
+        let mut names = Vec::new();
+        let artboard_id: Option<ArtboardId> = parse_id(artboard).ok().flatten();
+        let node_id: Option<NodeId> = parse_id(node).ok().flatten();
+        if let (Some(artboard_id), Some(node_id)) = (artboard_id, node_id) {
+            if let Some(n) = self.document.artboard(artboard_id).and_then(|a| a.node(node_id)) {
+                let mut behaviors = n.behaviors.clone();
+                let at = behaviors.iter().position(|e| matches!(e.behavior, an1mbyt3_core::NodeBehavior::HumanoidAnimator(_)));
+                let at = at.unwrap_or_else(|| {
+                    behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: an1mbyt3_core::NodeBehavior::HumanoidAnimator(an1mbyt3_core::HumanoidAnimator::default()), enabled: true });
+                    behaviors.len() - 1
+                });
+                if let an1mbyt3_core::NodeBehavior::HumanoidAnimator(a) = &mut behaviors[at].behavior {
+                    for c in &clips {
+                        let base = if clips.len() == 1 || c.name.starts_with("Clip ") { stem.clone() } else { c.name.clone() };
+                        let mut label = base.clone();
+                        let mut k = 2;
+                        while a.clips.iter().any(|x| x.name == label) {
+                            label = format!("{base} {k}");
+                            k += 1;
+                        }
+                        a.clips.push(an1mbyt3_core::HumanoidClipRef { name: label.clone(), source: Some(model), clip: c.name.clone() });
+                        names.push(label);
+                    }
+                    if a.playing.is_empty() {
+                        a.playing = names.first().cloned().unwrap_or_default();
+                    }
+                }
+                self.document.apply(Command::SetNodeBehaviors { artboard: artboard_id, node: node_id, value: behaviors });
+            }
+        }
+        if names.is_empty() {
+            names = clips.iter().map(|c| c.name.clone()).collect();
+        }
+        #[derive(serde::Serialize)]
+        struct Imported {
+            document: crate::dto::DocumentSummary,
+            clips: Vec<String>,
+        }
+        to_js_value(&Imported { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), clips: names })
+    }
+
+    /// Script API (`ref.playAnim3(name, { loop, speed, blend })`): switch
+    /// the avatar's Humanoid Animator clip (crossfading). `loop` −1 / speed
+    /// / blend < 0 = the component's settings. `""` = back to its own.
+    #[allow(clippy::too_many_arguments)]
+    pub fn model_play_anim(&mut self, artboard: JsValue, node: JsValue, name: String, looping: i32, speed: f32, blend: f32) -> Result<bool, JsValue> {
+        let Some((node_id, _)) = self.model_of(artboard, node)? else { return Ok(false) };
+        let inst = self.model_instances.entry(node_id).or_default();
+        inst.anim_override = (!name.is_empty()).then(|| (name, (looping >= 0).then_some(looping > 0), (speed >= 0.0).then_some(speed), (blend >= 0.0).then_some(blend)));
+        Ok(true)
+    }
+
+    /// Script API (`ref.anim3`): `{ clip, time }` of what's playing.
+    pub fn model_anim_state(&mut self, artboard: JsValue, node: JsValue) -> Result<JsValue, JsValue> {
+        let Some((node_id, _)) = self.model_of(artboard, node)? else { return Ok(JsValue::NULL) };
+        #[derive(serde::Serialize)]
+        struct State {
+            clip: String,
+            time: f32,
+        }
+        match self.model_instances.get(&node_id).and_then(|i| i.anim.clone()) {
+            Some((clip, time)) => to_js_value(&State { clip, time }),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
     /// The node's enabled Ragdoll 3D settings, if any.
     fn ragdoll_config(&self, node: NodeId) -> Option<an1mbyt3_core::Ragdoll3D> {
         self.document.artboards().find_map(|(_, a)| a.node(node).and_then(|n| n.ragdoll3d().copied()))
@@ -8505,6 +8669,7 @@ impl WasmEditor {
         let mut emitters: Vec<(NodeId, Mat4, an1mbyt3_core::ParticleSystem3D)> = Vec::new();
         let mut vrm_poses: HashMap<NodeId, an1mbyt3_core::VrmPoses> = HashMap::new();
         let mut slot_overrides: HashMap<NodeId, an1mbyt3_core::MaterialSlots> = HashMap::new();
+        let mut animators: HashMap<NodeId, an1mbyt3_core::HumanoidAnimator> = HashMap::new();
         let mut any_3d = false;
         for id in artboard.node_ids() {
             if artboard.is_effectively_deleted(id) {
@@ -8527,6 +8692,9 @@ impl WasmEditor {
             }
             if let Some(slots) = node.material_slots() {
                 slot_overrides.insert(id, slots.clone());
+            }
+            if let Some(a) = node.humanoid_animator() {
+                animators.insert(id, a.clone());
             }
             match n.content {
                 Node3DContent::Mesh(mesh) => meshes.push((id, world, mesh)),
@@ -8635,7 +8803,7 @@ impl WasmEditor {
             let node_toon = mesh.material.and_then(|id| self.toon_material(id));
             let material = if node_toon.is_some() { None } else { mesh.material.and_then(|id| self.material3d(id)) };
             if let Primitive3D::Model { model: model_id } = mesh.primitive {
-                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), node_toon.as_ref(), slot_overrides.get(&node_id), &mut draws);
+                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), node_toon.as_ref(), slot_overrides.get(&node_id), animators.get(&node_id), &mut draws);
                 continue;
             }
             if let (Some(toon), Primitive3D::Cube { .. } | Primitive3D::Sphere { .. } | Primitive3D::Plane { .. } | Primitive3D::Cylinder { .. } | Primitive3D::Cone { .. } | Primitive3D::Torus { .. }) = (&node_toon, &mesh.primitive) {

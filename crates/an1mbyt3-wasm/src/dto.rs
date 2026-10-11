@@ -2195,6 +2195,7 @@ pub enum NodeBehaviorDto {
     VrmPoses(an1mbyt3_core::VrmPoses),
     Ragdoll3D(an1mbyt3_core::Ragdoll3D),
     MaterialSlots(an1mbyt3_core::MaterialSlots),
+    HumanoidAnimator(an1mbyt3_core::HumanoidAnimator),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2246,6 +2247,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::VrmPoses(p) => NodeBehaviorDto::VrmPoses(p.clone()),
             an1mbyt3_core::NodeBehavior::Ragdoll3D(r) => NodeBehaviorDto::Ragdoll3D(*r),
             an1mbyt3_core::NodeBehavior::MaterialSlots(m) => NodeBehaviorDto::MaterialSlots(m.clone()),
+            an1mbyt3_core::NodeBehavior::HumanoidAnimator(a) => NodeBehaviorDto::HumanoidAnimator(a.clone()),
         }
     }
 }
@@ -2299,6 +2301,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::VrmPoses(p) => an1mbyt3_core::NodeBehavior::VrmPoses(p),
             NodeBehaviorDto::Ragdoll3D(r) => an1mbyt3_core::NodeBehavior::Ragdoll3D(r),
             NodeBehaviorDto::MaterialSlots(m) => an1mbyt3_core::NodeBehavior::MaterialSlots(m),
+            NodeBehaviorDto::HumanoidAnimator(a) => an1mbyt3_core::NodeBehavior::HumanoidAnimator(a),
         }
     }
 }

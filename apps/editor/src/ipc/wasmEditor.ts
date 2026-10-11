@@ -1249,6 +1249,34 @@ export function addMaterial(editor: WasmEditor, name: string): { document: Docum
   return editor.add_material(name) as { document: DocumentSummary; material: OpaqueId }
 }
 
+/** Import → avatar animation (VRMA / GLB / VRM): its clips go onto
+ * `node`'s Humanoid Animator. Throws if the file has no humanoid motion. */
+export function importHumanoidAnimation(editor: WasmEditor, name: string, bytes: Uint8Array, artboard: OpaqueId | null, node: OpaqueId | null): { document: DocumentSummary; clips: string[] } {
+  return editor.import_humanoid_animation(name, bytes, artboard, node) as { document: DocumentSummary; clips: string[] }
+}
+
+/** Opens a file picker for avatar animations and imports the chosen file
+ * onto `node` (a VRM avatar). Resolves with the new document, or null if
+ * cancelled. */
+export function pickAndImportHumanoidAnimation(editor: WasmEditor, artboard: OpaqueId | null, node: OpaqueId | null): Promise<DocumentSummary | null> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.vrma,.glb,.gltf,.vrm'
+    input.onchange = async () => {
+      const file = input.files?.[0]
+      if (!file) return resolve(null)
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        resolve(importHumanoidAnimation(editor, file.name, bytes, artboard, node).document)
+      } catch (err) {
+        reject(err)
+      }
+    }
+    input.click()
+  })
+}
+
 /** Every animatable value of a node (the Timeline's "+ Property"). */
 export function nodeFields(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId): FieldInfo[] {
   return (editor.node_fields(artboard, node) as FieldInfo[] | null) ?? []
