@@ -182,6 +182,9 @@ export interface ScriptContext {
     resetSprings(node: OpaqueId): void
     setPose(node: OpaqueId, name: string, blend: number): boolean
     pose(node: OpaqueId): string
+    ragdoll(node: OpaqueId, on: boolean, velocity: [number, number, number]): boolean
+    isRagdoll(node: OpaqueId): boolean
+    ragdollHit(node: OpaqueId, bone: string, impulse: [number, number, number]): boolean
   }
   /** Breakable glass — see `ref.shatter3` / `ctx.glassRaycast3`. */
   glass: {
@@ -583,6 +586,14 @@ export interface ComponentRef {
   setPose3(name: string, options?: { blend?: number }): boolean
   /** **VRM Poses**: the pose this avatar is showing (or blending to). */
   readonly pose3: string
+  /** **Ragdoll 3D**: go limp (`true`, optionally flung at `velocity` m/s)
+   * or get back up (`false`). VRM avatars, Playground. */
+  ragdoll3(on: boolean, options?: { velocity?: Vec3Like }): boolean
+  /** **Ragdoll 3D**: is the avatar limp right now? */
+  readonly isRagdoll3: boolean
+  /** **Ragdoll 3D**: knock one limb of a limp avatar (`'head'`, `'chest'`,
+   * `'leftLowerLeg'` …) with an impulse (N·s, world axes). */
+  ragdollHit3(bone: string, impulse: Vec3Like): boolean
   /** **Models / VRM avatars**: what this model offers (bones,
    * expressions, clips, VRM version, which way it faces). */
   readonly modelInfo3: ModelInfo3 | null
@@ -1041,6 +1052,18 @@ function makeComponentRefFromState(
     pose3: {
       enumerable: false,
       get: () => ctx.model3.pose(node.id),
+    },
+    ragdoll3: {
+      enumerable: false,
+      value: (on: boolean, options: { velocity?: Vec3Like } = {}) => ctx.model3.ragdoll(node.id, !!on, options.velocity ? vec3Of(options.velocity) : [0, 0, 0]),
+    },
+    isRagdoll3: {
+      enumerable: false,
+      get: () => ctx.model3.isRagdoll(node.id),
+    },
+    ragdollHit3: {
+      enumerable: false,
+      value: (bone: string, impulse: Vec3Like) => ctx.model3.ragdollHit(node.id, String(bone), vec3Of(impulse)),
     },
     modelInfo3: {
       enumerable: false,

@@ -755,6 +755,36 @@ function BehaviorsFields({
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
       }
+      case 'Ragdoll3D': {
+        const { kind: _k, ...config } = behavior
+        const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'Ragdoll3D', ...config, ...patch })
+        return (
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Collapse the moment Playground starts">
+              <input type="checkbox" checked={config.startRagdolled} onChange={(e) => set({ startRagdolled: e.target.checked })} />
+              Start ragdolled
+            </label>
+            {(
+              [
+                ['Mass (kg)', 'mass', 5, 200, 1],
+                ['Flexibility', 'flexibility', 0.1, 2, 0.05],
+                ['Thickness', 'thickness', 0.3, 2.5, 0.05],
+              ] as const
+            ).map(([label, key, min, max, step]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-24 shrink-0 text-[11px] text-ink-dim">{label}</span>
+                <div className="min-w-0 flex-1">
+                  <Slider value={config[key]} min={min} max={max} step={step} onChange={(v) => set({ [key]: v })} />
+                </div>
+                <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-ink-dim">{config[key].toFixed(key === 'mass' ? 0 : 2)}</span>
+              </div>
+            ))}
+            <p className="text-[10px] leading-snug text-ink-dim">
+              In Playground the avatar&apos;s bones become physics limbs. Script: <code className="text-ink">ref.ragdoll3(true, {'{ velocity: [0, 2, -4] }'})</code> to knock it down, <code className="text-ink">ref.ragdoll3(false)</code> to get up, <code className="text-ink">ref.ragdollHit3(&apos;head&apos;, [0, 0, -30])</code> to hit a limb.
+            </p>
+          </div>
+        )
+      }
       case 'VrmPoses': {
         const { kind: _k, ...config } = behavior
         return <VrmPosesFields config={config} editor={editor} artboardId={artboard?.id ?? null} nodeId={node.id} onChange={(c) => replaceAt(index, { kind: 'VrmPoses', ...c })} />

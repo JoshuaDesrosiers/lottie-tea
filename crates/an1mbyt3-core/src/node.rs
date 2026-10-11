@@ -279,6 +279,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Ragdoll 3D, if any.
+    pub fn ragdoll3d(&self) -> Option<&crate::Ragdoll3D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Ragdoll3D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Antialias 2D (smooth liquid edges), if any.
     pub fn antialias(&self) -> Option<&crate::Antialias2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

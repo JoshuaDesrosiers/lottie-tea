@@ -786,6 +786,11 @@ var g = class e {
 		if (n[2]) throw U(n[1]);
 		return U(n[0]);
 	}
+	model_is_ragdoll(e, t) {
+		let n = G.wasmeditor_model_is_ragdoll(this.__wbg_ptr, e, t);
+		if (n[2]) throw U(n[1]);
+		return n[0] !== 0;
+	}
 	model_pose(e, t) {
 		let n, r;
 		try {
@@ -796,6 +801,16 @@ var g = class e {
 		} finally {
 			G.__wbindgen_free(n, r, 1);
 		}
+	}
+	model_ragdoll(e, t, n, r, i, a) {
+		let o = G.wasmeditor_model_ragdoll(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[2]) throw U(o[1]);
+		return o[0] !== 0;
+	}
+	model_ragdoll_hit(e, t, n, r, i, a) {
+		let o = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), s = W, c = G.wasmeditor_model_ragdoll_hit(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw U(c[1]);
+		return c[0] !== 0;
 	}
 	model_reset_springs(e, t) {
 		let n = G.wasmeditor_model_reset_springs(this.__wbg_ptr, e, t);
@@ -5800,6 +5815,22 @@ function or(e, t, n, r, i, a) {
 			enumerable: !1,
 			get: () => a.model3.pose(s.id)
 		},
+		ragdoll3: {
+			enumerable: !1,
+			value: (e, t = {}) => a.model3.ragdoll(s.id, !!e, t.velocity ? Q(t.velocity) : [
+				0,
+				0,
+				0
+			])
+		},
+		isRagdoll3: {
+			enumerable: !1,
+			get: () => a.model3.isRagdoll(s.id)
+		},
+		ragdollHit3: {
+			enumerable: !1,
+			value: (e, t) => a.model3.ragdollHit(s.id, String(e), Q(t))
+		},
 		modelInfo3: {
 			enumerable: !1,
 			get: () => a.model3.info(s.id)
@@ -6457,7 +6488,10 @@ var Mr = class {
 					info: (e) => f(() => n.model_info(s, e)),
 					resetSprings: (e) => f(() => n.model_reset_springs(s, e)),
 					setPose: (e, t, r) => f(() => n.model_set_pose(s, e, t, r)),
-					pose: (e) => f(() => n.model_pose(s, e))
+					pose: (e) => f(() => n.model_pose(s, e)),
+					ragdoll: (e, t, r) => f(() => n.model_ragdoll(s, e, t, r[0], r[1], r[2])),
+					isRagdoll: (e) => f(() => n.model_is_ragdoll(s, e)),
+					ragdollHit: (e, t, r) => f(() => n.model_ragdoll_hit(s, e, t, r[0], r[1], r[2]))
 				},
 				glass: {
 					shatter: (e, t, r, i, a) => f(() => yt(n, s, e, t, r, i, a)),

@@ -801,6 +801,64 @@ if (s.scene === 'title') {
 }
 "#;
 
+/// A VRM avatar's ragdoll: one capsule per major humanoid bone (hips,
+/// spine, chest, head, upper / lower arms and legs), from its joint to its
+/// child's, posed where the avatar is now. Returns the parts and, per part,
+/// (glTF node, humanoid name). `None` if the avatar lacks hips.
+fn ragdoll_parts(model: &GpuModel, pose: &[glam::Mat4], world: glam::Mat4, cfg: &an1mbyt3_core::Ragdoll3D) -> Option<(Vec<an1mbyt3_physics::physics3d::RagdollPart>, Vec<(usize, String)>)> {
+    let vrm = model.data.vrm.as_ref()?;
+    let at = |name: &str| vrm.bone(name).filter(|i| *i < pose.len());
+    let world_of = |i: usize| world * pose[i];
+    let pos = |i: usize| world_of(i).transform_point3(glam::Vec3::ZERO);
+    let (scale, _, _) = world.to_scale_rotation_translation();
+    let s = scale.y.abs().max(0.01) * cfg.thickness.max(0.1);
+    let flex = cfg.flexibility.clamp(0.05, 2.0);
+    // (bone, the bone its capsule reaches to, parent limb, radius m,
+    //  share of the mass, bend limit °)
+    let chest = if at("upperChest").is_some() { "upperChest" } else { "chest" };
+    let spec: [(&str, &[&str], Option<&str>, f32, f32, f32); 15] = [
+        ("hips", &["spine"], None, 0.12, 0.16, 0.0),
+        ("spine", &["chest", "upperChest", "neck"], Some("hips"), 0.11, 0.12, 25.0),
+        ("chest", &["upperChest", "neck"], Some("spine"), 0.13, 0.14, 20.0),
+        ("head", &[], Some(chest), 0.1, 0.08, 45.0),
+        ("leftUpperArm", &["leftLowerArm"], Some(chest), 0.045, 0.03, 85.0),
+        ("leftLowerArm", &["leftHand"], Some("leftUpperArm"), 0.04, 0.02, 80.0),
+        ("rightUpperArm", &["rightLowerArm"], Some(chest), 0.045, 0.03, 85.0),
+        ("rightLowerArm", &["rightHand"], Some("rightUpperArm"), 0.04, 0.02, 80.0),
+        ("leftUpperLeg", &["leftLowerLeg"], Some("hips"), 0.07, 0.1, 70.0),
+        ("leftLowerLeg", &["leftFoot"], Some("leftUpperLeg"), 0.055, 0.05, 75.0),
+        ("rightUpperLeg", &["rightLowerLeg"], Some("hips"), 0.07, 0.1, 70.0),
+        ("rightLowerLeg", &["rightFoot"], Some("rightUpperLeg"), 0.055, 0.05, 75.0),
+        ("upperChest", &["neck"], Some("chest"), 0.13, 0.04, 15.0),
+        ("leftFoot", &["leftToes"], Some("leftLowerLeg"), 0.04, 0.015, 30.0),
+        ("rightFoot", &["rightToes"], Some("rightLowerLeg"), 0.04, 0.015, 30.0),
+    ];
+    at("hips")?;
+    let mut parts = Vec::new();
+    let mut bones: Vec<(usize, String)> = Vec::new();
+    let mut index_of: HashMap<&str, usize> = HashMap::new();
+    for (name, ends, parent, radius, share, limit) in spec {
+        let Some(i) = at(name) else { continue };
+        // upperChest only when present (it's a limb then, and chest's
+        // capsule stops at it).
+        let start = pos(i);
+        let end = ends.iter().find_map(|e| at(e)).map(pos).unwrap_or_else(|| {
+            // Head / feet: a short capsule along the bone's own direction.
+            let parent_pos = model.parents.get(i).copied().flatten().map(pos).unwrap_or(start - glam::Vec3::Y * 0.1 * s);
+            start + (start - parent_pos).normalize_or(glam::Vec3::Y) * if name == "head" { 0.2 * s } else { 0.12 * s }
+        });
+        let parent = parent.and_then(|p| index_of.get(p).copied().or_else(|| if p == "upperChest" { index_of.get("chest").copied() } else { None }));
+        if name != "hips" && parent.is_none() {
+            continue;
+        }
+        let (_, rotation, _) = world_of(i).to_scale_rotation_translation();
+        parts.push(an1mbyt3_physics::physics3d::RagdollPart { parent, start, end, radius: radius * s, rotation, mass: cfg.mass.max(1.0) * share, limit_degrees: limit * flex });
+        index_of.insert(name, parts.len() - 1);
+        bones.push((i, name.to_string()));
+    }
+    Some((parts, bones))
+}
+
 /// A VRM's parsed MToon settings as an editable [`an1mbyt3_core::ToonMaterial`].
 fn toon_from_vrm(t: &an1mbyt3_geometry::vrm::Toon, emission: [f32; 3], cutoff: Option<f32>) -> an1mbyt3_core::ToonMaterial {
     an1mbyt3_core::ToonMaterial {
@@ -1840,6 +1898,13 @@ struct ModelInstance {
     /// the component's active one) and its crossfade seconds, and the
     /// blended pose right now (bone → rotation, offset; expressions).
     pose_override: Option<String>,
+    /// Ragdoll: a script's request (go limp / get up, with a starting
+    /// velocity), and while limp, which glTF node each physics part drives
+    /// (+ its humanoid name, for hits).
+    ragdoll_request: Option<(bool, glam::Vec3)>,
+    ragdoll_bones: Option<Vec<(usize, String)>>,
+    /// `start_ragdolled` already acted on this Playground run.
+    ragdoll_started: bool,
     pose_blend: Option<f32>,
     pose_bones: HashMap<usize, (glam::Quat, glam::Vec3)>,
     pose_expressions: HashMap<String, f32>,
@@ -2434,6 +2499,9 @@ pub struct WasmEditor {
     /// bones and the deformed meshes of skinned / morphed models (VRM
     /// avatars). Runtime only — reset on entering/leaving Playground.
     model_instances: HashMap<NodeId, ModelInstance>,
+    /// Ragdolls to create once the scene's physics world exists (made while
+    /// drawing, where the avatar's bone poses are known).
+    pending_ragdolls: Vec<(NodeId, Vec<an1mbyt3_physics::physics3d::RagdollPart>, glam::Vec3)>,
     /// The two Toon material shaders (MToon, Arcane), compiled once; every
     /// Toon material shares them (its values go per draw).
     toon_gpu: [Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>; 2],
@@ -2910,6 +2978,7 @@ impl WasmEditor {
             textured_material_3d: None,
             model_instances: HashMap::new(),
             toon_gpu: [None, None],
+            pending_ragdolls: Vec::new(),
             toon_preview_base: HashMap::new(),
             voxel_worlds: HashMap::new(),
             glass: HashMap::new(),
@@ -3343,7 +3412,8 @@ impl WasmEditor {
         self.physics3d = None;
         }
         // Physics 3D, the same way (only for scenes that use it).
-        if self.playground_active && self.document.artboard(artboard_id).is_some_and(an1mbyt3_physics::physics3d::Physics3DWorld::scene_has_physics) {
+        let ragdolls_live = self.model_instances.values().any(|i| i.ragdoll_bones.is_some());
+        if self.playground_active && (ragdolls_live || self.document.artboard(artboard_id).is_some_and(an1mbyt3_physics::physics3d::Physics3DWorld::scene_has_physics)) {
             if self.physics3d.as_ref().is_none_or(|(scene, _)| *scene != artboard_id) {
                 self.physics3d = Some((artboard_id, an1mbyt3_physics::physics3d::Physics3DWorld::new()));
             }
@@ -6973,6 +7043,7 @@ impl WasmEditor {
             "Goo2D" => B::Goo2D(an1mbyt3_core::Goo2D::default()),
             "Antialias2D" => B::Antialias2D(an1mbyt3_core::Antialias2D::default()),
             "VrmPoses" => B::VrmPoses(an1mbyt3_core::VrmPoses::default()),
+            "Ragdoll3D" => B::Ragdoll3D(an1mbyt3_core::Ragdoll3D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -7675,6 +7746,51 @@ impl WasmEditor {
                 l.0 += *offset;
             }
         }
+        // Ragdoll: go limp / get up on request (or at Playground start),
+        // and while limp the physics capsules pose the humanoid bones.
+        if self.playground_active {
+            if let (Some(cfg), false) = (self.ragdoll_config(node_id), inst.ragdoll_started) {
+                inst.ragdoll_started = true;
+                if cfg.start_ragdolled && inst.ragdoll_request.is_none() {
+                    inst.ragdoll_request = Some((true, glam::Vec3::ZERO));
+                }
+            }
+            match inst.ragdoll_request.take() {
+                Some((true, velocity)) if !inst.last_pose.is_empty() => {
+                    let cfg = self.ragdoll_config(node_id).unwrap_or_default();
+                    if let Some((parts, bones)) = ragdoll_parts(&model, &inst.last_pose, inst.last_world, &cfg) {
+                        self.pending_ragdolls.push((node_id, parts, velocity));
+                        inst.ragdoll_bones = Some(bones);
+                    }
+                }
+                Some((true, v)) => inst.ragdoll_request = Some((true, v)),
+                Some((false, _)) => {
+                    inst.ragdoll_bones = None;
+                    if let Some((_, w)) = self.physics3d.as_mut() {
+                        w.remove_ragdoll(node_id);
+                    }
+                }
+                None => {}
+            }
+        }
+        if let (Some(bones), Some(poses)) = (&inst.ragdoll_bones, self.physics3d.as_ref().and_then(|(_, w)| w.ragdoll_poses(node_id))) {
+            let (_, node_rot, _) = world.to_scale_rotation_translation();
+            let inv_world = world.inverse();
+            for (k, (bone, _)) in bones.iter().enumerate() {
+                let Some((pos, rot)) = poses.get(k) else { continue };
+                // The bone's pose in model space, then local to its parent.
+                let model_rot = node_rot.inverse() * *rot;
+                let parent = model.parents.get(*bone).copied().flatten().map(|p| data.world_pose(&local)[p]).unwrap_or(glam::Mat4::IDENTITY);
+                let (_, parent_rot, _) = parent.to_scale_rotation_translation();
+                if let Some(l) = local.get_mut(*bone) {
+                    l.1 = (parent_rot.inverse() * model_rot).normalize();
+                    // The root part (hips) also moves.
+                    if k == 0 {
+                        l.0 = parent.inverse().transform_point3(inv_world.transform_point3(*pos));
+                    }
+                }
+            }
+        }
         // Hair / skirts / ribbons swing (in world space, so moving the
         // avatar moves them).
         if let Some(vrm) = data.vrm.as_ref().filter(|v| !v.springs.is_empty()) {
@@ -8020,6 +8136,54 @@ impl WasmEditor {
             self.model_instances.entry(node_id).or_default().springs.reset();
         }
         Ok(())
+    }
+
+    /// The node's enabled Ragdoll 3D settings, if any.
+    fn ragdoll_config(&self, node: NodeId) -> Option<an1mbyt3_core::Ragdoll3D> {
+        self.document.artboards().find_map(|(_, a)| a.node(node).and_then(|n| n.ragdoll3d().copied()))
+    }
+
+    /// Script API (`ref.ragdoll3(on, { velocity })`): the avatar goes limp
+    /// (its bones become physics, starting with `velocity` m/s), or gets
+    /// back up (animation again). Playground only.
+    #[allow(clippy::too_many_arguments)]
+    pub fn model_ragdoll(&mut self, artboard: JsValue, node: JsValue, on: bool, vx: f32, vy: f32, vz: f32) -> Result<bool, JsValue> {
+        let Some((node_id, model)) = self.model_of(artboard, node)? else { return Ok(false) };
+        if model.data.vrm.is_none() {
+            return Ok(false);
+        }
+        self.model_instances.entry(node_id).or_default().ragdoll_request = Some((on, glam::Vec3::new(vx, vy, vz)));
+        Ok(true)
+    }
+
+    /// Script API (`ref.ragdoll3` getter): whether the avatar is limp.
+    pub fn model_is_ragdoll(&mut self, artboard: JsValue, node: JsValue) -> Result<bool, JsValue> {
+        let Some((node_id, _)) = self.model_of(artboard, node)? else { return Ok(false) };
+        Ok(self.model_instances.get(&node_id).is_some_and(|i| i.ragdoll_bones.is_some()))
+    }
+
+    /// Script API (`ref.ragdollHit3(bone, impulse)`): knocks one limb of a
+    /// limp avatar (`"head"`, `"chest"`, `"leftLowerLeg"` …; a bone without
+    /// its own limb hits the nearest one above it). `impulse` in N·s.
+    #[allow(clippy::too_many_arguments)]
+    pub fn model_ragdoll_hit(&mut self, artboard: JsValue, node: JsValue, bone: String, ix: f32, iy: f32, iz: f32) -> Result<bool, JsValue> {
+        let Some((node_id, model)) = self.model_of(artboard, node)? else { return Ok(false) };
+        let Some(bones) = self.model_instances.get(&node_id).and_then(|i| i.ragdoll_bones.clone()) else { return Ok(false) };
+        // The limb for this bone, or its nearest ancestor's.
+        let mut index = Self::model_bone(&model, &bone);
+        let mut part = None;
+        while let Some(i) = index {
+            if let Some(k) = bones.iter().position(|(b, _)| *b == i) {
+                part = Some(k);
+                break;
+            }
+            index = model.parents.get(i).copied().flatten();
+        }
+        let part = part.unwrap_or(0);
+        if let Some((_, w)) = self.physics3d.as_mut() {
+            w.ragdoll_impulse(node_id, part, glam::Vec3::new(ix, iy, iz), None);
+        }
+        Ok(true)
     }
 
     /// File → Import → 3D Model: adds a glTF / GLB model (plus the files it
@@ -8481,6 +8645,17 @@ impl WasmEditor {
             draws.push(MeshDraw3D { shininess: mesh.shininess, unlit: mesh.unlit, material, blend, ..MeshDraw3D::new(self.mesh3d(&mesh.primitive), model, mesh.color) });
         }
 
+        // Ragdolls asked for while drawing: into the physics world.
+        if !self.pending_ragdolls.is_empty() {
+            if self.physics3d.as_ref().is_none_or(|(scene, _)| *scene != artboard_id) {
+                self.physics3d = Some((artboard_id, an1mbyt3_physics::physics3d::Physics3DWorld::new()));
+            }
+            if let Some((_, w)) = self.physics3d.as_mut() {
+                for (node, parts, velocity) in self.pending_ragdolls.drain(..) {
+                    w.add_ragdoll(node, &parts, velocity);
+                }
+            }
+        }
         if editor_view {
             let cam = self.view3d_camera;
             let unlit = |mesh, model, color: [f32; 4]| MeshDraw3D { unlit: true, ..MeshDraw3D::new(mesh, model, color) };

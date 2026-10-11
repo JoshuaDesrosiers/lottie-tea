@@ -1559,6 +1559,19 @@ export type NodeBehavior =
   | ({ kind: 'Goo2D' } & Goo2DConfig)
   | ({ kind: 'Antialias2D' } & Antialias2DConfig)
   | ({ kind: 'VrmPoses' } & VrmPosesConfig)
+  | ({ kind: 'Ragdoll3D' } & Ragdoll3DConfig)
+
+/** Mirrors `an1mbyt3_core::Ragdoll3D`: a VRM avatar that can go limp. */
+export interface Ragdoll3DConfig {
+  /** Go limp the moment Playground starts. */
+  startRagdolled: boolean
+  /** Total weight (kg). */
+  mass: number
+  /** 1 = natural joint limits, lower = stiffer. */
+  flexibility: number
+  /** Limb thickness (1 = average build). */
+  thickness: number
+}
 
 /** Mirrors `an1mbyt3_core::BonePose`: one bone in a VRM pose — Euler
  * degrees (Y-X-Z, bone space, on top of the rest pose) and an offset. */

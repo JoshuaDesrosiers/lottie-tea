@@ -131,6 +131,8 @@ pub enum NodeBehavior {
     /// Named poses ("states") for a VRM / model avatar — see
     /// [`crate::VrmPoses`]. (Appended last.)
     VrmPoses(crate::VrmPoses),
+    /// [`crate::Ragdoll3D`]: a VRM avatar that can go limp. (Appended last.)
+    Ragdoll3D(crate::Ragdoll3D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

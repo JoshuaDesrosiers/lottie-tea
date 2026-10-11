@@ -63,3 +63,26 @@ impl VrmPoses {
         self.poses.iter().find(|p| p.name.eq_ignore_ascii_case(name))
     }
 }
+
+/// **Ragdoll 3D** on a VRM avatar: its humanoid bones become physics
+/// capsules joined by ball joints, so it can collapse, tumble and be
+/// knocked around (Playground; `ref.ragdoll3(true)` from a script, or
+/// `start_ragdolled` to drop it at once).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Ragdoll3D {
+    /// Go limp the moment Playground starts.
+    pub start_ragdolled: bool,
+    /// Total weight (kg), shared out over the limbs.
+    pub mass: f32,
+    /// How far joints bend: 1 = natural limits, lower = stiffer.
+    pub flexibility: f32,
+    /// Limb thickness (1 = average build).
+    pub thickness: f32,
+}
+
+impl Default for Ragdoll3D {
+    fn default() -> Self {
+        Self { start_ragdolled: false, mass: 60.0, flexibility: 1.0, thickness: 1.0 }
+    }
+}

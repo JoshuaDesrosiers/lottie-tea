@@ -492,6 +492,9 @@ export class ScriptHost {
           resetSprings: (node) => flushed(() => editor.model_reset_springs(artboardId, node)),
           setPose: (node, name, blend) => flushed(() => editor.model_set_pose(artboardId, node, name, blend)),
           pose: (node) => flushed(() => editor.model_pose(artboardId, node)),
+          ragdoll: (node, on, v) => flushed(() => editor.model_ragdoll(artboardId, node, on, v[0], v[1], v[2])),
+          isRagdoll: (node) => flushed(() => editor.model_is_ragdoll(artboardId, node)),
+          ragdollHit: (node, bone, i) => flushed(() => editor.model_ragdoll_hit(artboardId, node, bone, i[0], i[1], i[2])),
         },
         glass: {
           shatter: (node, point, velocity, radius, floor) => flushed(() => glassShatter(editor, artboardId, node, point, velocity, radius, floor)),

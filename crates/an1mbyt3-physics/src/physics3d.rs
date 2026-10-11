@@ -41,6 +41,32 @@ struct Body3 {
     last_pose: (Vec3, Quat),
 }
 
+/// One limb of a ragdoll (a VRM avatar's upper arm, shin, chest …): a
+/// capsule from its joint `start` to `end` (world space), the bone's world
+/// `rotation` when the ragdoll began, and which earlier part it hangs from
+/// (by a ball joint at this part's `start`, bending at most
+/// `limit_degrees` each way).
+#[derive(Debug, Clone, Copy)]
+pub struct RagdollPart {
+    pub parent: Option<usize>,
+    pub start: Vec3,
+    pub end: Vec3,
+    pub radius: f32,
+    pub rotation: Quat,
+    pub mass: f32,
+    pub limit_degrees: f32,
+}
+
+/// A live ragdoll: its parts and their bodies (same order).
+struct Ragdoll {
+    parts: Vec<RagdollPart>,
+    bodies: Vec<RigidBodyHandle>,
+}
+
+/// Ragdoll limbs don't collide with each other (their joints hold them
+/// together) but do hit everything else.
+const RAGDOLL_GROUP: Group = Group::GROUP_32;
+
 pub struct Physics3DWorld {
     bodies: RigidBodySet,
     colliders: ColliderSet,
@@ -60,6 +86,10 @@ pub struct Physics3DWorld {
     accumulator: f32,
     events: Vec<ContactEvent>,
     pending_forces: HashMap<NodeId, Vec3>,
+    /// Ragdolls by the node (avatar) they belong to.
+    ragdolls: HashMap<NodeId, Ragdoll>,
+    /// A ground plane at y = 0 for ragdolls in scenes without colliders.
+    ragdoll_ground: Option<ColliderHandle>,
 }
 
 impl Default for Physics3DWorld {
@@ -259,6 +289,95 @@ impl Physics3DWorld {
             accumulator: 0.0,
             events: Vec::new(),
             pending_forces: HashMap::new(),
+            ragdolls: HashMap::new(),
+            ragdoll_ground: None,
+        }
+    }
+
+    /// Turns `owner`'s avatar into a ragdoll: one dynamic capsule body per
+    /// part, ball-jointed to its parent part, all starting with `velocity`
+    /// (m/s). Replaces any ragdoll `owner` already had. Scenes with no
+    /// collider of their own get a floor at y = 0 so it has something to
+    /// land on.
+    pub fn add_ragdoll(&mut self, owner: NodeId, parts: &[RagdollPart], velocity: Vec3) {
+        self.remove_ragdoll(owner);
+        let poses: Vec<(Pose, Vec3, Vec3)> = parts.iter().map(|p| (Pose::from_parts(p.start, p.rotation), velocity, Vec3::ZERO)).collect();
+        self.insert_ragdoll(owner, parts.to_vec(), &poses);
+    }
+
+    fn insert_ragdoll(&mut self, owner: NodeId, parts: Vec<RagdollPart>, poses: &[(Pose, Vec3, Vec3)]) {
+        let has_static = self.colliders.iter().any(|(_, c)| c.parent().is_none_or(|b| self.bodies.get(b).is_some_and(|b| b.is_fixed())));
+        if !has_static && self.ragdoll_ground.is_none() {
+            // A wide slab whose top face is y = 0.
+            let ground = ColliderBuilder::cuboid(500.0, 0.5, 500.0).translation(Vec3::new(0.0, -0.5, 0.0)).friction(0.9).build();
+            self.ragdoll_ground = Some(self.colliders.insert(ground));
+        }
+        let groups = InteractionGroups::new(RAGDOLL_GROUP, Group::ALL ^ RAGDOLL_GROUP, InteractionTestMode::And);
+        let mut bodies = Vec::with_capacity(parts.len());
+        for (i, part) in parts.iter().enumerate() {
+            let (pose, lin, ang) = poses.get(i).copied().unwrap_or((Pose::from_parts(part.start, part.rotation), Vec3::ZERO, Vec3::ZERO));
+            let body = RigidBodyBuilder::dynamic().pose(pose).linvel(lin).angvel(ang).linear_damping(0.1).angular_damping(1.2).can_sleep(false).build();
+            let handle = self.bodies.insert(body);
+            // The capsule in the body's own frame (origin at the joint).
+            let tip = part.rotation.inverse() * (part.end - part.start);
+            let r = part.radius.max(0.01);
+            let length = tip.length();
+            let volume = std::f32::consts::PI * r * r * length + 4.0 / 3.0 * std::f32::consts::PI * r * r * r;
+            let collider = ColliderBuilder::capsule_from_endpoints(Vec3::ZERO, tip, r)
+                .density(part.mass.max(0.05) / volume.max(1e-5))
+                .friction(0.8)
+                .collision_groups(groups)
+                .build();
+            self.colliders.insert_with_parent(collider, handle, &mut self.bodies);
+            bodies.push(handle);
+        }
+        for (i, part) in parts.iter().enumerate() {
+            let Some(p) = part.parent.filter(|&p| p < i) else { continue };
+            let parent = &parts[p];
+            // The joint frames line up at the starting pose, so limits
+            // measure bending away from it.
+            let anchor = parent.rotation.inverse() * (part.start - parent.start);
+            let relative = parent.rotation.inverse() * part.rotation;
+            let l = part.limit_degrees.to_radians();
+            let joint = SphericalJointBuilder::new()
+                .local_frame1(Pose::from_parts(anchor, relative))
+                .local_frame2(Pose::IDENTITY)
+                .limits(JointAxis::AngX, [-l, l])
+                .limits(JointAxis::AngY, [-l * 0.6, l * 0.6])
+                .limits(JointAxis::AngZ, [-l, l])
+                .contacts_enabled(false);
+            self.impulse_joints.insert(bodies[p], bodies[i], joint, true);
+        }
+        self.ragdolls.insert(owner, Ragdoll { parts, bodies });
+    }
+
+    /// Ends `owner`'s ragdoll (the avatar goes back to being animated).
+    pub fn remove_ragdoll(&mut self, owner: NodeId) {
+        let Some(ragdoll) = self.ragdolls.remove(&owner) else { return };
+        for handle in ragdoll.bodies {
+            self.bodies.remove(handle, &mut self.islands, &mut self.colliders, &mut self.impulse_joints, &mut self.multibody_joints, &mut self.soft_bodies, true);
+        }
+    }
+
+    pub fn has_ragdoll(&self, owner: NodeId) -> bool {
+        self.ragdolls.contains_key(&owner)
+    }
+
+    /// Each part's world pose (joint position, rotation), same order as
+    /// the parts it was made from.
+    pub fn ragdoll_poses(&self, owner: NodeId) -> Option<Vec<(Vec3, Quat)>> {
+        let ragdoll = self.ragdolls.get(&owner)?;
+        Some(ragdoll.bodies.iter().map(|h| self.bodies.get(*h).map_or((Vec3::ZERO, Quat::IDENTITY), |b| (b.translation(), *b.rotation()))).collect())
+    }
+
+    /// A hit on one part of a ragdoll: an impulse (N·s) at world `point`.
+    pub fn ragdoll_impulse(&mut self, owner: NodeId, part: usize, impulse: Vec3, point: Option<Vec3>) {
+        let Some(handle) = self.ragdolls.get(&owner).and_then(|r| r.bodies.get(part).copied()) else { return };
+        if let Some(body) = self.bodies.get_mut(handle) {
+            match point {
+                Some(p) => body.apply_impulse_at_point(impulse, p, true),
+                None => body.apply_impulse(impulse, true),
+            }
         }
     }
 
@@ -291,8 +410,18 @@ impl Physics3DWorld {
         }
         let kept: HashMap<NodeId, (Vector, AngVector)> = self.node_bodies.iter().filter_map(|(id, b)| self.bodies.get(b.handle).map(|body| (*id, (body.linvel(), body.angvel())))).collect();
         let forces = std::mem::take(&mut self.pending_forces);
+        // Ragdolls survive a rebuild where they are, moving as they were.
+        let ragdolls: Vec<(NodeId, Vec<RagdollPart>, Vec<(Pose, Vec3, Vec3)>)> = self
+            .ragdolls
+            .drain()
+            .map(|(id, r)| {
+                let poses = r.bodies.iter().map(|h| self.bodies.get(*h).map_or((Pose::IDENTITY, Vec3::ZERO, Vec3::ZERO), |b| (*b.position(), b.linvel(), b.angvel()))).collect();
+                (id, r.parts, poses)
+            })
+            .collect();
         *self = Self::new();
         self.pending_forces = forces;
+        let restore_ragdolls = ragdolls;
         self.signature = signature;
 
         for &id in &nodes {
@@ -359,6 +488,10 @@ impl Physics3DWorld {
                 let handle = self.colliders.insert_with_parent(collider, body_handle, &mut self.bodies);
                 self.collider_nodes.insert(handle, (id, c.is_trigger));
             }
+        }
+
+        for (id, parts, poses) in restore_ragdolls {
+            self.insert_ragdoll(id, parts, &poses);
         }
 
         // Prime the broad phase so raycasts work on the first frame.
@@ -591,5 +724,32 @@ mod tests {
         world.step(&mut artboard, 1.0 / 60.0);
         let v = world.velocity(ball).unwrap();
         assert!((v.x - 2.0).abs() < 0.05, "velocity = impulse / mass: {v}");
+    }
+
+    #[test]
+    fn a_ragdoll_falls_lands_and_stays_jointed() {
+        let mut artboard = an1mbyt3_core::Artboard::new("t", 100.0, 100.0);
+        let mut world = Physics3DWorld::new();
+        world.sync(&artboard, &|_| None);
+        // Torso, with a thigh and a shin hanging below it, held up at 2 m.
+        let up = Quat::from_rotation_arc(Vec3::Y, Vec3::NEG_Y);
+        let parts = [
+            RagdollPart { parent: None, start: Vec3::new(0.0, 2.0, 0.0), end: Vec3::new(0.0, 2.5, 0.0), radius: 0.12, rotation: Quat::IDENTITY, mass: 10.0, limit_degrees: 30.0 },
+            RagdollPart { parent: Some(0), start: Vec3::new(0.1, 2.0, 0.0), end: Vec3::new(0.1, 1.55, 0.0), radius: 0.07, rotation: up, mass: 4.0, limit_degrees: 70.0 },
+            RagdollPart { parent: Some(1), start: Vec3::new(0.1, 1.55, 0.0), end: Vec3::new(0.1, 1.1, 0.0), radius: 0.06, rotation: up, mass: 3.0, limit_degrees: 70.0 },
+        ];
+        world.add_ragdoll(NodeId::default(), &parts, Vec3::new(1.0, 0.0, 0.0));
+        for _ in 0..240 {
+            world.step(&mut artboard, 1.0 / 60.0);
+        }
+        let poses = world.ragdoll_poses(NodeId::default()).expect("ragdoll");
+        for (p, _) in &poses {
+            assert!(p.y > -0.05 && p.y < 0.6, "landed on the floor: {p}");
+        }
+        // The shin still hangs off the thigh's far end.
+        let thigh_end = poses[1].0 + poses[1].1 * (up.inverse() * (parts[1].end - parts[1].start));
+        assert!(thigh_end.distance(poses[2].0) < 0.05, "joint held: {}", thigh_end.distance(poses[2].0));
+        world.remove_ragdoll(NodeId::default());
+        assert!(!world.has_ragdoll(NodeId::default()));
     }
 }
