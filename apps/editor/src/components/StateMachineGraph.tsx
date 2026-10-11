@@ -613,6 +613,9 @@ function InlineStateFields({
               if (found) onUpdate(found.id, state.loopMode)
             }}
           >
+            {!artboard.animations.some((a) => a.id.idx === state.animation.idx && a.id.version === state.animation.version) && (
+              <option value={`${state.animation.idx}:${state.animation.version}`}>⚠ Deleted animation — pick one</option>
+            )}
             {artboard.animations.map((a) => (
               <option key={`${a.id.idx}:${a.id.version}`} value={`${a.id.idx}:${a.id.version}`}>
                 {a.name}
@@ -780,6 +783,9 @@ function BlendFields({
                 if (found) onChange({ ...blend, low: found.id })
               }}
             >
+              {!artboard.animations.some((a) => a.id.idx === blend.low.idx && a.id.version === blend.low.version) && (
+                <option value={`${blend.low.idx}:${blend.low.version}`}>⚠ Deleted animation — pick one</option>
+              )}
               {artboard.animations.map((a) => (
                 <option key={`${a.id.idx}:${a.id.version}`} value={`${a.id.idx}:${a.id.version}`}>
                   {a.name}
@@ -806,6 +812,9 @@ function BlendFields({
                 if (found) onChange({ ...blend, high: found.id })
               }}
             >
+              {!artboard.animations.some((a) => a.id.idx === blend.high.idx && a.id.version === blend.high.version) && (
+                <option value={`${blend.high.idx}:${blend.high.version}`}>⚠ Deleted animation — pick one</option>
+              )}
               {artboard.animations.map((a) => (
                 <option key={`${a.id.idx}:${a.id.version}`} value={`${a.id.idx}:${a.id.version}`}>
                   {a.name}

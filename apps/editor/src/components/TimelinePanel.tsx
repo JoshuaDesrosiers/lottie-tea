@@ -510,7 +510,10 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
     return map
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNode, hasFieldTracks])
-  const nameOf = (path: string) => labelByPath.get(path) ?? fieldLabel(path)
+  // A track whose value no longer exists on the node (its component was
+  // removed, or an older track pointed at a list position that moved):
+  // flagged so it can be re-picked from "+ Property".
+  const nameOf = (path: string) => labelByPath.get(path) ?? (labelByPath.size > 0 ? `⚠ missing: ${fieldLabel(path)}` : fieldLabel(path))
   const fieldRows: { key: PropertyName; label: string }[] = []
   for (const t of selectedNode?.tracks ?? []) {
     if (t.property.startsWith('Field:')) fieldRows.push({ key: t.property, label: nameOf(t.property.slice('Field:'.length)) })
@@ -936,7 +939,7 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
               const isMotionPath = p.key === 'MotionPath'
               return (
                 <div key={p.key} className="flex h-6 shrink-0 items-center justify-between gap-1 pr-1 text-[10px] text-ink-dim">
-                  <span className="truncate" title={isMotionPath && !motionPathTrack ? 'Add a Motion Path component in the Inspector first' : p.key.startsWith('Field:') ? p.label : undefined}>
+                  <span className="truncate" title={isMotionPath && !motionPathTrack ? 'Add a Motion Path component in the Inspector first' : p.key.startsWith('Field:') ? (p.label.startsWith('⚠') ? 'This value no longer exists on the object — delete these keys and re-add it with + Property' : p.label) : undefined}>
                     {p.label}
                   </span>
                   <div className="flex shrink-0 items-center gap-0.5">

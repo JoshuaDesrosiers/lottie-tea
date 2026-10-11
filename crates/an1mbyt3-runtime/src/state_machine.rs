@@ -406,7 +406,10 @@ impl Layer {
             return Some(HashMap::new());
         }
 
-        let Some(blend) = &state.blend else {
+        // A blend with no input to drive it (a half-set-up Blend state) has
+        // nothing to blend by — play the state's own animation instead of
+        // sitting frozen on the low clip's first frame.
+        let Some(blend) = state.blend.as_ref().filter(|b| !b.input.is_empty()) else {
             return Some(artboard.animation(state.animation)?.sample_pose(self.playback.time));
         };
 

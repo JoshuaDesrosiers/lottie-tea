@@ -3025,13 +3025,41 @@ impl WasmEditor {
     /// current pose alone, so plain Design edits made while those tabs were
     /// open survive. See `set_mode`'s own comment for when each applies.
     fn restore_design_pose(&mut self, artboard_id: ArtboardId, snapshot: Vec<PoseEntry>, only_keyed: bool) {
-        let keyed: std::collections::HashSet<NodeId> = match self.document.artboard(artboard_id) {
-            Some(a) if only_keyed => a.animations().flat_map(|(_, anim)| anim.tracks.iter().map(|(n, _)| *n)).collect(),
-            _ => std::collections::HashSet::new(),
-        };
+        // Which properties each node has tracks for (any animation).
+        let mut keyed: HashMap<NodeId, std::collections::HashSet<PropertyKind>> = HashMap::new();
+        if only_keyed {
+            if let Some(a) = self.document.artboard(artboard_id) {
+                for (_, anim) in a.animations() {
+                    for (n, track) in &anim.tracks {
+                        keyed.entry(*n).or_default().insert(track.kind());
+                    }
+                }
+            }
+        }
         let Some(artboard_mut) = self.document.artboard_mut(artboard_id) else { return };
         for entry in snapshot {
-            if only_keyed && !keyed.contains(&entry.id) {
+            if only_keyed {
+                // Animate / State Machine only ever move *animated*
+                // properties — put back just those, so every other edit
+                // made while those tabs were open (a material, a component,
+                // an untracked 3D transform …) is kept.
+                let Some(kinds) = keyed.get(&entry.id) else { continue };
+                let Some(node) = artboard_mut.node_mut(entry.id) else { continue };
+                if kinds.contains(&PropertyKind::Translation) || kinds.contains(&PropertyKind::MotionPath) {
+                    node.transform.translation = entry.transform.translation;
+                }
+                if kinds.contains(&PropertyKind::Rotation) {
+                    node.transform.rotation = entry.transform.rotation;
+                }
+                if kinds.contains(&PropertyKind::Scale) {
+                    node.transform.scale = entry.transform.scale;
+                }
+                if let (true, Some(color)) = (kinds.contains(&PropertyKind::FillColor), entry.fill_color) {
+                    set_node_fill_color(node, color);
+                }
+                for (path, v) in entry.fields {
+                    an1mbyt3_core::field_path::write(node, &path, v);
+                }
                 continue;
             }
             if let Some(node) = artboard_mut.node_mut(entry.id) {
