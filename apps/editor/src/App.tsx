@@ -1704,7 +1704,7 @@ function App() {
   // so an author sees exactly what Playground will show before pressing
   // play. Hidden in Playground itself, where you're looking *through* it.
   const cameraFrames =
-    mode === 'Playground' || !activeArtboard
+    mode === 'Playground' || !activeArtboard || view3dActive
       ? []
       : activeArtboard.nodes
           .filter((n) => n.camera !== null)
@@ -1771,7 +1771,7 @@ function App() {
   const gizmoShown = (id: OpaqueId) => gizmoNodeIds.has(`${id.idx}:${id.version}`)
 
   const lightGizmos =
-    mode === 'Playground' || !activeArtboard
+    mode === 'Playground' || !activeArtboard || view3dActive
       ? []
       : activeArtboard.nodes
           .filter((n) => (n.light2d !== null || n.trail !== null) && gizmoShown(n.id))
@@ -1833,7 +1833,7 @@ function App() {
   // `an1mbyt3-physics` places it — node-local offset/size through the
   // node's world transform (`Transform2D::to_affine2`). Triggers dashed.
   const colliderGizmos =
-    mode === 'Playground' || !activeArtboard
+    mode === 'Playground' || !activeArtboard || view3dActive
       ? []
       : activeArtboard.nodes.flatMap((n) => {
           if (!gizmoShown(n.id)) return []
@@ -4139,6 +4139,37 @@ function App() {
                 {v}
               </button>
             ))}
+            {view3dActive && activeArtboard && (
+              <>
+                <span className="mx-1 h-4 w-px bg-panel-border" />
+                {/* The amber camera with the frame in front of it is what
+                    Playground looks through; the 2D layer (HUD) is drawn on
+                    that frame. These place it without a rotate gizmo. */}
+                <button
+                  onClick={() => {
+                    const editor = editorRef.current
+                    if (!editor) return
+                    const result = editor.view3d_align_camera(activeArtboard.id, selection?.nodeId ?? null)
+                    if (result) setDoc(result as DocumentSummary)
+                    else window.alert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
+                  }}
+                  title="Move the Playground camera (the amber one, or the selected Camera 3D) to exactly where you're looking from now. Undoable."
+                  className="rounded px-2 py-1 text-ink-dim hover:bg-overlay/10 hover:text-ink"
+                >
+                  Align camera to view
+                </button>
+                <button
+                  onClick={() => {
+                    const editor = editorRef.current
+                    if (editor && !editor.view3d_look_through(activeArtboard.id, selection?.nodeId ?? null)) window.alert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
+                  }}
+                  title="Look through the Playground camera (the amber one, or the selected Camera 3D): see exactly what Playground will show."
+                  className="rounded px-2 py-1 text-ink-dim hover:bg-overlay/10 hover:text-ink"
+                >
+                  View through camera
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

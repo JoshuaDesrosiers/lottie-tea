@@ -8036,6 +8036,8 @@ impl WasmEditor {
             self.renderer.set_scene_3d(None);
             return;
         };
+        // The scene's screen shape (camera frustum gizmos draw at it).
+        let screen_aspect = artboard.width.max(1.0) / artboard.height.max(1.0);
         let mut camera: Option<(Mat4, an1mbyt3_core::Camera3D)> = None;
         let mut meshes: Vec<(NodeId, Mat4, an1mbyt3_core::Mesh3D)> = Vec::new();
         let mut markers: Vec<(Mat4, Node3DContent)> = Vec::new();
@@ -8197,11 +8199,39 @@ impl WasmEditor {
                 let (_, rotation, _) = world.to_scale_rotation_translation();
                 let rotation = if rotation.is_finite() { rotation.normalize() } else { glam::Quat::IDENTITY };
                 match content {
-                    Node3DContent::Camera(_) => {
-                        draws.push(unlit(std::rc::Rc::clone(&cube), Mat4::from_scale_rotation_translation(Vec3::new(0.35, 0.28, 0.45), rotation, at), [0.15, 0.15, 0.18, 1.0]));
+                    Node3DContent::Camera(cam) => {
+                        // The camera Playground looks through is amber (the
+                        // 2D camera frame's colour); others grey.
+                        let active = camera.as_ref().is_some_and(|(w, c)| *w == *world && c.current == cam.current && c.fov_degrees == cam.fov_degrees);
+                        let tone = if active { [1.0, 0.62, 0.15, 1.0] } else { [0.6, 0.62, 0.68, 1.0] };
+                        let body = if active { [0.35, 0.22, 0.08, 1.0] } else { [0.15, 0.15, 0.18, 1.0] };
+                        draws.push(unlit(std::rc::Rc::clone(&cube), Mat4::from_scale_rotation_translation(Vec3::new(0.35, 0.28, 0.45), rotation, at), body));
                         // Cone's tip is +Y; turn it to point down local -Z.
                         let lens = rotation * glam::Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
-                        draws.push(unlit(std::rc::Rc::clone(&cone), Mat4::from_scale_rotation_translation(Vec3::new(0.3, 0.35, 0.3), lens, at + rotation * Vec3::new(0.0, 0.0, -0.38)), [0.25, 0.25, 0.3, 1.0]));
+                        draws.push(unlit(std::rc::Rc::clone(&cone), Mat4::from_scale_rotation_translation(Vec3::new(0.3, 0.35, 0.3), lens, at + rotation * Vec3::new(0.0, 0.0, -0.38)), tone));
+                        // Its view: a frustum out to a screen rectangle at
+                        // the scene's aspect — the frame the 2D layer (HUD,
+                        // the 2D camera's view) is drawn on top of in
+                        // Playground — with an "up" marker above it.
+                        let distance = 2.2;
+                        let half_h = distance * (cam.fov_degrees.clamp(1.0, 170.0).to_radians() * 0.5).tan();
+                        let half_w = half_h * screen_aspect;
+                        let corner = |sx: f32, sy: f32| at + rotation * Vec3::new(sx * half_w, sy * half_h, -distance);
+                        let corners = [corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)];
+                        let thin = if active { 0.018 } else { 0.01 };
+                        for k in 0..4 {
+                            draws.push(unlit(std::rc::Rc::clone(&cube), crate::view3d::bar_between(at, corners[k], thin * 0.6), [tone[0], tone[1], tone[2], 0.7]));
+                            draws.push(unlit(std::rc::Rc::clone(&cube), crate::view3d::bar_between(corners[k], corners[(k + 1) % 4], thin * 1.6), tone));
+                        }
+                        // The screen itself, faintly filled.
+                        let centre = at + rotation * Vec3::new(0.0, 0.0, -distance);
+                        draws.push(MeshDraw3D {
+                            unlit: true,
+                            blend: an1mbyt3_renderer::Blend3D::Transparent,
+                            ..MeshDraw3D::new(std::rc::Rc::clone(&cube), Mat4::from_scale_rotation_translation(Vec3::new(half_w * 2.0, half_h * 2.0, 0.002), rotation, centre), [tone[0], tone[1], tone[2], if active { 0.12 } else { 0.05 }])
+                        });
+                        // "Up": a small triangle above the screen's top edge.
+                        draws.push(unlit(std::rc::Rc::clone(&cone), Mat4::from_scale_rotation_translation(Vec3::new(0.18, 0.16, 0.02), rotation, at + rotation * Vec3::new(0.0, half_h + 0.14, -distance)), tone));
                     }
                     Node3DContent::Light(light) => {
                         let c = light.color;
@@ -8266,6 +8296,74 @@ impl WasmEditor {
     }
 
     // ---------------------------------------------------- 3D scene view --
+
+    /// The 3D camera Playground looks through in a scene (the first
+    /// `current` one, else the first), as (node, world matrix).
+    fn playground_camera_3d(&self, artboard_id: ArtboardId) -> Option<(NodeId, glam::Mat4, an1mbyt3_core::Camera3D)> {
+        let artboard = self.document.artboard(artboard_id)?;
+        let mut best: Option<(NodeId, glam::Mat4, an1mbyt3_core::Camera3D)> = None;
+        for id in artboard.node_ids() {
+            if artboard.is_effectively_deleted(id) {
+                continue;
+            }
+            let Some(NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Camera(cam), .. })) = artboard.node(id).map(|n| &n.kind) else { continue };
+            if best.as_ref().is_none_or(|(_, _, c)| cam.current && !c.current) {
+                best = Some((id, artboard.world_matrix_3d(id)?, *cam));
+            }
+        }
+        best
+    }
+
+    /// 3D view → "Align camera to view": moves the scene's Playground
+    /// camera (or the selected Camera 3D, `node`) to exactly where the 3D
+    /// view is looking from. Undoable. Returns the document summary (or
+    /// null when the scene has no 3D camera).
+    pub fn view3d_align_camera(&mut self, artboard: JsValue, node: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let selected: Option<NodeId> = parse_id(node).ok().flatten();
+        let target = selected
+            .filter(|id| matches!(self.document.artboard(artboard_id).and_then(|a| a.node(*id)).map(|n| &n.kind), Some(NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Camera(_), .. }))))
+            .or_else(|| self.playground_camera_3d(artboard_id).map(|(id, _, _)| id));
+        let Some(node_id) = target else { return Ok(JsValue::NULL) };
+        let Some(artboard_ref) = self.document.artboard(artboard_id) else { return Ok(JsValue::NULL) };
+        let Some(NodeKind::Node3D(node3d)) = artboard_ref.node(node_id).map(|n| n.kind.clone()) else { return Ok(JsValue::NULL) };
+        // The view camera's world pose → the node's local pose.
+        let world = self.view3d_camera.view().inverse();
+        let parent_world = artboard_ref.node(node_id).and_then(|n| n.parent).and_then(|p| artboard_ref.world_matrix_3d(p)).unwrap_or(glam::Mat4::IDENTITY);
+        let local = parent_world.inverse() * world;
+        let (_, rotation, translation) = local.to_scale_rotation_translation();
+        let mut value = node3d;
+        value.transform.position = translation;
+        value.transform.set_rotation(rotation);
+        self.document.apply(Command::SetNode3D { artboard: artboard_id, node: node_id, value });
+        self.document_summary()
+    }
+
+    /// 3D view → "View through camera": puts the 3D view exactly where the
+    /// scene's Playground camera (or `node`, a Camera 3D) is, looking where
+    /// it looks, with its field of view.
+    pub fn view3d_look_through(&mut self, artboard: JsValue, node: JsValue) -> Result<bool, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let selected: Option<NodeId> = parse_id(node).ok().flatten();
+        let picked = selected.and_then(|id| {
+            let artboard = self.document.artboard(artboard_id)?;
+            match &artboard.node(id)?.kind {
+                NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Camera(cam), .. }) => Some((id, artboard.world_matrix_3d(id)?, *cam)),
+                _ => None,
+            }
+        });
+        let Some((_, world, cam)) = picked.or_else(|| self.playground_camera_3d(artboard_id)) else { return Ok(false) };
+        let eye = world.transform_point3(glam::Vec3::ZERO);
+        let forward = world.transform_vector3(glam::Vec3::NEG_Z).normalize_or(glam::Vec3::NEG_Z);
+        let back = -forward;
+        let view = &mut self.view3d_camera;
+        view.pitch = back.y.clamp(-1.0, 1.0).asin().to_degrees().clamp(-89.0, 89.0);
+        view.yaw = back.x.atan2(back.z).to_degrees();
+        view.distance = view.distance.clamp(1.0, 50.0);
+        view.target = eye + forward * view.distance;
+        view.fov_degrees = cam.fov_degrees;
+        Ok(true)
+    }
 
     /// Turns Design mode's 3D scene view on / off.
     pub fn view3d_set_enabled(&mut self, enabled: bool) {
