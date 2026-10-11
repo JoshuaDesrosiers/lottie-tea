@@ -32,6 +32,7 @@ pub mod glass;
 pub mod voxel;
 pub mod vrm;
 pub mod retarget;
+pub mod ik3d;
 
 pub use mesh::{unit_quad_mesh, Mesh};
 pub use glass::{GlassPane, ShatterParams, ShatterResult};

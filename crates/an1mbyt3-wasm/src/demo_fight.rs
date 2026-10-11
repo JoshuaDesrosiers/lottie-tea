@@ -317,7 +317,10 @@ pub(crate) fn build_demo_fight(document: &mut Document, vrm: Vec<u8>, name: &str
     let mut fighters = Vec::new();
     for (id, x) in [("f1", -1.8f32), ("f2", 1.8)] {
         let fighter = mesh(Primitive3D::Model { model }, [1.0; 4], 0.15, false, None);
-        fighters.push(add_node(document, &mut inverses, scene, with(node3d(id, None, at(Vec3::new(x, 0.0, 0.0)), fighter), NodeBehavior::Ragdoll3D(ragdoll))));
+        // Foot IK keeps her feet on the stone through every stance, crouch
+        // and lunge (the poses lower her hips; the knees bend for it).
+        let node = with(with(node3d(id, None, at(Vec3::new(x, 0.0, 0.0)), fighter), NodeBehavior::Ragdoll3D(ragdoll)), NodeBehavior::FootIK(an1mbyt3_core::FootIK::default()));
+        fighters.push(add_node(document, &mut inverses, scene, node));
     }
 
     // Blood, done realistically: a spray of small dark droplets that

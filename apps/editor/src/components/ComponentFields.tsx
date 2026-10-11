@@ -1472,6 +1472,7 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   Ragdoll3D: 'Ragdoll 3D (VRM)',
   MaterialSlots: 'Material Overrides',
   HumanoidAnimator: 'Humanoid Animator (mocap)',
+  FootIK: 'Foot IK (VRM)',
   ParticleBehaviors2D: 'Particle Behaviours 2D',
   PropertyBindings: 'Property Binding',
   UiSlider: 'UI Slider',
@@ -1480,7 +1481,7 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings', 'ParticleSystem3D', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D', 'VrmPoses', 'Ragdoll3D', 'MaterialSlots', 'HumanoidAnimator']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings', 'ParticleSystem3D', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D', 'VrmPoses', 'Ragdoll3D', 'MaterialSlots', 'HumanoidAnimator', 'FootIK']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D'] },
@@ -1488,7 +1489,7 @@ const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D', 'Cloth2D'] },
   { title: 'Physics 3D', kinds: ['Rigidbody3D', 'Collider3D', 'Ragdoll3D'] },
   { title: 'Effects 3D', kinds: ['ParticleSystem3D', 'MaterialSlots'] },
-  { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D'] },
+  { title: 'Rigging', kinds: ['IkConstraint2D', 'SpriteSkin2D', 'FootIK'] },
   { title: 'Audio', kinds: ['AudioSource'] },
   { title: 'Animation', kinds: ['Flipbook', 'VrmPoses', 'HumanoidAnimator'] },
   { title: 'UI', kinds: ['UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiHtml'] },

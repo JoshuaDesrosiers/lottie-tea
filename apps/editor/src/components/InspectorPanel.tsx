@@ -756,6 +756,34 @@ function BehaviorsFields({
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
       }
+      case 'FootIK': {
+        const { kind: _k, ...config } = behavior
+        const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'FootIK', ...config, ...patch })
+        return (
+          <div className="flex flex-col gap-1.5">
+            {(
+              [
+                ['Weight', 'weight', 0, 1, 0.01, 2],
+                ['Sole (m)', 'sole', -0.05, 0.1, 0.002, 3],
+                ['Max step (m)', 'maxStep', 0, 1, 0.01, 2],
+              ] as const
+            ).map(([label, key, min, max, step, digits]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-24 shrink-0 text-[11px] text-ink-dim">{label}</span>
+                <div className="min-w-0 flex-1">
+                  <Slider value={config[key]} min={min} max={max} step={step} onChange={(v) => set({ [key]: v })} />
+                </div>
+                <span className="w-12 shrink-0 text-right text-[10px] tabular-nums text-ink-dim">{config[key].toFixed(digits)}</span>
+              </div>
+            ))}
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+              <input type="checkbox" checked={config.align} onChange={(e) => set({ align: e.target.checked })} />
+              Tilt feet to the slope
+            </label>
+            <p className="text-[10px] leading-snug text-ink-dim">Feet stay on the ground: knees bend instead of feet sinking. In Playground they also step onto colliders below (stairs, slopes).</p>
+          </div>
+        )
+      }
       case 'HumanoidAnimator': {
         const { kind: _k, ...config } = behavior
         const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'HumanoidAnimator', ...config, ...patch })

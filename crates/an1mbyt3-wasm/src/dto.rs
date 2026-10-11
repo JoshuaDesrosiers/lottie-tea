@@ -2196,6 +2196,7 @@ pub enum NodeBehaviorDto {
     Ragdoll3D(an1mbyt3_core::Ragdoll3D),
     MaterialSlots(an1mbyt3_core::MaterialSlots),
     HumanoidAnimator(an1mbyt3_core::HumanoidAnimator),
+    FootIK(an1mbyt3_core::FootIK),
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2248,6 +2249,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::Ragdoll3D(r) => NodeBehaviorDto::Ragdoll3D(*r),
             an1mbyt3_core::NodeBehavior::MaterialSlots(m) => NodeBehaviorDto::MaterialSlots(m.clone()),
             an1mbyt3_core::NodeBehavior::HumanoidAnimator(a) => NodeBehaviorDto::HumanoidAnimator(a.clone()),
+            an1mbyt3_core::NodeBehavior::FootIK(f) => NodeBehaviorDto::FootIK(*f),
         }
     }
 }
@@ -2302,6 +2304,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::Ragdoll3D(r) => an1mbyt3_core::NodeBehavior::Ragdoll3D(r),
             NodeBehaviorDto::MaterialSlots(m) => an1mbyt3_core::NodeBehavior::MaterialSlots(m),
             NodeBehaviorDto::HumanoidAnimator(a) => an1mbyt3_core::NodeBehavior::HumanoidAnimator(a),
+            NodeBehaviorDto::FootIK(f) => an1mbyt3_core::NodeBehavior::FootIK(f),
         }
     }
 }

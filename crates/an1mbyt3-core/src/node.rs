@@ -279,6 +279,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Foot IK, if any.
+    pub fn foot_ik(&self) -> Option<&crate::FootIK> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::FootIK(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Humanoid Animator, if any.
     pub fn humanoid_animator(&self) -> Option<&crate::HumanoidAnimator> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

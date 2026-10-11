@@ -1562,6 +1562,15 @@ export type NodeBehavior =
   | ({ kind: 'Ragdoll3D' } & Ragdoll3DConfig)
   | ({ kind: 'MaterialSlots' } & MaterialSlotsConfig)
   | ({ kind: 'HumanoidAnimator' } & HumanoidAnimatorConfig)
+  | ({ kind: 'FootIK' } & FootIKConfig)
+
+/** Mirrors `an1mbyt3_core::FootIK`: a VRM avatar's feet planted. */
+export interface FootIKConfig {
+  weight: number
+  sole: number
+  maxStep: number
+  align: boolean
+}
 
 /** Mirrors `an1mbyt3_core::HumanoidAnimator`: imported humanoid clips
  * (VRMA, Mixamo-style GLB …) retargeted onto a VRM avatar. */

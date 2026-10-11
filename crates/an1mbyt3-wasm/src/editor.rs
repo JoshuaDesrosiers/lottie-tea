@@ -7057,6 +7057,7 @@ impl WasmEditor {
             "Ragdoll3D" => B::Ragdoll3D(an1mbyt3_core::Ragdoll3D::default()),
             "MaterialSlots" => B::MaterialSlots(an1mbyt3_core::MaterialSlots::default()),
             "HumanoidAnimator" => B::HumanoidAnimator(an1mbyt3_core::HumanoidAnimator::default()),
+            "FootIK" => B::FootIK(an1mbyt3_core::FootIK::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -7670,6 +7671,7 @@ impl WasmEditor {
         node_toon: Option<&an1mbyt3_core::ToonMaterial>,
         slot_overrides: Option<&an1mbyt3_core::MaterialSlots>,
         animator: Option<&an1mbyt3_core::HumanoidAnimator>,
+        foot_ik: Option<&an1mbyt3_core::FootIK>,
         draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>,
     ) {
         let Some(model) = self.gpu_model(model_id) else { return };
@@ -7851,6 +7853,10 @@ impl WasmEditor {
                     }
                 }
             }
+        }
+        // Foot IK: plant the feet (after every pose layer, before springs).
+        if let (Some(cfg), Some(vrm), true) = (foot_ik, data.vrm.as_ref(), inst.ragdoll_bones.is_none()) {
+            self.plant_feet(&model, vrm, cfg, world, &mut local);
         }
         // Hair / skirts / ribbons swing (in world space, so moving the
         // avatar moves them).
@@ -8310,6 +8316,70 @@ impl WasmEditor {
         }
     }
 
+    /// Foot IK (see `an1mbyt3_core::FootIK`): where each foot should stand —
+    /// the ground under it (a physics raycast in Playground, else the
+    /// avatar's own floor, its origin's height) — then drop the hips for a
+    /// lower step, solve each leg and tilt each foot to the slope.
+    fn plant_feet(&self, model: &GpuModel, vrm: &an1mbyt3_geometry::vrm::Vrm, cfg: &an1mbyt3_core::FootIK, world: glam::Mat4, local: &mut [(glam::Vec3, glam::Quat, glam::Vec3)]) {
+        use an1mbyt3_geometry::ik3d::{rotate_bone, solve_two_bone, TwoBoneChain};
+        use glam::Vec3;
+        let data = &model.data;
+        let legs: Vec<TwoBoneChain> = [("leftUpperLeg", "leftLowerLeg", "leftFoot"), ("rightUpperLeg", "rightLowerLeg", "rightFoot")]
+            .iter()
+            .filter_map(|(u, l, e)| Some(TwoBoneChain { upper: vrm.bone(u)?, lower: vrm.bone(l)?, end: vrm.bone(e)? }))
+            .collect();
+        if legs.is_empty() || cfg.weight <= 0.0 {
+            return;
+        }
+        let pos = |m: &glam::Mat4| m.transform_point3(Vec3::ZERO);
+        let rest = data.world_pose(&model.rest);
+        let (scale, _, base) = world.to_scale_rotation_translation();
+        let inv = world.inverse();
+        let physics = self.physics3d.as_ref().filter(|_| self.playground_active).map(|(_, w)| w);
+        let pose = data.world_pose(local);
+        // Per leg: (foot world position now, where it should be (world y),
+        // ground normal).
+        let mut plans = Vec::new();
+        let mut drop = 0.0f32;
+        for c in &legs {
+            let foot = world.transform_point3(pos(&pose[c.end]));
+            let ankle = pos(&rest[c.end]).y * scale.y.abs() + cfg.sole;
+            let hit = physics.and_then(|p| p.raycast(foot + Vec3::Y * 0.6, Vec3::NEG_Y, 0.6 + cfg.max_step + 1.0, None));
+            let (ground, normal) = hit.map_or((base.y, Vec3::Y), |h| (h.point.y, h.normal));
+            // Stood on (not jumping / falling): follow the ground's height.
+            let adapt = if (ground - base.y).abs() <= cfg.max_step { ground - base.y } else { 0.0 };
+            let want = (foot.y + adapt).max(ground + ankle);
+            drop = drop.min(want - foot.y);
+            plans.push((foot, want, normal));
+        }
+        // A lower foothold: the hips come down to reach it.
+        let drop = drop.max(-cfg.max_step) * cfg.weight;
+        if drop < -1e-4 {
+            if let Some(h) = vrm.bone("hips") {
+                let parent = data.nodes[h].parent.map_or(glam::Quat::IDENTITY, |p| pose[p].to_scale_rotation_translation().1);
+                local[h].0 += parent.inverse() * inv.transform_vector3(Vec3::Y * drop);
+            }
+        }
+        let forward = Vec3::new(0.0, 0.0, if vrm.forward_z < 0.0 { -1.0 } else { 1.0 });
+        for (c, (foot, want, normal)) in legs.iter().zip(plans) {
+            let now = data.world_pose(local);
+            let current = pos(&now[c.end]);
+            let target_world = Vec3::new(foot.x, want, foot.z);
+            let target = current.lerp(inv.transform_point3(target_world), cfg.weight);
+            if current.distance(target) > 1e-4 {
+                let knee = pos(&now[c.lower]);
+                solve_two_bone(data, local, *c, target, knee + forward * 0.4);
+            }
+            if cfg.align && normal.y < 0.999 {
+                let now = data.world_pose(local);
+                let up = inv.transform_vector3(Vec3::Y).normalize_or(Vec3::Y);
+                let n = inv.transform_vector3(normal).normalize_or(up);
+                let tilt = glam::Quat::IDENTITY.slerp(glam::Quat::from_rotation_arc(up, n), cfg.weight);
+                rotate_bone(data, &now, local, c.end, tilt);
+            }
+        }
+    }
+
     /// The node's enabled Ragdoll 3D settings, if any.
     fn ragdoll_config(&self, node: NodeId) -> Option<an1mbyt3_core::Ragdoll3D> {
         self.document.artboards().find_map(|(_, a)| a.node(node).and_then(|n| n.ragdoll3d().copied()))
@@ -8386,7 +8456,11 @@ impl WasmEditor {
         let mesh = an1mbyt3_core::Mesh3D { primitive: an1mbyt3_core::Primitive3D::Model { model }, color: [1.0; 4], shininess: 0.15, ..an1mbyt3_core::Mesh3D::new(an1mbyt3_core::Primitive3D::cube(), [1.0; 4]) };
         let transform = an1mbyt3_core::Transform3D { position: glam::Vec3::new(0.0, -min.y * scale, 0.0), rotation_degrees: glam::Vec3::ZERO, scale: glam::Vec3::splat(scale) };
         let display = name.rsplit(['/', '\\']).next().unwrap_or(&name).trim_end_matches(".glb").trim_end_matches(".gltf").to_string();
-        let node = Node::new(display, None, NodeKind::Node3D(an1mbyt3_core::Node3D::new(transform, an1mbyt3_core::Node3DContent::Mesh(mesh))));
+        let mut node = Node::new(display, None, NodeKind::Node3D(an1mbyt3_core::Node3D::new(transform, an1mbyt3_core::Node3DContent::Mesh(mesh))));
+        // VRM avatars start with Foot IK: feet planted, knees bend.
+        if parsed.vrm.is_some() {
+            node.behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: an1mbyt3_core::NodeBehavior::FootIK(an1mbyt3_core::FootIK::default()), enabled: true });
+        }
         let inverse = self.document.apply(Command::AddNode { artboard: artboard_id, node });
         let Command::SetDeleted { node: new_node, .. } = inverse else { unreachable!("Command::AddNode's inverse is always a SetDeleted") };
         to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node })
@@ -8670,6 +8744,7 @@ impl WasmEditor {
         let mut vrm_poses: HashMap<NodeId, an1mbyt3_core::VrmPoses> = HashMap::new();
         let mut slot_overrides: HashMap<NodeId, an1mbyt3_core::MaterialSlots> = HashMap::new();
         let mut animators: HashMap<NodeId, an1mbyt3_core::HumanoidAnimator> = HashMap::new();
+        let mut foot_iks: HashMap<NodeId, an1mbyt3_core::FootIK> = HashMap::new();
         let mut any_3d = false;
         for id in artboard.node_ids() {
             if artboard.is_effectively_deleted(id) {
@@ -8695,6 +8770,9 @@ impl WasmEditor {
             }
             if let Some(a) = node.humanoid_animator() {
                 animators.insert(id, a.clone());
+            }
+            if let Some(f) = node.foot_ik() {
+                foot_iks.insert(id, *f);
             }
             match n.content {
                 Node3DContent::Mesh(mesh) => meshes.push((id, world, mesh)),
@@ -8803,7 +8881,7 @@ impl WasmEditor {
             let node_toon = mesh.material.and_then(|id| self.toon_material(id));
             let material = if node_toon.is_some() { None } else { mesh.material.and_then(|id| self.material3d(id)) };
             if let Primitive3D::Model { model: model_id } = mesh.primitive {
-                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), node_toon.as_ref(), slot_overrides.get(&node_id), animators.get(&node_id), &mut draws);
+                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), node_toon.as_ref(), slot_overrides.get(&node_id), animators.get(&node_id), foot_iks.get(&node_id), &mut draws);
                 continue;
             }
             if let (Some(toon), Primitive3D::Cube { .. } | Primitive3D::Sphere { .. } | Primitive3D::Plane { .. } | Primitive3D::Cylinder { .. } | Primitive3D::Cone { .. } | Primitive3D::Torus { .. }) = (&node_toon, &mesh.primitive) {

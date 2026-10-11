@@ -123,3 +123,28 @@ pub struct HumanoidClipRef {
     /// The clip's name in the source file (`""` = its first clip).
     pub clip: String,
 }
+
+/// **Foot IK** on a VRM avatar: its legs bend (two-bone IK, knees
+/// forward) so the feet stay on the ground — they never sink when the
+/// animation or a hips offset lowers the body, and on uneven ground (any
+/// collider under the feet, Playground) they step onto it, the hips drop
+/// to reach a lower foothold and the feet tilt to the slope. Feet lifted
+/// by the animation (kicks, steps, jumps) are left alone.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FootIK {
+    /// How strongly the feet are planted (0..1).
+    pub weight: f32,
+    /// Extra sole thickness under the ankle (m).
+    pub sole: f32,
+    /// The furthest the hips drop to reach a lower step (m).
+    pub max_step: f32,
+    /// Tilt the feet to the ground's slope.
+    pub align: bool,
+}
+
+impl Default for FootIK {
+    fn default() -> Self {
+        Self { weight: 1.0, sole: 0.0, max_step: 0.4, align: true }
+    }
+}

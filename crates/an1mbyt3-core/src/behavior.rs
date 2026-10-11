@@ -139,6 +139,9 @@ pub enum NodeBehavior {
     /// [`crate::HumanoidAnimator`]: retargeted humanoid animation clips on
     /// a VRM avatar. (Appended last.)
     HumanoidAnimator(crate::HumanoidAnimator),
+    /// [`crate::FootIK`]: a VRM avatar's feet planted on the ground.
+    /// (Appended last.)
+    FootIK(crate::FootIK),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.
