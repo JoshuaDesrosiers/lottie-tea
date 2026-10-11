@@ -487,6 +487,18 @@ impl Document {
         self.undo_stack.push(Command::Batch(inverses));
         self.redo_stack.clear();
     }
+
+    /// Folds the last `count` undo entries into one (they undo together) —
+    /// e.g. an Inspector edit plus the keyframes record mode made from it.
+    pub fn merge_last(&mut self, count: usize) {
+        let count = count.min(self.undo_stack.len());
+        if count < 2 {
+            return;
+        }
+        // Popped newest-first = undo order, `Command::Batch`'s convention.
+        let merged: Vec<Command> = (0..count).filter_map(|_| self.undo_stack.pop()).collect();
+        self.undo_stack.push(Command::Batch(merged));
+    }
 }
 
 #[cfg(test)]

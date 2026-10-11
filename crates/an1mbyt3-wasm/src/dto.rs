@@ -939,6 +939,8 @@ pub enum KeyframeValueDto {
     FillColor([f32; 4]),
     Path(PathDto),
     MotionPath(f32),
+    /// A field-path track's value (number / bool / vector / colour).
+    Field([f32; 4]),
 }
 
 /// Mirrors `an1mbyt3_core::Easing` across the wasm-bindgen boundary —
@@ -993,7 +995,8 @@ pub struct KeyframeDto {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PropertyTrackSummary {
-    pub property: &'static str,
+    /// `"Field:<path>"` for a field-path track (any Inspector value).
+    pub property: String,
     /// Always in ascending `time` order (the same invariant `Track`/
     /// `Command::AddKeyframe`'s doc comments establish), so the Timeline
     /// panel can index into this directly — `preview_keyframe_time`/
@@ -1008,34 +1011,39 @@ pub struct PropertyTrackSummary {
 fn summarize_property_track(track: &PropertyTrack) -> PropertyTrackSummary {
     match track {
         PropertyTrack::Translation(t) => PropertyTrackSummary {
-            property: "Translation",
+            property: "Translation".into(),
             keyframes: t.keyframes.iter().map(|k| KeyframeDto { time: k.time, value: KeyframeValueDto::Translation(k.value.into()), easing: k.easing.into() }).collect(),
             guide: None,
         },
         PropertyTrack::Rotation(t) => PropertyTrackSummary {
-            property: "Rotation",
+            property: "Rotation".into(),
             keyframes: t.keyframes.iter().map(|k| KeyframeDto { time: k.time, value: KeyframeValueDto::Rotation(k.value), easing: k.easing.into() }).collect(),
             guide: None,
         },
         PropertyTrack::Scale(t) => PropertyTrackSummary {
-            property: "Scale",
+            property: "Scale".into(),
             keyframes: t.keyframes.iter().map(|k| KeyframeDto { time: k.time, value: KeyframeValueDto::Scale(k.value.into()), easing: k.easing.into() }).collect(),
             guide: None,
         },
         PropertyTrack::FillColor(t) => PropertyTrackSummary {
-            property: "FillColor",
+            property: "FillColor".into(),
             keyframes: t.keyframes.iter().map(|k| KeyframeDto { time: k.time, value: KeyframeValueDto::FillColor(k.value), easing: k.easing.into() }).collect(),
             guide: None,
         },
         PropertyTrack::Path(t) => PropertyTrackSummary {
-            property: "Path",
+            property: "Path".into(),
             keyframes: t.keyframes.iter().map(|k| KeyframeDto { time: k.time, value: KeyframeValueDto::Path((&k.value).into()), easing: k.easing.into() }).collect(),
             guide: None,
         },
         PropertyTrack::MotionPath { guide, track } => PropertyTrackSummary {
-            property: "MotionPath",
+            property: "MotionPath".into(),
             keyframes: track.keyframes.iter().map(|k| KeyframeDto { time: k.time, value: KeyframeValueDto::MotionPath(k.value), easing: k.easing.into() }).collect(),
             guide: Some(*guide),
+        },
+        PropertyTrack::Field { path, track } => PropertyTrackSummary {
+            property: format!("Field:{path}"),
+            keyframes: track.keyframes.iter().map(|k| KeyframeDto { time: k.time, value: KeyframeValueDto::Field(k.value), easing: k.easing.into() }).collect(),
+            guide: None,
         },
     }
 }
@@ -2544,8 +2552,12 @@ pub struct ModelSummary {
 pub struct MaterialSummary {
     pub id: an1mbyt3_core::MaterialId,
     pub name: String,
-    /// `"ShaderGraph"`, `"Color"` or `"Textured"`.
+    /// `"ShaderGraph"`, `"Color"`, `"Textured"` or `"Toon"`.
     pub kind: &'static str,
+    /// Toon materials: `"MToon"` / `"Arcane"`.
+    pub style: Option<&'static str>,
+    /// Toon materials made from an imported model's material slot.
+    pub source: Option<an1mbyt3_core::ModelMaterialSlot>,
 }
 
 /// One saved drawing in the Resources panel.
@@ -2674,6 +2686,18 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
                     an1mbyt3_core::MaterialKind::ShaderGraph(_) => "ShaderGraph",
                     an1mbyt3_core::MaterialKind::Color(_) => "Color",
                     an1mbyt3_core::MaterialKind::Textured { .. } => "Textured",
+                    an1mbyt3_core::MaterialKind::Toon(_) => "Toon",
+                },
+                style: match &m.kind {
+                    an1mbyt3_core::MaterialKind::Toon(t) => Some(match t.style {
+                        an1mbyt3_core::ToonStyle::MToon => "MToon",
+                        an1mbyt3_core::ToonStyle::Arcane => "Arcane",
+                    }),
+                    _ => None,
+                },
+                source: match &m.kind {
+                    an1mbyt3_core::MaterialKind::Toon(t) => t.source,
+                    _ => None,
                 },
             })
             .collect(),

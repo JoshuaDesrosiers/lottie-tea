@@ -216,11 +216,15 @@ pub struct MeshDraw3D {
     /// out along its normals by this many model units, front faces culled,
     /// flat `color` (fogged).
     pub outline: f32,
+    /// The material's parameters, `uniforms.material[0..6]` in its shader
+    /// (e.g. a Toon material's colours and sliders) — set per draw, so
+    /// editing them never recompiles anything.
+    pub params: [[f32; 4]; MATERIAL_PARAMS_3D],
 }
 
 impl MeshDraw3D {
     pub fn new(mesh: Rc<GpuMesh3D>, model: Mat4, color: [f32; 4]) -> Self {
-        Self { mesh, model, color, shininess: 0.3, unlit: false, material: None, texture: None, overlay: false, blend: Blend3D::Opaque, double_sided: false, joints: None, outline: 0.0 }
+        Self { mesh, model, color, shininess: 0.3, unlit: false, material: None, texture: None, overlay: false, blend: Blend3D::Opaque, double_sided: false, joints: None, outline: 0.0, params: [[0.0; 4]; MATERIAL_PARAMS_3D] }
     }
 }
 
@@ -284,7 +288,23 @@ struct DrawUniforms3D {
     normal_matrix: [[f32; 4]; 4],
     color: [f32; 4],
     params: [f32; 4],
+    /// The material's own parameters (toon shade colour, rim, brush …) —
+    /// fills the draw's 256-byte slot exactly.
+    material: [[f32; 4]; MATERIAL_PARAMS_3D],
 }
+
+/// The Toon material's fragment, MToon style — compile with
+/// [`Renderer::compile_material_3d`]; its parameters come per draw
+/// ([`MeshDraw3D::params`], from `an1mbyt3_core::ToonMaterial::gpu_params`).
+pub const TOON_MTOON_WGSL: &str = concat!(include_str!("toon/common.wgsl"), include_str!("toon/mtoon.wgsl"));
+
+/// The Toon material's fragment, painterly Arcane style (see
+/// [`TOON_MTOON_WGSL`]).
+pub const TOON_ARCANE_WGSL: &str = concat!(include_str!("toon/common.wgsl"), include_str!("toon/arcane.wgsl"));
+
+/// How many `vec4` material parameters a 3D draw carries
+/// ([`MeshDraw3D::params`], `uniforms.material[i]` in WGSL).
+pub const MATERIAL_PARAMS_3D: usize = 6;
 
 /// GPU state for the 3D pass, built on first use.
 pub(crate) struct Resources3D {
@@ -317,6 +337,8 @@ pub(crate) struct Resources3D {
     /// Skinned draws without a material, and toon outlines.
     skinned_pipeline: wgpu::RenderPipeline,
     outline_pipeline: wgpu::RenderPipeline,
+    /// Outlines for unskinned meshes (toon materials on props).
+    outline_static_pipeline: wgpu::RenderPipeline,
     /// (width, height, view) of the current depth buffer.
     depth: RefCell<Option<(u32, u32, wgpu::TextureView)>>,
 }
@@ -399,6 +421,7 @@ fn mesh_pipeline_with(device: &wgpu::Device, format: wgpu::TextureFormat, layout
     let vertex_entry = match (skinned, pass) {
         (true, MeshPass::Outline) => "vs_skinned_outline",
         (true, _) => "vs_skinned",
+        (false, MeshPass::Outline) => "vs_outline",
         _ => "vs_main",
     };
     let base_layout = wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] };
@@ -626,6 +649,7 @@ impl Renderer {
             let additive_pipeline = mesh_pipeline(device, self.render_format, &layout, &shader, "fs_main", MeshPass::Additive);
             let skinned_pipeline = mesh_pipeline_with(device, self.render_format, &layout, &shader, "fs_main", MeshPass::Opaque, true);
             let outline_pipeline = mesh_pipeline_with(device, self.render_format, &layout, &shader, "fs_outline", MeshPass::Outline, true);
+            let outline_static_pipeline = mesh_pipeline_with(device, self.render_format, &layout, &shader, "fs_outline", MeshPass::Outline, false);
             // Particles only read the scene uniforms (group 0).
             let particle_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("an1mbyt3 3D particle pipeline layout"),
@@ -690,7 +714,7 @@ impl Renderer {
                 fluid_uniforms,
                 fluid_sampler,
                 fluid_target: RefCell::new(None),
-                pipeline, overlay_pipeline, transparent_pipeline, additive_pipeline, particle_pipeline, particle_vertices, material_layout, scene_buffer, scene_bind_group, draw_layout, draws, joints, skinned_pipeline, outline_pipeline, depth: RefCell::new(None) }
+                pipeline, overlay_pipeline, transparent_pipeline, additive_pipeline, particle_pipeline, particle_vertices, material_layout, scene_buffer, scene_bind_group, draw_layout, draws, joints, skinned_pipeline, outline_pipeline, outline_static_pipeline, depth: RefCell::new(None) }
         })
     }
 
@@ -915,6 +939,7 @@ impl Renderer {
                     normal_matrix: d.model.inverse().transpose().to_cols_array_2d(),
                     color: d.color,
                     params: [d.shininess, if d.unlit || d.overlay { 1.0 } else { 0.0 }, d.outline, 0.0],
+                    material: d.params,
                 };
                 let at = i * DRAW_STRIDE as usize;
                 bytes[at..at + std::mem::size_of::<DrawUniforms3D>()].copy_from_slice(bytemuck::bytes_of(&u));
@@ -989,9 +1014,10 @@ impl Renderer {
             // Skinned on the GPU only with both a skeleton and the mesh's
             // joint/weight buffer.
             let skinned = d.joints.is_some() && d.mesh.skin_buffer.is_some();
-            let outline = skinned && d.outline > 0.0;
+            let outline = d.outline > 0.0;
             let pipeline: &wgpu::RenderPipeline = match (&d.material, d.overlay) {
-                _ if outline => &res.outline_pipeline,
+                _ if outline && skinned => &res.outline_pipeline,
+                _ if outline => &res.outline_static_pipeline,
                 (_, true) => &res.overlay_pipeline,
                 (Some(m), false) => m.for_blend(d.blend, d.double_sided, skinned),
                 (None, false) if skinned => &res.skinned_pipeline,

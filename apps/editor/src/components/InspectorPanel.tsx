@@ -2369,7 +2369,7 @@ export function InspectorPanel({
       )}
 
       {/* 3D nodes have their own 3D transform; the 2D one doesn't apply. */}
-      {node.kind === 'Node3D' && node.node3d && <Node3DFields value={node.node3d} onChange={onSetNode3D} materials={materials} onEditMaterial={onEditMaterial} models={models} editor={editor} />}
+      {node.kind === 'Node3D' && node.node3d && <Node3DFields value={node.node3d} onChange={onSetNode3D} materials={materials} onEditMaterial={onEditMaterial} models={models} editor={editor} images={images} onDocumentChange={onDocumentChange} artboardId={artboard?.id ?? null} nodeId={node.id} />}
       {node.kind !== 'Node3D' && (
         <>
       <div className="flex flex-col gap-1">

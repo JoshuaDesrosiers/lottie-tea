@@ -50,3 +50,12 @@ fn every_node_kind_validates_with_every_input_type() {
 fn voxel_material_validates_in_3d() {
     Renderer::validate_material_3d(an1mbyt3_geometry::VOXEL_MATERIAL_WGSL).unwrap_or_else(|e| panic!("voxel material: {e}"));
 }
+
+/// The Toon material shaders (MToon + Arcane) link against the 3D pass:
+/// they read `uniforms.material[..]`, the scene's sun / point lights / fog
+/// and the bound texture.
+#[test]
+fn toon_materials_validate_in_3d() {
+    Renderer::validate_material_3d(an1mbyt3_renderer::TOON_MTOON_WGSL).unwrap_or_else(|e| panic!("MToon: {e}"));
+    Renderer::validate_material_3d(an1mbyt3_renderer::TOON_ARCANE_WGSL).unwrap_or_else(|e| panic!("Arcane: {e}"));
+}

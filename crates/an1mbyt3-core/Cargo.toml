@@ -14,6 +14,7 @@ serde = { workspace = true }
 slotmap = { workspace = true }
 # Flexbox solver for the UI Layout component (`layout.rs`).
 taffy = "0.14"
+# Field paths (`field_path.rs`): keyframe any Inspector value by JSON pointer.
+serde_json = { workspace = true }
 
 [dev-dependencies]
-serde_json = { workspace = true }

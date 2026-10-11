@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { DocumentSummary, MaterialStatus, NodeBehaviorEntry, NodeSummary, OpaqueId, ShaderGraphDef, ShaderNodeSpec } from '../ipc/document'
-import { addMaterial, deleteMaterial, materialGraph, materialStatus, renameMaterial, setMaterialGraph, shaderNodeCatalog, type WasmEditor } from '../ipc/wasmEditor'
+import { addMaterial, addToonMaterial, deleteMaterial, materialGraph, materialStatus, renameMaterial, setMaterialGraph, shaderNodeCatalog, type WasmEditor } from '../ipc/wasmEditor'
 import { ShaderGraphEditor } from './ShaderGraphEditor'
+import { ToonMaterialFields } from './ToonMaterialFields'
 import { Dropdown } from './InspectorPanel'
 
 const same = (a: OpaqueId | null | undefined, b: OpaqueId | null | undefined) => !!a && !!b && a.idx === b.idx && a.version === b.version
@@ -78,6 +79,13 @@ export function ShaderDock({
     onDocumentChange(result.document)
     onSelectMaterial(result.material)
   }
+  const createToon = (style: 'MToon' | 'Arcane') => {
+    if (!editor) return
+    const result = addToonMaterial(editor, style === 'Arcane' ? `Arcane ${materials.length + 1}` : `Toon ${materials.length + 1}`, style)
+    onDocumentChange(result.document)
+    onSelectMaterial(result.material)
+  }
+  const isToon = current?.kind === 'Toon'
 
   /** Put the current material on the selected node (adding or updating its
    * Material component). */
@@ -130,7 +138,13 @@ export function ShaderDock({
           </div>
         )}
         <button onClick={create} disabled={!editor} className="rounded bg-accent px-2 py-1 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-40">
-          + New Material
+          + Shader Graph
+        </button>
+        <button onClick={() => createToon('MToon')} disabled={!editor} className={button} title="A toon material for 3D meshes (VRM's MToon look)">
+          + Toon
+        </button>
+        <button onClick={() => createToon('Arcane')} disabled={!editor} className={button} title="A painterly 3D material: brushy banded light, hatched shadows, grain">
+          + Arcane
         </button>
         {current && (
           <>
@@ -141,16 +155,17 @@ export function ShaderDock({
               Delete
             </button>
             <span className="mx-1 h-4 w-px bg-overlay/15" />
-            <button
+            {!isToon && <button
               onClick={applyToSelection}
               disabled={!canApply || selectedWears}
               title={canApply ? 'Give the selected sprite / shape this material' : 'Select a sprite (Image) or a shape to apply this material to'}
               className={button}
             >
               {selectedWears ? 'Applied to selection ✓' : 'Apply to Selection'}
-            </button>
+            </button>}
+            {isToon && <span className="text-[11px] text-ink-dim">Put it on a 3D mesh with the Inspector&apos;s Material picker.</span>}
             <span className="flex-1" />
-            {status &&
+            {!isToon && status &&
               (status.error ? (
                 <span title={status.error} className="max-w-[28rem] truncate rounded bg-red-500/15 px-2 py-0.5 text-[11px] text-red-500">
                   {status.error.split('\n')[0]}
@@ -158,9 +173,9 @@ export function ShaderDock({
               ) : (
                 <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-600">Compiled</span>
               ))}
-            <button onClick={() => setShowCode((v) => !v)} className={`${button} ${showCode ? 'bg-overlay/10 text-ink' : ''}`}>
+            {!isToon && <button onClick={() => setShowCode((v) => !v)} className={`${button} ${showCode ? 'bg-overlay/10 text-ink' : ''}`}>
               WGSL
-            </button>
+            </button>}
           </>
         )}
       </div>
@@ -174,6 +189,12 @@ export function ShaderDock({
           <button onClick={create} disabled={!editor} className="rounded bg-accent px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90">
             + New Material
           </button>
+        </div>
+      ) : isToon ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="max-w-md">
+            <ToonMaterialFields editor={editor} material={current.id} images={doc?.images ?? []} revision={doc} onDocumentChange={onDocumentChange} />
+          </div>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-1.5">

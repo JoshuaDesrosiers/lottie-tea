@@ -35,8 +35,10 @@ struct Draw {
     // Inverse-transpose of `model` (non-uniform scale keeps normals right).
     normal_matrix: mat4x4<f32>,
     color: vec4<f32>,
-    // x = shininess (0..1), y = unlit (1 = ignore lights).
+    // x = shininess (0..1), y = unlit (1 = ignore lights), z = outline width.
     params: vec4<f32>,
+    // The material's own parameters (Toon: shade, rim, brush …).
+    material: array<vec4<f32>, 6>,
 };
 // Named `uniforms` (not `draw`) so shader-graph materials — whose generated
 // code reads `uniforms.color` for the Tint node — link against this shader
@@ -144,6 +146,13 @@ fn vs_skinned_outline(in: SkinnedInput) -> VertexOutput {
     let n = normalize((s * vec4<f32>(in.normal, 0.0)).xyz);
     let p = s * vec4<f32>(in.position, 1.0) + vec4<f32>(n * uniforms.params.z, 0.0);
     return finish_vertex(p, n, in.uv);
+}
+
+// Outlines on unskinned meshes: pushed out along the normals.
+@vertex
+fn vs_outline(in: VertexInput) -> VertexOutput {
+    let n = normalize(in.normal);
+    return finish_vertex(vec4<f32>(in.position + n * uniforms.params.z, 1.0), n, in.uv);
 }
 
 @fragment

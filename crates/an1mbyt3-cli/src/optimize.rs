@@ -66,6 +66,7 @@ fn optimize_animation(animation: &mut Animation, tolerance: f32) -> usize {
             PropertyTrack::FillColor(t) => strip_redundant_keyframes(t, tolerance),
             PropertyTrack::Path(t) => strip_redundant_keyframes(t, tolerance),
             PropertyTrack::MotionPath { track: t, .. } => strip_redundant_keyframes(t, tolerance),
+            PropertyTrack::Field { track: t, .. } => strip_redundant_keyframes(t, tolerance),
         };
     }
     removed

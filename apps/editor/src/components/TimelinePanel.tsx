@@ -1,8 +1,9 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { TIMELINE_HEIGHT } from '../layoutConstants'
 import { useLayoutMetrics } from '../layoutMetrics'
-import type { AnimationSummary, Easing, KeyframeValue, NodeSummary, OpaqueId, PropertyName } from '../ipc/document'
+import type { AnimationSummary, Easing, FieldInfo, KeyframeValue, NodeSummary, OpaqueId, PropertyName } from '../ipc/document'
 import { CurveEditorPanel } from './CurveEditorPanel'
+import { COMPONENT_LABEL } from './ComponentFields'
 import { FloatingPanel } from './FloatingPanel'
 import {
   ChevronDownIcon,
@@ -36,6 +37,60 @@ const PROPERTIES: { key: PropertyName; label: string }[] = [
   { key: 'Scale', label: 'Scale' },
   { key: 'FillColor', label: 'Fill' },
 ]
+
+/** Words for a field path's segment: `outerRadius` / `z_index` → "outer radius". */
+function words(segment: string): string {
+  return segment
+    .replace(/~1/g, '/')
+    .replace(/~0/g, '~')
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+}
+
+/** A readable name for a field path (`an1mbyt3_core::field_path`):
+ * `behavior/Light2D/intensity` → "Light2D intensity",
+ * `kind/Node3D/transform/rotationDegrees` → "3D rotation". Structural
+ * segments (`transform`, `content`, `primitive`) are dropped. */
+export function fieldLabel(path: string): string {
+  const parts = path.split('/')
+  let head: string
+  let rest: string[]
+  if (parts[0] === 'behavior') {
+    head = parts[1].replace(/~(\d+)$/, ' #$1')
+    rest = parts.slice(2)
+  } else if (parts[0] === 'kind') {
+    head = parts[1] === 'Node3D' ? '3D' : parts[1]
+    rest = parts.slice(2)
+  } else if (parts[0] === 'node') {
+    head = ''
+    rest = parts.slice(1)
+  } else {
+    head = parts[0] === 'transform' ? '2D' : parts[0]
+    rest = parts.slice(1)
+  }
+  const tail = rest
+    .filter((p) => !['transform', 'content', 'primitive'].includes(p))
+    .map((p) => (p === 'rotationDegrees' ? 'rotation' : words(p)))
+  return [head, ...tail].filter(Boolean).join(' ')
+}
+
+/** A field's name as the Inspector shows it: the component's Inspector
+ * title (`VrmPoses` → "VRM Poses (states)", `Node3D` → "3D"), then its
+ * fields (list entries by their own names). */
+export function fieldInfoLabel(label: string[]): string {
+  const [head = '', ...rest] = label
+  const [kind, nth] = head.split(' #')
+  const title = (COMPONENT_LABEL as Record<string, string>)[kind] ?? ({ Node3D: '3D', Transform: '2D', Node: '' } as Record<string, string>)[kind] ?? kind
+  const named = nth ? `${title} #${Number(nth) + 1}` : title
+  // `=name` parts are list entries' own names (a pose, a bone): verbatim.
+  return [named, ...rest.map((p) => (p.startsWith('=') ? p.slice(1) : p === 'rotationDegrees' ? 'rotation' : words(p)))].filter(Boolean).join(' › ')
+}
+
+/** A field value for a tooltip. */
+function formatField(v: [number, number, number, number]): string {
+  return v.map((x) => (Math.abs(x) >= 100 ? x.toFixed(0) : x.toFixed(2))).join(', ')
+}
 
 type LoopMode = 'Once' | 'Loop' | 'PingPong'
 type SelectedKeyframe = { property: PropertyName; time: number }
@@ -98,7 +153,59 @@ function formatKeyframeValue(value: KeyframeValue): string {
       return 'path'
     case 'MotionPath':
       return `${(value.value * 100).toFixed(0)}%`
+    case 'Field':
+      return formatField(value.value)
   }
+}
+
+/** The Timeline's "+ Property" popover: every animatable value of the
+ * selected node, searchable. Picking one adds its row (and a keyframe of
+ * its current value at the playhead). */
+function PropertyPicker({ fields, anchor, onPick, onClose }: { fields: FieldInfo[]; anchor: DOMRect; onPick: (path: string) => void; onClose: () => void }) {
+  const [query, setQuery] = useState('')
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const away = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) onClose()
+    }
+    window.addEventListener('mousedown', away)
+    return () => window.removeEventListener('mousedown', away)
+  }, [onClose])
+  const q = query.trim().toLowerCase()
+  const shown = fields.filter((f) => !q || fieldInfoLabel(f.label).toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
+  return (
+    // Fixed, opening upward from the button: the Timeline sits at the
+    // screen's bottom edge.
+    <div
+      ref={rootRef}
+      className="fixed z-50 flex max-h-80 w-80 flex-col rounded-lg border border-panel-border bg-panel p-1.5 shadow-2xl backdrop-blur-panel"
+      style={{ left: anchor.left, bottom: window.innerHeight - anchor.top + 4 }}
+    >
+      <input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => e.key === 'Escape' && onClose()}
+        placeholder="Search properties… (intensity, position, colour)"
+        className="mb-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none focus:ring-1 focus:ring-accent"
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {shown.length === 0 && <p className="px-1 py-2 text-[11px] text-ink-dim">Nothing animatable matches.</p>}
+        {shown.map((f) => (
+          <button
+            key={f.path}
+            type="button"
+            onClick={() => onPick(f.path)}
+            title={`${f.path} = ${formatField(f.value)}`}
+            className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-[11px] text-ink hover:bg-accent/15"
+          >
+            <span className="min-w-0 flex-1 truncate">{fieldInfoLabel(f.label)}</span>
+            <span className="shrink-0 text-[9px] text-ink-dim">{f.shape === 'Bool' ? 'on/off' : typeof f.shape === 'object' ? `${f.shape.Vector}×` : f.shape === 'Integer' ? 'int' : ''}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -267,6 +374,11 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
    * counterpart to `onAddKeyframe`, which has no equivalent "current value"
    * to capture (see `WasmEditor::add_motion_path_keyframe`'s doc comment). */
   onAddMotionPathKeyframe: (time: number, progress: number) => void
+  /** Every animatable value of the selected node ("+ Property"). */
+  fieldOptions?: () => FieldInfo[]
+  /** Record mode: any Inspector change keys at the playhead. */
+  recording?: boolean
+  onToggleRecording?: () => void
   height?: number
   resizeHandleProps?: PointerHandlers
   /** `true` right after loading the demo scene ("Load Demo Scene" builds a
@@ -297,6 +409,9 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
   onSetAnimationDuration,
   onSelectionChange,
   onAddMotionPathKeyframe,
+  fieldOptions,
+  recording = false,
+  onToggleRecording,
   height = TIMELINE_HEIGHT,
   resizeHandleProps,
   autoPlayOnMount,
@@ -383,7 +498,29 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
   // bound" — there's no separate on/off state for the row itself). Layout,
   // marquee row math, and the diamond track area all iterate this array so
   // the row can't drift out of sync between them.
-  const visibleRows: { key: PropertyName; label: string }[] = [...PROPERTIES, { key: 'MotionPath', label: 'Motion Path' }]
+  // Field-path tracks (any Inspector value) the node has, plus rows picked
+  // from "+ Property" this session that aren't keyed yet.
+  const [pickerAnchor, setPickerAnchor] = useState<DOMRect | null>(null)
+  const [pinnedFields, setPinnedFields] = useState<string[]>([])
+  // Inspector-style names for the node's field tracks.
+  const hasFieldTracks = (selectedNode?.tracks ?? []).some((t) => t.property.startsWith('Field:')) || pinnedFields.length > 0
+  const labelByPath = useMemo(() => {
+    const map = new Map<string, string>()
+    if (hasFieldTracks && fieldOptions) for (const f of fieldOptions()) map.set(f.path, fieldInfoLabel(f.label))
+    return map
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNode, hasFieldTracks])
+  const nameOf = (path: string) => labelByPath.get(path) ?? fieldLabel(path)
+  const fieldRows: { key: PropertyName; label: string }[] = []
+  for (const t of selectedNode?.tracks ?? []) {
+    if (t.property.startsWith('Field:')) fieldRows.push({ key: t.property, label: nameOf(t.property.slice('Field:'.length)) })
+  }
+  for (const path of pinnedFields) {
+    const key = `Field:${path}` as PropertyName
+    if (!fieldRows.some((r) => r.key === key)) fieldRows.push({ key, label: nameOf(path) })
+  }
+  const visibleRows: { key: PropertyName; label: string }[] = [...PROPERTIES, { key: 'MotionPath', label: 'Motion Path' }, ...fieldRows]
+  useEffect(() => setPinnedFields([]), [selectedNode?.id.idx, selectedNode?.id.version])
 
   useEffect(() => {
     setDurationText(duration.toFixed(2))
@@ -704,6 +841,40 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
                 <TrashIcon />
               </button>
             )}
+            {onToggleRecording && (
+              <button
+                onClick={onToggleRecording}
+                title={recording ? 'Recording: every Inspector change keys at the playhead (click to stop)' : 'Record: every Inspector change keys at the playhead. (Off: only already-animated values are keyed.)'}
+                className={`flex h-5 items-center gap-1 rounded-md px-1.5 text-[10px] ${recording ? 'bg-red-500/20 text-red-400' : 'text-ink-dim hover:bg-overlay/10 hover:text-ink'}`}
+              >
+                <span className={`h-2 w-2 rounded-full ${recording ? 'animate-pulse bg-red-500' : 'bg-red-500/60'}`} />
+                Rec
+              </button>
+            )}
+            {fieldOptions && (
+              <div className="relative">
+                <button
+                  onClick={(e) => setPickerAnchor(pickerAnchor ? null : e.currentTarget.getBoundingClientRect())}
+                  disabled={!editable}
+                  title="Animate any value the selected node has (anything in the Inspector)"
+                  className="flex h-5 items-center gap-0.5 rounded-md px-1.5 text-[10px] text-ink-dim hover:bg-overlay/10 hover:text-ink disabled:opacity-40"
+                >
+                  <PlusIcon /> Property
+                </button>
+                {pickerAnchor && editable && (
+                  <PropertyPicker
+                    fields={fieldOptions()}
+                    anchor={pickerAnchor}
+                    onClose={() => setPickerAnchor(null)}
+                    onPick={(path) => {
+                      setPickerAnchor(null)
+                      setPinnedFields((p) => (p.includes(path) ? p : [...p, path]))
+                      onAddKeyframe(`Field:${path}` as PropertyName, scrubTime)
+                    }}
+                  />
+                )}
+              </div>
+            )}
             <div className="ml-1 flex items-center gap-1 rounded-md bg-overlay/5 px-1.5 py-0.5">
               <span className="text-[10px] text-ink-dim">Dur</span>
               <input
@@ -756,8 +927,8 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1">
-          <div className="flex w-[108px] shrink-0 flex-col">
+        <div className="flex min-h-0 flex-1 overflow-y-auto">
+          <div className="flex w-[210px] shrink-0 flex-col">
             <div className="h-5 shrink-0" />
             {visibleRows.map((p) => {
               const keyframes = tracksByProperty(p.key)
@@ -765,7 +936,7 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
               const isMotionPath = p.key === 'MotionPath'
               return (
                 <div key={p.key} className="flex h-6 shrink-0 items-center justify-between gap-1 pr-1 text-[10px] text-ink-dim">
-                  <span className="truncate" title={isMotionPath && !motionPathTrack ? 'Add a Motion Path component in the Inspector first' : undefined}>
+                  <span className="truncate" title={isMotionPath && !motionPathTrack ? 'Add a Motion Path component in the Inspector first' : p.key.startsWith('Field:') ? p.label : undefined}>
                     {p.label}
                   </span>
                   <div className="flex shrink-0 items-center gap-0.5">
@@ -804,8 +975,8 @@ export const TimelinePanel = forwardRef<TimelinePanelHandle, {
             })}
           </div>
 
-          <div ref={scrollContainerRef} className="relative flex-1 overflow-x-auto overflow-y-hidden rounded-md bg-overlay/5">
-            <div ref={contentRef} className="relative h-full" style={{ width: contentWidth }}>
+          <div ref={scrollContainerRef} className="relative h-fit min-h-full flex-1 overflow-x-auto overflow-y-hidden rounded-md bg-overlay/5">
+            <div ref={contentRef} className="relative min-h-full" style={{ width: contentWidth, height: RULER_HEIGHT + visibleRows.length * ROW_HEIGHT }}>
               <div onMouseDown={handleRulerMouseDown} className={`relative h-5 border-b border-overlay/10 ${editable ? 'cursor-pointer' : ''}`}>
                 {ticks.map((t) => (
                   <div

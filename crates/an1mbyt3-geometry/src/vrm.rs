@@ -96,6 +96,10 @@ pub struct Vrm {
     pub colliders: Vec<Collider>,
     /// MToon parameters by glTF material index.
     pub toon: Vec<Option<Toon>>,
+    /// glTF material names and emissive colours (linear), by index — for
+    /// naming / seeding the editable material assets made on import.
+    pub material_names: Vec<String>,
+    pub emissive: Vec<[f32; 3]>,
     /// +1 if the avatar faces +Z (VRM 1.0), −1 for −Z (VRM 0.x).
     pub forward_z: f32,
 }
@@ -161,6 +165,16 @@ pub fn parse(json: &Value, children: &[Vec<usize>]) -> Option<Vrm> {
     let material_count = json.get("materials").and_then(Value::as_array).map_or(0, Vec::len);
     let node_mesh = |node: usize| json.get("nodes").and_then(|n| n.get(node)).and_then(|n| n.get("mesh")).and_then(Value::as_u64).map(|m| m as usize);
     let mut vrm = Vrm { toon: vec![None; material_count], ..Vrm::default() };
+    if let Some(ms) = json.get("materials").and_then(Value::as_array) {
+        vrm.material_names = ms.iter().map(|m| m.get("name").and_then(Value::as_str).unwrap_or("").to_string()).collect();
+        vrm.emissive = ms
+            .iter()
+            .map(|m| {
+                let f = |i: usize| m.get("emissiveFactor").and_then(|e| e.get(i)).and_then(Value::as_f64).unwrap_or(0.0) as f32;
+                [f(0), f(1), f(2)]
+            })
+            .collect();
+    }
     if let Some(v1) = ext.get("VRMC_vrm") {
         vrm.version = 1;
         vrm.forward_z = 1.0;
@@ -368,67 +382,6 @@ impl Vrm {
 }
 
 // --------------------------------------------------------------- shaders --
-
-/// A 3D material fragment (`material_fragment`, see the renderer's 3D
-/// material contract) for an MToon material: the base colour texture ×
-/// tint, split into lit and shade colour by a soft terminator from the sun
-/// (`toony` hardness, `shift` offset), ambient fill, a fresnel rim, the
-/// scene's fog, and alpha cutout (`cutoff`). Drawn *unlit* — it does its
-/// own lighting from the scene uniforms. Back faces (double-sided cloth,
-/// hair) shade with their normals flipped toward the camera.
-pub fn toon_wgsl(toon: &Toon, cutoff: Option<f32>) -> String {
-    let v3 = |c: [f32; 3]| format!("vec3<f32>({:.5}, {:.5}, {:.5})", c[0], c[1], c[2]);
-    let lo = -1.0 + toon.toony.clamp(0.0, 1.0);
-    let hi = 1.0 - toon.toony.clamp(0.0, 1.0);
-    let cut = cutoff.map_or(String::new(), |c| format!("    if base.a < {:.4} {{ discard; }}
-", c));
-    format!(
-        r#"
-fn material_fragment(in: VertexOutput) -> vec4<f32> {{
-    let base = textureSample(image_texture, image_sampler, in.uv) * uniforms.color;
-{cut}    var n = normalize(in.normal);
-    let to_eye = normalize(scene.camera_pos.xyz - in.world);
-    if dot(n, to_eye) < 0.0 {{ n = -n; }}
-    let l = -scene.sun_dir.xyz;
-    let shading = dot(n, l) + {shift:.5};
-    let lit = clamp((shading - ({lo:.5})) / max({hi:.5} - ({lo:.5}), 0.0001), 0.0, 1.0);
-    let shade = base.rgb * {shade};
-    let sun = max(scene.sun_color.rgb, vec3<f32>(0.35));
-    var rgb = mix(shade, base.rgb, lit) * sun + base.rgb * scene.ambient.rgb * 0.35;
-    let fresnel = clamp(pow(1.0 - clamp(dot(n, to_eye), 0.0, 1.0), max({rim_power:.4}, 0.001)) + {rim_lift:.4}, 0.0, 1.0);
-    rgb = rgb + {rim} * fresnel;
-    if scene.fog.a > 0.0 {{
-        let d = length(scene.camera_pos.xyz - in.world) * scene.fog.a;
-        rgb = mix(scene.fog.rgb, rgb, clamp(exp(-d * d), 0.0, 1.0));
-    }}
-    return vec4<f32>(rgb, base.a);
-}}
-"#,
-        shift = toon.shift,
-        shade = v3(toon.shade),
-        rim = v3(toon.rim),
-        rim_power = toon.rim_power,
-        rim_lift = toon.rim_lift,
-    )
-}
-
-/// The outline's fragment: flat `color` (linear RGB), fogged — drawn on an
-/// inverted hull (the mesh pushed out along its normals, faces flipped).
-pub fn outline_wgsl(color: [f32; 3]) -> String {
-    format!(
-        r#"
-fn material_fragment(in: VertexOutput) -> vec4<f32> {{
-    var rgb = vec3<f32>({:.5}, {:.5}, {:.5});
-    if scene.fog.a > 0.0 {{
-        let d = length(scene.camera_pos.xyz - in.world) * scene.fog.a;
-        rgb = mix(scene.fog.rgb, rgb, clamp(exp(-d * d), 0.0, 1.0));
-    }}
-    return vec4<f32>(rgb, 1.0);
-}}
-"#,
-        color[0], color[1], color[2]
-    )
-}
 
 /// [`outline_hull`] for interleaved vertices (position, normal, UV): the
 /// hull's vertices, written into `out` (same layout); its flipped indices

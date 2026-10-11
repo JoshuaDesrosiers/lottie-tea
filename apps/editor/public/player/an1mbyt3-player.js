@@ -330,6 +330,11 @@ var g = class e {
 		let l = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), u = W, d = V(r, G.__wbindgen_malloc), f = W;
 		return G.wasmeditor_add_tilemap_node(this.__wbg_ptr, e, t, l, u, d, f, i, a, o, s, c);
 	}
+	add_toon_material(e, t) {
+		let n = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), a = W, o = G.wasmeditor_add_toon_material(this.__wbg_ptr, n, r, i, a);
+		if (o[2]) throw U(o[1]);
+		return U(o[0]);
+	}
 	add_trail_node(e, t) {
 		let n = G.wasmeditor_add_trail_node(this.__wbg_ptr, e, t);
 		if (n[2]) throw U(n[1]);
@@ -752,6 +757,11 @@ var g = class e {
 		if (t[2]) throw U(t[1]);
 		return U(t[0]);
 	}
+	material_toon(e) {
+		let t = G.wasmeditor_material_toon(this.__wbg_ptr, e);
+		if (t[2]) throw U(t[1]);
+		return U(t[0]);
+	}
 	model_bone_position(e, t, n) {
 		let r = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), i = W, a = G.wasmeditor_model_bone_position(this.__wbg_ptr, e, t, r, i);
 		if (a[2]) throw U(a[1]);
@@ -765,6 +775,11 @@ var g = class e {
 		let t = G.wasmeditor_model_clips(this.__wbg_ptr, e);
 		if (t[2]) throw U(t[1]);
 		return U(t[0]);
+	}
+	model_extract_materials(e, t) {
+		let n = G.wasmeditor_model_extract_materials(this.__wbg_ptr, e, t);
+		if (n[2]) throw U(n[1]);
+		return U(n[0]);
 	}
 	model_info(e, t) {
 		let n = G.wasmeditor_model_info(this.__wbg_ptr, e, t);
@@ -808,6 +823,11 @@ var g = class e {
 	}
 	move_node_forward(e, t) {
 		let n = G.wasmeditor_move_node_forward(this.__wbg_ptr, e, t);
+		if (n[2]) throw U(n[1]);
+		return U(n[0]);
+	}
+	node_fields(e, t) {
+		let n = G.wasmeditor_node_fields(this.__wbg_ptr, e, t);
 		if (n[2]) throw U(n[1]);
 		return U(n[0]);
 	}
@@ -988,6 +1008,9 @@ var g = class e {
 		let t = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), n = W, r = G.wasmeditor_project_file_index(this.__wbg_ptr, t, n);
 		if (r[2]) throw U(r[1]);
 		return U(r[0]);
+	}
+	record_keys() {
+		return G.wasmeditor_record_keys(this.__wbg_ptr) !== 0;
 	}
 	redo() {
 		let e = G.wasmeditor_redo(this.__wbg_ptr);
@@ -1281,6 +1304,11 @@ var g = class e {
 		if (n[2]) throw U(n[1]);
 		return U(n[0]);
 	}
+	set_material_toon(e, t, n) {
+		let r = G.wasmeditor_set_material_toon(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw U(r[1]);
+		return U(r[0]);
+	}
 	set_mode(e, t) {
 		let n = H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), r = W, i = G.wasmeditor_set_mode(this.__wbg_ptr, e, n, r);
 		if (i[2]) throw U(i[1]);
@@ -1362,6 +1390,9 @@ var g = class e {
 	}
 	set_preview_screen(e, t) {
 		G.wasmeditor_set_preview_screen(this.__wbg_ptr, e, t);
+	}
+	set_record_keys(e) {
+		G.wasmeditor_set_record_keys(this.__wbg_ptr, e);
 	}
 	set_script_fields(e, t) {
 		let n = G.wasmeditor_set_script_fields(this.__wbg_ptr, e, t);
@@ -3779,7 +3810,7 @@ function v() {
 	};
 }
 function y(e, t, n) {
-	G.wasm_bindgen__convert__closures_____invoke__h42ca6ee2155cb4f8(e, t, n);
+	G.wasm_bindgen__convert__closures_____invoke__h2b5d849af46f8913(e, t, n);
 }
 function b(e, t, n) {
 	let r = G.wasm_bindgen__convert__closures_____invoke__h8a34eac7d22ddaa9(e, t, n);

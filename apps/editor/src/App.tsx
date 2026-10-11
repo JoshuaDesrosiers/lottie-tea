@@ -92,6 +92,8 @@ import {
   addDemoHoverAnimation,
   addInstanceNode,
   addKeyframe,
+  nodeFields,
+  setRecordKeys as setEngineRecordKeys,
   addParticleSystemNode,
   addShapeNode,
   addState,
@@ -3130,6 +3132,9 @@ function App() {
     setDoc(setScrubTime(editorRef.current, artboard.id, time))
   }
 
+  // Timeline "Rec": every Inspector change keys at the playhead.
+  const [recordKeys, setRecordKeys] = useState(false)
+
   const handleAddKeyframe = (property: PropertyName, time: number) => {
     if (!selection || !editorRef.current) return
     setDoc(addKeyframe(editorRef.current, selection.artboardId, selection.nodeId, property, time))
@@ -4899,6 +4904,13 @@ function App() {
           onCommitKeyframeTime={handleCommitKeyframeTime}
           onSetKeyframeEasing={handleSetKeyframeEasing}
           onAddMotionPathKeyframe={handleAddMotionPathKeyframe}
+          fieldOptions={() => (editorRef.current && selection ? nodeFields(editorRef.current, selection.artboardId, selection.nodeId) : [])}
+          recording={recordKeys}
+          onToggleRecording={() => {
+            const next = !recordKeys
+            setRecordKeys(next)
+            if (editorRef.current) setEngineRecordKeys(editorRef.current, next)
+          }}
           onAddAnimation={handleAddAnimation}
           onSelectAnimation={handleSelectAnimation}
           onDeleteAnimation={handleDeleteAnimation}

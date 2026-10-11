@@ -67,6 +67,7 @@ mod image_asset;
 mod keyframe;
 mod light2d;
 mod material;
+pub mod field_path;
 mod model_asset;
 mod audio_asset;
 pub mod ui;
@@ -120,7 +121,7 @@ pub use drawing::{DrawingAnimation, DrawingAsset, DrawingCel, DrawingCelContent,
 pub use prefab::{has_node_refs, ref_uid, remap_node_refs, uid_ref, PrefabDefinition, PrefabLink, PrefabNode};
 pub use image_asset::{ImageAsset, ImageFilterMode, ImageProcessing};
 pub use keyframe::{Keyframe, Lerp, Track};
-pub use material::{Material, MaterialKind};
+pub use material::{Material, MaterialKind, ModelMaterialSlot, ToonMaterial, ToonStyle};
 pub use model_asset::{ModelAsset, ModelFile};
 pub use audio_asset::{audio_extension, AudioAsset, AudioSource};
 pub mod layout;

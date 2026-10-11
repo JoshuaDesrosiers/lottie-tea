@@ -43,7 +43,18 @@ export interface OpaqueId {
 
 /** Which property a keyframe/track drives — mirrors
  * `an1mbyt3_core::PropertyKind`. */
-export type PropertyName = 'Translation' | 'Rotation' | 'Scale' | 'FillColor' | 'Path' | 'MotionPath'
+export type PropertyName = 'Translation' | 'Rotation' | 'Scale' | 'FillColor' | 'Path' | 'MotionPath' | `Field:${string}`
+
+/** One animatable value of a node (`an1mbyt3_core::field_path::FieldInfo`)
+ * — anything the Inspector shows, addressed by a field path. */
+export interface FieldInfo {
+  path: string
+  /** Inspector-style name parts: component / kind first, then fields —
+   * list entries by their own name, marked `=` (`['VrmPoses', '=Guard', '=leftUpperArm', 'rotation']`). */
+  label: string[]
+  shape: 'Number' | 'Integer' | 'Bool' | { Vector: number }
+  value: [number, number, number, number]
+}
 
 /** Mirrors `an1mbyt3_core::BlendMode`. */
 export type BlendMode = 'Normal' | 'Multiply' | 'Screen' | 'Add'
@@ -344,6 +355,7 @@ export type KeyframeValue =
   | { kind: 'FillColor'; value: [number, number, number, number] }
   | { kind: 'Path'; value: Path }
   | { kind: 'MotionPath'; value: number }
+  | { kind: 'Field'; value: [number, number, number, number] }
 
 /** Mirrors `crates/an1mbyt3-wasm/src/dto.rs`'s `EasingDto` — how a
  * keyframe segment's linear progress maps to eased progress. `Linear` is
@@ -1339,7 +1351,41 @@ export interface AudioSummary {
 export interface MaterialSummary {
   id: OpaqueId
   name: string
-  kind: 'ShaderGraph' | 'Color' | 'Textured'
+  kind: 'ShaderGraph' | 'Color' | 'Textured' | 'Toon'
+  /** Toon materials: which shader. */
+  style: ToonStyle | null
+  /** Toon materials made from an imported model's material slot. */
+  source: { model: OpaqueId; slot: number } | null
+}
+
+export type ToonStyle = 'MToon' | 'Arcane'
+
+/** Mirrors `an1mbyt3_core::ToonMaterial`: a stylised lit 3D material
+ * (VRM's MToon, or painterly Arcane). Colours are linear RGB. */
+export interface ToonMaterialConfig {
+  style: ToonStyle
+  base: [number, number, number, number]
+  shade: [number, number, number]
+  shift: number
+  toony: number
+  rim: [number, number, number]
+  rimPower: number
+  rimLift: number
+  emission: [number, number, number]
+  outlineWidth: number
+  outline: [number, number, number]
+  alphaCutoff: number
+  lightMin: number
+  pointLights: number
+  bands: number
+  brushScale: number
+  brushStrength: number
+  hatch: number
+  grain: number
+  highlight: [number, number, number]
+  doubleSided: boolean
+  source: { model: OpaqueId; slot: number } | null
+  texture: OpaqueId | null
 }
 
 // ---- Shader graphs (mirrors `an1mbyt3_core::shader_graph`) ----

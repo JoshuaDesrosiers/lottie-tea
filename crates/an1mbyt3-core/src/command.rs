@@ -884,6 +884,16 @@ impl Command {
                                     None => Command::RemoveKeyframe { artboard, animation, node, property, time },
                                 }
                             }
+                            PropertyTrack::Field { path, track: t } => {
+                                let KeyframeValue::Field(_, v) = value else { unreachable!("property_kind mismatch") };
+                                match upsert_keyframe(t, time, v, easing) {
+                                    Some(old) => Command::AddKeyframe {
+                                        artboard, animation, node, time: old.time,
+                                        value: KeyframeValue::Field(path.clone(), old.value), easing: old.easing,
+                                    },
+                                    None => Command::RemoveKeyframe { artboard, animation, node, property, time },
+                                }
+                            }
                         }
                     }
                     None => {
@@ -893,6 +903,7 @@ impl Command {
                             KeyframeValue::Scale(v) => PropertyTrack::Scale(Track::new(vec![Keyframe::new(time, v, easing)])),
                             KeyframeValue::FillColor(v) => PropertyTrack::FillColor(Track::new(vec![Keyframe::new(time, v, easing)])),
                             KeyframeValue::Path(v) => PropertyTrack::Path(Track::new(vec![Keyframe::new(time, v, easing)])),
+                            KeyframeValue::Field(path, v) => PropertyTrack::Field { path, track: Track::new(vec![Keyframe::new(time, v, easing)]) },
                             KeyframeValue::MotionPath(_) => panic!(
                                 "Command::AddKeyframe: no MotionPath track exists for this node yet — call SetMotionPathGuide first"
                             ),
@@ -943,6 +954,11 @@ impl Command {
                             let kf = t.keyframes.remove(i);
                             (KeyframeValue::MotionPath(kf.value), kf.time, kf.easing, t.keyframes.is_empty())
                         }
+                        PropertyTrack::Field { path, track: t } => {
+                            let i = t.keyframes.iter().position(|k| k.time == time).expect("Command::RemoveKeyframe: no keyframe at the given time");
+                            let kf = t.keyframes.remove(i);
+                            (KeyframeValue::Field(path.clone(), kf.value), kf.time, kf.easing, t.keyframes.is_empty())
+                        }
                     }
                 };
 
@@ -966,6 +982,7 @@ impl Command {
                     PropertyTrack::FillColor(t) => move_keyframe_time(t, old_time, new_time),
                     PropertyTrack::Path(t) => move_keyframe_time(t, old_time, new_time),
                     PropertyTrack::MotionPath { track: t, .. } => move_keyframe_time(t, old_time, new_time),
+                    PropertyTrack::Field { track: t, .. } => move_keyframe_time(t, old_time, new_time),
                 }
                 Command::MoveKeyframe { artboard, animation, node, property, old_time: new_time, new_time: old_time }
             }
@@ -995,6 +1012,13 @@ impl Command {
                                 }
                             }
                             (PropertyTrack::FillColor(t), KeyframeValue::FillColor(d)) => {
+                                for k in t.keyframes.iter_mut() {
+                                    for i in 0..4 {
+                                        k.value[i] += d[i];
+                                    }
+                                }
+                            }
+                            (PropertyTrack::Field { track: t, .. }, KeyframeValue::Field(_, d)) => {
                                 for k in t.keyframes.iter_mut() {
                                     for i in 0..4 {
                                         k.value[i] += d[i];

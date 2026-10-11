@@ -801,6 +801,29 @@ if (s.scene === 'title') {
 }
 "#;
 
+/// A VRM's parsed MToon settings as an editable [`an1mbyt3_core::ToonMaterial`].
+fn toon_from_vrm(t: &an1mbyt3_geometry::vrm::Toon, emission: [f32; 3], cutoff: Option<f32>) -> an1mbyt3_core::ToonMaterial {
+    an1mbyt3_core::ToonMaterial {
+        shade: t.shade,
+        shift: t.shift,
+        toony: t.toony,
+        rim: t.rim,
+        rim_power: t.rim_power,
+        rim_lift: t.rim_lift,
+        emission,
+        outline_width: t.outline_width,
+        outline: t.outline,
+        alpha_cutoff: cutoff.unwrap_or(0.0),
+        ..an1mbyt3_core::ToonMaterial::default()
+    }
+}
+
+/// Field paths that duplicate a dedicated track type (2D position /
+/// rotation / scale have their own Timeline rows).
+fn is_dedicated_track(path: &str) -> bool {
+    matches!(path, "transform/translation" | "transform/rotation" | "transform/scale")
+}
+
 /// Parses the Timeline panel's property-name strings (`"Translation"` /
 /// `"Rotation"` / `"Scale"` / `"FillColor"` — the same strings
 /// `dto::PropertyTrackSummary::property` sends out) back into a
@@ -813,6 +836,7 @@ fn parse_property_kind(property: &str) -> Result<PropertyKind, JsValue> {
         "FillColor" => Ok(PropertyKind::FillColor),
         "Path" => Ok(PropertyKind::Path),
         "MotionPath" => Ok(PropertyKind::MotionPath),
+        other if other.starts_with("Field:") => Ok(an1mbyt3_core::field_path::field_kind(&other["Field:".len()..])),
         other => Err(JsValue::from_str(&format!("unknown property: {other}"))),
     }
 }
@@ -1828,8 +1852,6 @@ struct ModelInstance {
     /// Per primitive: the morph weights its own mesh copy was last built
     /// with (skinned + morphed primitives re-upload only on change).
     morph_keys: Vec<Vec<f32>>,
-    /// Per primitive: its toon and outline materials, once compiled.
-    toon_materials: Vec<Option<(Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>, Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>)>>,
     /// Last frame's model-space node matrices and the node's world matrix
     /// (bone positions for scripts: hitboxes, effects, camera targets).
     last_pose: Vec<glam::Mat4>,
@@ -2270,6 +2292,10 @@ pub struct WasmEditor {
     /// keyframe while scrubbed to an empty moment in Animate mode was
     /// incorrectly triggering a path-wide rebase instead of an isolated edit.
     animate_mode_active: bool,
+    /// Timeline "Record" (●): in Animate, *any* Inspector change keys the
+    /// changed values at the playhead (otherwise only already-animated
+    /// values are keyed).
+    record_keys: bool,
     /// Every node's authored (Design-mode) transform, captured the moment
     /// the editor *first* enters Animate or State Machine mode from Design —
     /// `None` while in Design mode (nothing to restore), `Some` for as long
@@ -2400,8 +2426,12 @@ pub struct WasmEditor {
     /// bones and the deformed meshes of skinned / morphed models (VRM
     /// avatars). Runtime only — reset on entering/leaving Playground.
     model_instances: HashMap<NodeId, ModelInstance>,
-    /// Generated 3D material shaders (MToon toon / outline), by WGSL.
-    wgsl_materials_3d: HashMap<String, std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>,
+    /// The two Toon material shaders (MToon, Arcane), compiled once; every
+    /// Toon material shares them (its values go per draw).
+    toon_gpu: [Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>; 2],
+    /// Toon materials being dragged in the Inspector: each one's value
+    /// before the drag (so the commit's undo goes back to it).
+    toon_preview_base: HashMap<an1mbyt3_core::MaterialId, an1mbyt3_core::ToonMaterial>,
     /// Block worlds' runtime blocks and their meshed regions, by the
     /// `Primitive3D::Voxels` node (scripts fill them; see `VoxelWorld`).
     voxel_worlds: HashMap<NodeId, VoxelWorld>,
@@ -2531,6 +2561,8 @@ struct PoseEntry {
     /// A Node3D's transform + content (3D physics, `ref.position3`,
     /// `playAnimation3` all change it).
     node3d: Option<an1mbyt3_core::Node3D>,
+    /// Field-path tracks' values (any Inspector value some animation keys).
+    fields: Vec<(String, [f32; 4])>,
 }
 
 /// A skinned image's rest mesh + weights, for one binding.
@@ -2834,6 +2866,7 @@ impl WasmEditor {
             active_state_machine: None,
             scrub_time: 0.0,
             animate_mode_active: false,
+            record_keys: false,
             design_pose_snapshot: None,
             runtime_spawned: Vec::new(),
             pending_project_bytes: Vec::new(),
@@ -2865,7 +2898,8 @@ impl WasmEditor {
             flipbook_clocks: HashMap::new(),
             textured_material_3d: None,
             model_instances: HashMap::new(),
-            wgsl_materials_3d: HashMap::new(),
+            toon_gpu: [None, None],
+            toon_preview_base: HashMap::new(),
             voxel_worlds: HashMap::new(),
             glass: HashMap::new(),
             voxel_atlas_gpu: None,
@@ -2938,6 +2972,18 @@ impl WasmEditor {
     /// scene back exactly as it was designed.
     fn snapshot_design_pose(&self, artboard_id: ArtboardId) -> Option<Vec<PoseEntry>> {
         let artboard_ref = self.document.artboard(artboard_id)?;
+        // Every (node, field path) some animation here keys.
+        let mut field_tracks: HashMap<NodeId, Vec<String>> = HashMap::new();
+        for (_, anim) in artboard_ref.animations() {
+            for (n, track) in &anim.tracks {
+                if let PropertyTrack::Field { path, .. } = track {
+                    let paths = field_tracks.entry(*n).or_default();
+                    if !paths.contains(path) {
+                        paths.push(path.clone());
+                    }
+                }
+            }
+        }
         Some(
             artboard_ref
                 .node_ids()
@@ -2966,6 +3012,7 @@ impl WasmEditor {
                             NodeKind::Node3D(n3) => Some(*n3),
                             _ => None,
                         },
+                        fields: field_tracks.get(&id).map(|paths| paths.iter().filter_map(|p| an1mbyt3_core::field_path::read(n, p).map(|v| (p.clone(), v))).collect()).unwrap_or_default(),
                     })
                 })
                 .collect(),
@@ -3013,6 +3060,9 @@ impl WasmEditor {
                 }
                 if let (NodeKind::Node3D(n3), Some(saved)) = (&mut node.kind, entry.node3d) {
                     *n3 = saved;
+                }
+                for (path, v) in entry.fields {
+                    an1mbyt3_core::field_path::write(node, &path, v);
                 }
             }
         }
@@ -4732,6 +4782,7 @@ impl WasmEditor {
                     PropertyTrack::FillColor(t) => t.keyframes.iter().any(|k| k.time == self.scrub_time),
                     PropertyTrack::Path(t) => t.keyframes.iter().any(|k| k.time == self.scrub_time),
                     PropertyTrack::MotionPath { track: t, .. } => t.keyframes.iter().any(|k| k.time == self.scrub_time),
+                    PropertyTrack::Field { track: t, .. } => t.keyframes.iter().any(|k| k.time == self.scrub_time),
                 }
         })
     }
@@ -4759,6 +4810,8 @@ impl WasmEditor {
             // it" `add_keyframe` flow the other variants share; see
             // `add_keyframe`'s own `MotionPath` arm.
             PropertyKind::MotionPath => return None,
+            // Needs the path, not just its hash — see `add_keyframe`.
+            PropertyKind::Field(_) => return None,
         })
     }
 
@@ -5771,8 +5824,10 @@ impl WasmEditor {
     pub fn set_light2d(&mut self, artboard: JsValue, node: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let value: crate::dto::Light2DDto = parse_id(value)?;
         self.document.apply(Command::SetLight2D { artboard: artboard_id, node: node_id, value: value.into() });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -5781,8 +5836,10 @@ impl WasmEditor {
     pub fn set_trail(&mut self, artboard: JsValue, node: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let value: crate::dto::TrailDto = parse_id(value)?;
         self.document.apply(Command::SetTrail { artboard: artboard_id, node: node_id, value: value.into() });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -5791,8 +5848,10 @@ impl WasmEditor {
     pub fn set_shadow_caster(&mut self, artboard: JsValue, node: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let value: Option<crate::dto::ShadowCasterDto> = parse_id(value)?;
         self.document.apply(Command::SetShadowCaster { artboard: artboard_id, node: node_id, value: value.map(Into::into) });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -5800,7 +5859,9 @@ impl WasmEditor {
     pub fn set_node_unlit(&mut self, artboard: JsValue, node: JsValue, value: bool) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         self.document.apply(Command::SetNodeUnlit { artboard: artboard_id, node: node_id, value });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -5857,8 +5918,10 @@ impl WasmEditor {
     pub fn set_camera(&mut self, artboard: JsValue, node: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let value: crate::dto::CameraDto = parse_id(value)?;
         self.document.apply(Command::SetCamera { artboard: artboard_id, node: node_id, value: value.into() });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -5889,7 +5952,9 @@ impl WasmEditor {
     pub fn set_node_z_index(&mut self, artboard: JsValue, node: JsValue, value: f32) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         self.document.apply(Command::SetNodeZIndex { artboard: artboard_id, node: node_id, value });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -6573,8 +6638,10 @@ impl WasmEditor {
     pub fn set_node_behaviors(&mut self, artboard: JsValue, node: JsValue, behaviors: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let behaviors: Vec<NodeBehaviorEntryDto> = parse_id(behaviors)?;
         self.document.apply(Command::SetNodeBehaviors { artboard: artboard_id, node: node_id, value: behaviors.into_iter().map(Into::into).collect() });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -6625,7 +6692,9 @@ impl WasmEditor {
     pub fn set_bone_length(&mut self, artboard: JsValue, node: JsValue, value: f32) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         self.document.apply(Command::SetBoneLength { artboard: artboard_id, node: node_id, value });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -6697,7 +6766,9 @@ impl WasmEditor {
     pub fn set_node_visible(&mut self, artboard: JsValue, node: JsValue, value: bool) -> Result<(), JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         self.document.apply(Command::SetNodeVisible { artboard: artboard_id, node: node_id, value });
+        self.record_field_edits(artboard_id, node_id, before);
         Ok(())
     }
 
@@ -6708,6 +6779,7 @@ impl WasmEditor {
     pub fn set_gradient(&mut self, artboard: JsValue, node: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let value: Option<an1mbyt3_core::GradientDef> = if value.is_null() || value.is_undefined() {
             None
         } else {
@@ -6715,6 +6787,7 @@ impl WasmEditor {
             Some(dto.into())
         };
         self.document.apply(Command::SetGradient { artboard: artboard_id, node: node_id, value });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -6776,6 +6849,7 @@ impl WasmEditor {
     pub fn set_shape_stroke(&mut self, artboard: JsValue, node: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let value: Option<an1mbyt3_core::Stroke> = if value.is_null() || value.is_undefined() {
             None
         } else {
@@ -6783,6 +6857,7 @@ impl WasmEditor {
             Some(dto.into())
         };
         self.document.apply(Command::SetShapeStroke { artboard: artboard_id, node: node_id, value });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -6792,8 +6867,10 @@ impl WasmEditor {
     pub fn set_particle_system(&mut self, artboard: JsValue, node: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let dto: crate::dto::ParticleSystemDto = serde_wasm_bindgen::from_value(value).map_err(|err| JsValue::from_str(&format!("invalid particle system: {err}")))?;
         self.document.apply(Command::SetParticleSystem { artboard: artboard_id, node: node_id, value: dto.into() });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -7218,7 +7295,9 @@ impl WasmEditor {
     pub fn set_text_size(&mut self, artboard: JsValue, node: JsValue, value: f32) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         self.document.apply(Command::SetTextSize { artboard: artboard_id, node: node_id, value });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -7464,6 +7543,7 @@ impl WasmEditor {
         material: Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>>,
         delta: f32,
         poses: Option<&an1mbyt3_core::VrmPoses>,
+        node_toon: Option<&an1mbyt3_core::ToonMaterial>,
         draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>,
     ) {
         let Some(model) = self.gpu_model(model_id) else { return };
@@ -7583,15 +7663,34 @@ impl WasmEditor {
             }
         }
         inst.meshes.resize(data.primitives.len(), None);
-        inst.toon_materials.resize(data.primitives.len(), None);
         inst.morph_keys.resize(data.primitives.len(), Vec::new());
         // Skeletons: one joint palette each, skinned on the GPU.
         let palettes: Vec<std::rc::Rc<Vec<glam::Mat4>>> = data.joint_palettes(&pose).into_iter().map(std::rc::Rc::new).collect();
         let no_morphs = Vec::new();
+        // The model's material-slot assets (Toon materials made on import).
+        let slot_toons: HashMap<u32, an1mbyt3_core::ToonMaterial> = self
+            .document
+            .materials()
+            .filter_map(|(_, m)| match &m.kind {
+                an1mbyt3_core::MaterialKind::Toon(t) => t.source.filter(|s| s.model == model_id).map(|s| (s.slot, t.clone())),
+                _ => None,
+            })
+            .collect();
         for (i, (prim, (gpu_mesh, texture))) in data.primitives.iter().zip(&model.primitives).enumerate() {
             let c = prim.base_color;
             let color = [mesh.color[0] * c[0], mesh.color[1] * c[1], mesh.color[2] * c[2], mesh.color[3] * c[3]];
-            let toon = data.vrm.as_ref().and_then(|v| prim.material.and_then(|m| v.toon.get(m).copied().flatten()));
+            let cutoff = match prim.alpha {
+                an1mbyt3_geometry::AlphaMode::Mask(c) => Some(c),
+                _ => None,
+            };
+            // Which toon look: the node's own Toon material (all slots), the
+            // slot's material asset, else the VRM's built-in MToon values.
+            let toon: Option<an1mbyt3_core::ToonMaterial> = node_toon.cloned().or_else(|| prim.material.and_then(|m| slot_toons.get(&(m as u32)).cloned())).or_else(|| {
+                let v = data.vrm.as_ref()?;
+                let m = prim.material?;
+                let t = v.toon.get(m).copied().flatten()?;
+                Some(toon_from_vrm(&t, v.emissive.get(m).copied().unwrap_or([0.0; 3]), cutoff))
+            });
             // Skinned / morphed: deform on the CPU, rewrite the GPU mesh in
             // place (the result is already in model space).
             let weights = morphs.get(&prim.mesh_index).unwrap_or(&no_morphs);
@@ -7626,37 +7725,13 @@ impl WasmEditor {
                 (std::rc::Rc::clone(gpu_mesh), world * pose.get(prim.node).copied().unwrap_or(glam::Mat4::IDENTITY))
             };
             let blend = if prim.alpha == an1mbyt3_geometry::AlphaMode::Blend || color[3] < 0.999 { an1mbyt3_renderer::Blend3D::Transparent } else { an1mbyt3_renderer::Blend3D::Opaque };
-            if let Some(toon) = toon {
-                // MToon: our generated toon shader, drawn unlit (it lights itself).
-                let cutoff = match prim.alpha {
-                    an1mbyt3_geometry::AlphaMode::Mask(c) => Some(c),
-                    _ => None,
-                };
-                if inst.toon_materials[i].is_none() {
-                    let toon_m = self.wgsl_material_3d(an1mbyt3_geometry::vrm::toon_wgsl(&toon, cutoff));
-                    inst.toon_materials[i] = Some((toon_m, None));
+            if let Some(mut toon) = toon {
+                // A cut-out primitive keeps cutting out under any toon material.
+                if toon.alpha_cutoff <= 0.0 {
+                    toon.alpha_cutoff = cutoff.unwrap_or(0.0);
                 }
-                let (toon_material, _) = inst.toon_materials[i].clone().expect("just set");
-                draws.push(an1mbyt3_renderer::MeshDraw3D {
-                    unlit: true,
-                    material: toon_material,
-                    texture: texture.clone(),
-                    blend,
-                    double_sided: prim.double_sided,
-                    joints: palette.clone(),
-                    ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(&draw_mesh), model_matrix, color)
-                });
-                // The ink line: the same skinned mesh pushed out along its
-                // normals in the vertex shader, front faces culled.
-                if toon.outline_width > 0.0 && palette.is_some() && blend == an1mbyt3_renderer::Blend3D::Opaque {
-                    let o = toon.outline;
-                    draws.push(an1mbyt3_renderer::MeshDraw3D {
-                        unlit: true,
-                        joints: palette.clone(),
-                        outline: toon.outline_width,
-                        ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(&draw_mesh), model_matrix, [o[0], o[1], o[2], 1.0])
-                    });
-                }
+                let transparent = prim.alpha == an1mbyt3_geometry::AlphaMode::Blend || color[3] < 0.999;
+                self.push_toon_draws(&toon, draw_mesh, model_matrix, color, texture.clone(), palette, transparent, prim.double_sided, draws);
                 continue;
             }
             let draw_material = material.clone().or_else(|| texture.as_ref().and(textured.clone()));
@@ -7676,15 +7751,99 @@ impl WasmEditor {
         self.model_instances.insert(node_id, inst);
     }
 
-    /// A generated 3D material (MToon toon, outline), compiled once per
-    /// distinct WGSL.
-    fn wgsl_material_3d(&mut self, wgsl: String) -> Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>> {
-        if let Some(m) = self.wgsl_materials_3d.get(&wgsl) {
-            return Some(std::rc::Rc::clone(m));
+    /// The compiled shader for a Toon material style.
+    fn toon_gpu(&mut self, style: an1mbyt3_core::ToonStyle) -> Option<std::rc::Rc<an1mbyt3_renderer::GpuMaterial3D>> {
+        let (slot, wgsl) = match style {
+            an1mbyt3_core::ToonStyle::MToon => (0, an1mbyt3_renderer::TOON_MTOON_WGSL),
+            an1mbyt3_core::ToonStyle::Arcane => (1, an1mbyt3_renderer::TOON_ARCANE_WGSL),
+        };
+        if self.toon_gpu[slot].is_none() {
+            // (Validated by the renderer's `toon_materials_validate_in_3d` test.)
+            self.toon_gpu[slot] = self.renderer.compile_material_3d(wgsl).ok().map(std::rc::Rc::new);
         }
-        let compiled = std::rc::Rc::new(self.renderer.compile_material_3d(&wgsl).ok()?);
-        self.wgsl_materials_3d.insert(wgsl, std::rc::Rc::clone(&compiled));
-        Some(compiled)
+        self.toon_gpu[slot].clone()
+    }
+
+    /// A Toon material asset's settings (`None` for other kinds / deleted).
+    fn toon_material(&self, id: an1mbyt3_core::MaterialId) -> Option<an1mbyt3_core::ToonMaterial> {
+        match self.document.material(id).filter(|m| !m.deleted).map(|m| &m.kind) {
+            Some(an1mbyt3_core::MaterialKind::Toon(t)) => Some(t.clone()),
+            _ => None,
+        }
+    }
+
+    /// Draws a mesh with a Toon material (+ its ink outline): the shared
+    /// toon shader, the material's values per draw, drawn "unlit" since
+    /// the shader lights itself.
+    #[allow(clippy::too_many_arguments)]
+    fn push_toon_draws(
+        &mut self,
+        toon: &an1mbyt3_core::ToonMaterial,
+        mesh: std::rc::Rc<an1mbyt3_renderer::GpuMesh3D>,
+        model: glam::Mat4,
+        color: [f32; 4],
+        texture: Option<an1mbyt3_renderer::GpuImageTexture>,
+        joints: Option<std::rc::Rc<Vec<glam::Mat4>>>,
+        transparent: bool,
+        double_sided: bool,
+        draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>,
+    ) {
+        let Some(material) = self.toon_gpu(toon.style) else { return };
+        let b = toon.base;
+        let color = [color[0] * b[0], color[1] * b[1], color[2] * b[2], color[3] * b[3]];
+        let texture = toon.texture.and_then(|id| self.image_cache.get(&id).cloned()).or(texture);
+        let blend = if (transparent || color[3] < 0.999) && toon.alpha_cutoff <= 0.0 { an1mbyt3_renderer::Blend3D::Transparent } else { an1mbyt3_renderer::Blend3D::Opaque };
+        draws.push(an1mbyt3_renderer::MeshDraw3D {
+            unlit: true,
+            material: Some(material),
+            texture,
+            blend,
+            double_sided: double_sided || toon.double_sided,
+            joints: joints.clone(),
+            params: toon.gpu_params(),
+            ..an1mbyt3_renderer::MeshDraw3D::new(std::rc::Rc::clone(&mesh), model, color)
+        });
+        // The ink line: the mesh pushed out along its normals in the vertex
+        // shader, front faces culled.
+        if toon.outline_width > 0.0 && blend == an1mbyt3_renderer::Blend3D::Opaque {
+            let o = toon.outline;
+            draws.push(an1mbyt3_renderer::MeshDraw3D { unlit: true, joints, outline: toon.outline_width, ..an1mbyt3_renderer::MeshDraw3D::new(mesh, model, [o[0], o[1], o[2], 1.0]) });
+        }
+    }
+
+    /// Makes an editable Toon material asset for every MToon material slot
+    /// of an imported model that doesn't have one yet (VRM import does
+    /// this; "Extract materials" in the Inspector for older imports).
+    /// Returns how many were made.
+    fn extract_model_materials(&mut self, model_id: an1mbyt3_core::ModelId, data: &an1mbyt3_geometry::ModelData, model_name: &str) -> usize {
+        let Some(vrm) = &data.vrm else { return 0 };
+        let have: std::collections::HashSet<u32> = self
+            .document
+            .materials()
+            .filter_map(|(_, m)| match &m.kind {
+                an1mbyt3_core::MaterialKind::Toon(t) => t.source.filter(|s| s.model == model_id).map(|s| s.slot),
+                _ => None,
+            })
+            .collect();
+        let mut made = 0;
+        for (slot, toon) in vrm.toon.iter().enumerate() {
+            let Some(toon) = toon else { continue };
+            if have.contains(&(slot as u32)) {
+                continue;
+            }
+            // Its alpha cutoff, if a primitive uses it as a cut-out.
+            let cutoff = data.primitives.iter().find(|p| p.material == Some(slot)).and_then(|p| match p.alpha {
+                an1mbyt3_geometry::AlphaMode::Mask(c) => Some(c),
+                _ => None,
+            });
+            let mut value = toon_from_vrm(toon, vrm.emissive.get(slot).copied().unwrap_or([0.0; 3]), cutoff);
+            value.source = Some(an1mbyt3_core::ModelMaterialSlot { model: model_id, slot: slot as u32 });
+            let label = vrm.material_names.get(slot).filter(|n| !n.is_empty()).cloned().unwrap_or_else(|| format!("Material {slot}"));
+            let material = an1mbyt3_core::Material { name: format!("{model_name} · {label}"), kind: an1mbyt3_core::MaterialKind::Toon(value), deleted: false };
+            self.document.apply(Command::AddMaterial { material });
+            made += 1;
+        }
+        made
     }
 
     /// The imported model a 3D node shows (and the node), if it is one.
@@ -7842,6 +8001,9 @@ impl WasmEditor {
         let asset = an1mbyt3_core::ModelAsset { name: name.clone(), source, files, deleted: false };
         let parsed = an1mbyt3_geometry::parse_gltf(&asset.source, &|uri| asset.file(uri).map(|b| b.to_vec())).map_err(|e| JsValue::from_str(&format!("import_model: {e}")))?;
         let model = self.document.add_model(asset);
+        // VRM: every MToon material becomes an editable material asset.
+        let model_name = name.rsplit(['/', '\\']).next().unwrap_or(&name).trim_end_matches(".vrm").trim_end_matches(".glb").to_string();
+        self.extract_model_materials(model, &parsed, &model_name);
         // Stand it on the ground, about human-sized if it's huge or tiny.
         let (min, max) = parsed.bounds;
         let height = (max.y - min.y).max(1e-3);
@@ -8255,9 +8417,15 @@ impl WasmEditor {
         }
         self.sections.particles3d_ms = crate::profiler::now_ms() - tp;
         for (node_id, model, mesh) in meshes {
-            let material = mesh.material.and_then(|id| self.material3d(id));
+            let node_toon = mesh.material.and_then(|id| self.toon_material(id));
+            let material = if node_toon.is_some() { None } else { mesh.material.and_then(|id| self.material3d(id)) };
             if let Primitive3D::Model { model: model_id } = mesh.primitive {
-                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), &mut draws);
+                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), node_toon.as_ref(), &mut draws);
+                continue;
+            }
+            if let (Some(toon), Primitive3D::Cube { .. } | Primitive3D::Sphere { .. } | Primitive3D::Plane { .. } | Primitive3D::Cylinder { .. } | Primitive3D::Cone { .. } | Primitive3D::Torus { .. }) = (&node_toon, &mesh.primitive) {
+                let gpu = self.mesh3d(&mesh.primitive);
+                self.push_toon_draws(toon, gpu, model, mesh.color, None, None, false, false, &mut draws);
                 continue;
             }
             if let Primitive3D::Voxels { width, height, depth } = mesh.primitive {
@@ -8869,12 +9037,14 @@ impl WasmEditor {
     pub fn set_node3d(&mut self, artboard: JsValue, node: JsValue, value: JsValue) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
+        let before = self.record_before(artboard_id, node_id);
         let value: an1mbyt3_core::Node3D = serde_wasm_bindgen::from_value(value).map_err(|e| JsValue::from_str(&format!("set_node3d: {e}")))?;
         let is_3d = self.document.artboard(artboard_id).and_then(|a| a.node(node_id)).is_some_and(|n| matches!(n.kind, NodeKind::Node3D(_)));
         if !is_3d {
             return Err(JsValue::from_str("set_node3d: not a 3D node"));
         }
         self.document.apply(Command::SetNode3D { artboard: artboard_id, node: node_id, value });
+        self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
     }
 
@@ -9344,6 +9514,74 @@ impl WasmEditor {
     /// `{ wgsl, error }` for a material — the Shader tab's code view and
     /// error banner. `error` is a graph error (no Output, a loop) or a
     /// shader compile error; `null` when it compiled.
+    /// "+ Toon material": a new Toon material asset, `style` `"MToon"` or
+    /// `"Arcane"`. Returns `{ document, material }`.
+    pub fn add_toon_material(&mut self, name: String, style: &str) -> Result<JsValue, JsValue> {
+        let value = if style == "Arcane" { an1mbyt3_core::ToonMaterial::arcane() } else { an1mbyt3_core::ToonMaterial::default() };
+        let inverse = self.document.apply(Command::AddMaterial { material: an1mbyt3_core::Material { name, kind: an1mbyt3_core::MaterialKind::Toon(value), deleted: false } });
+        let Command::SetMaterialDeleted { material, .. } = inverse else { return Err(JsValue::from_str("add_toon_material: unexpected inverse")) };
+        #[derive(serde::Serialize)]
+        struct Added {
+            document: crate::dto::DocumentSummary,
+            material: an1mbyt3_core::MaterialId,
+        }
+        to_js_value(&Added { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), material })
+    }
+
+    /// A Toon material's settings (null for other kinds).
+    pub fn material_toon(&self, material: JsValue) -> Result<JsValue, JsValue> {
+        let id: an1mbyt3_core::MaterialId = parse_id(material)?;
+        match self.toon_material(id) {
+            Some(t) => to_js_value(&t),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    /// Edits a Toon material's settings. `commit = false` previews (live,
+    /// untracked — slider drags); `commit = true` records one undo step
+    /// from the value before the first preview.
+    pub fn set_material_toon(&mut self, material: JsValue, value: JsValue, commit: bool) -> Result<JsValue, JsValue> {
+        let id: an1mbyt3_core::MaterialId = parse_id(material)?;
+        let value: an1mbyt3_core::ToonMaterial = serde_wasm_bindgen::from_value(value).map_err(|e| JsValue::from_str(&format!("set_material_toon: {e}")))?;
+        let Some(current) = self.document.material(id).cloned() else { return Ok(JsValue::NULL) };
+        let an1mbyt3_core::MaterialKind::Toon(before) = &current.kind else { return Ok(JsValue::NULL) };
+        if !commit {
+            self.toon_preview_base.entry(id).or_insert_with(|| before.clone());
+            if let Some(m) = self.document.material_mut(id) {
+                m.kind = an1mbyt3_core::MaterialKind::Toon(value);
+            }
+            return Ok(JsValue::NULL);
+        }
+        // Back to the pre-drag value, then one tracked edit to the new one.
+        if let Some(base) = self.toon_preview_base.remove(&id) {
+            if let Some(m) = self.document.material_mut(id) {
+                m.kind = an1mbyt3_core::MaterialKind::Toon(base);
+            }
+        }
+        let mut next = current.clone();
+        next.kind = an1mbyt3_core::MaterialKind::Toon(value);
+        self.document.apply(Command::SetMaterial { material: id, value: Box::new(next) });
+        self.document_summary()
+    }
+
+    /// Inspector → "Extract materials" on an imported VRM: makes an
+    /// editable Toon material asset for each of its MToon materials that
+    /// doesn't have one. Returns the document summary (null if none made).
+    pub fn model_extract_materials(&mut self, artboard: JsValue, node: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard.clone())?;
+        let node_id: NodeId = parse_id(node.clone())?;
+        let model_id = match self.document.artboard(artboard_id).and_then(|a| a.node(node_id)).map(|n| &n.kind) {
+            Some(NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Mesh(an1mbyt3_core::Mesh3D { primitive: an1mbyt3_core::Primitive3D::Model { model }, .. }), .. })) => *model,
+            _ => return Ok(JsValue::NULL),
+        };
+        let Some(gpu) = self.gpu_model(model_id) else { return Ok(JsValue::NULL) };
+        let name = self.document.model(model_id).map(|m| m.name.rsplit(['/', '\\']).next().unwrap_or(&m.name).trim_end_matches(".vrm").trim_end_matches(".glb").to_string()).unwrap_or_default();
+        if self.extract_model_materials(model_id, &gpu.data, &name) == 0 {
+            return Ok(JsValue::NULL);
+        }
+        self.document_summary()
+    }
+
     pub fn material_status(&self, material: JsValue) -> Result<JsValue, JsValue> {
         let id: an1mbyt3_core::MaterialId = parse_id(material)?;
         #[derive(serde::Serialize)]
@@ -9733,11 +9971,90 @@ impl WasmEditor {
     /// animation tool uses. Always `Easing::Linear` — a keyframe's easing
     /// is edited afterward, via `set_keyframe_easing` below (the Curve
     /// Editor panel), not chosen at creation time.
+    /// Timeline "Record": while on (in Animate), every Inspector change
+    /// becomes keyframes at the playhead.
+    pub fn set_record_keys(&mut self, on: bool) {
+        self.record_keys = on;
+    }
+
+    pub fn record_keys(&self) -> bool {
+        self.record_keys
+    }
+
+    /// Every animatable value of a node (the Timeline's "+ Property" list):
+    /// `[{ path, shape, value }]` — see `an1mbyt3_core::field_path`. The 2D
+    /// translation / rotation / scale have their own tracks and aren't
+    /// repeated here.
+    pub fn node_fields(&self, artboard: JsValue, node: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let Some(n) = self.document.artboard(artboard_id).and_then(|a| a.node(node_id)) else { return Ok(JsValue::NULL) };
+        let fields: Vec<an1mbyt3_core::field_path::FieldInfo> = an1mbyt3_core::field_path::list(n).into_iter().filter(|f| !is_dedicated_track(&f.path)).collect();
+        to_js_value(&fields)
+    }
+
+    /// Before an Inspector edit: the node as it was, when the edit might
+    /// turn into keyframes (Animate, with an animation open).
+    fn record_before(&self, artboard_id: ArtboardId, node_id: NodeId) -> Option<Node> {
+        if !self.animate_mode_active || self.active_animation.is_none() {
+            return None;
+        }
+        self.document.artboard(artboard_id)?.node(node_id).cloned()
+    }
+
+    /// After an Inspector edit (already applied as one undo step): keys
+    /// every value it changed that's already animated — or every changed
+    /// value while Record is on — at the playhead. A value keyed for the
+    /// first time away from 0 s also gets its old value keyed at 0 s, so
+    /// it animates *from* where it was. Folded into the edit's undo step.
+    fn record_field_edits(&mut self, artboard_id: ArtboardId, node_id: NodeId, before: Option<Node>) {
+        let Some(before) = before else { return };
+        let Some(animation_id) = self.active_animation else { return };
+        let Some(artboard) = self.document.artboard(artboard_id) else { return };
+        let Some(after) = artboard.node(node_id) else { return };
+        let Some(animation) = artboard.animation(animation_id) else { return };
+        let time = self.scrub_time.clamp(0.0, animation.duration);
+        let tracked: std::collections::HashSet<PropertyKind> = animation.tracks.iter().filter(|(n, _)| *n == node_id).map(|(_, t)| t.kind()).collect();
+        let old: HashMap<String, [f32; 4]> = an1mbyt3_core::field_path::list(&before).into_iter().map(|f| (f.path, f.value)).collect();
+        let mut keys: Vec<(f32, String, [f32; 4])> = Vec::new();
+        for f in an1mbyt3_core::field_path::list(after) {
+            if is_dedicated_track(&f.path) {
+                continue;
+            }
+            let Some(o) = old.get(&f.path) else { continue };
+            if o.iter().zip(&f.value).all(|(a, b)| (a - b).abs() <= 1e-6) {
+                continue;
+            }
+            let is_tracked = tracked.contains(&an1mbyt3_core::field_path::field_kind(&f.path));
+            if !is_tracked && !self.record_keys {
+                continue;
+            }
+            if !is_tracked && time > 1e-4 {
+                keys.push((0.0, f.path.clone(), *o));
+            }
+            // Leaving Animate puts the value back to its design value.
+            if let Some(entry) = self.design_pose_snapshot.as_mut().and_then(|snap| snap.iter_mut().find(|e| e.id == node_id)) {
+                if !entry.fields.iter().any(|(p, _)| *p == f.path) {
+                    entry.fields.push((f.path.clone(), *o));
+                }
+            }
+            keys.push((time, f.path, f.value));
+        }
+        let count = keys.len();
+        for (t, path, value) in keys {
+            self.document.apply(Command::AddKeyframe { artboard: artboard_id, animation: animation_id, node: node_id, time: t, value: KeyframeValue::Field(path, value), easing: Easing::Linear });
+        }
+        if count > 0 {
+            self.document.merge_last(count + 1);
+        }
+    }
+
     pub fn add_keyframe(&mut self, artboard: JsValue, node: JsValue, property: &str, time: f32) -> Result<JsValue, JsValue> {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
         let property_kind = parse_property_kind(property)?;
         let animation_id = self.active_animation.ok_or_else(|| JsValue::from_str("add_keyframe: no active animation"))?;
+        let field_path = property.strip_prefix("Field:").map(str::to_string);
 
         let artboard_ref = self
             .document
@@ -9769,6 +10086,13 @@ impl WasmEditor {
             },
             PropertyKind::MotionPath => {
                 return Err(JsValue::from_str("add_keyframe: use add_motion_path_keyframe for MotionPath tracks"));
+            }
+            PropertyKind::Field(_) => {
+                let path = field_path.unwrap_or_default();
+                let Some(v) = an1mbyt3_core::field_path::read(node_ref, &path) else {
+                    return Err(JsValue::from_str(&format!("add_keyframe: node has no field {path}")));
+                };
+                KeyframeValue::Field(path, v)
             }
         };
 
@@ -9871,6 +10195,7 @@ impl WasmEditor {
             PropertyTrack::FillColor(t) => t.keyframes.get(index).map(|k| (k.time, KeyframeValue::FillColor(k.value))),
             PropertyTrack::Path(t) => t.keyframes.get(index).map(|k| (k.time, KeyframeValue::Path(k.value.clone()))),
             PropertyTrack::MotionPath { track: t, .. } => t.keyframes.get(index).map(|k| (k.time, KeyframeValue::MotionPath(k.value))),
+            PropertyTrack::Field { path, track: t } => t.keyframes.get(index).map(|k| (k.time, KeyframeValue::Field(path.clone(), k.value))),
         }
         .ok_or_else(|| JsValue::from_str("set_keyframe_easing: no keyframe at that index"))?;
 
@@ -9930,6 +10255,7 @@ impl WasmEditor {
             PropertyTrack::FillColor(t) => set_keyframe_time_at(t, index, new_time),
             PropertyTrack::Path(t) => set_keyframe_time_at(t, index, new_time),
             PropertyTrack::MotionPath { track: t, .. } => set_keyframe_time_at(t, index, new_time),
+            PropertyTrack::Field { track: t, .. } => set_keyframe_time_at(t, index, new_time),
         }
     }
 
@@ -9976,6 +10302,7 @@ impl WasmEditor {
                 PropertyTrack::FillColor(t) => set_keyframe_time_at(t, index, origin_time)?,
                 PropertyTrack::Path(t) => set_keyframe_time_at(t, index, origin_time)?,
                 PropertyTrack::MotionPath { track: t, .. } => set_keyframe_time_at(t, index, origin_time)?,
+                PropertyTrack::Field { track: t, .. } => set_keyframe_time_at(t, index, origin_time)?,
             }
             new_time
         };

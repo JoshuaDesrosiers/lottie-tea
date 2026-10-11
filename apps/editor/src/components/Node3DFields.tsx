@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
-import type { MaterialSummary, Node3D, Node3DContent, OpaqueId, Primitive3D, Vec3Tuple } from '../ipc/document'
-import { modelClips, type WasmEditor } from '../ipc/wasmEditor'
+import { useMemo, useState } from 'react'
+import type { DocumentSummary, ImageAssetSummary, MaterialSummary, Node3D, Node3DContent, OpaqueId, Primitive3D, ToonStyle, Vec3Tuple } from '../ipc/document'
+import { addToonMaterial, modelClips, modelExtractMaterials, materialToon, setMaterialToon, type WasmEditor } from '../ipc/wasmEditor'
+import { ToonMaterialFields } from './ToonMaterialFields'
 import { ColorSwatch } from './ColorPicker'
 import { Dropdown, NumberField } from './InspectorPanel'
 
@@ -82,9 +83,19 @@ export function Node3DFields({
   onEditMaterial,
   models,
   editor,
+  images = [],
+  onDocumentChange,
+  artboardId = null,
+  nodeId = null,
 }: {
   value: Node3D
   onChange: (value: Node3D) => void
+  /** For Toon materials: texture picker and committing edits. */
+  images?: ImageAssetSummary[]
+  onDocumentChange?: (doc: DocumentSummary) => void
+  /** This node (an avatar's "Extract materials"). */
+  artboardId?: OpaqueId | null
+  nodeId?: OpaqueId | null
   /** Imported 3D models (Shape → Model). */
   models: { id: OpaqueId; name: string }[]
   editor: WasmEditor | null
@@ -97,6 +108,40 @@ export function Node3DFields({
   const modelId = content.type === 'Mesh' && content.primitive.shape === 'Model' ? content.primitive.model : null
   const clips = useMemo(() => (editor && modelId ? modelClips(editor, modelId) : []), [editor, modelId])
   const setContent = (c: Node3DContent) => onChange({ ...value, content: c })
+  const [openSlot, setOpenSlot] = useState<string | null>(null)
+  const [editToon, setEditToon] = useState(true)
+  const sameId = (a: OpaqueId | null | undefined, b: OpaqueId | null | undefined) => !!a && !!b && a.idx === b.idx && a.version === b.version
+  // This model's own material slots (Toon materials made on VRM import).
+  const slotMaterials = modelId ? materials.filter((m) => m.kind === 'Toon' && sameId(m.source?.model, modelId)).sort((a, b) => (a.source?.slot ?? 0) - (b.source?.slot ?? 0)) : []
+  const worn = content.type === 'Mesh' && content.material ? materials.find((m) => sameId(m.id, content.material)) : undefined
+  const toonFields = (id: OpaqueId) => (onDocumentChange ? <ToonMaterialFields editor={editor} material={id} images={images} revision={materials} onDocumentChange={onDocumentChange} /> : null)
+  /** Creates a Toon / Arcane material and puts it on this mesh. */
+  const createToon = (style: ToonStyle) => {
+    if (!editor || !onDocumentChange || content.type !== 'Mesh') return
+    const result = addToonMaterial(editor, style === 'Arcane' ? 'Arcane' : 'Toon', style)
+    onDocumentChange(result.document)
+    setContent({ ...content, material: result.material })
+  }
+  /** Every slot material of this avatar switched to one style at once. */
+  const restyleSlots = (style: ToonStyle) => {
+    if (!editor || !onDocumentChange) return
+    let last: DocumentSummary | null = null
+    for (const m of slotMaterials) {
+      const v = materialToon(editor, m.id)
+      if (!v || v.style === style) continue
+      const painted = {
+        ...v,
+        style,
+        shade: v.shade.every((c) => c > 0.45) ? ([0.38, 0.36, 0.62] as [number, number, number]) : v.shade,
+        rim: v.rim.every((c) => c === 0) ? ([0.25, 0.75, 0.8] as [number, number, number]) : v.rim,
+        highlight: [0.18, 0.1, 0.02] as [number, number, number],
+        outlineWidth: v.outlineWidth > 0 ? v.outlineWidth : 0.006,
+      }
+      last = setMaterialToon(editor, m.id, style === 'Arcane' ? painted : { ...v, style }, true) ?? last
+    }
+    if (last) onDocumentChange(last)
+  }
+  const ownLabel = modelId ? "Model's own materials" : 'None (flat colour)'
 
   return (
     <div className="flex flex-col gap-2">
@@ -166,14 +211,19 @@ export function Node3DFields({
             <div className="min-w-0 flex-1">
               <Dropdown
                 value={content.material ? keyOf(content.material) : 'none'}
-                options={['none', ...materials.map((m) => keyOf(m.id))]}
-                renderValue={(k) => (k === 'none' ? 'None (flat colour)' : (materials.find((m) => keyOf(m.id) === k)?.name ?? 'Missing material'))}
-                renderOption={(k) => (k === 'none' ? 'None (flat colour)' : (materials.find((m) => keyOf(m.id) === k)?.name ?? k))}
-                onChange={(k) => setContent({ ...content, material: materials.find((m) => keyOf(m.id) === k)?.id ?? null })}
+                options={['none', ...materials.map((m) => keyOf(m.id)), ...(onDocumentChange ? ['new:MToon', 'new:Arcane'] : [])]}
+                renderValue={(k) => (k === 'none' ? ownLabel : (materials.find((m) => keyOf(m.id) === k)?.name ?? 'Missing material'))}
+                renderOption={(k) =>
+                  k === 'none' ? ownLabel : k === 'new:MToon' ? '+ New Toon material' : k === 'new:Arcane' ? '+ New Arcane (painted) material' : (materials.find((m) => keyOf(m.id) === k)?.name ?? k)
+                }
+                onChange={(k) => {
+                  if (k === 'new:MToon' || k === 'new:Arcane') createToon(k === 'new:Arcane' ? 'Arcane' : 'MToon')
+                  else setContent({ ...content, material: materials.find((m) => keyOf(m.id) === k)?.id ?? null })
+                }}
               />
             </div>
             <button
-              onClick={() => content.material && onEditMaterial(content.material)}
+              onClick={() => (worn?.kind === 'Toon' ? setEditToon(!editToon) : content.material && onEditMaterial(content.material))}
               disabled={!content.material}
               title="Edit this material's node graph (in 3D, Local Position is world meters on the surface — patterns tile at world scale)"
               className="shrink-0 rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20 hover:text-accent disabled:opacity-35"
@@ -181,6 +231,50 @@ export function Node3DFields({
               Edit
             </button>
           </Row>
+          {worn?.kind === 'Toon' && editToon && <div className="rounded-md border border-line/50 p-2">{toonFields(worn.id)}</div>}
+          {modelId && !content.material && (slotMaterials.length > 0 || (editor && artboardId && nodeId)) && (
+            <div className="flex flex-col gap-1.5 rounded-md border border-line/50 p-2">
+              <div className="flex items-center gap-1">
+                <span className="flex-1 text-[11px] font-medium text-ink">Model materials</span>
+                {slotMaterials.length > 0 && (
+                  <>
+                    <button type="button" onClick={() => restyleSlots('MToon')} className="rounded px-1.5 py-0.5 text-[10px] text-ink-dim hover:bg-overlay/10 hover:text-ink" title="Every slot back to the MToon look">
+                      All MToon
+                    </button>
+                    <button type="button" onClick={() => restyleSlots('Arcane')} className="rounded px-1.5 py-0.5 text-[10px] text-ink-dim hover:bg-overlay/10 hover:text-ink" title="Every slot painted, Arcane-style">
+                      All Arcane
+                    </button>
+                  </>
+                )}
+              </div>
+              {slotMaterials.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!editor || !artboardId || !nodeId || !onDocumentChange) return
+                    const next = modelExtractMaterials(editor, artboardId, nodeId)
+                    if (next) onDocumentChange(next)
+                  }}
+                  className="rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20 hover:text-accent"
+                  title="Make an editable material for each of this avatar's MToon materials"
+                >
+                  Extract materials
+                </button>
+              ) : (
+                slotMaterials.map((m) => (
+                  <div key={keyOf(m.id)} className="flex flex-col gap-1">
+                    <button type="button" onClick={() => setOpenSlot(openSlot === keyOf(m.id) ? null : keyOf(m.id))} className="flex items-center gap-1 text-left text-[11px] text-ink-dim hover:text-ink">
+                      <span>{openSlot === keyOf(m.id) ? '▾' : '▸'}</span>
+                      <span className="min-w-0 flex-1 truncate">{m.name.split(' · ').slice(-1)[0]}</span>
+                      <span className="rounded bg-overlay/10 px-1 text-[9px]">{m.style}</span>
+                    </button>
+                    {openSlot === keyOf(m.id) && <div className="pl-3">{toonFields(m.id)}</div>}
+                  </div>
+                ))
+              )}
+              <p className="text-[10px] leading-snug text-ink-dim">Shared by every copy of this model. Picking a material above overrides all slots at once.</p>
+            </div>
+          )}
           <Row label="Shininess">
             <NumberField label="" step={0.05} value={content.shininess} onCommit={(shininess) => setContent({ ...content, shininess: Math.min(1, Math.max(0, shininess)) })} />
           </Row>

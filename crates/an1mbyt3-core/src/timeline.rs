@@ -52,6 +52,10 @@ pub enum PropertyKind {
     /// position directly" — see `PropertyTrack::MotionPath`'s doc comment for
     /// why the write itself can't happen in `KeyframeValue::write_to`.
     MotionPath,
+    /// Any other Inspector value, by field path ([`crate::field_path`]) —
+    /// the path's hash ([`crate::field_path::field_kind`]), so this stays
+    /// `Copy`; the path itself lives on the track / value.
+    Field(u64),
 }
 
 /// A keyframe's value, tagged with which property it belongs to — lets a
@@ -75,6 +79,13 @@ pub enum KeyframeValue {
     /// alone has the `Artboard` access needed to resolve the guide) ever
     /// turns this into an actual translation.
     MotionPath(f32),
+    /// A field-path value ([`crate::field_path`]): the path and up to four
+    /// floats (a number, bool, vector or colour).
+    Field(String, [f32; 4]),
+}
+
+fn add4(a: [f32; 4], b: [f32; 4], k: f32) -> [f32; 4] {
+    [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k, a[3] + b[3] * k]
 }
 
 impl KeyframeValue {
@@ -86,6 +97,7 @@ impl KeyframeValue {
             KeyframeValue::FillColor(_) => PropertyKind::FillColor,
             KeyframeValue::Path(_) => PropertyKind::Path,
             KeyframeValue::MotionPath(_) => PropertyKind::MotionPath,
+            KeyframeValue::Field(path, _) => crate::field_path::field_kind(path),
         }
     }
 
@@ -106,6 +118,7 @@ impl KeyframeValue {
             (KeyframeValue::FillColor(a), KeyframeValue::FillColor(b)) => {
                 KeyframeValue::FillColor([a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3]])
             }
+            (KeyframeValue::Field(p, a), KeyframeValue::Field(_, b)) => KeyframeValue::Field(p, add4(a, b, -1.0)),
             _ => panic!("KeyframeValue::subtract: mismatched variants"),
         }
     }
@@ -118,6 +131,7 @@ impl KeyframeValue {
             KeyframeValue::FillColor(v) => KeyframeValue::FillColor([-v[0], -v[1], -v[2], -v[3]]),
             KeyframeValue::Path(_) => panic!("KeyframeValue::negate: Path has no meaningful negation, see subtract's doc comment"),
             KeyframeValue::MotionPath(_) => panic!("KeyframeValue::negate: MotionPath never goes through ShiftPropertyKeyframes, see subtract's doc comment"),
+            KeyframeValue::Field(p, v) => KeyframeValue::Field(p, [-v[0], -v[1], -v[2], -v[3]]),
         }
     }
 
@@ -152,6 +166,11 @@ impl KeyframeValue {
             // `Animation::apply`'s dedicated branch; see this variant's doc
             // comment.
             KeyframeValue::MotionPath(_) => {}
+            // A path that no longer exists (component removed) just does
+            // nothing — same "degrade, don't freeze playback" rule.
+            KeyframeValue::Field(path, v) => {
+                crate::field_path::write(node, &path, v);
+            }
         }
     }
 
@@ -188,6 +207,7 @@ impl KeyframeValue {
             ]),
             (KeyframeValue::Path(a), KeyframeValue::Path(b)) => KeyframeValue::Path(crate::keyframe::Lerp::lerp(a, b, t)),
             (KeyframeValue::MotionPath(a), KeyframeValue::MotionPath(b)) => KeyframeValue::MotionPath(a + (b - a) * t),
+            (KeyframeValue::Field(p, a), KeyframeValue::Field(_, b)) => KeyframeValue::Field(p, add4(a, add4(b, a, -1.0), t)),
             _ => panic!("KeyframeValue::lerp: mismatched variants"),
         }
     }
@@ -221,6 +241,10 @@ pub enum PropertyTrack {
     /// kind keeps a uniform interface — real playback never relies on them
     /// for this variant.
     MotionPath { guide: NodeId, track: Track<f32> },
+    /// Any other Inspector value, addressed by a field path
+    /// ([`crate::field_path`]): 3D transforms, light intensity, a
+    /// component's settings, a camera's FOV …
+    Field { path: String, track: Track<[f32; 4]> },
 }
 
 impl PropertyTrack {
@@ -232,6 +256,7 @@ impl PropertyTrack {
             PropertyTrack::FillColor(_) => PropertyKind::FillColor,
             PropertyTrack::Path(_) => PropertyKind::Path,
             PropertyTrack::MotionPath { .. } => PropertyKind::MotionPath,
+            PropertyTrack::Field { path, .. } => crate::field_path::field_kind(path),
         }
     }
 
@@ -243,6 +268,7 @@ impl PropertyTrack {
             PropertyTrack::FillColor(t) => t.duration(),
             PropertyTrack::Path(t) => t.duration(),
             PropertyTrack::MotionPath { track, .. } => track.duration(),
+            PropertyTrack::Field { track, .. } => track.duration(),
         }
     }
 
@@ -285,6 +311,7 @@ impl PropertyTrack {
             PropertyTrack::FillColor(t) => KeyframeValue::FillColor(t.sample(time)),
             PropertyTrack::Path(t) => KeyframeValue::Path(t.sample(time)),
             PropertyTrack::MotionPath { track, .. } => KeyframeValue::MotionPath(track.sample(time)),
+            PropertyTrack::Field { path, track } => KeyframeValue::Field(path.clone(), track.sample(time)),
         }
     }
 }

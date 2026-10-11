@@ -17,7 +17,7 @@
  */
 import { fetchFontFile } from '../game/googleFonts'
 import init, { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm.js'
-import type { ScreenSettings,
+import type { ScreenSettings, ToonMaterialConfig, ToonStyle, FieldInfo,
   AddAnimationResult,
   PrefabResult,
   Transform2D,
@@ -1239,6 +1239,38 @@ export function previewNode3DTransform(editor: WasmEditor, artboard: OpaqueId, n
 /** The Shader tab's "+ New Material" (starter graph). Undoable. */
 export function addMaterial(editor: WasmEditor, name: string): { document: DocumentSummary; material: OpaqueId } {
   return editor.add_material(name) as { document: DocumentSummary; material: OpaqueId }
+}
+
+/** Every animatable value of a node (the Timeline's "+ Property"). */
+export function nodeFields(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId): FieldInfo[] {
+  return (editor.node_fields(artboard, node) as FieldInfo[] | null) ?? []
+}
+
+/** Timeline "Record": every Inspector change keys at the playhead. */
+export function setRecordKeys(editor: WasmEditor, on: boolean): void {
+  editor.set_record_keys(on)
+}
+
+/** "+ Toon / Arcane material". Undoable. */
+export function addToonMaterial(editor: WasmEditor, name: string, style: ToonStyle): { document: DocumentSummary; material: OpaqueId } {
+  return editor.add_toon_material(name, style) as { document: DocumentSummary; material: OpaqueId }
+}
+
+/** A Toon material's settings (`null` for other kinds). */
+export function materialToon(editor: WasmEditor, material: OpaqueId): ToonMaterialConfig | null {
+  return editor.material_toon(material) as ToonMaterialConfig | null
+}
+
+/** Edits a Toon material: `commit = false` previews live (untracked),
+ * `commit = true` records one undo step (returns the document then). */
+export function setMaterialToon(editor: WasmEditor, material: OpaqueId, value: ToonMaterialConfig, commit: boolean): DocumentSummary | null {
+  return editor.set_material_toon(material, value, commit) as DocumentSummary | null
+}
+
+/** "Extract materials": editable Toon materials for an imported VRM's
+ * MToon materials (null when there was nothing to make). */
+export function modelExtractMaterials(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId): DocumentSummary | null {
+  return editor.model_extract_materials(artboard, node) as DocumentSummary | null
 }
 
 /** A material's shader graph (`null` if it isn't a graph material). */
