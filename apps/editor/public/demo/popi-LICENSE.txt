@@ -1,0 +1,4 @@
+popi.vrm — "popi" by rachel bethia d
+Licence: CC BY (Creative Commons Attribution), as embedded in the file's VRM metadata:
+  allowedUserName: Everyone · commercialUssageName: Allow · violentUssageName: Allow · sexualUssageName: Allow
+Used in the "Fatal Clash" demo (crates/an1mbyt3-wasm/src/demo_fight.rs). Credit is shown on the game's menu.

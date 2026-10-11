@@ -48,6 +48,7 @@ async fn run() {
         ],
         particles: Vec::new(),
         fluids: Vec::new(),
+        shadows: None,
     }));
 
     // A 2D square on top (the HUD layer).

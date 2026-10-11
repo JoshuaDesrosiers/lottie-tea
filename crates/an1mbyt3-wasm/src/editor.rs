@@ -7044,6 +7044,7 @@ impl WasmEditor {
             "Antialias2D" => B::Antialias2D(an1mbyt3_core::Antialias2D::default()),
             "VrmPoses" => B::VrmPoses(an1mbyt3_core::VrmPoses::default()),
             "Ragdoll3D" => B::Ragdoll3D(an1mbyt3_core::Ragdoll3D::default()),
+            "MaterialSlots" => B::MaterialSlots(an1mbyt3_core::MaterialSlots::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -7654,6 +7655,7 @@ impl WasmEditor {
         delta: f32,
         poses: Option<&an1mbyt3_core::VrmPoses>,
         node_toon: Option<&an1mbyt3_core::ToonMaterial>,
+        slot_overrides: Option<&an1mbyt3_core::MaterialSlots>,
         draws: &mut Vec<an1mbyt3_renderer::MeshDraw3D>,
     ) {
         let Some(model) = self.gpu_model(model_id) else { return };
@@ -7823,7 +7825,7 @@ impl WasmEditor {
         let palettes: Vec<std::rc::Rc<Vec<glam::Mat4>>> = data.joint_palettes(&pose).into_iter().map(std::rc::Rc::new).collect();
         let no_morphs = Vec::new();
         // The model's material-slot assets (Toon materials made on import).
-        let slot_toons: HashMap<u32, an1mbyt3_core::ToonMaterial> = self
+        let mut slot_toons: HashMap<u32, an1mbyt3_core::ToonMaterial> = self
             .document
             .materials()
             .filter_map(|(_, m)| match &m.kind {
@@ -7831,6 +7833,12 @@ impl WasmEditor {
                 _ => None,
             })
             .collect();
+        // This object's own per-slot overrides win.
+        for o in slot_overrides.map(|s| s.slots.as_slice()).unwrap_or_default() {
+            if let Some(t) = o.material.and_then(|id| self.toon_material(id)) {
+                slot_toons.insert(o.slot, t);
+            }
+        }
         for (i, (prim, (gpu_mesh, texture))) in data.primitives.iter().zip(&model.primitives).enumerate() {
             let c = prim.base_color;
             let color = [mesh.color[0] * c[0], mesh.color[1] * c[1], mesh.color[2] * c[2], mesh.color[3] * c[3]];
@@ -8496,6 +8504,7 @@ impl WasmEditor {
         let mut points = Vec::new();
         let mut emitters: Vec<(NodeId, Mat4, an1mbyt3_core::ParticleSystem3D)> = Vec::new();
         let mut vrm_poses: HashMap<NodeId, an1mbyt3_core::VrmPoses> = HashMap::new();
+        let mut slot_overrides: HashMap<NodeId, an1mbyt3_core::MaterialSlots> = HashMap::new();
         let mut any_3d = false;
         for id in artboard.node_ids() {
             if artboard.is_effectively_deleted(id) {
@@ -8515,6 +8524,9 @@ impl WasmEditor {
             }
             if let Some(poses) = node.vrm_poses() {
                 vrm_poses.insert(id, poses.clone());
+            }
+            if let Some(slots) = node.material_slots() {
+                slot_overrides.insert(id, slots.clone());
             }
             match n.content {
                 Node3DContent::Mesh(mesh) => meshes.push((id, world, mesh)),
@@ -8623,7 +8635,7 @@ impl WasmEditor {
             let node_toon = mesh.material.and_then(|id| self.toon_material(id));
             let material = if node_toon.is_some() { None } else { mesh.material.and_then(|id| self.material3d(id)) };
             if let Primitive3D::Model { model: model_id } = mesh.primitive {
-                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), node_toon.as_ref(), &mut draws);
+                self.model_draws(node_id, model_id, model, &mesh, material, delta, vrm_poses.get(&node_id), node_toon.as_ref(), slot_overrides.get(&node_id), &mut draws);
                 continue;
             }
             if let (Some(toon), Primitive3D::Cube { .. } | Primitive3D::Sphere { .. } | Primitive3D::Plane { .. } | Primitive3D::Cylinder { .. } | Primitive3D::Cone { .. } | Primitive3D::Torus { .. }) = (&node_toon, &mesh.primitive) {
@@ -8798,6 +8810,13 @@ impl WasmEditor {
             draws,
             particles,
             fluids,
+            // Sun shadows round what the camera is looking at: ~16 m in
+            // front (the view's orbit point in the editor).
+            shadows: sun.map(|_| {
+                let forward = (view.inverse().transform_vector3(Vec3::NEG_Z)).normalize_or(Vec3::NEG_Z);
+                let center = if editor_view { self.view3d_camera.target } else { eye + forward * 9.0 };
+                an1mbyt3_renderer::Shadows3D { center, extent: 14.0, strength: 0.72 }
+            }),
         }));
     }
 
@@ -11514,6 +11533,47 @@ impl WasmEditor {
     /// down an endless corridor, ten zones, crystals and multiball.
     pub async fn load_shatter_demo(&mut self) -> Result<JsValue, JsValue> {
         let demo = crate::demo_shatter::build_demo_shatter(&mut self.document);
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
+    /// The + menu's Demos → "Fatal Clash" — a Mortal Kombat-style 3D
+    /// fighting game: two VRM avatars (`vrm`: the avatar file's bytes; the
+    /// host fetches the bundled one), ragdoll knockdowns, blood, rounds,
+    /// FINISH HER / FATALITY, a CPU opponent or 2 players.
+    pub async fn load_fight_demo(&mut self, vrm: Vec<u8>) -> Result<JsValue, JsValue> {
+        let parsed = an1mbyt3_geometry::parse_gltf(&vrm, &|_| None).map_err(|e| JsValue::from_str(&format!("load_fight_demo: {e}")))?;
+        let demo = crate::demo_fight::build_demo_fight(&mut self.document, vrm, "popi.vrm");
+        // Popi's own MToon materials, editable.
+        self.extract_model_materials(demo.model, &parsed, "popi");
+        // Shadow Popi: the same outfit, her own skin (bronze) —
+        // through Material Overrides on her skin slots only.
+        let skins: Vec<(u32, an1mbyt3_core::Material)> = self
+            .document
+            .materials()
+            .filter_map(|(_, m)| match &m.kind {
+                an1mbyt3_core::MaterialKind::Toon(t) if m.name.contains("_SKIN") => t.source.filter(|s| s.model == demo.model).map(|s| (s.slot, m.clone())),
+                _ => None,
+            })
+            .collect();
+        let mut slots = Vec::new();
+        for (slot, mut material) in skins {
+            if let an1mbyt3_core::MaterialKind::Toon(t) = &mut material.kind {
+                // A warm bronze skin (popi's is pale).
+                t.base = [0.74, 0.52, 0.4, 1.0];
+                t.shade = [0.5, 0.3, 0.26];
+                t.source = None;
+            }
+            material.name = format!("Shadow Popi · {}", material.name.split(" · ").last().unwrap_or("skin"));
+            if let Command::SetMaterialDeleted { material: id, .. } = self.document.apply(Command::AddMaterial { material }) {
+                slots.push(an1mbyt3_core::SlotMaterial { slot, material: Some(id) });
+            }
+        }
+        if let Some(node) = self.document.artboard(demo.scene).and_then(|a| a.node(demo.shadow)) {
+            let mut value = node.behaviors.clone();
+            value.push(an1mbyt3_core::NodeBehaviorEntry { behavior: an1mbyt3_core::NodeBehavior::MaterialSlots(an1mbyt3_core::MaterialSlots { slots }), enabled: true });
+            self.document.apply(Command::SetNodeBehaviors { artboard: demo.scene, node: demo.shadow, value });
+        }
         migrate_document(&mut self.document);
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }

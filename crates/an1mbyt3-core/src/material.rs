@@ -192,3 +192,22 @@ impl ToonMaterial {
         ]
     }
 }
+
+/// **Material Overrides** on an imported model's node: per material slot
+/// (glTF material index), the material asset this one object wears there
+/// instead of the model's own — so two copies of the same avatar can look
+/// different (another skin tone, outfit colour …) without touching the
+/// model's shared materials.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MaterialSlots {
+    pub slots: Vec<SlotMaterial>,
+}
+
+/// One slot override: `slot` (glTF material index) wears `material`.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SlotMaterial {
+    pub slot: u32,
+    pub material: Option<crate::MaterialId>,
+}

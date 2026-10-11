@@ -755,6 +755,39 @@ function BehaviorsFields({
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
       }
+      case 'MaterialSlots': {
+        const { kind: _k, ...config } = behavior
+        const modelId = node.node3d?.content.type === 'Mesh' && node.node3d.content.primitive.shape === 'Model' ? node.node3d.content.primitive.model : null
+        const own = materials.filter((m) => m.source && modelId && m.source.model.idx === modelId.idx && m.source.model.version === modelId.version)
+        const label = (slot: number) => own.find((m) => m.source?.slot === slot)?.name.split(' · ').slice(-1)[0] ?? `Slot ${slot}`
+        const keyOf = (id: OpaqueId | null) => (id ? `${id.idx}:${id.version}` : 'none')
+        const toon = materials.filter((m) => m.kind === 'Toon')
+        const set = (slots: typeof config.slots) => replaceAt(index, { kind: 'MaterialSlots', slots })
+        const free = own.map((m) => m.source!.slot).filter((s) => !config.slots.some((o) => o.slot === s))
+        return (
+          <div className="flex flex-col gap-1.5">
+            {config.slots.map((o, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <span className="w-28 shrink-0 truncate text-[11px] text-ink-dim" title={`Material slot ${o.slot}`}>{label(o.slot)}</span>
+                <div className="min-w-0 flex-1">
+                  <Dropdown
+                    value={keyOf(o.material)}
+                    options={['none', ...toon.map((m) => keyOf(m.id))]}
+                    renderValue={(k) => (k === 'none' ? "Model's own" : (toon.find((m) => keyOf(m.id) === k)?.name ?? k))}
+                    renderOption={(k) => (k === 'none' ? "Model's own" : (toon.find((m) => keyOf(m.id) === k)?.name ?? k))}
+                    onChange={(k) => set(config.slots.map((x, j) => (j === i ? { ...x, material: toon.find((m) => keyOf(m.id) === k)?.id ?? null } : x)))}
+                  />
+                </div>
+                <button type="button" className="text-[11px] text-ink-dim hover:text-red-400" onClick={() => set(config.slots.filter((_, j) => j !== i))} title="Remove this override">×</button>
+              </div>
+            ))}
+            {free.length > 0 && (
+              <Dropdown value={'add'} options={['add', ...free.map(String)]} renderValue={() => '+ Override a slot…'} renderOption={(k) => (k === 'add' ? '+ Override a slot…' : label(Number(k)))} onChange={(k) => k !== 'add' && set([...config.slots, { slot: Number(k), material: null }])} />
+            )}
+            <p className="text-[10px] leading-snug text-ink-dim">Only this object wears these; other copies of the model keep its own materials.</p>
+          </div>
+        )
+      }
       case 'Ragdoll3D': {
         const { kind: _k, ...config } = behavior
         const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'Ragdoll3D', ...config, ...patch })

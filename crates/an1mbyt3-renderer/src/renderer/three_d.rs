@@ -262,7 +262,22 @@ pub struct Scene3D {
     pub particles: Vec<ParticleQuad3D>,
     /// Fluid layers, composited over the scene after it (in order).
     pub fluids: Vec<FluidLayer3D>,
+    /// Sun shadows: the world point they're centred on and the half-size
+    /// (m) of the square they cover, and how dark they are (0..1). `None`
+    /// = no shadows.
+    pub shadows: Option<Shadows3D>,
 }
+
+/// Where the sun's shadow map is laid out (see [`Scene3D::shadows`]).
+#[derive(Debug, Clone, Copy)]
+pub struct Shadows3D {
+    pub center: Vec3,
+    pub extent: f32,
+    pub strength: f32,
+}
+
+/// The sun shadow map's resolution (square).
+const SHADOW_SIZE: u32 = 2048;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -279,6 +294,11 @@ struct SceneUniforms {
     /// The camera's world right / up axes (materials' Facing UV).
     camera_right: [f32; 4],
     camera_up: [f32; 4],
+    /// The sun's shadow-map projection (world → light clip space).
+    light_view_proj: [[f32; 4]; 4],
+    /// x = shadow strength (0 = off), y = one shadow texel in UV, z = depth
+    /// bias, w = normal offset (m).
+    shadow: [f32; 4],
 }
 
 #[repr(C)]
@@ -339,6 +359,13 @@ pub(crate) struct Resources3D {
     outline_pipeline: wgpu::RenderPipeline,
     /// Outlines for unskinned meshes (toon materials on props).
     outline_static_pipeline: wgpu::RenderPipeline,
+    /// Sun shadows: the depth map, its depth-only pipelines (plain /
+    /// skinned) and the scene bind group they use (uniforms only — the map
+    /// can't be read while it's being drawn).
+    shadow_view: wgpu::TextureView,
+    shadow_pipeline: wgpu::RenderPipeline,
+    shadow_skinned_pipeline: wgpu::RenderPipeline,
+    shadow_scene_bind_group: wgpu::BindGroup,
     /// (width, height, view) of the current depth buffer.
     depth: RefCell<Option<(u32, u32, wgpu::TextureView)>>,
 }
@@ -405,6 +432,37 @@ const ADDITIVE_BLEND: wgpu::BlendState = wgpu::BlendState {
     color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::SrcAlpha, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
     alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::Zero, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
 };
+
+/// The sun shadow map's depth-only pipeline (`vs_shadow` /
+/// `vs_shadow_skinned`, no fragment stage), both faces, sloped bias.
+fn shadow_pipeline(device: &wgpu::Device, layout: &wgpu::PipelineLayout, module: &wgpu::ShaderModule, skinned: bool) -> wgpu::RenderPipeline {
+    let base_layout = wgpu::VertexBufferLayout { array_stride: 32, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2] };
+    let skin_layout = wgpu::VertexBufferLayout { array_stride: 24, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![3 => Uint16x4, 4 => Float32x4] };
+    let skinned_buffers = [Some(base_layout.clone()), Some(skin_layout)];
+    let plain_buffers = [Some(base_layout)];
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(if skinned { "an1mbyt3 3D shadow (skinned)" } else { "an1mbyt3 3D shadow" }),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module,
+            entry_point: Some(if skinned { "vs_shadow_skinned" } else { "vs_shadow" }),
+            compilation_options: Default::default(),
+            buffers: if skinned { &skinned_buffers } else { &plain_buffers },
+        },
+        primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, cull_mode: None, ..Default::default() },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            stencil: Default::default(),
+            bias: wgpu::DepthBiasState { constant: 2, slope_scale: 2.0, clamp: 0.0 },
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        fragment: None,
+        multiview_mask: None,
+        cache: None,
+    })
+}
 
 /// A mesh pipeline: `entry` fragment stage, for one `MeshPass`; `skinned`
 /// takes the joint/weight buffer too and skins in the vertex stage
@@ -619,7 +677,22 @@ impl Renderer {
                 ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: dynamic, min_binding_size: None },
                 count: None,
             };
-            let scene_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("an1mbyt3 3D scene layout"), entries: &[uniform_entry(false)] });
+            // Scene: uniforms, plus the sun's shadow map and its comparison
+            // sampler (every lit shader reads them).
+            let scene_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("an1mbyt3 3D scene layout"),
+                entries: &[
+                    uniform_entry(false),
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Depth, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison), count: None },
+                ],
+            });
+            let shadow_scene_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("an1mbyt3 3D shadow scene layout"), entries: &[uniform_entry(false)] });
             let draw_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("an1mbyt3 3D draw layout"),
                 entries: &[
@@ -650,6 +723,31 @@ impl Renderer {
             let skinned_pipeline = mesh_pipeline_with(device, self.render_format, &layout, &shader, "fs_main", MeshPass::Opaque, true);
             let outline_pipeline = mesh_pipeline_with(device, self.render_format, &layout, &shader, "fs_outline", MeshPass::Outline, true);
             let outline_static_pipeline = mesh_pipeline_with(device, self.render_format, &layout, &shader, "fs_outline", MeshPass::Outline, false);
+            let shadow_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("an1mbyt3 3D shadow pipeline layout"),
+                bind_group_layouts: &[Some(&shadow_scene_layout), Some(&draw_layout)],
+                immediate_size: 0,
+            });
+            let shadow_skinned_pipeline = shadow_pipeline(device, &shadow_layout, &shader, true);
+            let shadow_pipeline = shadow_pipeline(device, &shadow_layout, &shader, false);
+            let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("an1mbyt3 3D sun shadow map"),
+                size: wgpu::Extent3d { width: SHADOW_SIZE, height: SHADOW_SIZE, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: DEPTH_FORMAT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            });
+            let shadow_view = shadow_texture.create_view(&Default::default());
+            let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("an1mbyt3 3D shadow sampler"),
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                compare: Some(wgpu::CompareFunction::LessEqual),
+                ..Default::default()
+            });
             // Particles only read the scene uniforms (group 0).
             let particle_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("an1mbyt3 3D particle pipeline layout"),
@@ -701,6 +799,15 @@ impl Renderer {
             let scene_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("an1mbyt3 3D scene bind group"),
                 layout: &scene_layout,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: scene_buffer.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&shadow_view) },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&shadow_sampler) },
+                ],
+            });
+            let shadow_scene_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("an1mbyt3 3D shadow scene bind group"),
+                layout: &shadow_scene_layout,
                 entries: &[wgpu::BindGroupEntry { binding: 0, resource: scene_buffer.as_entire_binding() }],
             });
             let joints = joint_buffer(device, 2);
@@ -714,7 +821,7 @@ impl Renderer {
                 fluid_uniforms,
                 fluid_sampler,
                 fluid_target: RefCell::new(None),
-                pipeline, overlay_pipeline, transparent_pipeline, additive_pipeline, particle_pipeline, particle_vertices, material_layout, scene_buffer, scene_bind_group, draw_layout, draws, joints, skinned_pipeline, outline_pipeline, outline_static_pipeline, depth: RefCell::new(None) }
+                pipeline, overlay_pipeline, transparent_pipeline, additive_pipeline, particle_pipeline, particle_vertices, material_layout, scene_buffer, scene_bind_group, draw_layout, draws, joints, skinned_pipeline, outline_pipeline, outline_static_pipeline, shadow_view, shadow_pipeline, shadow_skinned_pipeline, shadow_scene_bind_group, depth: RefCell::new(None) }
         })
     }
 
@@ -890,6 +997,25 @@ impl Renderer {
             uniforms.point_pos[i] = l.position.extend(l.range).into();
             uniforms.point_color[i] = l.color.extend(0.0).into();
         }
+        // The sun's shadow map: an orthographic view down the sun's rays,
+        // square round `shadows.center`, snapped to whole texels so it
+        // doesn't shimmer as the camera moves.
+        let shadow_light = scene.shadows.filter(|s| s.strength > 0.0 && scene.sun_color.max_element() > 0.0).map(|s| {
+            let dir = scene.sun_direction.normalize_or(Vec3::NEG_Y);
+            let up = if dir.y.abs() > 0.95 { Vec3::Z } else { Vec3::Y };
+            let extent = s.extent.max(1.0);
+            let view = glam::camera::rh::view::look_at_mat4(Vec3::ZERO, dir, up);
+            let texel = extent * 2.0 / SHADOW_SIZE as f32;
+            let c = view.transform_point3(s.center);
+            let snapped = Vec3::new((c.x / texel).round() * texel, (c.y / texel).round() * texel, c.z);
+            let depth = extent * 4.0;
+            let proj = glam::camera::rh::proj::directx::orthographic(snapped.x - extent, snapped.x + extent, snapped.y - extent, snapped.y + extent, -snapped.z - depth, -snapped.z + depth);
+            (proj * view, s, texel)
+        });
+        if let Some((m, s, _)) = shadow_light {
+            uniforms.light_view_proj = m.to_cols_array_2d();
+            uniforms.shadow = [s.strength.clamp(0.0, 1.0), 1.0 / SHADOW_SIZE as f32, 0.0015, (s.extent * 2.0 / SHADOW_SIZE as f32) * 1.5];
+        }
         self.queue.write_buffer(&res.scene_buffer, 0, bytemuck::bytes_of(&uniforms));
 
         // Each draw's joint palette offset (0 = unskinned).
@@ -969,6 +1095,43 @@ impl Renderer {
         let depth = res.depth.borrow();
         let depth_view = &depth.as_ref().expect("created above").2;
         let draws = res.draws.borrow();
+
+        // Sun shadows: every opaque, shadow-casting mesh into the depth map.
+        if shadow_light.is_some() {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("an1mbyt3 3D shadow pass"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &res.shadow_view, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_bind_group(0, &res.shadow_scene_bind_group, &[]);
+            let mut skinned_bound: Option<bool> = None;
+            for (i, d) in scene.draws.iter().enumerate() {
+                // Casters: opaque, not gizmos / outlines; plain unlit
+                // decorations (glows, decals) don't cast, but materials
+                // (toon avatars draw "unlit") do.
+                let casts = !d.overlay && d.outline <= 0.0 && d.blend == Blend3D::Opaque && d.mesh.index_count > 0 && (d.material.is_some() || !d.unlit);
+                if !casts {
+                    continue;
+                }
+                let skinned = d.joints.is_some() && d.mesh.skin_buffer.is_some();
+                if skinned_bound != Some(skinned) {
+                    pass.set_pipeline(if skinned { &res.shadow_skinned_pipeline } else { &res.shadow_pipeline });
+                    skinned_bound = Some(skinned);
+                }
+                pass.set_bind_group(1, &draws.2, &[(i as u64 * DRAW_STRIDE) as u32, joint_slot.get(i).copied().unwrap_or(0)]);
+                pass.set_vertex_buffer(0, d.mesh.vertex_buffer.slice(..));
+                if skinned {
+                    if let Some(skin) = &d.mesh.skin_buffer {
+                        pass.set_vertex_buffer(1, skin.slice(..));
+                    }
+                }
+                pass.set_index_buffer(d.mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..d.mesh.index_count, 0, 0..1);
+            }
+        }
 
         let load = match scene.clear_color {
             Some(c) => wgpu::LoadOp::Clear(super::linear_clear(wgpu::Color { r: c[0] as f64, g: c[1] as f64, b: c[2] as f64, a: c[3] as f64 })),

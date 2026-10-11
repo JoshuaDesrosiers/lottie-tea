@@ -22,6 +22,6 @@
 mod renderer;
 
 pub use renderer::{linear_rgba, srgb_to_linear, 
-    BlendMode, Camera, DataTexture, DrawBinding, DrawCall, GpuImageTexture, GpuMaterial, GpuMesh, Blend3D, FluidLayer3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, MATERIAL_PARAMS_3D, MAX_POINT_LIGHTS, TOON_ARCANE_WGSL, TOON_MTOON_WGSL, ImageFilterMode, ImageProcessing, LightDraw, LightShadows, LightShape, LightVolumetric, Lighting, PostEffect,
+    BlendMode, Camera, DataTexture, DrawBinding, DrawCall, GpuImageTexture, GpuMaterial, GpuMesh, Blend3D, FluidLayer3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, Shadows3D, MATERIAL_PARAMS_3D, MAX_POINT_LIGHTS, TOON_ARCANE_WGSL, TOON_MTOON_WGSL, ImageFilterMode, ImageProcessing, LightDraw, LightShadows, LightShape, LightVolumetric, Lighting, PostEffect,
     RenderError, Renderer, SceneOp, ShadowCasterShape, MAX_FREEFORM_POINTS,
 };

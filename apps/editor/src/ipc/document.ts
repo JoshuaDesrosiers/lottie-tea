@@ -1560,6 +1560,13 @@ export type NodeBehavior =
   | ({ kind: 'Antialias2D' } & Antialias2DConfig)
   | ({ kind: 'VrmPoses' } & VrmPosesConfig)
   | ({ kind: 'Ragdoll3D' } & Ragdoll3DConfig)
+  | ({ kind: 'MaterialSlots' } & MaterialSlotsConfig)
+
+/** Mirrors `an1mbyt3_core::MaterialSlots`: per-object material overrides
+ * on an imported model's material slots (glTF material index). */
+export interface MaterialSlotsConfig {
+  slots: { slot: number; material: OpaqueId | null }[]
+}
 
 /** Mirrors `an1mbyt3_core::Ragdoll3D`: a VRM avatar that can go limp. */
 export interface Ragdoll3DConfig {

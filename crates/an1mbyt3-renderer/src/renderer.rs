@@ -22,7 +22,7 @@ use an1mbyt3_geometry::Mesh;
 mod lighting;
 mod post;
 mod three_d;
-pub use three_d::{Blend3D, FluidLayer3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, MATERIAL_PARAMS_3D, MAX_POINT_LIGHTS, TOON_ARCANE_WGSL, TOON_MTOON_WGSL};
+pub use three_d::{Blend3D, FluidLayer3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, Shadows3D, MATERIAL_PARAMS_3D, MAX_POINT_LIGHTS, TOON_ARCANE_WGSL, TOON_MTOON_WGSL};
 pub use lighting::{LightDraw, LightShadows, LightShape, LightVolumetric, Lighting, ShadowCasterShape, MAX_FREEFORM_POINTS};
 
 /// How many gradient stops `shader.wgsl` has room for — matches that

@@ -133,6 +133,9 @@ pub enum NodeBehavior {
     VrmPoses(crate::VrmPoses),
     /// [`crate::Ragdoll3D`]: a VRM avatar that can go limp. (Appended last.)
     Ragdoll3D(crate::Ragdoll3D),
+    /// [`crate::MaterialSlots`]: per-object material overrides on a model's
+    /// material slots. (Appended last.)
+    MaterialSlots(crate::MaterialSlots),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

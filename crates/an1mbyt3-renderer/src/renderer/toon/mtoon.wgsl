@@ -6,7 +6,7 @@ fn material_fragment(in: VertexOutput) -> vec4<f32> {
     let n = tn_normal(in);
     let to_eye = normalize(scene.camera_pos.xyz - in.world);
     let shade = base.rgb * p[0].rgb;
-    let lit = tn_term(dot(n, -scene.sun_dir.xyz), p[0].w, p[1].w);
+    let lit = tn_term(dot(n, -scene.sun_dir.xyz), p[0].w, p[1].w) * sun_shadow(in.world, n);
     var rgb = mix(shade, base.rgb, lit) * max(scene.sun_color.rgb, vec3<f32>(p[5].w));
     rgb += base.rgb * scene.ambient.rgb * 0.35;
     // Point lights: the same terminator, added on top.

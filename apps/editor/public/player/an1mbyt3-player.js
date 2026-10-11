@@ -663,6 +663,10 @@ var g = class e {
 	load_dungeon_demo() {
 		return G.wasmeditor_load_dungeon_demo(this.__wbg_ptr);
 	}
+	load_fight_demo(e) {
+		let t = B(e, G.__wbindgen_malloc), n = W;
+		return G.wasmeditor_load_fight_demo(this.__wbg_ptr, t, n);
+	}
 	load_fps_demo() {
 		return G.wasmeditor_load_fps_demo(this.__wbg_ptr);
 	}

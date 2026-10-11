@@ -108,6 +108,7 @@ function ShapesMenu({
   onLoadBoomDemo,
   onLoadVoxelDemo,
   onLoadShatterDemo,
+  onLoadFightDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddTilemap,
@@ -169,6 +170,7 @@ function ShapesMenu({
   onLoadBoomDemo: () => void
   onLoadVoxelDemo: () => void
   onLoadShatterDemo: () => void
+  onLoadFightDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
 }) {
@@ -282,6 +284,7 @@ function ShapesMenu({
         { kind: 'item', label: 'Toon Explosion', icon: <SparkleIcon />, onSelect: onLoadBoomDemo },
         { kind: 'item', label: 'Voxel Craft', icon: <SparkleIcon />, onSelect: onLoadVoxelDemo },
         { kind: 'item', label: 'Shatterline (glass)', icon: <SparkleIcon />, onSelect: onLoadShatterDemo },
+        { kind: 'item', label: 'Fatal Clash (3D fighting)', icon: <SparkleIcon />, onSelect: onLoadFightDemo },
         { kind: 'item', label: 'Sunset Tactics (5v5)', icon: <SparkleIcon />, onSelect: onLoadTacticsDemo },
         { kind: 'item', label: 'Raycaster FPS', icon: <SparkleIcon />, onSelect: onLoadFpsDemo },
         { kind: 'item', label: 'Ragdoll Arena', icon: <SparkleIcon />, onSelect: onLoadRigDemo },
@@ -530,6 +533,7 @@ export function TopToolbar({
   onLoadBoomDemo,
   onLoadVoxelDemo,
   onLoadShatterDemo,
+  onLoadFightDemo,
   onLoadTacticsDemo,
   onLoadPhysicsDemo,
   onAddBone,
@@ -592,6 +596,7 @@ export function TopToolbar({
   onLoadBoomDemo: () => void
   onLoadVoxelDemo: () => void
   onLoadShatterDemo: () => void
+  onLoadFightDemo: () => void
   onLoadTacticsDemo: () => void
   onLoadPhysicsDemo: () => void
   onAddBone: () => void
@@ -705,6 +710,7 @@ export function TopToolbar({
               onLoadBoomDemo={onLoadBoomDemo}
               onLoadVoxelDemo={onLoadVoxelDemo}
               onLoadShatterDemo={onLoadShatterDemo}
+              onLoadFightDemo={onLoadFightDemo}
               onLoadTacticsDemo={onLoadTacticsDemo}
               onLoadPhysicsDemo={onLoadPhysicsDemo}
               onAddBone={onAddBone}

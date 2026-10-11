@@ -193,6 +193,14 @@ export async function loadVoxelDemo(editor: WasmEditor): Promise<AddArtboardResu
 }
 
 /** Demos → "Shatterline" (Smash Hit-style glass-breaking rail shooter). */
+/** Demos → "Fatal Clash": fetches the bundled avatar, builds the game. */
+export async function loadFightDemo(editor: WasmEditor): Promise<AddArtboardResult> {
+  const response = await fetch('/demo/popi.vrm')
+  if (!response.ok) throw new Error(`Fatal Clash: couldn't load the avatar (${response.status})`)
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  return (await editor.load_fight_demo(bytes)) as AddArtboardResult
+}
+
 export async function loadShatterDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_shatter_demo()) as AddArtboardResult
 }

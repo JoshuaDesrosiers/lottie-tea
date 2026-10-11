@@ -26,9 +26,41 @@ struct Scene {
     // The camera's world right / up axes (xyz).
     camera_right: vec4<f32>,
     camera_up: vec4<f32>,
+    // The sun's shadow map: world → light clip space.
+    light_view_proj: mat4x4<f32>,
+    // x = strength (0 = no shadows), y = texel (UV), z = depth bias,
+    // w = normal offset (m).
+    shadow: vec4<f32>,
 };
 @group(0) @binding(0)
 var<uniform> scene: Scene;
+@group(0) @binding(1)
+var shadow_map: texture_depth_2d;
+@group(0) @binding(2)
+var shadow_sampler: sampler_comparison;
+
+/// How lit by the sun a surface point is (1 = fully, toward 1 − strength
+/// in shadow) — the sun's shadow map, 3 × 3 filtered (soft edges). Points
+/// outside the map are lit.
+fn sun_shadow(world: vec3<f32>, normal: vec3<f32>) -> f32 {
+    if scene.shadow.x <= 0.0 {
+        return 1.0;
+    }
+    let p = scene.light_view_proj * vec4<f32>(world + normal * scene.shadow.w, 1.0);
+    let ndc = p.xyz / p.w;
+    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    if uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0 || ndc.z >= 1.0 {
+        return 1.0;
+    }
+    let depth = ndc.z - scene.shadow.z;
+    var lit = 0.0;
+    for (var y = -1; y <= 1; y = y + 1) {
+        for (var x = -1; x <= 1; x = x + 1) {
+            lit = lit + textureSampleCompareLevel(shadow_map, shadow_sampler, uv + vec2<f32>(f32(x), f32(y)) * scene.shadow.y, depth);
+        }
+    }
+    return mix(1.0, lit / 9.0, scene.shadow.x);
+}
 
 struct Draw {
     model: mat4x4<f32>,
@@ -148,6 +180,18 @@ fn vs_skinned_outline(in: SkinnedInput) -> VertexOutput {
     return finish_vertex(p, n, in.uv);
 }
 
+// The sun's shadow map: depth only, from the sun.
+@vertex
+fn vs_shadow(in: VertexInput) -> @builtin(position) vec4<f32> {
+    return scene.light_view_proj * (uniforms.model * vec4<f32>(in.position, 1.0));
+}
+
+@vertex
+fn vs_shadow_skinned(in: SkinnedInput) -> @builtin(position) vec4<f32> {
+    let s = skin_matrix(in.joint_ids, in.weights);
+    return scene.light_view_proj * (uniforms.model * (s * vec4<f32>(in.position, 1.0)));
+}
+
 // Outlines on unskinned meshes: pushed out along the normals.
 @vertex
 fn vs_outline(in: VertexInput) -> VertexOutput {
@@ -189,7 +233,7 @@ fn shade(in: VertexOutput, base: vec4<f32>) -> vec4<f32> {
 
     // The sun.
     let l = -scene.sun_dir.xyz;
-    let ndl = max(dot(n, l), 0.0);
+    let ndl = max(dot(n, l), 0.0) * sun_shadow(in.world, n);
     light += scene.sun_color.rgb * ndl;
     if ndl > 0.0 {
         let h = normalize(l + to_eye);

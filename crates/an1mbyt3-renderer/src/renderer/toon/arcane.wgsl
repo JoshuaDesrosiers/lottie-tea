@@ -26,7 +26,8 @@ fn material_fragment(in: VertexOutput) -> vec4<f32> {
 
     // Sun: half-Lambert, shifted, brush-broken, banded.
     let ndl = dot(n, -scene.sun_dir.xyz) * 0.5 + 0.5;
-    var level = arc_bands(ndl + p[0].w + wobble, p[5].z, p[1].w);
+    // In the sun's shadow the light falls to the darkest band.
+    var level = arc_bands(ndl + p[0].w + wobble, p[5].z, p[1].w) * sun_shadow(in.world, n);
     // Point lights brighten the band too.
     let count = u32(scene.counts.x);
     var point = vec3<f32>(0.0);

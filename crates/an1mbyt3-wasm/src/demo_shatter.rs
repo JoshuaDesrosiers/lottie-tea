@@ -388,10 +388,10 @@ fn add_material(document: &mut Document, inverses: &mut Vec<Command>, name: &str
 
 // ------------------------------------------------------------ sounds --
 
-const RATE: u32 = 22_050;
+pub(crate) const RATE: u32 = 22_050;
 
 /// 16-bit mono PCM WAV.
-fn wav(samples: &[f32]) -> Vec<u8> {
+pub(crate) fn wav(samples: &[f32]) -> Vec<u8> {
     let data_len = samples.len() as u32 * 2;
     let mut out = Vec::with_capacity(44 + data_len as usize);
     out.extend_from_slice(b"RIFF");
@@ -416,16 +416,16 @@ fn wav(samples: &[f32]) -> Vec<u8> {
 }
 
 /// Deterministic noise for the synths.
-struct Noise(u32);
+pub(crate) struct Noise(pub u32);
 
 impl Noise {
-    fn next(&mut self) -> f32 {
+    pub(crate) fn next(&mut self) -> f32 {
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 17;
         self.0 ^= self.0 << 5;
         (self.0 as f32 / u32::MAX as f32) * 2.0 - 1.0
     }
-    fn unit(&mut self) -> f32 {
+    pub(crate) fn unit(&mut self) -> f32 {
         self.next() * 0.5 + 0.5
     }
 }

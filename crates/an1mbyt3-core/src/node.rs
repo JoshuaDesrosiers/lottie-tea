@@ -279,6 +279,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Material Overrides, if any.
+    pub fn material_slots(&self) -> Option<&crate::MaterialSlots> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::MaterialSlots(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Ragdoll 3D, if any.
     pub fn ragdoll3d(&self) -> Option<&crate::Ragdoll3D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {
