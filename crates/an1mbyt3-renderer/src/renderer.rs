@@ -1828,6 +1828,11 @@ impl Renderer {
     /// caller in `an1mbyt3-wasm` for why that matters: it's called once per
     /// frame, unconditionally, with whatever the active artboard's current
     /// `resolution_scale` happens to be).
+    /// The pixel block size the scene renders at (1 = native).
+    pub fn resolution_scale(&self) -> f32 {
+        self.current_resolution_scale
+    }
+
     pub fn set_resolution_scale(&mut self, scale: f32) {
         let clamped = scale.clamp(1.0, 64.0);
         if clamped == self.current_resolution_scale {

@@ -3799,10 +3799,15 @@ impl WasmEditor {
             })
             .collect();
         let live: std::collections::HashSet<NodeId> = fluids.iter().map(|(id, _, _, _)| *id).collect();
+        // A lowered resolution (pixel blocks) is pixel art: liquid edges
+        // stay hard there even with an Antialias 2D component, which only
+        // smooths at native resolution.
+        let pixelated = self.renderer.resolution_scale() > 1.0;
+        let smoothing = |node: Option<&Node>| if pixelated { None } else { node.and_then(|n| n.antialias()).map(|a| a.softness.max(0.05)) };
         self.particle_fluid_gpu.retain(|id, _| live.contains(id));
         self.fluid_keys.retain(|id, _| live.contains(id));
         for (node_id, fluid, blobs, cell) in fluids {
-            let key = crate::metaball2d::fingerprint_blobs(&blobs, fingerprint_debug(&(fluid, artboard.node(node_id).and_then(|n| n.antialias().copied()))) ^ cell.to_bits() as u64);
+            let key = crate::metaball2d::fingerprint_blobs(&blobs, fingerprint_debug(&(fluid, smoothing(artboard.node(node_id)))) ^ cell.to_bits() as u64);
             if self.fluid_keys.get(&node_id) == Some(&key) && self.particle_fluid_gpu.contains_key(&node_id) {
                 continue;
             }
@@ -3816,8 +3821,7 @@ impl WasmEditor {
             }
             let highlight: Vec<crate::metaball2d::Blob> = blobs.iter().map(|b| crate::metaball2d::Blob { center: b.center + Vec2::new(-1.0, 1.0) * b.radius * 0.14, radius: b.radius * 0.42, ..*b }).collect();
             let second = field.blobs_on_grid(&highlight);
-            let aa = artboard.node(node_id).and_then(|n| n.antialias()).map(|a| a.softness.max(0.05));
-            let look = fluid_look(&fluid, aa);
+            let look = fluid_look(&fluid, smoothing(artboard.node(node_id)));
             let slot = self.particle_fluid_gpu.entry(node_id).or_insert_with(|| LiquidGpu::new(&self.renderer));
             slot.update(&self.renderer, &mut self.liquid_materials, &field, Some(&second), &look, glam::Affine2::IDENTITY);
         }
@@ -3849,7 +3853,7 @@ impl WasmEditor {
         self.goo_keys.retain(|id, _| owners.contains(id));
         for (_, owner, goo, sources) in groups {
             let to_owner = artboard.world_transform(owner).to_affine2().inverse();
-            let mut extra = fingerprint_debug(&(&goo, artboard.node(owner).and_then(|n| n.antialias().copied())));
+            let mut extra = fingerprint_debug(&(&goo, smoothing(artboard.node(owner))));
             for v in to_owner.to_cols_array() {
                 extra = extra.rotate_left(7) ^ v.to_bits() as u64;
             }
@@ -3868,8 +3872,7 @@ impl WasmEditor {
                 self.goo_gpu.remove(&owner);
                 continue;
             }
-            let aa = artboard.node(owner).and_then(|n| n.antialias()).map(|a| a.softness.max(0.05));
-            let look = goo_look(&goo, &field, aa);
+            let look = goo_look(&goo, &field, smoothing(artboard.node(owner)));
             let slot = self.goo_gpu.entry(owner).or_insert_with(|| LiquidGpu::new(&self.renderer));
             slot.update(&self.renderer, &mut self.liquid_materials, &field, None, &look, to_owner);
             upload_ms += crate::profiler::now_ms() - t_upload;

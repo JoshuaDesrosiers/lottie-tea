@@ -104,7 +104,7 @@ export function AntialiasFields({ value, onChange, standalone = false }: { value
   return (
     <div className="flex flex-col gap-1">
       {!standalone && (
-        <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Off: hard, pixel-crisp edges (best for pixel art and low resolutions). On: smooth anti-aliased edges.">
+        <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Off: hard, pixel-crisp edges (best for pixel art and low resolutions). On: smooth anti-aliased edges at full resolution (a lowered resolution always stays pixel-crisp).">
           <input type="checkbox" checked={value !== null} onChange={(e) => onChange(e.target.checked ? 1 : null)} />
           Antialias edges
         </label>
@@ -114,7 +114,7 @@ export function AntialiasFields({ value, onChange, standalone = false }: { value
           <SliderNum value={value} min={0.25} max={6} step={0.05} digits={2} onChange={(v) => onChange(v)} />
         </Row>
       )}
-      {standalone && <p className="text-[10px] leading-snug text-ink-dim">Smooths this node&apos;s liquid edges (its Goo 2D group or Particle Fluid 2D). Remove for hard, pixel-crisp edges.</p>}
+      {standalone && <p className="text-[10px] leading-snug text-ink-dim">Smooths this node&apos;s liquid edges (its Goo 2D group or Particle Fluid 2D). Remove for hard, pixel-crisp edges. Only applies at full resolution: when the scene&apos;s resolution is lowered, edges stay pixel-crisp.</p>}
     </div>
   )
 }
