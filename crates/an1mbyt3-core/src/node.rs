@@ -351,6 +351,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Mask 2D, if any.
+    pub fn mask2d(&self) -> Option<&crate::Mask2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Mask2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Particle Path, if any.
     pub fn particle_path(&self) -> Option<&crate::ParticlePath2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

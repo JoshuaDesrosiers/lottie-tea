@@ -729,6 +729,36 @@ function BehaviorsFields({
           </div>
         )
       }
+      case 'Mask2D': {
+        const none = 'none'
+        const keyOf = (id: OpaqueId) => `${id.idx}:${id.version}`
+        const candidates = (artboard?.nodes ?? []).filter((n) => (n.kind === 'Shape' || n.kind === 'Group') && !(n.id.idx === node.id.idx && n.id.version === node.id.version))
+        return (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2" title="The shape (or a group of shapes) to mask with. It only shapes the mask — it won't draw itself.">
+              <span className="w-24 shrink-0 text-[11px] text-ink-dim">Mask shape</span>
+              <div className="min-w-0 flex-1">
+                <Dropdown
+                  value={behavior.mask ? keyOf(behavior.mask) : none}
+                  options={[none, ...candidates.map((n) => keyOf(n.id))]}
+                  renderValue={(k) => (k === none ? 'Pick a shape or group' : (candidates.find((n) => keyOf(n.id) === k)?.name ?? 'Missing shape'))}
+                  renderOption={(k) => (k === none ? 'None' : (candidates.find((n) => keyOf(n.id) === k)?.name ?? k))}
+                  onChange={(k) => replaceAt(index, { ...behavior, mask: candidates.find((n) => keyOf(n.id) === k)?.id ?? null })}
+                />
+              </div>
+            </div>
+            <div className="flex gap-0.5 rounded-md bg-overlay/5 p-0.5">
+              <button type="button" onClick={() => replaceAt(index, { ...behavior, invert: false })} className={`flex-1 rounded px-2 py-0.5 text-[10px] ${!behavior.invert ? 'bg-accent/20 text-accent' : 'text-ink-dim hover:text-ink'}`}>
+                Show only inside
+              </button>
+              <button type="button" onClick={() => replaceAt(index, { ...behavior, invert: true })} className={`flex-1 rounded px-2 py-0.5 text-[10px] ${behavior.invert ? 'bg-accent/20 text-accent' : 'text-ink-dim hover:text-ink'}`}>
+                Hide inside (no-go)
+              </button>
+            </div>
+            <p className="text-[10px] leading-snug text-ink-dim">Clips this node and everything under it — particles and goo included. Draw the area with the Pen tool (or group several shapes); the mask shape itself stays invisible and can be moved or animated.</p>
+          </div>
+        )
+      }
       case 'ParticlePath2D': {
         const none = 'none'
         const keyOf = (id: OpaqueId) => `${id.idx}:${id.version}`

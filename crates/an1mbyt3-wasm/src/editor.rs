@@ -1178,10 +1178,13 @@ fn build_scene_ops_lit<'a>(
     }
 
     let is_mask_target = index.is_mask_target(node_id);
+    // Mask 2D: written before this node's own drawing, so
+    // they clip it as well as everything under it.
+    let (depth, island) = write_node_masks(editor, artboard, index, node_id, node, depth, island, next_island, unmasked, masked);
     // Sorting layers: a layer pass draws only its own layer's nodes (the
     // walk still visits everything, so masks / clips stay correct).
     let on_layer = editor.scene_layer_filter.get().is_none_or(|f| effective_layer(artboard, node_id) == f);
-    if !is_mask_target && on_layer {
+    if !is_mask_target && on_layer && !is_mask2d_shape(editor, artboard, node_id) {
         for draw in apply_draw_effects(editor, artboard, node_id, node_draws(editor, artboard, node_id, node)) {
             if depth == 0 {
                 unmasked.push(draw);
@@ -2775,6 +2778,12 @@ pub struct WasmEditor {
     /// draw order, sorting layers included) → the group's owner (first
     /// member, whose settings / space it uses).
     goo_draw_at: HashMap<NodeId, NodeId>,
+    /// A unit square (−0.5 … 0.5) — the huge quad an inverted Mask 2D
+    /// writes into the stencil.
+    mask_quad: Option<GpuMesh>,
+    /// Nodes some Mask 2D uses as its mask: they (and their subtrees)
+    /// don't draw as content.
+    mask2d_targets: std::collections::HashSet<NodeId>,
     /// Compiled liquid shaders (`goo_gpu::shader`), keyed by their WGSL —
     /// liquids with the same look share one pipeline.
     liquid_materials: HashMap<String, an1mbyt3_renderer::GpuMaterial>,
@@ -3211,6 +3220,8 @@ impl WasmEditor {
             particle_fluid_gpu: HashMap::new(),
             goo_gpu: HashMap::new(),
             goo_draw_at: HashMap::new(),
+            mask_quad: None,
+            mask2d_targets: std::collections::HashSet::new(),
             liquid_materials: HashMap::new(),
             goo_keys: HashMap::new(),
             goo_field_cache: Default::default(),
@@ -3663,6 +3674,12 @@ impl WasmEditor {
         self.sync_materials();
         self.shader_clock += delta_seconds.max(0.0);
         self.renderer.set_shader_time(self.shader_clock);
+        if let Some(a) = self.document.artboard(artboard_id) {
+            self.mask2d_targets = a.node_ids().filter_map(|id| a.node(id).and_then(|n| n.mask2d()).and_then(|m| m.mask)).collect();
+        }
+        if self.mask_quad.is_none() {
+            self.mask_quad = Some(self.renderer.upload_mesh(&tessellate_path(&Path::rect(1.0, 1.0))));
+        }
         // Draw-effect copies hand out fresh bindings each frame; Camera
         // Shake trauma settles.
         self.effect_bindings.reset();
@@ -7537,6 +7554,7 @@ impl WasmEditor {
             "StrokeStyle2D" => B::StrokeStyle2D(an1mbyt3_core::StrokeStyle2D::default()),
             "CameraShake2D" => B::CameraShake2D(an1mbyt3_core::CameraShake2D::default()),
             "ParticlePath2D" => B::ParticlePath2D(an1mbyt3_core::ParticlePath2D::default()),
+            "Mask2D" => B::Mask2D(an1mbyt3_core::Mask2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -14335,4 +14353,96 @@ fn apply_particle_path(cfg: &an1mbyt3_core::ParticlePath2D, line: &Polyline, par
         let flow = if along >= total && !cfg.loop_path { Vec2::ZERO } else { tangent * stream_speed };
         p.velocity = p.velocity.lerp(flow, k);
     }
+}
+
+/// Mask 2D on `node`: writes its stencil mask and returns the
+/// `(depth, island)` its own drawing and children use (a new island at the
+/// top level). An inverted mask ("no-go area") first fills the whole
+/// screen, then cuts the shape back out, so it nests like any other clip.
+#[allow(clippy::too_many_arguments)]
+fn write_node_masks<'a>(
+    editor: &'a WasmEditor,
+    artboard: &'a an1mbyt3_core::Artboard,
+    index: &an1mbyt3_core::SceneIndex,
+    node_id: NodeId,
+    node: &'a Node,
+    depth: u32,
+    island: u32,
+    next_island: &mut u32,
+    unmasked: &mut Vec<DrawCall<'a>>,
+    masked: &mut Vec<an1mbyt3_renderer::SceneOp<'a>>,
+) -> (u32, u32) {
+    let mask = node.mask2d().filter(|m| m.mask.is_some());
+    let Some(quad) = editor.mask_quad.as_ref() else { return (depth, island) };
+    if mask.is_none() || index.is_mask_target(node_id) {
+        return (depth, island);
+    }
+    let mut depth = depth;
+    let island = if depth == 0 {
+        let fresh = *next_island;
+        *next_island += 1;
+        masked.push(an1mbyt3_renderer::SceneOp::Begin { island: fresh, after: unmasked.len() });
+        fresh
+    } else {
+        island
+    };
+    const BIG: f32 = 1.0e6;
+    let quad_draw = |transform: an1mbyt3_core::Transform2D| DrawCall {
+        mesh: quad,
+        binding: editor.effect_bindings.get(&editor.renderer),
+        transform,
+        fill_color: [1.0; 4],
+        blend_mode: BlendMode::Normal,
+        gradient: None,
+        texture: None,
+        material: None,
+    };
+    if let (Some(m), Some(mask_id)) = (mask, mask.and_then(|m| m.mask)) {
+        if m.invert {
+            // Everything first …
+            masked.push(an1mbyt3_renderer::SceneOp::WriteMask { mask: quad_draw(an1mbyt3_core::Transform2D { scale: Vec2::splat(BIG), ..Default::default() }), depth, island });
+            depth += 1;
+        }
+        // … the mask shape(s): a group counts every shape inside.
+        let mut shapes = Vec::new();
+        mask_subtree_draws(editor, artboard, index, mask_id, &mut shapes);
+        for draw in shapes {
+            masked.push(an1mbyt3_renderer::SceneOp::WriteMask { mask: draw, depth, island });
+        }
+        if !m.invert {
+            depth += 1;
+        }
+        // Inverted: content stays at the "everything" depth, which the
+        // shape's area has now left (it was bumped one higher).
+    }
+    (depth, island)
+}
+
+/// A mask node's draws and its descendants' (visible or not — a mask is
+/// usually a hidden shape).
+fn mask_subtree_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, index: &an1mbyt3_core::SceneIndex, id: NodeId, out: &mut Vec<DrawCall<'a>>) {
+    let Some(node) = artboard.node(id) else { return };
+    if node.deleted {
+        return;
+    }
+    out.extend(node_draws_plain(editor, artboard, id, node));
+    for &child in index.children(Some(id)) {
+        mask_subtree_draws(editor, artboard, index, child, out);
+    }
+}
+
+/// Is `node` (or an ancestor) the shape some Mask 2D masks with? Such
+/// shapes only shape the mask — they don't draw themselves.
+fn is_mask2d_shape(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node: NodeId) -> bool {
+    if editor.mask2d_targets.is_empty() {
+        return false;
+    }
+    let mut at = Some(node);
+    while let Some(id) = at {
+        if editor.mask2d_targets.contains(&id) {
+            return true;
+        }
+        at = artboard.node(id).and_then(|n| n.parent);
+    }
+    false
 }

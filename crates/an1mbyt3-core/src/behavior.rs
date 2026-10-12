@@ -182,6 +182,8 @@ pub enum NodeBehavior {
     CameraShake2D(crate::CameraShake2D),
     /// [`crate::ParticlePath2D`]: particles flow along a path. (Appended last.)
     ParticlePath2D(crate::ParticlePath2D),
+    /// [`crate::Mask2D`]: clip by a shape (or a no-go area). (Appended last.)
+    Mask2D(crate::Mask2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

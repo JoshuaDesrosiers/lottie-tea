@@ -2244,6 +2244,7 @@ pub enum NodeBehaviorDto {
     StrokeStyle2D(an1mbyt3_core::StrokeStyle2D),
     CameraShake2D(an1mbyt3_core::CameraShake2D),
     ParticlePath2D(an1mbyt3_core::ParticlePath2D),
+    Mask2D(an1mbyt3_core::Mask2D),
 }
 
 /// `an1mbyt3_core::GroupFill`, its gradient in the frontend's `{x, y}` shape.
@@ -2321,6 +2322,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::StrokeStyle2D(v) => NodeBehaviorDto::StrokeStyle2D(v.clone()),
             an1mbyt3_core::NodeBehavior::CameraShake2D(v) => NodeBehaviorDto::CameraShake2D(v.clone()),
             an1mbyt3_core::NodeBehavior::ParticlePath2D(v) => NodeBehaviorDto::ParticlePath2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::Mask2D(v) => NodeBehaviorDto::Mask2D(*v),
             an1mbyt3_core::NodeBehavior::GroupFill(f) => NodeBehaviorDto::GroupFill(GroupFillDto { color: f.color, gradient: f.gradient.as_ref().map(Into::into) }),
         }
     }
@@ -2393,6 +2395,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::StrokeStyle2D(v) => an1mbyt3_core::NodeBehavior::StrokeStyle2D(v),
             NodeBehaviorDto::CameraShake2D(v) => an1mbyt3_core::NodeBehavior::CameraShake2D(v),
             NodeBehaviorDto::ParticlePath2D(v) => an1mbyt3_core::NodeBehavior::ParticlePath2D(v),
+            NodeBehaviorDto::Mask2D(v) => an1mbyt3_core::NodeBehavior::Mask2D(v),
             NodeBehaviorDto::GroupFill(f) => an1mbyt3_core::NodeBehavior::GroupFill(an1mbyt3_core::GroupFill { color: f.color, gradient: f.gradient.map(Into::into) }),
         }
     }

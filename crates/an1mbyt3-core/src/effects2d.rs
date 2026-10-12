@@ -197,6 +197,19 @@ pub fn noise1(t: f32, channel: u32, seed: u32) -> f32 {
     hash(i as i64) * (1.0 - k) + hash(i as i64 + 1) * k
 }
 
+/// **Mask 2D**: clips this node *and* everything under it (its own
+/// drawing included — particle systems, goo) by another shape, which is
+/// only used as a mask (hide it so it doesn't draw itself). `mask` may be
+/// a group: every shape inside counts.
+/// - `invert` = false: show only inside the mask.
+/// - `invert` = true: a no-go area — hide everything inside it.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Mask2D {
+    pub mask: Option<crate::NodeId>,
+    pub invert: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
