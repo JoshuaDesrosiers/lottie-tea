@@ -351,6 +351,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Particle Path, if any.
+    pub fn particle_path(&self) -> Option<&crate::ParticlePath2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::ParticlePath2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's own enabled Sorting Layer, if any.
     pub fn sorting_layer(&self) -> Option<u32> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

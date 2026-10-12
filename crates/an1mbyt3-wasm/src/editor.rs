@@ -4004,6 +4004,13 @@ impl WasmEditor {
                 let local = config.main.simulation_space == an1mbyt3_core::SimulationSpace::Local;
                 apply_particle_behaviors_2d(fx, runtime.particles_mut(), local, emitter_world, delta_seconds);
             }
+            // Particle Path: steer onto a Shape node's outline.
+            if let Some(cfg) = node.particle_path() {
+                let local = config.main.simulation_space == an1mbyt3_core::SimulationSpace::Local;
+                if let Some(line) = cfg.path.and_then(|id| path_polyline(artboard, id, local.then_some(emitter_world))) {
+                    apply_particle_path(cfg, &line, runtime.particles_mut(), self.shader_clock, delta_seconds);
+                }
+            }
             let live = runtime.particles().len();
             let bindings = self.particle_bindings.entry(node_id).or_default();
             while bindings.len() < live {
@@ -7490,6 +7497,7 @@ impl WasmEditor {
             "PixelSnap2D" => B::PixelSnap2D(an1mbyt3_core::PixelSnap2D::default()),
             "StrokeStyle2D" => B::StrokeStyle2D(an1mbyt3_core::StrokeStyle2D::default()),
             "CameraShake2D" => B::CameraShake2D(an1mbyt3_core::CameraShake2D::default()),
+            "ParticlePath2D" => B::ParticlePath2D(an1mbyt3_core::ParticlePath2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -14147,4 +14155,145 @@ fn style_stroke_path(path: &an1mbyt3_core::Path, style: &an1mbyt3_core::StrokeSt
         }
     }
     an1mbyt3_core::Path { commands: out }
+}
+
+/// A path as a polyline with cumulative lengths (for arc-length lookups).
+struct Polyline {
+    points: Vec<Vec2>,
+    /// `lengths[i]` = distance from the start to `points[i]`.
+    lengths: Vec<f32>,
+}
+
+impl Polyline {
+    fn total(&self) -> f32 {
+        self.lengths.last().copied().unwrap_or(0.0)
+    }
+    /// Point and unit tangent at distance `d` along the line.
+    fn at(&self, d: f32) -> (Vec2, Vec2) {
+        let n = self.points.len();
+        if n < 2 {
+            return (self.points.first().copied().unwrap_or(Vec2::ZERO), Vec2::X);
+        }
+        let d = d.clamp(0.0, self.total());
+        let i = self.lengths.partition_point(|&l| l <= d).clamp(1, n - 1);
+        let (a, b) = (self.points[i - 1], self.points[i]);
+        let span = (self.lengths[i] - self.lengths[i - 1]).max(1e-6);
+        let t = (d - self.lengths[i - 1]) / span;
+        (a.lerp(b, t), (b - a).normalize_or(Vec2::X))
+    }
+}
+
+/// The first subpath of Shape node `id`'s outline (cubics sampled), in
+/// world space — or in an emitter's local space when `emitter` is given.
+fn path_polyline(artboard: &an1mbyt3_core::Artboard, id: NodeId, emitter: Option<an1mbyt3_core::Transform2D>) -> Option<Polyline> {
+    use an1mbyt3_core::PathCommand as C;
+    let node = artboard.node(id)?;
+    let NodeKind::Shape(shape) = &node.kind else { return None };
+    let world = artboard.try_world_transform(id)?.to_affine2();
+    let mut pts: Vec<Vec2> = Vec::new();
+    let (mut cur, mut start) = (Vec2::ZERO, Vec2::ZERO);
+    for c in &shape.path.commands {
+        match *c {
+            C::MoveTo(p) => {
+                if !pts.is_empty() {
+                    break;
+                }
+                pts.push(p);
+                cur = p;
+                start = p;
+            }
+            C::LineTo(p) => {
+                pts.push(p);
+                cur = p;
+            }
+            C::CubicTo { control1, control2, to } => {
+                for i in 1..=24 {
+                    let t = i as f32 / 24.0;
+                    let u = 1.0 - t;
+                    pts.push(cur * u * u * u + control1 * 3.0 * u * u * t + control2 * 3.0 * u * t * t + to * t * t * t);
+                }
+                cur = to;
+            }
+            C::Close => {
+                pts.push(start);
+                break;
+            }
+        }
+    }
+    let points: Vec<Vec2> = pts
+        .into_iter()
+        .map(|p| {
+            let w = world.transform_point2(p);
+            match emitter {
+                Some(e) => world_to_emitter(e, w),
+                None => w,
+            }
+        })
+        .collect();
+    if points.len() < 2 {
+        return None;
+    }
+    let mut lengths = Vec::with_capacity(points.len());
+    let mut total = 0.0;
+    lengths.push(0.0);
+    for w in points.windows(2) {
+        total += w[0].distance(w[1]);
+        lengths.push(total);
+    }
+    (total > 1e-3).then_some(Polyline { points, lengths })
+}
+
+/// Particle Path (see `an1mbyt3_core::ParticlePath2D`): each particle has
+/// a place on the path for its age, an offset across the stream (its own
+/// random lane) plus turbulence; once it starts joining it eases onto that
+/// spot and takes the stream's velocity. Strays stay free.
+fn apply_particle_path(cfg: &an1mbyt3_core::ParticlePath2D, line: &Polyline, particles: &mut [an1mbyt3_runtime::Particle], time: f32, dt: f32) {
+    if dt <= 0.0 {
+        return;
+    }
+    let total = line.total();
+    let start = cfg.start.clamp(0.0, 1.0) * total;
+    for p in particles.iter_mut() {
+        // A stable per-particle random (lifetime and size are drawn at spawn).
+        let seed = {
+            let mut x = (p.lifetime.to_bits() as u64) << 32 | p.base_size.to_bits() as u64;
+            x ^= x >> 33;
+            x = x.wrapping_mul(0xff51_afd7_ed55_8ccd);
+            x ^= x >> 33;
+            x
+        };
+        let rand = |k: u32| (((seed >> (k * 13)) & 0xffff) as f32) / 65535.0;
+        if rand(0) < cfg.stray.clamp(0.0, 1.0) {
+            continue;
+        }
+        let life = p.normalized_age();
+        let join = ((life - cfg.join_delay.clamp(0.0, 1.0)) / cfg.join_time.max(1e-3)).clamp(0.0, 1.0);
+        let join = join * join * (3.0 - 2.0 * join);
+        let pull = cfg.weight.clamp(0.0, 1.0) * join;
+        if pull <= 0.0 {
+            continue;
+        }
+        // Where on the path this particle should be now, and how fast the
+        // stream moves there.
+        let (along, stream_speed) = if cfg.speed > 0.0 {
+            (start + p.age * cfg.speed, cfg.speed)
+        } else {
+            let span = (total - start).max(1e-3);
+            (start + life * span, span / p.lifetime.max(1e-3))
+        };
+        let along = if cfg.loop_path { along.rem_euclid(total.max(1e-3)) } else { along.min(total) };
+        let (point, tangent) = line.at(along);
+        let normal = Vec2::new(-tangent.y, tangent.x);
+        let progress = along / total.max(1e-3);
+        let width = cfg.spread * (1.0 + (cfg.widen - 1.0) * progress);
+        let lane = (rand(1) * 2.0 - 1.0) * width;
+        let tt = time * cfg.turbulence_speed.max(0.0) + rand(2) * 100.0;
+        let wobble = Vec2::new(an1mbyt3_core::noise1(tt, 0, seed as u32), an1mbyt3_core::noise1(tt, 1, seed as u32)) * cfg.turbulence;
+        let target = point + normal * lane + wobble;
+        // Frame-rate-independent ease onto the spot (1 = locked on).
+        let k = if pull >= 0.999 { 1.0 } else { 1.0 - (1.0 - pull).powf(dt * 10.0) };
+        p.position = p.position.lerp(target, k);
+        let flow = if along >= total && !cfg.loop_path { Vec2::ZERO } else { tangent * stream_speed };
+        p.velocity = p.velocity.lerp(flow, k);
+    }
 }

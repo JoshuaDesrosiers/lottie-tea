@@ -180,6 +180,8 @@ pub enum NodeBehavior {
     StrokeStyle2D(crate::StrokeStyle2D),
     /// [`crate::CameraShake2D`] (appended last).
     CameraShake2D(crate::CameraShake2D),
+    /// [`crate::ParticlePath2D`]: particles flow along a path. (Appended last.)
+    ParticlePath2D(crate::ParticlePath2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

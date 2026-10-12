@@ -363,3 +363,43 @@ impl Default for ParticleLook2D {
         }
     }
 }
+
+/// **Particle Path** — particles flow along a path (any Shape node's
+/// outline, e.g. a hidden guide curve): smoke trails, magic streams,
+/// rivers of sparks, swarms. On the same node as the Particle System.
+/// - `path`: the Shape node to follow.
+/// - `weight` (0..1): how strongly particles are pulled onto the path
+///   (1 = locked to it, low = a loose, drifting stream).
+/// - `join_delay` / `join_time` (fractions of each particle's life): it
+///   flies free for `join_delay`, then eases onto the path over
+///   `join_time` — e.g. smoke puffs out, then drifts into the stream.
+/// - `stray` (0..1): the share of particles that never join (wisps that
+///   wander off).
+/// - `spread` (px): how wide the stream is; `widen` scales it by the end
+///   of the path (billowing smoke).
+/// - `speed` (px/s along the path): 0 = each particle travels the path
+///   (from `start`, 0..1) to its end over its lifetime.
+/// - `turbulence` (px) / `turbulence_speed` (Hz): wobble on the stream.
+/// - `loop_path`: wrap round to the start (closed paths, orbits).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ParticlePath2D {
+    pub path: Option<crate::NodeId>,
+    pub weight: f32,
+    pub join_delay: f32,
+    pub join_time: f32,
+    pub stray: f32,
+    pub spread: f32,
+    pub widen: f32,
+    pub speed: f32,
+    pub start: f32,
+    pub turbulence: f32,
+    pub turbulence_speed: f32,
+    pub loop_path: bool,
+}
+
+impl Default for ParticlePath2D {
+    fn default() -> Self {
+        Self { path: None, weight: 0.85, join_delay: 0.0, join_time: 0.25, stray: 0.1, spread: 12.0, widen: 2.5, speed: 0.0, start: 0.0, turbulence: 8.0, turbulence_speed: 1.5, loop_path: false }
+    }
+}

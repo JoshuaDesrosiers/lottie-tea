@@ -136,7 +136,7 @@ pub mod effects2d;
 pub use effects2d::{DropShadow2D, Outline2D, Repeater2D, Mirror2D, Wiggle2D, Parallax2D, PixelSnap2D, StrokeStyle2D, CameraShake2D, noise1};
 pub use document::SortingLayerDef;
 pub use light2d::{LightFlicker2D, LightLayers2D, SortingLayer2D};
-pub use particle::{ParticleLook2D, ParticleShape2D, EmitterShape, ParticleBurst, ParticleEmission, ParticleMain, ParticleRange, ParticleSystemNode, SimulationSpace, SizeKeyframe};
+pub use particle::{ParticlePath2D, ParticleLook2D, ParticleShape2D, EmitterShape, ParticleBurst, ParticleEmission, ParticleMain, ParticleRange, ParticleSystemNode, SimulationSpace, SizeKeyframe};
 pub use path::{Path, PathCommand};
 pub use rig2d::{affine_to_array, array_to_affine, HingeJoint2D, IkConstraint2D, SpriteSkin2D};
 pub use physics2d::{

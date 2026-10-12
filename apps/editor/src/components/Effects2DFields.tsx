@@ -64,6 +64,22 @@ export const SIMPLE_COMPONENT_FIELDS: Record<string, { fields: Spec[]; help: str
     fields: [['amplitude', 'Amplitude (px)', 'slider', 0.5, 0, 100], ['frequency', 'Frequency (Hz)', 'slider', 0.5, 0, 60], ['recovery', 'Recovery (s)', 'slider', 0.05, 0.05, 5], ['constant', 'Constant shake', 'slider', 0.01, 0, 1]],
     help: 'Shake from script: ref.shake2(0.5) on this camera (strength adds up, squared — small hits stay small). Playground only.',
   },
+  ParticlePath2D: {
+    fields: [
+      ['weight', 'Weight (pull)', 'slider', 0.01, 0, 1],
+      ['joinDelay', 'Join after (life)', 'slider', 0.01, 0, 1],
+      ['joinTime', 'Join over (life)', 'slider', 0.01, 0.01, 1],
+      ['stray', 'Strays', 'slider', 0.01, 0, 1],
+      ['spread', 'Spread (px)', 'slider', 0.5, 0, 300],
+      ['widen', 'Widen by end', 'slider', 0.05, 0, 8],
+      ['speed', 'Speed (px/s, 0 = over life)', 'slider', 1, 0, 1000],
+      ['start', 'Enter at', 'slider', 0.01, 0, 1],
+      ['turbulence', 'Turbulence (px)', 'slider', 0.5, 0, 100],
+      ['turbulenceSpeed', 'Turbulence speed', 'slider', 0.05, 0, 10],
+      ['loopPath', 'Loop round the path', 'toggle'],
+    ],
+    help: 'Smoke: Join after ~0.1, Join over ~0.4, Weight 0.6, Spread 10, Widen 4, Turbulence 12, Strays 0.15. Draw the guide with the Pen tool and hide it. Weight 1 locks particles to the path.',
+  },
   LightFlicker2D: {
     fields: [['amount', 'Amount', 'slider', 0.01, 0, 1], ['speed', 'Speed (Hz)', 'slider', 0.1, 0, 40], ['smoothness', 'Smoothness', 'slider', 0.01, 0, 1], ['radiusAmount', 'Radius breathing', 'slider', 0.01, 0, 1], ['seed', 'Seed', 'int', 0, 9999]],
     help: 'Candle (smooth, slow), torch (medium), failing neon (smoothness 0, fast).',

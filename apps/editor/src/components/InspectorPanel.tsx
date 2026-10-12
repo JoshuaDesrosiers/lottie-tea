@@ -729,6 +729,28 @@ function BehaviorsFields({
           </div>
         )
       }
+      case 'ParticlePath2D': {
+        const none = 'none'
+        const keyOf = (id: OpaqueId) => `${id.idx}:${id.version}`
+        const shapes = (artboard?.nodes ?? []).filter((n) => n.kind === 'Shape' && !(n.id.idx === node.id.idx && n.id.version === node.id.version))
+        return (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2" title="The Shape node whose outline the particles follow (its first subpath, start to end).">
+              <span className="w-24 shrink-0 text-[11px] text-ink-dim">Path</span>
+              <div className="min-w-0 flex-1">
+                <Dropdown
+                  value={behavior.path ? keyOf(behavior.path) : none}
+                  options={[none, ...shapes.map((n) => keyOf(n.id))]}
+                  renderValue={(k) => (k === none ? 'Pick a shape / path' : (shapes.find((n) => keyOf(n.id) === k)?.name ?? 'Missing shape'))}
+                  renderOption={(k) => (k === none ? 'None' : (shapes.find((n) => keyOf(n.id) === k)?.name ?? k))}
+                  onChange={(k) => replaceAt(index, { ...behavior, path: shapes.find((n) => keyOf(n.id) === k)?.id ?? null })}
+                />
+              </div>
+            </div>
+            <SimpleComponentFields behavior={behavior} onChange={(b) => replaceAt(index, b)} />
+          </div>
+        )
+      }
       case 'LightLayers2D':
         return <p className="text-[10px] leading-snug text-ink-dim">Which sorting layers this light lights — set under its Light 2D.</p>
       case 'SortingLayer2D':

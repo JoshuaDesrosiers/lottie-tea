@@ -1599,6 +1599,21 @@ export type NodeBehavior =
   | { kind: 'PixelSnap2D'; grid: number; angleStep: number }
   | { kind: 'StrokeStyle2D'; dash: number; gap: number; dashOffset: number; trimStart: number; trimEnd: number; trimOffset: number }
   | { kind: 'CameraShake2D'; amplitude: number; frequency: number; recovery: number; constant: number }
+  | {
+      kind: 'ParticlePath2D'
+      path: OpaqueId | null
+      weight: number
+      joinDelay: number
+      joinTime: number
+      stray: number
+      spread: number
+      widen: number
+      speed: number
+      start: number
+      turbulence: number
+      turbulenceSpeed: number
+      loopPath: boolean
+    }
 
 export type ParticleShape2D = 'Circle' | 'Square' | 'Triangle' | 'Diamond' | 'Star' | 'Hexagon' | 'Ring' | 'Streak' | 'Image' | 'Shape'
 
