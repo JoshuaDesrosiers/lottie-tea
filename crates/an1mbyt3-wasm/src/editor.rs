@@ -1199,6 +1199,9 @@ fn build_scene_ops_lit<'a>(
     let island = if group_mask.is_some() && depth == 0 {
         let fresh = *next_island;
         *next_island += 1;
+        // The island draws here in the scene order, between the unmasked
+        // draws before and after it.
+        masked.push(an1mbyt3_renderer::SceneOp::Begin { island: fresh, after: unmasked.len() });
         fresh
     } else {
         island
@@ -1219,6 +1222,7 @@ fn build_scene_ops_lit<'a>(
     let island = if node.clip_children && !is_mask_target && depth_after_group_mask == 0 {
         let fresh = *next_island;
         *next_island += 1;
+        masked.push(an1mbyt3_renderer::SceneOp::Begin { island: fresh, after: unmasked.len() });
         fresh
     } else {
         island

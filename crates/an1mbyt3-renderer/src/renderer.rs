@@ -1053,12 +1053,19 @@ pub enum SceneOp<'a> {
     /// groups ops by this id and gives each its own stencil-cleared render
     /// pass specifically to prevent that.
     Draw { draw: DrawCall<'a>, depth: u32, island: u32 },
+    /// Where island `island` sits in the scene's draw order: after the
+    /// first `after` unmasked draws (and before the rest). Comes first in
+    /// its island's ops. Without it an island draws after *all* unmasked
+    /// content, so clipped children ended up on top of every later sibling
+    /// (and a clipped Multiply/Screen child blended over things meant to
+    /// be above it).
+    Begin { island: u32, after: usize },
 }
 
 impl SceneOp<'_> {
     fn island(&self) -> u32 {
         match self {
-            SceneOp::WriteMask { island, .. } | SceneOp::Draw { island, .. } => *island,
+            SceneOp::WriteMask { island, .. } | SceneOp::Draw { island, .. } | SceneOp::Begin { island, .. } => *island,
         }
     }
 }
@@ -2684,6 +2691,7 @@ impl Renderer {
             let draw = match op {
                 SceneOp::WriteMask { mask, .. } => mask,
                 SceneOp::Draw { draw, .. } => draw,
+                SceneOp::Begin { .. } => continue,
             };
             let mvp = build_mvp(draw.transform.to_affine2(), viewport_size, camera);
             let uniforms = DrawUniforms::from_draw(mvp, draw);
@@ -2733,7 +2741,9 @@ impl Renderer {
                 load = wgpu::LoadOp::Load;
             }
         }
-        {
+        // Unmasked draws in plain (no stencil) passes, interleaved with the
+        // masked islands at their place in the scene order (`SceneOp::Begin`).
+        let plain_pass = |encoder: &mut wgpu::CommandEncoder, draws: &[DrawCall<'_>], load: wgpu::LoadOp<wgpu::Color>| {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("an1mbyt3 unmasked pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -2748,10 +2758,19 @@ impl Renderer {
                 multiview_mask: None,
             });
             let mut bound = BoundState::default();
-            for draw in unmasked {
+            for draw in draws {
                 draw_flat(&mut pass, self, draw, &mut bound);
             }
-        }
+        };
+        // Where each island goes: its `Begin` marker, else after everything.
+        let island_after = |op: &SceneOp<'_>| match op {
+            SceneOp::Begin { after, .. } => (*after).min(unmasked.len()),
+            _ => unmasked.len(),
+        };
+        let first = masked.first().map_or(unmasked.len(), island_after);
+        // The first plain pass always runs (it owns `load`, e.g. the clear).
+        plain_pass(encoder, &unmasked[..first], load);
+        let mut cursor = first;
 
         // Grouped into one render pass *per island* (see `SceneOp::Draw`'s own
         // doc comment for why): each island gets a fresh `stencil_ops: Clear(0)`,
@@ -2767,6 +2786,11 @@ impl Renderer {
             let mut end = start + 1;
             while end < masked.len() && masked[end].island() == island {
                 end += 1;
+            }
+            let after = island_after(&masked[start]).max(cursor);
+            if after > cursor {
+                plain_pass(encoder, &unmasked[cursor..after], wgpu::LoadOp::Load);
+                cursor = after;
             }
 
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -2855,11 +2879,15 @@ impl Renderer {
                         pass.set_index_buffer(draw.mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         pass.draw_indexed(0..draw.mesh.index_count, 0, 0..1);
                     }
+                    SceneOp::Begin { .. } => {}
                 }
             }
 
             drop(pass);
             start = end;
+        }
+        if cursor < unmasked.len() {
+            plain_pass(encoder, &unmasked[cursor..], wgpu::LoadOp::Load);
         }
     }
 
