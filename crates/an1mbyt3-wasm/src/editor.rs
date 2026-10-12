@@ -1371,10 +1371,10 @@ fn build_tilemap_mesh(tilemap: &an1mbyt3_core::TilemapNode) -> Mesh {
 /// components (Particle System, Trail Renderer) — Unity-style, any node can
 /// carry those.
 fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId, node: &'a Node) -> Vec<DrawCall<'a>> {
-    // Goo 2D: a group's liquid is drawn at its first member, under the
-    // member's own drawing (which "Hide source" leaves out entirely).
+    // Goo 2D: a group's liquid is drawn at its front-most member, under
+    // that member's own drawing (which "Hide source" leaves out entirely).
     if let Some(goo) = node.goo() {
-        let mut draws = goo_draws(editor, artboard, node_id);
+        let mut draws = editor.goo_draw_at.get(&node_id).map(|owner| goo_draws(editor, artboard, *owner)).unwrap_or_default();
         if !goo.hide_source {
             draws.extend(node_draws_plain(editor, artboard, node_id, node));
         }
@@ -2771,6 +2771,10 @@ pub struct WasmEditor {
     /// Goo 2D: each group's liquid meshes, keyed by the group's first
     /// member (drawn there, in that node's space): (mesh, colour, gradient).
     goo_gpu: HashMap<NodeId, LiquidGpu>,
+    /// Where each Goo 2D group's liquid draws: its front-most member (in
+    /// draw order, sorting layers included) → the group's owner (first
+    /// member, whose settings / space it uses).
+    goo_draw_at: HashMap<NodeId, NodeId>,
     /// Compiled liquid shaders (`goo_gpu::shader`), keyed by their WGSL —
     /// liquids with the same look share one pipeline.
     liquid_materials: HashMap<String, an1mbyt3_renderer::GpuMaterial>,
@@ -3206,6 +3210,7 @@ impl WasmEditor {
             particle_glow_bindings: HashMap::new(),
             particle_fluid_gpu: HashMap::new(),
             goo_gpu: HashMap::new(),
+            goo_draw_at: HashMap::new(),
             liquid_materials: HashMap::new(),
             goo_keys: HashMap::new(),
             goo_field_cache: Default::default(),
@@ -4111,6 +4116,40 @@ impl WasmEditor {
             }
         }
         self.sections.goo_sources_ms = crate::profiler::now_ms() - t_sources;
+        // The liquid draws at its group's front-most member — so moving any
+        // member up or down the layers moves the liquid with it (it used
+        // to sit at the first-created member's place, whatever the order).
+        {
+            let layer_order: Vec<u32> = self.document.sorting_layers().iter().map(|l| l.id).collect();
+            let rank: HashMap<NodeId, (usize, usize)> = artboard
+                .pickable_nodes()
+                .enumerate()
+                .map(|(i, (id, _))| {
+                    let layer = effective_layer(artboard, id);
+                    (id, (layer_order.iter().position(|l| *l == layer).unwrap_or(layer_order.len()), i))
+                })
+                .collect();
+            self.goo_draw_at.clear();
+            let mut front: HashMap<u32, (NodeId, (usize, usize))> = HashMap::new();
+            for id in artboard.node_ids() {
+                let Some(goo) = artboard.node(id).and_then(|n| n.goo()) else { continue };
+                if artboard.is_effectively_deleted(id) || !crate::lighting2d::effectively_visible(artboard, id) {
+                    continue;
+                }
+                let r = rank.get(&id).copied().unwrap_or((0, 0));
+                match front.get(&goo.group) {
+                    Some((_, best)) if *best >= r => {}
+                    _ => {
+                        front.insert(goo.group, (id, r));
+                    }
+                }
+            }
+            for (group, _, _, _) in &groups {
+                if let (Some((at, _)), Some(owner)) = (front.get(group), groups.iter().find(|g| g.0 == *group).map(|g| g.1)) {
+                    self.goo_draw_at.insert(*at, owner);
+                }
+            }
+        }
         let owners: std::collections::HashSet<NodeId> = groups.iter().map(|g| g.1).collect();
         self.goo_gpu.retain(|id, _| owners.contains(id));
         self.goo_keys.retain(|id, _| owners.contains(id));
