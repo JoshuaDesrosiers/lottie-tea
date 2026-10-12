@@ -4461,10 +4461,13 @@ impl WasmEditor {
         } else {
             Vec::new()
         };
-        let light_draws: Vec<an1mbyt3_renderer::LightDraw> = collected_lights
+        // (Which collected light each draw came from — some lights make
+        // no draw, so indices differ; light groups pick by source.)
+        let (light_sources, light_draws): (Vec<usize>, Vec<an1mbyt3_renderer::LightDraw>) = collected_lights
             .lights
             .iter()
-            .filter_map(|collected| {
+            .enumerate()
+            .filter_map(|(source, collected)| {
                 let l = &collected.light;
                 let shape = match l.light_type {
                     an1mbyt3_core::Light2DType::Spot => an1mbyt3_renderer::LightShape::Spot {
@@ -4480,7 +4483,7 @@ impl WasmEditor {
                     }
                     an1mbyt3_core::Light2DType::Global => return None,
                 };
-                Some(an1mbyt3_renderer::LightDraw {
+                Some((source, an1mbyt3_renderer::LightDraw {
                     shape,
                     transform: collected.transform,
                     // Light colors are authored in sRGB like every other color;
@@ -4501,9 +4504,9 @@ impl WasmEditor {
                     falloff_steps: l.falloff_steps,
                     edge_blur: l.edge_blur,
                     pixel_size: l.pixel_size,
-                })
+                }))
             })
-            .collect();
+            .unzip();
         // Pixel Perfect crop bars: four huge black rects hugging the frame,
         // drawn over everything (into the unlit overlay when lighting is on,
         // so the night doesn't tint them).
@@ -4539,7 +4542,7 @@ impl WasmEditor {
             }
         }
         // Each light group's own lights (the same draws, filtered).
-        let group_lights: Vec<Vec<an1mbyt3_renderer::LightDraw>> = group_parts.iter().map(|g| g.2.iter().filter_map(|&i| light_draws.get(i).copied()).collect()).collect();
+        let group_lights: Vec<Vec<an1mbyt3_renderer::LightDraw>> = group_parts.iter().map(|g| g.2.iter().filter_map(|&i| light_sources.iter().position(|&src| src == i).map(|k| light_draws[k])).collect()).collect();
         let lit_groups: Vec<an1mbyt3_renderer::LitGroup> = group_parts
             .iter()
             .zip(group_lights.iter())

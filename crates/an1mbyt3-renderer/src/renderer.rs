@@ -3067,6 +3067,15 @@ impl Renderer {
                         groups: &[],
                     };
                     self.draw_lighting_onto(&mut encoder, viewport_size, camera, &sub, i > 0);
+                    // Every group fills the same per-frame light buffers
+                    // (uniform slots, shadow vertices) with `write_buffer`,
+                    // and all writes land before a submit runs: hand this
+                    // group's passes to the GPU before the next group
+                    // overwrites them.
+                    if !last {
+                        let done = std::mem::replace(&mut encoder, self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("an1mbyt3 light group encoder") }));
+                        self.queue.submit(std::iter::once(done.finish()));
+                    }
                 }
                 post::PostTarget::Lit
             }
