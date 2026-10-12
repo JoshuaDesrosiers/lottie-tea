@@ -1490,7 +1490,8 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   StrokeStyle2D: 'Stroke Style (dash, trim path)',
   CameraShake2D: 'Camera Shake',
   ParticlePath2D: 'Particle Path (flow along a path)',
-  Mask2D: 'Mask (show inside / no-go area)',
+  Mask2D: 'Mask (old — use Clip children)',
+  ClipOptions2D: 'Clip Options',
   ParticleBehaviors2D: 'Particle Behaviours 2D',
   PropertyBindings: 'Property Binding',
   UiSlider: 'UI Slider',
@@ -1499,11 +1500,11 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings', 'ParticleSystem3D', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D', 'VrmPoses', 'Ragdoll3D', 'MaterialSlots', 'HumanoidAnimator', 'FootIK', 'BoneAttachment', 'GooMaterial2D', 'ParticleLook2D', 'SortingLayer2D', 'LightLayers2D', 'LightFlicker2D', 'DropShadow2D', 'Outline2D', 'Repeater2D', 'Mirror2D', 'Wiggle2D', 'Parallax2D', 'PixelSnap2D', 'StrokeStyle2D', 'CameraShake2D', 'ParticlePath2D', 'Mask2D']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings', 'ParticleSystem3D', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D', 'VrmPoses', 'Ragdoll3D', 'MaterialSlots', 'HumanoidAnimator', 'FootIK', 'BoneAttachment', 'GooMaterial2D', 'ParticleLook2D', 'SortingLayer2D', 'LightLayers2D', 'LightFlicker2D', 'DropShadow2D', 'Outline2D', 'Repeater2D', 'Mirror2D', 'Wiggle2D', 'Parallax2D', 'PixelSnap2D', 'StrokeStyle2D', 'CameraShake2D', 'ParticlePath2D', 'Mask2D', 'ClipOptions2D']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
   { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'GooMaterial2D', 'ParticleLook2D', 'ParticlePath2D', 'Antialias2D'] },
-  { title: 'Effects 2D', kinds: ['Mask2D', 'DropShadow2D', 'Outline2D', 'Repeater2D', 'Mirror2D', 'StrokeStyle2D', 'PixelSnap2D'] },
+  { title: 'Effects 2D', kinds: ['DropShadow2D', 'Outline2D', 'Repeater2D', 'Mirror2D', 'StrokeStyle2D', 'PixelSnap2D'] },
   { title: 'Motion', kinds: ['Wiggle2D', 'Parallax2D', 'CameraShake2D'] },
   { title: 'Lighting 2D', kinds: ['LightFlicker2D', 'LightLayers2D'] },
   { title: 'Nature', kinds: ['Tree2D'] },

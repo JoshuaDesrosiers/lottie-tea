@@ -184,6 +184,8 @@ pub enum NodeBehavior {
     ParticlePath2D(crate::ParticlePath2D),
     /// [`crate::Mask2D`]: clip by a shape (or a no-go area). (Appended last.)
     Mask2D(crate::Mask2D),
+    /// [`crate::ClipOptions2D`]: invisible / inverted clipping. (Appended last.)
+    ClipOptions2D(crate::ClipOptions2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

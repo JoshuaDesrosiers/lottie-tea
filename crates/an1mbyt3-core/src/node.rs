@@ -351,6 +351,17 @@ impl Node {
         })
     }
 
+    /// This node's clipping options (invisible / inverted), if any.
+    pub fn clip_options(&self) -> crate::ClipOptions2D {
+        self.behaviors
+            .iter()
+            .find_map(|entry| match &entry.behavior {
+                crate::NodeBehavior::ClipOptions2D(value) if entry.enabled => Some(*value),
+                _ => None,
+            })
+            .unwrap_or_default()
+    }
+
     /// This node's enabled Mask 2D, if any.
     pub fn mask2d(&self) -> Option<&crate::Mask2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

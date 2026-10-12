@@ -210,6 +210,20 @@ pub struct Mask2D {
     pub invert: bool,
 }
 
+/// **Mask options** for a node's existing clipping — "Clip children to
+/// this shape" (and a group's mask child): set from the Inspector next to
+/// that checkbox.
+/// - `hide_mask`: the clipping shape is invisible — it only shapes the
+///   clip, it doesn't draw itself.
+/// - `invert`: hide the children *inside* the shape instead (a no-go
+///   area) and show them everywhere else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ClipOptions2D {
+    pub hide_mask: bool,
+    pub invert: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1600,6 +1600,7 @@ export type NodeBehavior =
   | { kind: 'StrokeStyle2D'; dash: number; gap: number; dashOffset: number; trimStart: number; trimEnd: number; trimOffset: number }
   | { kind: 'CameraShake2D'; amplitude: number; frequency: number; recovery: number; constant: number }
   | { kind: 'Mask2D'; mask: OpaqueId | null; invert: boolean }
+  | { kind: 'ClipOptions2D'; hideMask: boolean; invert: boolean }
   | {
       kind: 'ParticlePath2D'
       path: OpaqueId | null

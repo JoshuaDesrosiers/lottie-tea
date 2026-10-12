@@ -729,6 +729,8 @@ function BehaviorsFields({
           </div>
         )
       }
+      case 'ClipOptions2D':
+        return <p className="text-[10px] leading-snug text-ink-dim">Invisible / inverted clipping — set with the toggles under &quot;Clip children to this shape&quot;.</p>
       case 'Mask2D': {
         const none = 'none'
         const keyOf = (id: OpaqueId) => `${id.idx}:${id.version}`
@@ -2738,6 +2740,29 @@ export function InspectorPanel({
         <input type="checkbox" checked={node.clipChildren} onChange={(e) => onSetClipChildren(e.target.checked)} />
         Clip children to this shape
       </label>
+      {(node.clipChildren || node.groupMask) && (() => {
+        const entry = node.behaviors.find((b) => b.behavior.kind === 'ClipOptions2D')
+        const opts = entry && entry.behavior.kind === 'ClipOptions2D' ? entry.behavior : { kind: 'ClipOptions2D' as const, hideMask: false, invert: false }
+        const set = (patch: { hideMask?: boolean; invert?: boolean }) => {
+          const next = { ...opts, ...patch }
+          const rest = node.behaviors.filter((b) => b.behavior.kind !== 'ClipOptions2D')
+          onSetNodeBehaviors(next.hideMask || next.invert ? [...rest, { behavior: next, enabled: true }] : rest)
+        }
+        return (
+          <div className="ml-5 flex flex-col gap-1">
+            {node.clipChildren && (
+              <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="This shape only shapes the clip — it doesn't draw itself">
+                <input type="checkbox" checked={opts.hideMask} onChange={(e) => set({ hideMask: e.target.checked })} />
+                Invisible mask
+              </label>
+            )}
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Hide the children inside the shape (a no-go area) and show them everywhere else">
+              <input type="checkbox" checked={opts.invert} onChange={(e) => set({ invert: e.target.checked })} />
+              Invert (hide inside)
+            </label>
+          </div>
+        )
+      })()}
 
       <div className="flex items-center gap-2">
         <span className="w-20 shrink-0 text-[11px] text-ink-dim">Z Index</span>

@@ -1184,7 +1184,9 @@ fn build_scene_ops_lit<'a>(
     // Sorting layers: a layer pass draws only its own layer's nodes (the
     // walk still visits everything, so masks / clips stay correct).
     let on_layer = editor.scene_layer_filter.get().is_none_or(|f| effective_layer(artboard, node_id) == f);
-    if !is_mask_target && on_layer && !is_mask2d_shape(editor, artboard, node_id) {
+    let clip_opts = node.clip_options();
+    let hidden_clip = node.clip_children && clip_opts.hide_mask;
+    if !is_mask_target && on_layer && !hidden_clip && !is_mask2d_shape(editor, artboard, node_id) {
         for draw in apply_draw_effects(editor, artboard, node_id, node_draws(editor, artboard, node_id, node)) {
             if depth == 0 {
                 unmasked.push(draw);
@@ -1212,14 +1214,39 @@ fn build_scene_ops_lit<'a>(
     } else {
         island
     };
+    // Inverted: fill everything first, then cut the mask back out — the
+    // children draw at the "everything" depth, which the mask's area left.
+    let invert = clip_opts.invert;
+    let full_screen = |depth: u32, island: u32, masked: &mut Vec<an1mbyt3_renderer::SceneOp<'a>>| {
+        if let Some(quad) = editor.mask_quad.as_ref() {
+            let draw = DrawCall {
+                mesh: quad,
+                binding: editor.effect_bindings.get(&editor.renderer),
+                transform: an1mbyt3_core::Transform2D { scale: Vec2::splat(1.0e6), ..Default::default() },
+                fill_color: [1.0; 4],
+                blend_mode: BlendMode::Normal,
+                gradient: None,
+                texture: None,
+                material: None,
+            };
+            masked.push(an1mbyt3_renderer::SceneOp::WriteMask { mask: draw, depth, island });
+        }
+    };
+    let mut depth_after_group_mask = depth;
     if let Some(mask_id) = group_mask {
+        if invert {
+            full_screen(depth, island, masked);
+            depth_after_group_mask += 1;
+        }
         if let Some(mask_node) = artboard.node(mask_id) {
             for draw in node_draws(editor, artboard, mask_id, mask_node) {
-                masked.push(an1mbyt3_renderer::SceneOp::WriteMask { mask: draw, depth, island });
+                masked.push(an1mbyt3_renderer::SceneOp::WriteMask { mask: draw, depth: depth_after_group_mask, island });
             }
         }
+        if !invert {
+            depth_after_group_mask += 1;
+        }
     }
-    let depth_after_group_mask = if group_mask.is_some() { depth + 1 } else { depth };
 
     // Same "mint a fresh island only at the true root of a masked subtree"
     // rule as `group_mask` above, checked against `depth_after_group_mask`
@@ -1242,10 +1269,17 @@ fn build_scene_ops_lit<'a>(
     // `group_mask` above: each mechanism a node actually uses contributes
     // its own stencil depth level.
     let child_depth = if node.clip_children && !is_mask_target {
-        for draw in node_draws(editor, artboard, node_id, node) {
-            masked.push(an1mbyt3_renderer::SceneOp::WriteMask { mask: draw, depth: depth_after_group_mask, island });
+        let mut d = depth_after_group_mask;
+        // (A group mask already took the invert.)
+        let invert_here = invert && group_mask.is_none();
+        if invert_here {
+            full_screen(d, island, masked);
+            d += 1;
         }
-        depth_after_group_mask + 1
+        for draw in node_draws(editor, artboard, node_id, node) {
+            masked.push(an1mbyt3_renderer::SceneOp::WriteMask { mask: draw, depth: d, island });
+        }
+        if invert_here { d } else { d + 1 }
     } else {
         depth_after_group_mask
     };
