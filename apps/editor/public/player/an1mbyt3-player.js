@@ -728,8 +728,9 @@ var g = class e {
 	load_stress_demo() {
 		return G.wasmeditor_load_stress_demo(this.__wbg_ptr);
 	}
-	load_tactics_demo() {
-		return G.wasmeditor_load_tactics_demo(this.__wbg_ptr);
+	load_tactics_demo(e) {
+		var t = z(e) ? 0 : B(e, G.__wbindgen_malloc), n = W;
+		return G.wasmeditor_load_tactics_demo(this.__wbg_ptr, t, n);
 	}
 	load_tea(e) {
 		let t = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), n = W;

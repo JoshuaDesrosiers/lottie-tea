@@ -115,7 +115,7 @@ pub use text_file::{TextFile, FILE_REF_PREFIX};
 pub use cloth::{Cloth2D, ClothPatternKind, ClothPin};
 pub use tree::{Tree2D, TreeSpecies};
 pub use particle_fx2d::{Antialias2D, Goo2D, ParticleBehaviors2D, ParticleFluid2D};
-pub use vrm_pose::{BonePose, ExpressionWeight, FootIK, HumanoidAnimator, HumanoidClipRef, Ragdoll3D, VrmPose, VrmPoses};
+pub use vrm_pose::{BoneAttachment, BonePose, ExpressionWeight, FootIK, HumanoidAnimator, HumanoidClipRef, Ragdoll3D, VrmPose, VrmPoses};
 pub use particle3d::{Emitter3DShape, LifeCurve, ParticleBehavior3D, ParticleBehaviorKind3D, ParticleBlend3D, ParticleSystem3D, PointSpace};
 pub use drawing::{DrawingAnimation, DrawingAsset, DrawingCel, DrawingCelContent, DrawingContent, DrawingLayer, Flipbook};
 pub use prefab::{has_node_refs, ref_uid, remap_node_refs, uid_ref, PrefabDefinition, PrefabLink, PrefabNode};

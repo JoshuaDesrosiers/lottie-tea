@@ -166,7 +166,11 @@ fn ground(p: Vec2, y: f32) -> Vec3 {
 }
 
 /// Adds the 3D twin of the Tactics Match scene (see the module doc).
-pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>, scene: ArtboardId, grid: &[u8]) {
+/// With `avatar` (a VRM), every agent wears it and moves with the
+/// generated rifle clips (`demo_tactics_anim.rs`); returns the avatar's
+/// model asset and the enemy agents' model nodes. Without one, the agents
+/// are Kenney's blocky characters.
+pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>, scene: ArtboardId, grid: &[u8], avatar: Option<crate::demo_tactics::Avatar3D>) -> Option<(ModelId, Vec<NodeId>)> {
     let mat_plaster = add_material(document, inverses, "Sunset Plaster", plaster());
     let mat_paving = add_material(document, inverses, "Paving Stones", bricks([1.0, 2.0], 0.05, [0.28, 0.24, 0.22, 1.0], 3.0));
     let mat_wood = add_material(document, inverses, "Crate Wood", bricks([0.5, 3.0], 0.07, [0.18, 0.11, 0.06, 1.0], 6.0));
@@ -271,7 +275,9 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
     }
 
     // ---- Agents: Kenney "Blocky Characters" (CC0) holding a Kenney blaster ----
+    // (or, given a VRM avatar, the avatar: see `add_avatar_agents`).
     let rifle = add_model(document, "blaster-f.glb", RIFLE_GLB, &[("Textures/colormap.png", RIFLE_TEXTURE)]);
+    let avatar_agents = avatar.map(|a| add_avatar_agents(document, inverses, scene, a, rifle));
     let model_mesh = |model: ModelId, animation: Option<&str>, overlay: Option<&str>| {
         Node3DContent::Mesh(Mesh3D {
             primitive: Primitive3D::Model { model },
@@ -285,6 +291,9 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
         })
     };
     for i in 0..10 {
+        if avatar_agents.is_some() {
+            break;
+        }
         let attacker = i < 5;
         let team = if attacker { [0.3, 1.0, 0.6, 1.0] } else { [1.0, 0.3, 0.3, 1.0] };
         let (glb, texture) = CHARACTERS[i];
@@ -325,6 +334,79 @@ pub(crate) fn add_3d_world(document: &mut Document, inverses: &mut Vec<Command>,
     add_view_arms(document, inverses, scene, view_rifle);
     let flash = Mesh3D { primitive: Primitive3D::Sphere { radius: 0.05, segments: 10, rings: 6 }, color: [1.0, 0.85, 0.45, 1.0], shininess: 0.0, unlit: true, material: None, animation: None, animation_loop: true, animation_overlay: None };
     add_node(document, inverses, scene, with_id(hidden(node3d("Muzzle Flash", Some(cam3d), Transform3D::at(Vec3::new(0.205, -0.165, -0.76)), Node3DContent::Mesh(flash))), "muzzleFlash"));
+    avatar_agents
+}
+
+/// The pistol grip on Kenney's blaster-f, in the model's own units (the
+/// view arms' right fist sits here too).
+const RIFLE_GRIP: Vec3 = Vec3::new(0.0, -0.24, 0.36);
+/// The muzzle, same units.
+const RIFLE_MUZZLE: Vec3 = Vec3::new(-0.05, 0.117, -0.87);
+/// Rifle scale on an agent (about 0.72 m long).
+const RIFLE_SCALE: f32 = 0.55;
+
+/// The agents as a VRM avatar (`ag3d{i}` pivots, like the Kenney ones):
+/// - `ag3d{i}Model`: the avatar, turned to face the pivot's -Z, with a
+///   **Humanoid Animator** holding the generated rifle clips (one shared
+///   `Rifle Moves.vrma` asset: Idle, Walk, Run, RunBack, RunLeft,
+///   RunRight, Reload; the script picks one from how the agent moves),
+///   **Foot IK** and a **Ragdoll 3D** (deaths go limp);
+/// - `ag3d{i}Gun`: the rifle, a **Bone Attachment** on the right hand
+///   (so it follows every step and the reload), with its muzzle flash
+///   `ag3d{i}Flash`;
+/// - the team ring and the head marker, as before.
+fn add_avatar_agents(document: &mut Document, inverses: &mut Vec<Command>, scene: ArtboardId, avatar: crate::demo_tactics::Avatar3D, rifle: ModelId) -> (ModelId, Vec<NodeId>) {
+    use an1mbyt3_core::{BoneAttachment, FootIK, HumanoidAnimator, HumanoidClipRef, Ragdoll3D};
+    let model = document.add_model(ModelAsset { name: "popi.vrm".into(), source: avatar.source, files: Vec::new(), deleted: false });
+    let (moves_vrma, speeds) = crate::demo_tactics_anim::rifle_moves_vrma();
+    let moves = document.add_model(ModelAsset { name: "Rifle Moves.vrma".into(), source: moves_vrma, files: Vec::new(), deleted: false });
+    let animator = HumanoidAnimator {
+        clips: speeds.iter().map(|(name, _)| HumanoidClipRef { name: name.clone(), source: Some(moves), clip: name.clone() }).collect(),
+        playing: "Idle".into(),
+        looping: true,
+        speed: 1.0,
+        blend: 0.16,
+        preview: true,
+    };
+    let (gun_at, gun_turn) = crate::demo_tactics_anim::rifle_in_hand(RIFLE_GRIP, RIFLE_SCALE);
+    let mut gun_transform = Transform3D { position: gun_at, rotation_degrees: Vec3::ZERO, scale: Vec3::splat(RIFLE_SCALE) };
+    gun_transform.set_rotation(gun_turn);
+    let mut enemies = Vec::new();
+    for i in 0..10 {
+        let attacker = i < 5;
+        let team = if attacker { [0.3, 1.0, 0.6, 1.0] } else { [1.0, 0.3, 0.3, 1.0] };
+        let pivot = add_node(document, inverses, scene, with_id(node3d(&format!("Agent {i}"), None, Transform3D::default(), Node3DContent::Empty), &format!("ag3d{i}")));
+        // Forward is the pivot's -Z: VRM 0.x avatars already face it.
+        let body = Transform3D { position: Vec3::ZERO, rotation_degrees: Vec3::new(0.0, if avatar.faces_neg_z { 0.0 } else { 180.0 }, 0.0), scale: Vec3::ONE };
+        let mut node = node3d(&format!("Agent {i} Model"), Some(pivot), body, mesh_of(model));
+        for behavior in [
+            NodeBehavior::HumanoidAnimator(animator.clone()),
+            NodeBehavior::FootIK(FootIK::default()),
+            NodeBehavior::Ragdoll3D(Ragdoll3D { start_ragdolled: false, mass: 55.0, flexibility: 0.8, thickness: 1.0 }),
+        ] {
+            node.behaviors.push(NodeBehaviorEntry { behavior, enabled: true });
+        }
+        let body = add_node(document, inverses, scene, with_id(node, &format!("ag3d{i}Model")));
+        if !attacker {
+            enemies.push(body);
+        }
+        let mut gun = with_id(node3d("Rifle", Some(body), gun_transform, mesh_of(rifle)), &format!("ag3d{i}Gun"));
+        gun.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::BoneAttachment(BoneAttachment { bone: "rightHand".into() }), enabled: true });
+        let gun = add_node(document, inverses, scene, gun);
+        let flash = Mesh3D { primitive: Primitive3D::Sphere { radius: 0.13, segments: 10, rings: 6 }, color: [1.0, 0.85, 0.45, 1.0], shininess: 0.0, unlit: true, material: None, animation: None, animation_loop: true, animation_overlay: None };
+        add_node(document, inverses, scene, with_id(hidden(node3d("Muzzle Flash", Some(gun), Transform3D::at(RIFLE_MUZZLE), Node3DContent::Mesh(flash))), &format!("ag3d{i}Flash")));
+        let ring = Mesh3D { primitive: Primitive3D::Torus { radius: 0.42, tube: 0.035, segments: 24, sides: 6 }, color: team, shininess: 0.0, unlit: true, material: None, animation: None, animation_loop: true, animation_overlay: None };
+        add_node(document, inverses, scene, with_id(node3d("Team Ring", Some(pivot), Transform3D::at(Vec3::new(0.0, 0.04, 0.0)), Node3DContent::Mesh(ring)), &format!("ag3d{i}Band")));
+        let mark = Mesh3D { primitive: Primitive3D::Cone { radius: 0.12, height: 0.2, segments: 4 }, color: team, shininess: 0.0, unlit: true, material: None, animation: None, animation_loop: true, animation_overlay: None };
+        let mark_at = Transform3D { position: Vec3::new(0.0, 1.9, 0.0), rotation_degrees: Vec3::new(180.0, 0.0, 0.0), scale: Vec3::ONE };
+        add_node(document, inverses, scene, with_id(node3d("Team Marker", Some(pivot), mark_at, Node3DContent::Mesh(mark)), &format!("ag3d{i}Mark")));
+    }
+    (model, enemies)
+}
+
+/// A plain (unanimated) model mesh.
+fn mesh_of(model: ModelId) -> Node3DContent {
+    Node3DContent::Mesh(Mesh3D { primitive: Primitive3D::Model { model }, color: [1.0; 4], shininess: 0.15, unlit: false, material: None, animation: None, animation_loop: true, animation_overlay: None })
 }
 
 /// First-person hands and forearms holding the view rifle — built from

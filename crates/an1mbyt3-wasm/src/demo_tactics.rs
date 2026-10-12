@@ -46,6 +46,20 @@ const IMG_CENTER: f32 = 832.0;
 
 pub(crate) struct TacticsDemo {
     pub scene: ArtboardId,
+    /// With a VRM avatar: the match scene, the avatar's model asset and the
+    /// enemy agents' model nodes (the loader gives them red outlines once
+    /// the avatar's own materials exist).
+    pub avatar: Option<(ArtboardId, an1mbyt3_core::ModelId, Vec<an1mbyt3_core::NodeId>)>,
+}
+
+/// A VRM avatar for the agents (the bundled one is popi): the file and
+/// what the builder needs to know about it.
+pub(crate) struct Avatar3D {
+    pub source: Vec<u8>,
+    /// VRM 0.x avatars face −Z (VRM 1.0: +Z).
+    pub faces_neg_z: bool,
+    /// Hips height above the soles (m) — scales the clips' speeds.
+    pub hips_height: f32,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -416,7 +430,8 @@ pub(crate) const AGENTS: [(&str, &str, [f32; 4]); 5] = [
     ("jett", "JETT", [0.82, 0.93, 1.0, 1.0]),
 ];
 
-pub(crate) fn build_demo_tactics(document: &mut Document) -> TacticsDemo {
+pub(crate) fn build_demo_tactics(document: &mut Document, avatar: Option<Avatar3D>) -> TacticsDemo {
+    let avatar_out;
     let mut inverses = Vec::new();
     let font = document.add_font(FontAsset { name: "Press Start 2P".into(), data: FONT_BYTES.to_vec() });
 
@@ -648,20 +663,30 @@ pub(crate) fn build_demo_tactics(document: &mut Document) -> TacticsDemo {
             let w = to_world(*x, *y);
             callouts += &format!("{{ name: {name:?}, x: {:.1}, y: {:.1} }}, ", w.x, w.y);
         }
+        // VRM agents: the generated rifle clips' design speeds (hips
+        // heights / s) and the avatar's hips height, for the script.
+        let avatar_consts = match &avatar {
+            Some(a) => {
+                let speeds = crate::demo_tactics_anim::rifle_clips().iter().map(|(c, s)| format!("{}: {s:.3}", c.name)).collect::<Vec<_>>().join(", ");
+                format!("const AVATAR_3D = true, AVATAR_HIPS = {:.3}\nconst RIFLE_SPEEDS = {{ {speeds} }}", a.hips_height)
+            }
+            None => "const AVATAR_3D = false, AVATAR_HIPS = 1\nconst RIFLE_SPEEDS = {}".into(),
+        };
         let prefix = format!(
-            "const GW = {GW}, CELL = {CELL}, ORIGIN_X = {ox:.1}, ORIGIN_Y = {oy:.1}\nconst VIEW_W = {VIEW_W}, VIEW_H = {VIEW_H}\nconst GRID = \"{grid_str}\"\nconst P = {{ {points} }}\nconst CALLOUT_AREAS = [{callouts}]\nconst AGENT_COLORS = {colors}",
+            "const GW = {GW}, CELL = {CELL}, ORIGIN_X = {ox:.1}, ORIGIN_Y = {oy:.1}\nconst VIEW_W = {VIEW_W}, VIEW_H = {VIEW_H}\nconst GRID = \"{grid_str}\"\nconst P = {{ {points} }}\nconst CALLOUT_AREAS = [{callouts}]\nconst AGENT_COLORS = {colors}\n{avatar_consts}",
             ox = -(GW as f32) * CELL / 2.0,
             oy = GW as f32 * CELL / 2.0,
             colors = format!("{{ {} }}", AGENTS.iter().map(|(id, _, c)| format!("{id}: [{}, {}, {}, 1]", c[0], c[1], c[2])).collect::<Vec<_>>().join(", ")),
         );
         add_program(document, inverses, scene, "Tactics Match", "Match", &prefix);
-        crate::demo_tactics_3d::add_3d_world(document, inverses, scene, &grid);
+        let agents = crate::demo_tactics_3d::add_3d_world(document, inverses, scene, &grid, avatar);
+        avatar_out = agents.map(|(model, enemies)| (scene, model, enemies));
     }
 
     inverses.reverse();
     document.commit_batch(inverses);
     let _ = matchs;
-    TacticsDemo { scene: select }
+    TacticsDemo { scene: select, avatar: avatar_out }
 }
 
 #[cfg(test)]
@@ -704,7 +729,7 @@ mod tests {
     #[test]
     fn builds_both_scenes() {
         let mut document = Document::new();
-        let demo = build_demo_tactics(&mut document);
+        let demo = build_demo_tactics(&mut document, None);
         assert_eq!(document.artboard(demo.scene).unwrap().name, "Tactics Select");
         let (_, m) = document.artboards().find(|(_, a)| a.name == "Tactics Match").unwrap();
         let casters = m.node_ids().filter_map(|id| m.node(id)).filter(|n| n.shadow_caster().is_some()).count();

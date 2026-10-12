@@ -1617,6 +1617,71 @@ function mirrorPool(name, count, place) {
   }
 }
 
+/**
+ * VRM agents (`AVATAR_3D`): which rifle clip each one plays. The clips
+ * (Idle, Walk, Run, RunBack, RunLeft, RunRight, Reload) were generated for
+ * the avatar; the one that fits how the agent moves this frame is picked
+ * (relative to where it faces) and played at a speed that matches its
+ * pace, so the feet keep up with the ground. `step` = movement since last
+ * frame (2D px).
+ */
+function avatarMoves3(a, model, step) {
+  // Smoothed velocity (m/s) so a jittery bot path doesn't flicker clips.
+  const k = 1 - Math.exp(-dt * 12)
+  // A jump of many meters in one frame is a respawn / teleport, not a run.
+  const warp = Math.hypot(step.x, step.y) * M > 3
+  const vx = dt > 0 && !warp ? (step.x * M) / dt : 0, vy = dt > 0 && !warp ? (step.y * M) / dt : 0
+  a.vel3 = a.vel3 || { x: 0, y: 0 }
+  if (warp) a.vel3 = { x: 0, y: 0 }
+  a.vel3.x += (vx - a.vel3.x) * k
+  a.vel3.y += (vy - a.vel3.y) * k
+  const speed = Math.hypot(a.vel3.x, a.vel3.y)
+  // Forward / leftward parts of the motion, in the agent's own frame.
+  const fx = Math.cos(a.angle), fy = Math.sin(a.angle)
+  const ahead = a.vel3.x * fx + a.vel3.y * fy
+  const left = -a.vel3.x * fy + a.vel3.y * fx
+  let clipName = 'Idle', rate = 1
+  if (!a.alive) {
+    clipName = 'Idle'
+  } else if (speed < 0.6) {
+    clipName = a.reloadT > 0 ? 'Reload' : 'Idle'
+  } else {
+    if (ahead >= Math.abs(left) * 0.8) clipName = speed < 7.5 ? 'Walk' : 'Run'
+    else if (ahead < -Math.abs(left)) clipName = 'RunBack'
+    else clipName = left > 0 ? 'RunLeft' : 'RunRight'
+    // The clip's pace (hips heights / s) vs. the agent's.
+    const design = RIFLE_SPEEDS[clipName] || 1
+    rate = clip(speed / AVATAR_HIPS / design, 0.7, 1.9)
+  }
+  // Only tell the engine when the clip or (bucketed) rate changes.
+  const key = clipName + ':' + Math.round(rate * 20)
+  if (a.anim3key !== key) {
+    a.anim3key = key
+    model.playAnim3(clipName, { speed: rate, loop: clipName !== 'Reload', blend: clipName === 'Reload' ? 0.2 : 0.14 })
+  }
+  // The muzzle flash right after each shot.
+  vis(ref('ag3d' + a.i + 'Flash'), a.alive && T - (a.lastShot || -9) < 0.05)
+}
+
+/** VRM agents: ragdoll on death (thrown back from the shot), up again when alive. */
+function avatarLife3(a, root) {
+  const limp = !a.alive && !!a.deadAt
+  if (limp === !!a.rag3) return
+  const model = ref('ag3d' + a.i + 'Model')
+  if (!model) return
+  if (limp) {
+    // The pivot to where they fell, facing the same way, then let go.
+    root.position3 = at3(a.deadAt.x, a.deadAt.y, 0)
+    root.rotation3 = { x: 0, y: yaw3(a.angle), z: 0 }
+    const back = 2.2, fx = -Math.cos(a.angle) * back, fy = -Math.sin(a.angle) * back
+    model.ragdoll3(true, { velocity: { x: fx, y: 1.2, z: -fy } })
+  } else {
+    model.ragdoll3(false)
+    a.anim3key = ''
+  }
+  a.rag3 = limp
+}
+
 function drawWorld3D() {
   const v = g.viewer
   // The top-down world is hidden; the 3D twin and the HUD remain.
@@ -1637,6 +1702,9 @@ function drawWorld3D() {
     // (walls and smokes do — the 3D view itself handles what's on screen).
     const seen = a.team === MY || !a.alive || g.reveal[a.i] > 0 || (dist(v.x, v.y, a.x, a.y) < VISION_3D && !blocked(v.x, v.y, a.x, a.y))
     const on = a !== v && seen && (a.alive || !!a.deadAt)
+    // VRM agents go limp where they die (and get up again on a new round
+    // or a resurrection) — even off screen, so the body lies right later.
+    if (AVATAR_3D) avatarLife3(a, root)
     vis(root, on)
     if (!on) continue
     const px = a.alive ? a.x : a.deadAt.x, py = a.alive ? a.y : a.deadAt.y
@@ -1646,9 +1714,11 @@ function drawWorld3D() {
     // Walk while moving (bots: by how far they went since last frame),
     // the rifle up — in the shoot pose right after a shot; dead = fall.
     const moved = a.last3 ? dist(a.last3.x, a.last3.y, a.x, a.y) : 0
+    const step = a.last3 ? { x: a.x - a.last3.x, y: a.y - a.last3.y } : { x: 0, y: 0 }
     a.last3 = { x: a.x, y: a.y }
     const moving = a.alive && (a.isPlayer && !S.autopilot ? a.moving : moved > 0.05)
-    if (!a.alive) model.playAnimation3('die', { loop: false })
+    if (AVATAR_3D) avatarMoves3(a, model, step)
+    else if (!a.alive) model.playAnimation3('die', { loop: false })
     else model.playAnimation3(moving ? 'walk' : 'idle', { overlay: T - (a.lastShot || -9) < 0.15 ? 'holding-right-shoot' : 'holding-right' })
     vis(ref('ag3d' + a.i + 'Gun'), a.alive)
     // The head marker: bigger the farther away, so it stays readable.
@@ -1657,7 +1727,7 @@ function drawWorld3D() {
     if (a.alive) {
       const s3 = clip(dist(v.x, v.y, a.x, a.y) * M / 14, 1, 3.5)
       mark.scale3 = { x: s3, y: s3, z: s3 }
-      mark.position3 = { x: 0, y: 2.0 + 0.1 * s3, z: 0 }
+      mark.position3 = { x: 0, y: (AVATAR_3D ? 1.85 : 2.0) + 0.1 * s3, z: 0 }
     }
     // Hit flash (red tint); fading out while Reyna's Dismiss is up.
     const want = !a.alive ? [0.7, 0.7, 0.72, 1] : a.hitT > 0 ? [1, 0.55, 0.55, 1] : a.dismissT > 0 ? [1, 1, 1, 0.3] : [1, 1, 1, 1]

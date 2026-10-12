@@ -178,7 +178,16 @@ export function loadPhysicsDemo(editor: WasmEditor): AddArtboardResult {
 /** Dungeon Royale demo scene (cards + A* bots tower defense). */
 /** Demos → "Sunset Tactics": a top-down 5v5 tactical shooter. */
 export async function loadTacticsDemo(editor: WasmEditor): Promise<AddArtboardResult> {
-  return (await editor.load_tactics_demo()) as AddArtboardResult
+  // The agents wear the bundled VRM avatar (popi); without it they fall
+  // back to the blocky characters.
+  let avatar: Uint8Array | undefined
+  try {
+    const response = await fetch('/demo/popi.vrm')
+    if (response.ok) avatar = new Uint8Array(await response.arrayBuffer())
+  } catch {
+    avatar = undefined
+  }
+  return (await editor.load_tactics_demo(avatar)) as AddArtboardResult
 }
 
 /** Demos → "Liquid Lab": the Liquid 2D component showcase. */

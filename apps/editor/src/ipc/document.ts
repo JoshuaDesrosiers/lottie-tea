@@ -1563,6 +1563,13 @@ export type NodeBehavior =
   | ({ kind: 'MaterialSlots' } & MaterialSlotsConfig)
   | ({ kind: 'HumanoidAnimator' } & HumanoidAnimatorConfig)
   | ({ kind: 'FootIK' } & FootIKConfig)
+  | ({ kind: 'BoneAttachment' } & BoneAttachmentConfig)
+
+/** Mirrors `an1mbyt3_core::BoneAttachment`: this 3D node rides a bone of
+ * its parent model (a rifle in a hand, a hat on a head). */
+export interface BoneAttachmentConfig {
+  bone: string
+}
 
 /** Mirrors `an1mbyt3_core::FootIK`: a VRM avatar's feet planted. */
 export interface FootIKConfig {

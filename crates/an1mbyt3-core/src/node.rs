@@ -279,6 +279,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Bone Attachment, if any.
+    pub fn bone_attachment(&self) -> Option<&crate::BoneAttachment> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::BoneAttachment(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Foot IK, if any.
     pub fn foot_ik(&self) -> Option<&crate::FootIK> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

@@ -7058,6 +7058,7 @@ impl WasmEditor {
             "MaterialSlots" => B::MaterialSlots(an1mbyt3_core::MaterialSlots::default()),
             "HumanoidAnimator" => B::HumanoidAnimator(an1mbyt3_core::HumanoidAnimator::default()),
             "FootIK" => B::FootIK(an1mbyt3_core::FootIK::default()),
+            "BoneAttachment" => B::BoneAttachment(an1mbyt3_core::BoneAttachment::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -8316,6 +8317,48 @@ impl WasmEditor {
         }
     }
 
+    /// Bone Attachments (see `an1mbyt3_core::BoneAttachment`) in `artboard`:
+    /// attached node → the correction that moves it (and its subtree) from
+    /// where its transform alone puts it onto its bone. Uses the model's
+    /// last drawn pose (the frame before), like `ref.bone3`.
+    fn bone_attachments(&mut self, artboard_id: ArtboardId) -> HashMap<NodeId, glam::Mat4> {
+        use glam::{Mat4, Quat};
+        let mut out = HashMap::new();
+        let Some(artboard) = self.document.artboard(artboard_id) else { return out };
+        // (attached node, model node, model, bone, own world matrix)
+        let mut wanted = Vec::new();
+        for id in artboard.node_ids() {
+            let Some(node) = artboard.node(id) else { continue };
+            let Some(a) = node.bone_attachment() else { continue };
+            let Some(parent) = node.parent else { continue };
+            let Some(NodeKind::Node3D(an1mbyt3_core::Node3D { content: an1mbyt3_core::Node3DContent::Mesh(m), .. })) = artboard.node(parent).map(|n| &n.kind) else { continue };
+            let an1mbyt3_core::Primitive3D::Model { model } = m.primitive else { continue };
+            let (Some(own), Some(parent_world)) = (artboard.world_matrix_3d(id), artboard.world_matrix_3d(parent)) else { continue };
+            let local = parent_world.inverse() * own;
+            wanted.push((id, parent, model, a.bone.clone(), parent_world, local, own));
+        }
+        for (id, parent, model_id, bone, parent_world, local, own) in wanted {
+            let Some(model) = self.gpu_model(model_id) else { continue };
+            let Some(index) = Self::model_bone(&model, &bone) else { continue };
+            let Some(inst) = self.model_instances.get(&parent) else { continue };
+            let Some(pose) = inst.last_pose.get(index) else { continue };
+            let (_, rotation, translation) = pose.to_scale_rotation_translation();
+            // Humanoid bones: the bone's turn from its rest, in the
+            // normalized frame (facing +Z) — so the offset is the same on
+            // any avatar.
+            let frame = match model.humanoid.as_ref().and_then(|h| h.bones.get(&bone).map(|b| (b.2, h.faces_neg_z))) {
+                Some((rest, neg_z)) => {
+                    let turn = if neg_z { Quat::from_rotation_y(std::f32::consts::PI) } else { Quat::IDENTITY };
+                    rotation * rest.inverse() * turn
+                }
+                None => rotation,
+            };
+            let on_bone = parent_world * Mat4::from_rotation_translation(frame, translation) * local;
+            out.insert(id, on_bone * own.inverse());
+        }
+        out
+    }
+
     /// Foot IK (see `an1mbyt3_core::FootIK`): where each foot should stand —
     /// the ground under it (a physics raycast in Playground, else the
     /// avatar's own floor, its origin's height) — then drop the hips for a
@@ -8746,6 +8789,24 @@ impl WasmEditor {
         let mut animators: HashMap<NodeId, an1mbyt3_core::HumanoidAnimator> = HashMap::new();
         let mut foot_iks: HashMap<NodeId, an1mbyt3_core::FootIK> = HashMap::new();
         let mut any_3d = false;
+        // Bone Attachments: each attached node's correction (its world
+        // matrix as it rides the bone, times its plain world matrix's
+        // inverse) — applied to it and everything under it.
+        let attachments = self.bone_attachments(artboard_id);
+        let artboard = self.document.artboard(artboard_id).expect("checked above");
+        let attached = |id: NodeId, world: Mat4| -> Mat4 {
+            if attachments.is_empty() {
+                return world;
+            }
+            let mut at = Some(id);
+            while let Some(a) = at {
+                if let Some(fix) = attachments.get(&a) {
+                    return *fix * world;
+                }
+                at = artboard.node(a).and_then(|n| n.parent);
+            }
+            world
+        };
         for id in artboard.node_ids() {
             if artboard.is_effectively_deleted(id) {
                 continue;
@@ -8757,6 +8818,7 @@ impl WasmEditor {
                 continue;
             }
             let Some(world) = artboard.world_matrix_3d(id) else { continue };
+            let world = attached(id, world);
             for entry in &node.behaviors {
                 if let (true, an1mbyt3_core::NodeBehavior::ParticleSystem3D(p)) = (entry.enabled, &entry.behavior) {
                     emitters.push((id, world, p.clone()));
@@ -11700,9 +11762,64 @@ impl WasmEditor {
 
     /// The + menu's Demos → "Sunset Tactics" — a top-down 5v5 tactical
     /// shooter on a Sunset recreation: shadow-cast vision, 5 agents with
-    /// abilities and ults, bots that play their role.
-    pub async fn load_tactics_demo(&mut self) -> Result<JsValue, JsValue> {
-        let demo = crate::demo_tactics::build_demo_tactics(&mut self.document);
+    /// abilities and ults, bots that play their role. `vrm` (optional: the
+    /// avatar file's bytes; the host fetches the bundled popi) dresses
+    /// every agent in it, animated by the generated rifle clips; enemies get
+    /// a red outline (Material Overrides on the avatar's own materials).
+    pub async fn load_tactics_demo(&mut self, vrm: Option<Vec<u8>>) -> Result<JsValue, JsValue> {
+        let parsed = match &vrm {
+            Some(bytes) => Some(an1mbyt3_geometry::parse_gltf(bytes, &|_| None).map_err(|e| JsValue::from_str(&format!("load_tactics_demo: {e}")))?),
+            None => None,
+        };
+        let avatar = match (vrm, &parsed) {
+            (Some(source), Some(data)) if data.vrm.is_some() => {
+                let target = an1mbyt3_geometry::retarget::HumanoidTarget::of(data);
+                Some(crate::demo_tactics::Avatar3D {
+                    source,
+                    faces_neg_z: data.vrm.as_ref().is_some_and(|v| v.forward_z < 0.0),
+                    hips_height: target.map_or(0.85, |t| t.hips_height),
+                })
+            }
+            _ => None,
+        };
+        let demo = crate::demo_tactics::build_demo_tactics(&mut self.document, avatar);
+        if let (Some((scene, model, enemies)), Some(parsed)) = (&demo.avatar, &parsed) {
+            // The avatar's own materials, editable; enemies wear the same
+            // ones with a red outline (Valorant's enemy highlight).
+            self.extract_model_materials(*model, parsed, "Agent");
+            let own: Vec<(u32, an1mbyt3_core::Material)> = self
+                .document
+                .materials()
+                .filter_map(|(_, m)| match &m.kind {
+                    an1mbyt3_core::MaterialKind::Toon(t) => t.source.filter(|s| s.model == *model).map(|s| (s.slot, m.clone())),
+                    _ => None,
+                })
+                .collect();
+            let mut slots = Vec::new();
+            for (slot, mut material) in own {
+                let lower = material.name.to_ascii_lowercase();
+                // Eyes, brows, mouth and the face's own lines stay as they are.
+                if ["eye", "face", "mouth", "brow", "lash", "teeth", "tongue"].iter().any(|k| lower.contains(k)) {
+                    continue;
+                }
+                if let an1mbyt3_core::MaterialKind::Toon(t) = &mut material.kind {
+                    t.outline = [1.0, 0.16, 0.2];
+                    t.outline_width = (t.outline_width * 1.4).max(0.006);
+                    t.source = None;
+                }
+                material.name = format!("Enemy · {}", material.name.split(" · ").last().unwrap_or("outfit"));
+                if let Command::SetMaterialDeleted { material: id, .. } = self.document.apply(Command::AddMaterial { material }) {
+                    slots.push(an1mbyt3_core::SlotMaterial { slot, material: Some(id) });
+                }
+            }
+            for node in enemies {
+                if let Some(n) = self.document.artboard(*scene).and_then(|a| a.node(*node)) {
+                    let mut value = n.behaviors.clone();
+                    value.push(an1mbyt3_core::NodeBehaviorEntry { behavior: an1mbyt3_core::NodeBehavior::MaterialSlots(an1mbyt3_core::MaterialSlots { slots: slots.clone() }), enabled: true });
+                    self.document.apply(Command::SetNodeBehaviors { artboard: *scene, node: *node, value });
+                }
+            }
+        }
         migrate_document(&mut self.document);
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }

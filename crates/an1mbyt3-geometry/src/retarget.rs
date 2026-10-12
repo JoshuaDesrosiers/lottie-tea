@@ -355,6 +355,134 @@ impl HumanoidTarget {
     }
 }
 
+/// One bone of a skeleton written by [`write_vrma`]: its humanoid name,
+/// parent (index into the same list) and offset from that parent.
+#[derive(Debug, Clone, Copy)]
+pub struct VrmaBone {
+    pub bone: &'static str,
+    pub parent: Option<usize>,
+    pub offset: Vec3,
+}
+
+/// Writes `clips` as a **VRMA** file (VRM Animation, binary glTF) — the
+/// inverse of [`humanoid_clips`], so generated or edited motion becomes an
+/// ordinary animation asset any avatar can play through the Humanoid
+/// Animator.
+///
+/// The skeleton is written in the *normalized* frame (every rest rotation
+/// identity, facing +Z), so a clip's rotations are stored as they are and
+/// read back unchanged. `skeleton[0]` must be the hips; its hips offsets
+/// (in hips heights) become translation keys. Bones a clip doesn't move
+/// stay at rest.
+pub fn write_vrma(skeleton: &[VrmaBone], clips: &[HumanoidClip]) -> Vec<u8> {
+    use serde_json::json;
+    let mut bin: Vec<u8> = Vec::new();
+    let mut views = Vec::new();
+    let mut accessors = Vec::new();
+    // One tightly packed float accessor per array.
+    let mut push = |values: &[f32], kind: &str, width: usize, bounds: bool| -> usize {
+        let offset = bin.len();
+        for v in values {
+            bin.extend_from_slice(&v.to_le_bytes());
+        }
+        views.push(json!({ "buffer": 0, "byteOffset": offset, "byteLength": values.len() * 4 }));
+        let mut accessor = json!({ "bufferView": views.len() - 1, "componentType": 5126, "count": values.len() / width, "type": kind });
+        if bounds && !values.is_empty() {
+            let (lo, hi) = values.iter().fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), v| (lo.min(*v), hi.max(*v)));
+            accessor["min"] = json!([lo]);
+            accessor["max"] = json!([hi]);
+        }
+        accessors.push(accessor);
+        accessors.len() - 1
+    };
+
+    // World rest positions (for the hips height, as the reader measures it).
+    let mut world: Vec<Vec3> = Vec::with_capacity(skeleton.len());
+    for b in skeleton {
+        world.push(b.parent.map_or(Vec3::ZERO, |p| world[p]) + b.offset);
+    }
+    let hips_rest = world.first().copied().unwrap_or(Vec3::Y);
+    let feet = skeleton.iter().zip(&world).filter(|(b, _)| b.bone == "leftFoot" || b.bone == "rightFoot").map(|(_, w)| w.y).fold(f32::INFINITY, f32::min);
+    let ground = if feet.is_finite() { feet.min(0.0).min(hips_rest.y) } else { 0.0 };
+    let hips_height = (hips_rest.y - ground).max(1e-3);
+
+    let mut animations = Vec::new();
+    for clip in clips {
+        let mut samplers = Vec::new();
+        let mut channels = Vec::new();
+        for track in &clip.bones {
+            let Some(node) = skeleton.iter().position(|b| b.bone == track.bone) else { continue };
+            if track.times.is_empty() || track.times.len() != track.rotations.len() {
+                continue;
+            }
+            let input = push(&track.times, "SCALAR", 1, true);
+            let values: Vec<f32> = track.rotations.iter().flat_map(|q| q.normalize().to_array()).collect();
+            let output = push(&values, "VEC4", 4, false);
+            samplers.push(json!({ "input": input, "output": output, "interpolation": if track.step { "STEP" } else { "LINEAR" } }));
+            channels.push(json!({ "sampler": samplers.len() - 1, "target": { "node": node, "path": "rotation" } }));
+        }
+        if let Some((times, offsets)) = &clip.hips {
+            if !times.is_empty() && times.len() == offsets.len() {
+                let input = push(times, "SCALAR", 1, true);
+                let values: Vec<f32> = offsets.iter().flat_map(|d| (skeleton[0].offset + *d * hips_height).to_array()).collect();
+                let output = push(&values, "VEC3", 3, false);
+                samplers.push(json!({ "input": input, "output": output, "interpolation": "LINEAR" }));
+                channels.push(json!({ "sampler": samplers.len() - 1, "target": { "node": 0, "path": "translation" } }));
+            }
+        }
+        if !channels.is_empty() {
+            animations.push(json!({ "name": clip.name, "samplers": samplers, "channels": channels }));
+        }
+    }
+
+    let nodes: Vec<Value> = skeleton
+        .iter()
+        .enumerate()
+        .map(|(i, b)| {
+            let children: Vec<usize> = skeleton.iter().enumerate().filter(|(_, c)| c.parent == Some(i)).map(|(j, _)| j).collect();
+            let mut node = json!({ "name": b.bone, "translation": b.offset.to_array() });
+            if !children.is_empty() {
+                node["children"] = json!(children);
+            }
+            node
+        })
+        .collect();
+    let human_bones: serde_json::Map<String, Value> = skeleton.iter().enumerate().map(|(i, b)| (b.bone.to_string(), json!({ "node": i }))).collect();
+    let roots: Vec<usize> = skeleton.iter().enumerate().filter(|(_, b)| b.parent.is_none()).map(|(i, _)| i).collect();
+    while bin.len() % 4 != 0 {
+        bin.push(0);
+    }
+    let doc = json!({
+        "asset": { "version": "2.0", "generator": "an1mbyt3" },
+        "extensionsUsed": ["VRMC_vrm_animation"],
+        "extensions": { "VRMC_vrm_animation": { "specVersion": "1.0", "humanoid": { "humanBones": human_bones } } },
+        "scene": 0,
+        "scenes": [{ "nodes": roots }],
+        "nodes": nodes,
+        "buffers": [{ "byteLength": bin.len() }],
+        "bufferViews": views,
+        "accessors": accessors,
+        "animations": animations,
+    });
+    let mut text = serde_json::to_vec(&doc).expect("JSON values always serialize");
+    while text.len() % 4 != 0 {
+        text.push(b' ');
+    }
+    // GLB: header, JSON chunk, BIN chunk.
+    let total = 12 + 8 + text.len() + 8 + bin.len();
+    let mut out = Vec::with_capacity(total);
+    out.extend_from_slice(b"glTF");
+    out.extend_from_slice(&2u32.to_le_bytes());
+    out.extend_from_slice(&(total as u32).to_le_bytes());
+    out.extend_from_slice(&(text.len() as u32).to_le_bytes());
+    out.extend_from_slice(b"JSON");
+    out.extend_from_slice(&text);
+    out.extend_from_slice(&(bin.len() as u32).to_le_bytes());
+    out.extend_from_slice(b"BIN\0");
+    out.extend_from_slice(&bin);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -413,5 +541,30 @@ mod tests {
         target.apply(&end, 1.0, &rest, &mut local);
         // Target world = raise · target rest world.
         assert!((local[1].1).angle_between(raise * t_arm) < 1e-3);
+    }
+
+    #[test]
+    fn vrma_round_trip() {
+        let skeleton = [
+            VrmaBone { bone: "hips", parent: None, offset: Vec3::new(0.0, 1.0, 0.0) },
+            VrmaBone { bone: "leftUpperLeg", parent: Some(0), offset: Vec3::new(0.1, -0.05, 0.0) },
+            VrmaBone { bone: "leftLowerLeg", parent: Some(1), offset: Vec3::new(0.0, -0.45, 0.0) },
+            VrmaBone { bone: "leftFoot", parent: Some(2), offset: Vec3::new(0.0, -0.45, 0.0) },
+        ];
+        let bend = Quat::from_rotation_x(0.6);
+        let clip = HumanoidClip {
+            name: "Kneel".into(),
+            duration: 1.0,
+            bones: vec![BoneTrack { bone: "leftLowerLeg".into(), times: vec![0.0, 1.0], rotations: vec![Quat::IDENTITY, bend], step: false }],
+            hips: Some((vec![0.0, 1.0], vec![Vec3::ZERO, Vec3::new(0.0, -0.2, 0.1)])),
+        };
+        let bytes = write_vrma(&skeleton, &[clip]);
+        let data = crate::parse_gltf(&bytes, &|_| None).expect("parses");
+        let json = crate::vrm::gltf_json(&bytes);
+        let clips = humanoid_clips(&data, json.as_ref()).expect("has clips");
+        assert_eq!(clips[0].name, "Kneel");
+        let end = clips[0].sample(1.0);
+        assert!(end.bones["leftLowerLeg"].angle_between(bend) < 1e-4);
+        assert!((end.hips.unwrap() - Vec3::new(0.0, -0.2, 0.1)).length() < 1e-4);
     }
 }

@@ -142,6 +142,9 @@ pub enum NodeBehavior {
     /// [`crate::FootIK`]: a VRM avatar's feet planted on the ground.
     /// (Appended last.)
     FootIK(crate::FootIK),
+    /// [`crate::BoneAttachment`]: this 3D node follows a bone of its
+    /// parent model. (Appended last.)
+    BoneAttachment(crate::BoneAttachment),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

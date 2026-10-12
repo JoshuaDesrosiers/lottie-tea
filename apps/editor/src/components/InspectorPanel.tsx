@@ -756,6 +756,31 @@ function BehaviorsFields({
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
       }
+      case 'BoneAttachment': {
+        const { kind: _k, ...config } = behavior
+        const bones = ['rightHand', 'leftHand', 'head', 'neck', 'upperChest', 'chest', 'spine', 'hips', 'rightLowerArm', 'leftLowerArm', 'rightFoot', 'leftFoot']
+        return (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="w-24 shrink-0 text-[11px] text-ink-dim">Bone</span>
+              <input
+                list="bone-attachment-bones"
+                value={config.bone}
+                onChange={(e) => replaceAt(index, { kind: 'BoneAttachment', bone: e.target.value })}
+                className="min-w-0 flex-1 rounded bg-overlay/5 px-1.5 py-0.5 text-[11px] text-ink"
+              />
+              <datalist id="bone-attachment-bones">
+                {bones.map((b) => (
+                  <option key={b} value={b} />
+                ))}
+              </datalist>
+            </div>
+            <p className="text-[10px] leading-snug text-ink-dim">
+              Rides this bone of the parent model (a VRM humanoid bone name, or any node name in the model). Its own transform is the offset from the bone, in the avatar&apos;s T-pose frame (facing +Z), so the same setup fits any avatar. Children follow too.
+            </p>
+          </div>
+        )
+      }
       case 'FootIK': {
         const { kind: _k, ...config } = behavior
         const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'FootIK', ...config, ...patch })

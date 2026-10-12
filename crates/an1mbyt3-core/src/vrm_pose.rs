@@ -143,6 +143,25 @@ pub struct FootIK {
     pub align: bool,
 }
 
+/// **Bone Attachment**: this 3D node rides one bone of the model it's a
+/// child of — a weapon in a hand, a hat on a head, a light on a wrist. Its
+/// own transform becomes an offset in the bone's *humanoid* frame (for VRM
+/// humanoid bones: the frame the bone has in the T-pose with the avatar
+/// facing +Z, whatever the file's own bone orientations), so one setup
+/// fits any avatar. Children follow too.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BoneAttachment {
+    /// A humanoid bone (`rightHand`, `head` …) or a node name in the model.
+    pub bone: String,
+}
+
+impl Default for BoneAttachment {
+    fn default() -> Self {
+        Self { bone: "rightHand".into() }
+    }
+}
+
 impl Default for FootIK {
     fn default() -> Self {
         Self { weight: 1.0, sole: 0.0, max_step: 0.4, align: true }
