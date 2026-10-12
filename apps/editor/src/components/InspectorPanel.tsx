@@ -47,6 +47,7 @@ import type { ScreenSettings,
 import { POST_EFFECT_DEFAULTS } from '../ipc/document'
 import type { WasmEditor } from '../ipc/wasmEditor'
 import { ColorSwatch } from './ColorPicker'
+import { GradientClipboardButtons } from './GradientClipboard'
 import { EFFECT_KINDS, EffectParams, VignetteFields } from './EffectsPanel'
 import { Light2DFields, MaterialField, TrailFields } from './LightingFields'
 import {
@@ -756,6 +757,8 @@ function BehaviorsFields({
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
       }
+      case 'GroupFill':
+        return <p className="text-[10px] leading-snug text-ink-dim">This group&apos;s fill, painted onto every shape and text inside it. Edit it with the Fill field above (or its gradient handles on the canvas).</p>
       case 'BoneAttachment': {
         const { kind: _k, ...config } = behavior
         const bones = ['rightHand', 'leftHand', 'head', 'neck', 'upperChest', 'chest', 'spine', 'hips', 'rightLowerArm', 'leftLowerArm', 'rightFoot', 'leftFoot']
@@ -951,7 +954,51 @@ function BehaviorsFields({
       }
       case 'Goo2D': {
         const { kind: _k, ...config } = behavior
-        return <Goo2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Goo2D', ...c })} antialias={antialias} onAntialias={setAntialias} />
+        return <Goo2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Goo2D', ...c })} antialias={antialias} onAntialias={setAntialias} box={{ min: node.localMin, max: node.localMax }} />
+      }
+      case 'GooMaterial2D': {
+        const { kind: _k, ...config } = behavior
+        const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'GooMaterial2D', ...config, ...patch })
+        const none = 'none'
+        const keyOf = (id: OpaqueId) => `${id.idx}:${id.version}`
+        const graphs = materials.filter((m) => m.kind === 'ShaderGraph')
+        return (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="w-24 shrink-0 text-[11px] text-ink-dim">Material</span>
+              <div className="min-w-0 flex-1">
+                <Dropdown
+                  value={config.material ? keyOf(config.material) : none}
+                  options={[none, ...graphs.map((m) => keyOf(m.id))]}
+                  renderValue={(k) => (k === none ? 'None (plain fill)' : (graphs.find((m) => keyOf(m.id) === k)?.name ?? 'Missing material'))}
+                  renderOption={(k) => (k === none ? 'None (plain fill)' : (graphs.find((m) => keyOf(m.id) === k)?.name ?? k))}
+                  onChange={(k) => set({ material: graphs.find((m) => keyOf(m.id) === k)?.id ?? null })}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-24 shrink-0 text-[11px] text-ink-dim">Glow colour</span>
+              <ColorSwatch value={config.glowColor} onChange={(glowColor) => set({ glowColor })} />
+            </div>
+            {(
+              [
+                ['Glow', 'glow', 'Strength of the halo (0 = off).'],
+                ['Glow spread', 'glowSpread', 'How far the halo reaches: 0 = a tight edge glow, 1 = as far as the goo reaches.'],
+              ] as const
+            ).map(([label, key, title]) => (
+              <div key={key} className="flex items-center gap-2" title={title}>
+                <span className="w-24 shrink-0 text-[11px] text-ink-dim">{label}</span>
+                <div className="min-w-0 flex-1">
+                  <Slider value={config[key]} min={0} max={1} step={0.01} onChange={(v) => set({ [key]: v })} />
+                </div>
+                <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-ink-dim">{config[key].toFixed(2)}</span>
+              </div>
+            ))}
+            <p className="text-[10px] leading-snug text-ink-dim">
+              Put this on the goo group&apos;s first member. The material (a Shader tab graph) paints the liquid&apos;s body, multiplied by its Goo 2D fill (keep the fill white to see the material as made). Graphs get the liquid&apos;s local position and UV; texture inputs aren&apos;t available here. Add the Glow post effect too for extra bloom.
+            </p>
+          </div>
+        )
       }
       case 'ParticleFluid2D': {
         const { kind: _k, ...config } = behavior
@@ -1811,7 +1858,8 @@ function FillField({
            * in the Rust layer), so the Solid/Gradient toggle only renders
            * for kinds that actually have one. */}
           {node.kind !== 'Image' && (
-            <div className="flex gap-0.5 rounded-md bg-overlay/5 p-0.5">
+            <div className="flex items-center gap-1">
+            <div className="flex flex-1 gap-0.5 rounded-md bg-overlay/5 p-0.5">
               <button
                 onClick={() => toggleGradient(false)}
                 className={`flex-1 rounded px-2 py-0.5 text-[10px] ${!gradient ? 'bg-accent/20 text-accent' : 'text-ink-dim hover:text-ink'}`}
@@ -1824,6 +1872,8 @@ function FillField({
               >
                 Gradient
               </button>
+            </div>
+            <GradientClipboardButtons gradient={gradient ?? null} box={{ min: node.localMin, max: node.localMax }} onPaste={onSetGradient} />
             </div>
           )}
 

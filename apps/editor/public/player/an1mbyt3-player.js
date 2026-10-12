@@ -579,6 +579,11 @@ var g = class e {
 		let r = G.wasmeditor_emit_particles(this.__wbg_ptr, e, t, n);
 		if (r[1]) throw U(r[0]);
 	}
+	fill_nodes(e, t, n, r) {
+		let i = G.wasmeditor_fill_nodes(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw U(i[1]);
+		return U(i[0]);
+	}
 	fire_trigger(e) {
 		let t = H(e, G.__wbindgen_malloc, G.__wbindgen_realloc), n = W;
 		G.wasmeditor_fire_trigger(this.__wbg_ptr, t, n);
@@ -860,6 +865,19 @@ var g = class e {
 		let n = G.wasmeditor_move_node_forward(this.__wbg_ptr, e, t);
 		if (n[2]) throw U(n[1]);
 		return U(n[0]);
+	}
+	multi_transform_begin(e, t) {
+		let n = G.wasmeditor_multi_transform_begin(this.__wbg_ptr, e, t);
+		if (n[1]) throw U(n[0]);
+	}
+	multi_transform_end(e) {
+		let t = G.wasmeditor_multi_transform_end(this.__wbg_ptr, e);
+		if (t[2]) throw U(t[1]);
+		return U(t[0]);
+	}
+	multi_transform_preview(e, t, n, r, i, a) {
+		let o = G.wasmeditor_multi_transform_preview(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[1]) throw U(o[0]);
 	}
 	node_fields(e, t) {
 		let n = G.wasmeditor_node_fields(this.__wbg_ptr, e, t);

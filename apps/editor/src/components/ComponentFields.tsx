@@ -1474,6 +1474,8 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   HumanoidAnimator: 'Humanoid Animator (mocap)',
   FootIK: 'Foot IK (VRM)',
   BoneAttachment: 'Bone Attachment',
+  GroupFill: 'Group Fill',
+  GooMaterial2D: 'Goo Material & Glow',
   ParticleBehaviors2D: 'Particle Behaviours 2D',
   PropertyBindings: 'Property Binding',
   UiSlider: 'UI Slider',
@@ -1482,10 +1484,10 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
 }
 
 /** Components a node can only carry one of (Unity's DisallowMultiple). */
-export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings', 'ParticleSystem3D', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D', 'VrmPoses', 'Ragdoll3D', 'MaterialSlots', 'HumanoidAnimator', 'FootIK', 'BoneAttachment']
+export const SINGLE_COMPONENTS: ComponentKind[] = ['Camera', 'Light2D', 'TrailRenderer', 'ParticleSystem', 'ShadowCaster2D', 'Rigidbody2D', 'IkConstraint2D', 'SpriteSkin2D', 'Liquid2D', 'UiAnchor', 'UiStack', 'UiButton', 'UiToggle', 'UiSlider', 'UiScrollbar', 'UiScrollView', 'UiLayout', 'UiLayoutItem', 'UiShowWhen', 'UiHtml', 'Rigidbody3D', 'Flipbook', 'Cloth2D', 'Tree2D', 'UiEvents', 'PropertyBindings', 'ParticleSystem3D', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D', 'VrmPoses', 'Ragdoll3D', 'MaterialSlots', 'HumanoidAnimator', 'FootIK', 'BoneAttachment', 'GooMaterial2D']
 
 const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
-  { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'Antialias2D'] },
+  { title: 'Rendering', kinds: ['Camera', 'Light2D', 'ShadowCaster2D', 'TrailRenderer', 'ParticleSystem', 'ParticleFluid2D', 'ParticleBehaviors2D', 'Goo2D', 'GooMaterial2D', 'Antialias2D'] },
   { title: 'Nature', kinds: ['Tree2D'] },
   { title: 'Physics 2D', kinds: ['Rigidbody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'PolygonCollider2D', 'HingeJoint2D', 'Liquid2D', 'Cloth2D'] },
   { title: 'Physics 3D', kinds: ['Rigidbody3D', 'Collider3D', 'Ragdoll3D'] },

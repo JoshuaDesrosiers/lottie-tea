@@ -101,3 +101,25 @@ pub struct GradientDef {
     pub end: Vec2,
     pub stops: Vec<GradientStop>,
 }
+
+/// **Group Fill**: one fill for a whole group, Affinity-style. Setting it
+/// paints every shape and text inside the group (at any depth) — a colour,
+/// or one gradient laid across the group as a whole: each child gets the
+/// same gradient with its points converted into that child's own space, so
+/// the children read as one continuously filled object rather than each
+/// restarting the gradient. The component remembers the group's fill (in
+/// the group's own space) so it can be edited again, on canvas too; the
+/// children keep their own copies, so moving one later doesn't change the
+/// others until the fill is applied again.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GroupFill {
+    pub color: [f32; 4],
+    pub gradient: Option<GradientDef>,
+}
+
+impl Default for GroupFill {
+    fn default() -> Self {
+        Self { color: [1.0; 4], gradient: None }
+    }
+}

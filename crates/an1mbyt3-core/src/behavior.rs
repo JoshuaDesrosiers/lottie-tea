@@ -145,6 +145,12 @@ pub enum NodeBehavior {
     /// [`crate::BoneAttachment`]: this 3D node follows a bone of its
     /// parent model. (Appended last.)
     BoneAttachment(crate::BoneAttachment),
+    /// [`crate::GroupFill`]: a group's own fill, painted onto everything
+    /// inside it. (Appended last.)
+    GroupFill(crate::GroupFill),
+    /// [`crate::GooMaterial2D`]: a goo group's material and glow.
+    /// (Appended last.)
+    GooMaterial2D(crate::GooMaterial2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

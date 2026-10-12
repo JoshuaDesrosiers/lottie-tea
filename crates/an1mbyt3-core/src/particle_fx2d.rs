@@ -126,3 +126,28 @@ impl Default for Antialias2D {
         Self { softness: 1.0 }
     }
 }
+
+/// **Goo Material** on a Goo 2D group's owner (its first member): makes the
+/// liquid look richer than a flat fill.
+/// - `material`: a shader-graph material painting the liquid's body (its
+///   colour multiplies the goo's own fill / gradient — keep the fill white
+///   to see the material as authored). Graphs read the liquid's local
+///   position and UV (0..1 across the liquid's box); a graph's texture
+///   input isn't available here.
+/// - Glow: a soft halo round the liquid, fading out over `glow_spread`
+///   (0 = tight, 1 = as far as the goo's reach), at `glow` strength (0 =
+///   off), in `glow_color` — neon, magic, lava.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GooMaterial2D {
+    pub material: Option<crate::MaterialId>,
+    pub glow_color: [f32; 4],
+    pub glow: f32,
+    pub glow_spread: f32,
+}
+
+impl Default for GooMaterial2D {
+    fn default() -> Self {
+        Self { material: None, glow_color: [0.4, 0.85, 1.0, 1.0], glow: 0.8, glow_spread: 0.5 }
+    }
+}

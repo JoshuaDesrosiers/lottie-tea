@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CopyIcon, EyedropperIcon, PasteIcon } from './icons'
 
 /** Straight (non-premultiplied) linear RGBA, each component `0.0..=1.0` —
  * matches every fill-color value already flowing through this app
@@ -12,9 +13,33 @@ export function toHex(c: RgbaColor): string {
     .join('')}`
 }
 
-export function fromHex(hex: string): RgbaColor {
-  return [Number.parseInt(hex.slice(1, 3), 16) / 255, Number.parseInt(hex.slice(3, 5), 16) / 255, Number.parseInt(hex.slice(5, 7), 16) / 255, 1]
+/** `#RRGGBB`, plus `AA` when the colour isn't fully opaque. */
+export function toHexAlpha(c: RgbaColor): string {
+  const a = Math.round(Math.min(1, Math.max(0, c[3])) * 255)
+  return a >= 255 ? toHex(c) : toHex(c) + a.toString(16).padStart(2, '0')
 }
+
+export function fromHex(hex: string): RgbaColor {
+  return parseHex(hex) ?? [0, 0, 0, 1]
+}
+
+/** Parses `#RGB`, `#RGBA`, `#RRGGBB` or `#RRGGBBAA` (the `#` optional,
+ * whitespace ignored). `null` if it isn't one. */
+export function parseHex(text: string): RgbaColor | null {
+  let hex = text.trim().replace(/^#/, '')
+  if (!/^([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(hex)) return null
+  if (hex.length <= 4) hex = [...hex].map((c) => c + c).join('')
+  const byte = (i: number) => Number.parseInt(hex.slice(i, i + 2), 16) / 255
+  return [byte(0), byte(2), byte(4), hex.length === 8 ? byte(6) : 1]
+}
+
+/** The last colour copied from any picker (also put on the system
+ * clipboard as hex), so Paste works even where the clipboard can't be read. */
+let copiedColor: RgbaColor | null = null
+
+/** The screen eyedropper (EyeDropper API — Chromium / WebView2). */
+type EyeDropperCtor = new () => { open: () => Promise<{ sRGBHex: string }> }
+const eyeDropper = (): EyeDropperCtor | undefined => (window as unknown as { EyeDropper?: EyeDropperCtor }).EyeDropper
 
 function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
   const max = Math.max(r, g, b)
@@ -168,31 +193,84 @@ function AlphaSlider({ color, alpha, onChange }: { color: [number, number, numbe
  * ever behind a popover button. */
 export function ColorPickerBody({ value, onChange }: { value: RgbaColor; onChange: (value: RgbaColor) => void }) {
   const [h, s, v] = rgbToHsv(value[0], value[1], value[2])
-  const [hexText, setHexText] = useState(toHex(value))
-  useEffect(() => setHexText(toHex(value)), [value])
+  const [hexText, setHexText] = useState(toHexAlpha(value))
+  useEffect(() => setHexText(toHexAlpha(value)), [value])
 
   const commitHsv = (nextH: number, nextS: number, nextV: number) => {
     const [r, g, b] = hsvToRgb(nextH, nextS, nextV)
     onChange([r, g, b, value[3]])
   }
+  // A typed hex without alpha keeps the current alpha.
+  const commitHex = (text: string) => {
+    const parsed = parseHex(text)
+    if (!parsed) return setHexText(toHexAlpha(value))
+    const digits = text.trim().replace(/^#/, '').length
+    onChange(digits === 4 || digits === 8 ? parsed : [parsed[0], parsed[1], parsed[2], value[3]])
+  }
+  const pick = async () => {
+    const Dropper = eyeDropper()
+    if (!Dropper) return
+    try {
+      const { sRGBHex } = await new Dropper().open()
+      const parsed = parseHex(sRGBHex)
+      if (parsed) onChange([parsed[0], parsed[1], parsed[2], value[3]])
+    } catch {
+      // Cancelled (Escape).
+    }
+  }
+  const copy = () => {
+    copiedColor = [...value] as RgbaColor
+    void navigator.clipboard?.writeText(toHexAlpha(value)).catch(() => {})
+  }
+  const paste = async () => {
+    let text: string | undefined
+    try {
+      text = await navigator.clipboard?.readText()
+    } catch {
+      text = undefined
+    }
+    const parsed = (text && parseHex(text)) || copiedColor
+    if (parsed) onChange([...parsed] as RgbaColor)
+  }
+  const iconButton = 'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-overlay/8 text-ink-dim hover:bg-overlay/15 hover:text-ink'
 
   return (
     <div className="flex flex-col gap-2">
       <SvPad hue={h} s={s} v={v} onChange={(nextS, nextV) => commitHsv(h, nextS, nextV)} />
       <HueSlider hue={h} onChange={(nextH) => commitHsv(nextH, s, v)} />
       <AlphaSlider color={[value[0], value[1], value[2]]} alpha={value[3]} onChange={(alpha) => onChange([value[0], value[1], value[2], alpha])} />
-      <input
-        value={hexText}
-        onChange={(e) => setHexText(e.target.value)}
-        onBlur={() => {
-          if (/^#[0-9a-fA-F]{6}$/.test(hexText)) onChange(fromHex(hexText))
-          else setHexText(toHex(value))
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur()
-        }}
-        className="w-full rounded-md bg-overlay/8 px-2 py-1 text-xs text-ink outline-none"
-      />
+      <div className="flex items-center gap-1">
+        {eyeDropper() && (
+          <button type="button" className={iconButton} onClick={() => void pick()} title="Pick a colour from anywhere on screen">
+            <EyedropperIcon />
+          </button>
+        )}
+        <input
+          value={hexText}
+          onChange={(e) => setHexText(e.target.value)}
+          onBlur={() => commitHex(hexText)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+          }}
+          onPaste={(e) => {
+            // Pasting a hex applies it straight away.
+            const parsed = parseHex(e.clipboardData.getData('text'))
+            if (parsed) {
+              e.preventDefault()
+              commitHex(e.clipboardData.getData('text'))
+            }
+          }}
+          spellCheck={false}
+          title="Hex: #RGB, #RRGGBB or #RRGGBBAA (alpha)"
+          className="min-w-0 flex-1 rounded-md bg-overlay/8 px-2 py-1 font-mono text-xs text-ink outline-none"
+        />
+        <button type="button" className={iconButton} onClick={copy} title="Copy this colour">
+          <CopyIcon />
+        </button>
+        <button type="button" className={iconButton} onClick={() => void paste()} title="Paste a copied colour (or a hex from the clipboard)">
+          <PasteIcon />
+        </button>
+      </div>
     </div>
   )
 }
@@ -233,7 +311,7 @@ export function ColorSwatch({ value, onChange, disabled }: { value: RgbaColor; o
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        title={`${toHex(value)} @ ${Math.round(value[3] * 100)}%`}
+        title={`${toHexAlpha(value)} @ ${Math.round(value[3] * 100)}%`}
         className="h-6 w-full cursor-pointer rounded-md border border-overlay/15 disabled:cursor-default disabled:opacity-40"
         style={{
           // A checkerboard base layer *underneath* the actual (alpha-aware)
@@ -253,7 +331,7 @@ export function ColorSwatch({ value, onChange, disabled }: { value: RgbaColor; o
         }}
       />
       {open && !disabled && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-48 rounded-md border border-panel-border bg-canvas p-2 shadow-xl">
+        <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-panel-border bg-canvas p-2 shadow-xl">
           <ColorPickerBody value={value} onChange={onChange} />
         </div>
       )}

@@ -1564,6 +1564,24 @@ export type NodeBehavior =
   | ({ kind: 'HumanoidAnimator' } & HumanoidAnimatorConfig)
   | ({ kind: 'FootIK' } & FootIKConfig)
   | ({ kind: 'BoneAttachment' } & BoneAttachmentConfig)
+  | ({ kind: 'GroupFill' } & GroupFillConfig)
+  | ({ kind: 'GooMaterial2D' } & GooMaterial2DConfig)
+
+/** Mirrors `an1mbyt3_core::GooMaterial2D`: a goo group's shader-graph
+ * material (multiplies its fill) and glow. */
+export interface GooMaterial2DConfig {
+  material: OpaqueId | null
+  glowColor: [number, number, number, number]
+  glow: number
+  glowSpread: number
+}
+
+/** Mirrors `an1mbyt3_core::GroupFill`: a group's own fill (colour or a
+ * gradient in the group's space), painted onto everything inside it. */
+export interface GroupFillConfig {
+  color: [number, number, number, number]
+  gradient: GradientDef | null
+}
 
 /** Mirrors `an1mbyt3_core::BoneAttachment`: this 3D node rides a bone of
  * its parent model (a rifle in a hand, a hat on a head). */

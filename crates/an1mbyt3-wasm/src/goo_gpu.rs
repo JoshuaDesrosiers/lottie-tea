@@ -99,6 +99,22 @@ pub struct Look {
     /// pixel-art friendly, and the cheapest). `Some(px)`: an anti-aliased
     /// ramp `px` screen pixels wide.
     pub antialias: Option<f32>,
+    /// A user material (shader-graph WGSL defining `material_fragment`)
+    /// whose colour multiplies the body paint.
+    pub material: Option<String>,
+    /// A halo round the liquid: colour, strength, and the outermost level
+    /// it reaches (a field value below the rim / body level).
+    pub glow: Option<Glow>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Glow {
+    pub color: [f32; 4],
+    pub strength: f32,
+    /// Field level where the glow has faded out, and the level of the
+    /// liquid's outer edge (where it's strongest).
+    pub outer: f32,
+    pub edge: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -232,11 +248,29 @@ fn goo_cover(v: f32, level: f32) -> f32 {{
         paint_expr("goo_rim_paint", paint, &mut s);
     }
     paint_expr("goo_body_paint", &look.body.1, &mut s);
+    if let Some(user) = &look.material {
+        // The user's graph, its entry point renamed.
+        s.push('\n');
+        s.push_str(&user.replace("fn material_fragment(", "fn goo_user_material("));
+        s.push('\n');
+    }
     s.push_str("\nfn material_fragment(in: VertexOutput) -> vec4<f32> {\n    let fields = goo_fields(in.uv);\n    let v = fields.x;\n    var c = vec4<f32>(0.0, 0.0, 0.0, 0.0);\n");
+    if let Some(glow) = &look.glow {
+        // Under everything: rises from nothing at `outer` to full at the
+        // edge, eased so it reads as light falling off.
+        s.push_str(&format!(
+            "    let glow_t = clamp((v - {outer}) / max({edge} - {outer}, 0.00001), 0.0, 1.0);\n    let glow = {color};\n    c = goo_over(c, vec4<f32>(glow.rgb, glow.a * {strength} * glow_t * glow_t));\n",
+            outer = f(glow.outer),
+            edge = f(glow.edge),
+            color = vec4(glow.color),
+            strength = f(glow.strength.clamp(0.0, 1.0))
+        ));
+    }
     if let Some((level, _)) = &look.rim {
         s.push_str(&format!("    let rim = goo_rim_paint(in.local_position);\n    c = goo_over(c, vec4<f32>(rim.rgb, rim.a * goo_cover(v, {})));\n", f(*level)));
     }
-    s.push_str(&format!("    let body_cover = goo_cover(v, {});\n    let body = goo_body_paint(in.local_position);\n    c = goo_over(c, vec4<f32>(body.rgb, body.a * body_cover));\n", f(look.body.0)));
+    let body = if look.material.is_some() { "goo_body_paint(in.local_position) * goo_user_material(in)" } else { "goo_body_paint(in.local_position)" };
+    s.push_str(&format!("    let body_cover = goo_cover(v, {});\n    let body = {body};\n    c = goo_over(c, vec4<f32>(body.rgb, body.a * body_cover));\n", f(look.body.0)));
     if let Some(hl) = &look.highlight {
         let sample = if hl.second_field {
             "fields.y".to_string()

@@ -14,6 +14,7 @@ import { EffectsPanel } from './components/EffectsPanel'
 import { CameraKindIcon, CloseIcon, LightKindIcon, TrailKindIcon, ZoomInIcon, ZoomOutIcon } from './components/icons'
 import { FloatingPanel } from './components/FloatingPanel'
 import { GradientHandle } from './components/GradientHandle'
+import { MultiFillPanel, MultiTransformHandles, type WorldBox } from './components/MultiSelection'
 import { PathEditOverlay } from './components/PathEditOverlay'
 import { TilemapPaintOverlay } from './components/TilemapPaintOverlay'
 import { TilePalettePanel } from './components/TilePalettePanel'
@@ -258,6 +259,10 @@ import {
   undo as wasmUndo,
   updateState,
   type WasmEditor,
+  fillNodes,
+  multiTransformBegin,
+  multiTransformPreview,
+  multiTransformEnd,
 } from './ipc/wasmEditor'
 import type { ShapePreset, UiMenuItem } from './ipc/wasmEditor'
 import type { ScreenSettings } from './ipc/document'
@@ -1743,7 +1748,7 @@ function App() {
    * result even when members span different groups. `null` outside
    * multi-selection (falls through to the single-node `TransformHandles`
    * instead). */
-  const multiSelectionScreenBox = (() => {
+  const multiSelectionWorldBox: WorldBox | null = (() => {
     if (mode === 'Playground' || multiSelectedIds.length < 2 || !selection) return null
     const artboard = artboards.find((a) => a.id.idx === selection.artboardId.idx && a.id.version === selection.artboardId.version)
     if (!artboard) return null
@@ -1776,10 +1781,44 @@ function App() {
       }
     }
     if (!isFinite(minX)) return null
-
-    const topLeft = worldToScreen(minX, maxY, camera, canvasSize)
-    const bottomRight = worldToScreen(maxX, minY, camera, canvasSize)
+    return { minX, minY, maxX, maxY }
+  })()
+  const multiSelectionScreenBox = (() => {
+    if (!multiSelectionWorldBox) return null
+    const topLeft = worldToScreen(multiSelectionWorldBox.minX, multiSelectionWorldBox.maxY, camera, canvasSize)
+    const bottomRight = worldToScreen(multiSelectionWorldBox.maxX, multiSelectionWorldBox.minY, camera, canvasSize)
     return { left: topLeft.x, top: topLeft.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y }
+  })()
+
+  // A multi-selection's Fill (see `MultiFillPanel`): its colour and its
+  // world-space gradient, which only exist while that selection does.
+  const multiKey = multiSelectedIds.map((id) => `${id.idx}:${id.version}`).join(',')
+  const [multiFill, setMultiFill] = useState<{ key: string; color: [number, number, number, number]; gradient: GradientDef | null }>({ key: '', color: [1, 1, 1, 1], gradient: null })
+  const currentMultiFill = multiFill.key === multiKey ? multiFill : { key: multiKey, color: (selectedNode?.fillColor ?? [1, 1, 1, 1]) as [number, number, number, number], gradient: null }
+  const applyMultiFill = (color: [number, number, number, number] | null, gradient: GradientDef | null) => {
+    if (!editorRef.current || !selection) return
+    setMultiFill({ key: multiKey, color: color ?? currentMultiFill.color, gradient })
+    setDoc(fillNodes(editorRef.current, selection.artboardId, multiSelectedIds, gradient ? null : (color ?? currentMultiFill.color), gradient))
+  }
+
+  // Goo 2D: the selected node's goo gradient gets on-canvas handles too
+  // (when its fill has none of its own, or the goo hides it). Goo gradients
+  // live in the goo group's owner's space (its first member).
+  const gooHandle = (() => {
+    if (!transformHandlesNode || !activeArtboard || multiSelectedIds.length > 1) return null
+    const own = transformHandlesNode.behaviors.find((b) => b.enabled && b.behavior.kind === 'Goo2D')?.behavior
+    if (!own || own.kind !== 'Goo2D') return null
+    if (transformHandlesNode.gradient && !own.hideSource) return null
+    const owner = activeArtboard.nodes.find((n) => n.behaviors.some((b) => b.enabled && b.behavior.kind === 'Goo2D' && b.behavior.group === own.group))
+    if (!owner) return null
+    const ownerGoo = owner.behaviors.find((b) => b.enabled && b.behavior.kind === 'Goo2D')!.behavior
+    if (ownerGoo.kind !== 'Goo2D' || !ownerGoo.gradient) return null
+    const commit = (gradient: GradientDef) => {
+      if (!editorRef.current) return
+      const behaviors = owner.behaviors.map((b) => (b.behavior.kind === 'Goo2D' ? { ...b, behavior: { ...b.behavior, gradient } } : b))
+      setDoc(setNodeBehaviors(editorRef.current, activeArtboard.id, owner.id, behaviors))
+    }
+    return { node: { ...owner, gradient: ownerGoo.gradient }, commit }
   })()
 
   // Every Camera node's frame — the scene's own width x height divided by
@@ -4346,16 +4385,27 @@ function App() {
           <CameraKindIcon />
         </div>
       ))}
-      {multiSelectionScreenBox ? (
-        <div
-          className="pointer-events-none absolute rounded-sm border border-dashed border-accent/80"
-          style={{
-            left: multiSelectionScreenBox.left,
-            top: multiSelectionScreenBox.top,
-            width: multiSelectionScreenBox.width,
-            height: multiSelectionScreenBox.height,
-          }}
-        />
+      {multiSelectionScreenBox && multiSelectionWorldBox && selection ? (
+        <>
+          <MultiTransformHandles
+            containerRef={transformHandlesContainerRef}
+            box={multiSelectionWorldBox}
+            camera={camera}
+            canvasSize={canvasSize}
+            onBegin={() => editorRef.current && multiTransformBegin(editorRef.current, selection.artboardId, multiSelectedIds)}
+            onPreview={(m) => editorRef.current && multiTransformPreview(editorRef.current, m)}
+            onEnd={(commit) => editorRef.current && setDoc(multiTransformEnd(editorRef.current, commit))}
+          />
+          {currentMultiFill.gradient && selectedNode && (
+            <GradientHandle
+              containerRef={transformHandlesContainerRef}
+              selectedNode={{ ...selectedNode, gradient: currentMultiFill.gradient, worldTransform: { translation: { x: 0, y: 0 }, rotation: 0, scale: { x: 1, y: 1 }, anchor: { x: 0, y: 0 } } }}
+              camera={camera}
+              canvasSize={canvasSize}
+              onSetGradient={(g) => applyMultiFill(null, g)}
+            />
+          )}
+        </>
       ) : isPathEditing ? (
         <PathEditOverlay
           containerRef={transformHandlesContainerRef}
@@ -4403,10 +4453,10 @@ function App() {
           />
           <GradientHandle
             containerRef={transformHandlesContainerRef}
-            selectedNode={transformHandlesNode}
+            selectedNode={gooHandle ? gooHandle.node : transformHandlesNode}
             camera={camera}
             canvasSize={canvasSize}
-            onSetGradient={handleSetGradient}
+            onSetGradient={gooHandle ? gooHandle.commit : handleSetGradient}
           />
         </>
       )}
@@ -4606,6 +4656,16 @@ function App() {
             title: 'Inspector',
             content: (
               <>
+              {multiSelectedIds.length > 1 && (
+                <MultiFillPanel
+                  count={multiSelectedIds.length}
+                  box={multiSelectionWorldBox}
+                  color={currentMultiFill.color}
+                  gradient={currentMultiFill.gradient}
+                  onColor={(c) => applyMultiFill(c, null)}
+                  onGradient={(g) => applyMultiFill(null, g)}
+                />
+              )}
               {selectedNode && multiSelectedIds.length <= 1 && (
                 <PrefabBar
                   node={selectedNode}

@@ -2198,6 +2198,16 @@ pub enum NodeBehaviorDto {
     HumanoidAnimator(an1mbyt3_core::HumanoidAnimator),
     FootIK(an1mbyt3_core::FootIK),
     BoneAttachment(an1mbyt3_core::BoneAttachment),
+    GroupFill(GroupFillDto),
+    GooMaterial2D(an1mbyt3_core::GooMaterial2D),
+}
+
+/// `an1mbyt3_core::GroupFill`, its gradient in the frontend's `{x, y}` shape.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupFillDto {
+    pub color: [f32; 4],
+    pub gradient: Option<GradientDefDto>,
 }
 
 impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
@@ -2252,6 +2262,8 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::HumanoidAnimator(a) => NodeBehaviorDto::HumanoidAnimator(a.clone()),
             an1mbyt3_core::NodeBehavior::FootIK(f) => NodeBehaviorDto::FootIK(*f),
             an1mbyt3_core::NodeBehavior::BoneAttachment(b) => NodeBehaviorDto::BoneAttachment(b.clone()),
+            an1mbyt3_core::NodeBehavior::GooMaterial2D(m) => NodeBehaviorDto::GooMaterial2D(m.clone()),
+            an1mbyt3_core::NodeBehavior::GroupFill(f) => NodeBehaviorDto::GroupFill(GroupFillDto { color: f.color, gradient: f.gradient.as_ref().map(Into::into) }),
         }
     }
 }
@@ -2308,6 +2320,8 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::HumanoidAnimator(a) => an1mbyt3_core::NodeBehavior::HumanoidAnimator(a),
             NodeBehaviorDto::FootIK(f) => an1mbyt3_core::NodeBehavior::FootIK(f),
             NodeBehaviorDto::BoneAttachment(b) => an1mbyt3_core::NodeBehavior::BoneAttachment(b),
+            NodeBehaviorDto::GooMaterial2D(m) => an1mbyt3_core::NodeBehavior::GooMaterial2D(m),
+            NodeBehaviorDto::GroupFill(f) => an1mbyt3_core::NodeBehavior::GroupFill(an1mbyt3_core::GroupFill { color: f.color, gradient: f.gradient.map(Into::into) }),
         }
     }
 }
@@ -2803,11 +2817,14 @@ pub fn summarize_document(document: &Document, active_animation: Option<Animatio
                                 NodeKind::Shape(shape) => Some(shape.fill_color),
                                 NodeKind::Text(text) => Some(text.fill_color),
                                 NodeKind::Image(image) => Some(image.fill_color),
+                                // A group with shapes / text inside: its Group Fill.
+                                NodeKind::Group(_) if group_has_paint(artboard, node_id) => Some(node.group_fill().map_or([1.0; 4], |f| f.color)),
                                 _ => None,
                             },
                             gradient: match &node.kind {
                                 NodeKind::Shape(shape) => shape.gradient.as_ref().map(GradientDefDto::from),
                                 NodeKind::Text(text) => text.gradient.as_ref().map(GradientDefDto::from),
+                                NodeKind::Group(_) => node.group_fill().and_then(|f| f.gradient.as_ref()).map(GradientDefDto::from),
                                 _ => None,
                             },
                             shape_image: match &node.kind {
@@ -3073,4 +3090,33 @@ pub fn summarize_state_machine(state_machine: &StateMachine) -> StateMachineSumm
         available_triggers: state_machine.available_triggers().map(str::to_string).collect(),
         layer_active_states: state_machine.layer_active_states().map(|(name, state)| (name.to_string(), state.to_string())).collect(),
     }
+}
+
+/// Whether a group has any shape or text inside it (at any depth) — what
+/// a Group Fill paints.
+pub(crate) fn group_has_paint(artboard: &Artboard, group: NodeId) -> bool {
+    !crate::dto::paintable_descendants(artboard, group).is_empty()
+}
+
+/// Every non-deleted Shape / Text at or below `root`.
+pub(crate) fn paintable_descendants(artboard: &Artboard, root: NodeId) -> Vec<NodeId> {
+    let mut out = Vec::new();
+    for id in artboard.node_ids() {
+        if artboard.is_effectively_deleted(id) {
+            continue;
+        }
+        let Some(node) = artboard.node(id) else { continue };
+        if !matches!(node.kind, NodeKind::Shape(_) | NodeKind::Text(_)) {
+            continue;
+        }
+        let mut at = Some(id);
+        while let Some(a) = at {
+            if a == root {
+                out.push(id);
+                break;
+            }
+            at = artboard.node(a).and_then(|n| n.parent);
+        }
+    }
+    out
 }

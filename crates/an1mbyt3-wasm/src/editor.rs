@@ -1630,6 +1630,8 @@ fn fluid_look(fluid: &an1mbyt3_core::ParticleFluid2D, antialias: Option<f32>) ->
             second_field: true,
         }),
         antialias,
+        material: None,
+        glow: None,
     }
 }
 
@@ -1733,6 +1735,8 @@ fn goo_look(goo: &an1mbyt3_core::Goo2D, field: &crate::metaball2d::Field, antial
             second_field: false,
         }),
         antialias,
+        material: None,
+        glow: None,
     }
 }
 
@@ -2471,6 +2475,10 @@ pub struct WasmEditor {
     view3d_camera: crate::view3d::EditorCamera3D,
     /// The node the gizmo / selection box is drawn for.
     view3d_selected: Option<NodeId>,
+    /// A multi-selection scale / rotate drag in progress: the artboard and
+    /// each moved node's transform when it started (see
+    /// `multi_transform_begin`).
+    multi_transform: Option<(ArtboardId, Vec<(NodeId, an1mbyt3_core::Transform2D)>)>,
     /// Move / rotate / scale (W / E / R).
     view3d_mode: crate::view3d::GizmoMode,
     /// A selected bone of the selected avatar (humanoid name): the gizmo
@@ -2977,6 +2985,7 @@ impl WasmEditor {
             view3d_enabled: false,
             view3d_camera: crate::view3d::EditorCamera3D::default(),
             view3d_selected: None,
+            multi_transform: None,
             view3d_hot: None,
             view3d_mode: crate::view3d::GizmoMode::Move,
             view3d_bone: None,
@@ -3857,7 +3866,13 @@ impl WasmEditor {
         self.goo_keys.retain(|id, _| owners.contains(id));
         for (_, owner, goo, sources) in groups {
             let to_owner = artboard.world_transform(owner).to_affine2().inverse();
-            let mut extra = fingerprint_debug(&(&goo, smoothing(artboard.node(owner))));
+            // The owner's Goo Material (and its graph) are part of the look.
+            let goo_material = artboard.node(owner).and_then(|n| n.goo_material()).cloned();
+            let graph = goo_material.as_ref().and_then(|m| m.material).and_then(|id| self.document.material(id)).and_then(|m| match &m.kind {
+                an1mbyt3_core::MaterialKind::ShaderGraph(g) => Some(g.clone()),
+                _ => None,
+            });
+            let mut extra = fingerprint_debug(&(&goo, smoothing(artboard.node(owner)), &goo_material, &graph));
             for v in to_owner.to_cols_array() {
                 extra = extra.rotate_left(7) ^ v.to_bits() as u64;
             }
@@ -3876,7 +3891,16 @@ impl WasmEditor {
                 self.goo_gpu.remove(&owner);
                 continue;
             }
-            let look = goo_look(&goo, &field, smoothing(artboard.node(owner)));
+            let mut look = goo_look(&goo, &field, smoothing(artboard.node(owner)));
+            if let Some(m) = &goo_material {
+                look.material = graph.as_ref().and_then(|g| an1mbyt3_core::compile_wgsl(g).ok());
+                if m.glow > 0.0 {
+                    let edge = look.rim.as_ref().map_or(look.body.0, |r| r.0);
+                    // Spread 0 → a thin halo; 1 → out to where the field ends.
+                    let outer = edge * (1.0 - (0.15 + 0.85 * m.glow_spread.clamp(0.0, 1.0))).max(0.0);
+                    look.glow = Some(crate::goo_gpu::Glow { color: m.glow_color, strength: m.glow, outer: outer.max(1e-4), edge });
+                }
+            }
             let slot = self.goo_gpu.entry(owner).or_insert_with(|| LiquidGpu::new(&self.renderer));
             slot.update(&self.renderer, &mut self.liquid_materials, &field, None, &look, to_owner);
             upload_ms += crate::profiler::now_ms() - t_upload;
@@ -6842,6 +6866,10 @@ impl WasmEditor {
         let artboard_id: ArtboardId = parse_id(artboard)?;
         let node_id: NodeId = parse_id(node)?;
         let value: [f32; 4] = parse_id(value)?;
+        if self.is_group(artboard_id, node_id) {
+            self.apply_fill(artboard_id, &[node_id], Some(value), None);
+            return self.document_summary();
+        }
         self.document.apply(Command::SetFillColor { artboard: artboard_id, node: node_id, value });
         self.document_summary()
     }
@@ -6913,9 +6941,93 @@ impl WasmEditor {
             let dto: crate::dto::GradientDefDto = serde_wasm_bindgen::from_value(value).map_err(|err| JsValue::from_str(&format!("invalid gradient: {err}")))?;
             Some(dto.into())
         };
+        if self.is_group(artboard_id, node_id) {
+            // A group's gradient is in its own space: to world for the bake.
+            let world = self.document.artboard(artboard_id).and_then(|a| a.try_world_transform(node_id)).map_or(glam::Affine2::IDENTITY, |t| t.to_affine2());
+            let color = self.document.artboard(artboard_id).and_then(|a| a.node(node_id)).and_then(|n| n.group_fill()).map_or([1.0; 4], |f| f.color);
+            match value {
+                Some(g) => self.apply_fill(artboard_id, &[node_id], None, Some(map_gradient(&g, world))),
+                None => self.apply_fill(artboard_id, &[node_id], Some(color), None),
+            }
+            return self.document_summary();
+        }
         self.document.apply(Command::SetGradient { artboard: artboard_id, node: node_id, value });
         self.record_field_edits(artboard_id, node_id, before);
         self.document_summary()
+    }
+
+    /// **Fill several things at once** — a multi-selection's Fill field:
+    /// every shape and text in `nodes` (groups: everything inside them) gets
+    /// `color`, or the gradient `gradient` given in *world* space (one
+    /// gradient across the whole selection, each node getting it in its own
+    /// space). Groups among `nodes` also remember it as their Group Fill.
+    /// One undoable edit. Returns the document summary.
+    pub fn fill_nodes(&mut self, artboard: JsValue, nodes: JsValue, color: JsValue, gradient: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let nodes: Vec<NodeId> = parse_id(nodes)?;
+        let color: Option<[f32; 4]> = if color.is_null() || color.is_undefined() { None } else { Some(parse_id(color)?) };
+        let gradient: Option<an1mbyt3_core::GradientDef> = if gradient.is_null() || gradient.is_undefined() {
+            None
+        } else {
+            let dto: crate::dto::GradientDefDto = serde_wasm_bindgen::from_value(gradient).map_err(|err| JsValue::from_str(&format!("invalid gradient: {err}")))?;
+            Some(dto.into())
+        };
+        self.apply_fill(artboard_id, &nodes, color, gradient);
+        self.document_summary()
+    }
+
+    fn is_group(&self, artboard: ArtboardId, node: NodeId) -> bool {
+        self.document.artboard(artboard).and_then(|a| a.node(node)).is_some_and(|n| matches!(n.kind, NodeKind::Group(_)))
+    }
+
+    /// Paints `targets` (see `fill_nodes`): `color` (and no gradient), or
+    /// `gradient_world` mapped into each painted node's own space. Groups
+    /// among the targets store it as their Group Fill (in their space). All
+    /// one undo step.
+    fn apply_fill(&mut self, artboard_id: ArtboardId, targets: &[NodeId], color: Option<[f32; 4]>, gradient_world: Option<an1mbyt3_core::GradientDef>) {
+        let Some(art) = self.document.artboard(artboard_id) else { return };
+        let world = |id: NodeId| art.try_world_transform(id).map_or(glam::Affine2::IDENTITY, |t| t.to_affine2());
+        let mut painted: Vec<NodeId> = Vec::new();
+        let mut groups: Vec<(NodeId, an1mbyt3_core::GroupFill, Vec<an1mbyt3_core::NodeBehaviorEntry>)> = Vec::new();
+        for &t in targets {
+            for id in crate::dto::paintable_descendants(art, t) {
+                if !painted.contains(&id) {
+                    painted.push(id);
+                }
+            }
+            if let Some(n) = art.node(t).filter(|n| matches!(n.kind, NodeKind::Group(_))) {
+                let previous = n.group_fill().cloned().unwrap_or_default();
+                let fill = an1mbyt3_core::GroupFill {
+                    color: color.unwrap_or(previous.color),
+                    gradient: gradient_world.as_ref().map(|g| map_gradient(g, world(t).inverse())),
+                };
+                groups.push((t, fill, n.behaviors.clone()));
+            }
+        }
+        let locals: Vec<(NodeId, Option<an1mbyt3_core::GradientDef>)> = painted.iter().map(|&id| (id, gradient_world.as_ref().map(|g| map_gradient(g, world(id).inverse())))).collect();
+        let mut count = 0;
+        for (id, local) in locals {
+            if let Some(c) = color {
+                self.document.apply(Command::SetFillColor { artboard: artboard_id, node: id, value: c });
+                count += 1;
+            }
+            self.document.apply(Command::SetGradient { artboard: artboard_id, node: id, value: local });
+            count += 1;
+        }
+        for (id, fill, mut behaviors) in groups {
+            match behaviors.iter_mut().find(|e| matches!(e.behavior, an1mbyt3_core::NodeBehavior::GroupFill(_))) {
+                Some(entry) => {
+                    entry.behavior = an1mbyt3_core::NodeBehavior::GroupFill(fill);
+                    entry.enabled = true;
+                }
+                None => behaviors.push(an1mbyt3_core::NodeBehaviorEntry { behavior: an1mbyt3_core::NodeBehavior::GroupFill(fill), enabled: true }),
+            }
+            self.document.apply(Command::SetNodeBehaviors { artboard: artboard_id, node: id, value: behaviors });
+            count += 1;
+        }
+        if count > 1 {
+            self.document.merge_last(count);
+        }
     }
 
     /// Sets (`Some`) or clears (`None`/`null`/`undefined`) a `Shape` node's
@@ -7066,6 +7178,7 @@ impl WasmEditor {
             "HumanoidAnimator" => B::HumanoidAnimator(an1mbyt3_core::HumanoidAnimator::default()),
             "FootIK" => B::FootIK(an1mbyt3_core::FootIK::default()),
             "BoneAttachment" => B::BoneAttachment(an1mbyt3_core::BoneAttachment::default()),
+            "GooMaterial2D" => B::GooMaterial2D(an1mbyt3_core::GooMaterial2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -11321,13 +11434,21 @@ impl WasmEditor {
         // `Shape`, as two separate passes — an `Image` always beat a `Shape`
         // regardless of which one actually drew on top, since that split
         // predates `shapes`/`texts`/`images` being unified onto one shared
-        // draw-order walk. Only `Shape`/`Image` have a bounds check to hit-test
-        // against here — same scope as before this fix (`Text`/`Group`/`Bone`/
-        // `Instance` were never pickable via this path either).
+        // draw-order walk. `Shape`/`Image`/`Text` (its glyph box) and gizmo-only
+        // objects have a bounds check here; `Bone`/`Instance` and plain
+        // groups are picked through their content or the Layers panel.
         let hit = artboard_ref.pickable_nodes().collect::<Vec<_>>().into_iter().rev().find_map(|(node_id, node)| {
             let (min, max) = match &node.kind {
                 NodeKind::Shape(shape) => shape.path.bounds(),
                 NodeKind::Image(image) => (Vec2::new(-image.width / 2.0, -image.height / 2.0), Vec2::new(image.width / 2.0, image.height / 2.0)),
+                // Text: its measured glyph box (the selection box the
+                // canvas shows), padded a little so thin or short text is
+                // still easy to grab.
+                NodeKind::Text(text) => {
+                    let (min, max) = crate::dto::local_bounds(artboard_ref, node_id);
+                    let pad = Vec2::splat((text.size_px * 0.15).clamp(2.0, 8.0));
+                    (min - pad, max + pad)
+                }
                 // A camera's gizmo icon — see `CAMERA_GIZMO_HALF_EXTENT`.
                 // Component-only objects (an empty GameObject carrying a
                 // Camera / Light 2D / Trail / Particle System / collider) are
@@ -11504,6 +11625,101 @@ impl WasmEditor {
         }
         let final_command = if commands.len() == 1 { commands.pop().unwrap() } else { Command::Batch(commands) };
         self.document.apply(final_command);
+        self.document_summary()
+    }
+
+    /// Multi-selection transform (the multi-select box's scale / rotate
+    /// handles), step 1: remembers where every node in `nodes` starts.
+    /// Nodes whose ancestor is also selected are left out (they ride along
+    /// with it). Then `multi_transform_preview` per pointer move and
+    /// `multi_transform_end` on release.
+    pub fn multi_transform_begin(&mut self, artboard: JsValue, nodes: JsValue) -> Result<(), JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let nodes: Vec<NodeId> = parse_id(nodes)?;
+        let a = self.document.artboard(artboard_id).ok_or_else(|| JsValue::from_str("multi_transform_begin: unknown artboard"))?;
+        let selected: std::collections::HashSet<NodeId> = nodes.iter().copied().collect();
+        let covered = |id: NodeId| {
+            let mut at = a.node(id).and_then(|n| n.parent);
+            while let Some(p) = at {
+                if selected.contains(&p) {
+                    return true;
+                }
+                at = a.node(p).and_then(|n| n.parent);
+            }
+            false
+        };
+        let base = nodes.iter().filter(|id| !covered(**id)).filter_map(|id| Some((*id, a.node(*id)?.transform))).collect();
+        self.multi_transform = Some((artboard_id, base));
+        Ok(())
+    }
+
+    /// Step 2: every node gets the same world-space change `delta` (a 2D
+    /// affine as `[a, b, c, d, tx, ty]`: x axis `(a, b)`, y axis `(c, d)`,
+    /// translation) on top of where it started — a live preview, no undo.
+    /// Each node keeps its own anchor; skew (from scaling a rotated node
+    /// unevenly) is dropped.
+    pub fn multi_transform_preview(&mut self, a: f32, b: f32, c: f32, d: f32, tx: f32, ty: f32) -> Result<(), JsValue> {
+        let Some((artboard_id, base)) = self.multi_transform.clone() else { return Ok(()) };
+        let delta = glam::Affine2::from_cols(Vec2::new(a, b), Vec2::new(c, d), Vec2::new(tx, ty));
+        let updates: Vec<(NodeId, an1mbyt3_core::Transform2D)> = {
+            let Some(art) = self.document.artboard(artboard_id) else { return Ok(()) };
+            base.iter()
+                .map(|(id, start)| {
+                    let parent = art.node(*id).and_then(|n| n.parent).and_then(|p| art.try_world_transform(p)).map_or(glam::Affine2::IDENTITY, |t| t.to_affine2());
+                    let world = delta * parent * start.to_affine2();
+                    // Back to local, with the anchor folded out: M = T·R·S.
+                    let m = parent.inverse() * world * glam::Affine2::from_translation(start.anchor);
+                    let x = m.matrix2.x_axis;
+                    let y = m.matrix2.y_axis;
+                    let sx = x.length().max(1e-6);
+                    let sy = (x.x * y.y - x.y * y.x) / sx;
+                    (*id, an1mbyt3_core::Transform2D { translation: m.translation, rotation: x.y.atan2(x.x), scale: Vec2::new(sx, sy), anchor: start.anchor })
+                })
+                .collect()
+        };
+        if let Some(art) = self.document.artboard_mut(artboard_id) {
+            for (id, t) in updates {
+                if let Some(n) = art.node_mut(id) {
+                    n.transform = t;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Step 3: on release, `commit` keeps the result as one undoable edit
+    /// (translation, rotation and scale of every node); otherwise every
+    /// node goes back to where it started. Returns the document summary.
+    pub fn multi_transform_end(&mut self, commit: bool) -> Result<JsValue, JsValue> {
+        let Some((artboard_id, base)) = self.multi_transform.take() else { return self.document_summary() };
+        let mut finals = Vec::new();
+        if let Some(art) = self.document.artboard_mut(artboard_id) {
+            for (id, start) in &base {
+                if let Some(n) = art.node_mut(*id) {
+                    finals.push((*id, n.transform));
+                    n.transform = *start;
+                }
+            }
+        }
+        if commit {
+            let mut inverses = Vec::new();
+            for (id, t) in finals {
+                let Some(start) = base.iter().find(|(b, _)| *b == id).map(|(_, s)| *s) else { continue };
+                if t.translation != start.translation {
+                    inverses.push(self.document.apply(Command::SetTranslation { artboard: artboard_id, node: id, value: t.translation }));
+                }
+                if t.rotation != start.rotation {
+                    inverses.push(self.document.apply(Command::SetRotation { artboard: artboard_id, node: id, value: t.rotation }));
+                }
+                if t.scale != start.scale {
+                    inverses.push(self.document.apply(Command::SetScale { artboard: artboard_id, node: id, value: t.scale }));
+                }
+            }
+            if !inverses.is_empty() {
+                // `apply` pushed one undo entry per command: fold them into one.
+                self.document.merge_last(inverses.len());
+            }
+        }
         self.document_summary()
     }
 
@@ -13200,4 +13416,14 @@ fn mesh3d_key(primitive: &an1mbyt3_core::Primitive3D) -> Mesh3DKey {
         // only the shape matters here.
         P::Glass { width, height, thickness, shard, seed, anchors } => (8, [width.to_bits() ^ thickness.to_bits().rotate_left(7), height.to_bits() ^ shard.to_bits().rotate_left(13), seed, anchors]),
     }
+}
+
+/// `gradient` with its points carried through `m` (e.g. one node's space
+/// to another's). A radial's radius is the start→end distance, so it scales
+/// with `m` too.
+fn map_gradient(gradient: &an1mbyt3_core::GradientDef, m: glam::Affine2) -> an1mbyt3_core::GradientDef {
+    let mut g = gradient.clone();
+    g.start = m.transform_point2(g.start);
+    g.end = m.transform_point2(g.end);
+    g
 }

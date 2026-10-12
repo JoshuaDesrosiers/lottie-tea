@@ -279,6 +279,22 @@ impl Node {
         })
     }
 
+    /// This node's enabled Goo Material, if any.
+    pub fn goo_material(&self) -> Option<&crate::GooMaterial2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::GooMaterial2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Group Fill, if any.
+    pub fn group_fill(&self) -> Option<&crate::GroupFill> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::GroupFill(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Bone Attachment, if any.
     pub fn bone_attachment(&self) -> Option<&crate::BoneAttachment> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

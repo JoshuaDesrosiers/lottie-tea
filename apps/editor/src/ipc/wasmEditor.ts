@@ -621,6 +621,29 @@ export function setGradient(editor: WasmEditor, artboard: OpaqueId, node: Opaque
   return editor.set_gradient(artboard, node, value) as DocumentSummary
 }
 
+/** Fills several things at once (a multi-selection's Fill): every shape /
+ * text in `nodes` (groups: everything inside) gets `color`, or the
+ * world-space `gradient` laid across them all. One undo step. */
+export function fillNodes(editor: WasmEditor, artboard: OpaqueId, nodes: OpaqueId[], color: [number, number, number, number] | null, gradient: GradientDef | null): DocumentSummary {
+  return editor.fill_nodes(artboard, nodes, color, gradient) as DocumentSummary
+}
+
+/** Multi-selection scale / rotate: remember where `nodes` start. */
+export function multiTransformBegin(editor: WasmEditor, artboard: OpaqueId, nodes: OpaqueId[]): void {
+  editor.multi_transform_begin(artboard, nodes)
+}
+
+/** Live preview: the world-space affine `[a, b, c, d, tx, ty]` (x axis,
+ * y axis, translation) applied to every node on top of where it started. */
+export function multiTransformPreview(editor: WasmEditor, m: [number, number, number, number, number, number]): void {
+  editor.multi_transform_preview(m[0], m[1], m[2], m[3], m[4], m[5])
+}
+
+/** Ends the drag: `commit` keeps it (one undo step), else reverts. */
+export function multiTransformEnd(editor: WasmEditor, commit: boolean): DocumentSummary {
+  return editor.multi_transform_end(commit) as DocumentSummary
+}
+
 /** Sets (`value`) or clears (`null`) a `Shape` node's `image` — the
  * Inspector's asset-reference swatch. Undoable (`Command::SetShapeImage`). */
 export function setShapeImage(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, value: OpaqueId | null): DocumentSummary {

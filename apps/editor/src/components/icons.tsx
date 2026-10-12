@@ -570,3 +570,33 @@ export function SettingsIcon() {
     </svg>
   )
 }
+
+/** Colour picker: pick a colour from the screen. */
+export function EyedropperIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M10.2 2.8a1.9 1.9 0 0 1 2.7 2.7l-1.4 1.4-2.7-2.7 1.4-1.4z" stroke="currentColor" strokeWidth={STROKE} strokeLinejoin="round" />
+      <path d="M8.8 4.2l3 3M9.9 6.1l-6 6-2 .6.6-2 6-6" stroke="currentColor" strokeWidth={STROKE} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** Copy (two stacked sheets). */
+export function CopyIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth={STROKE} />
+      <path d="M10.5 3.5v-.5A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" stroke="currentColor" strokeWidth={STROKE} strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** Paste (a clipboard). */
+export function PasteIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="3" y="3" width="10" height="11.5" rx="1.5" stroke="currentColor" strokeWidth={STROKE} />
+      <rect x="5.5" y="1.5" width="5" height="3" rx="1" stroke="currentColor" strokeWidth={STROKE} />
+    </svg>
+  )
+}

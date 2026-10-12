@@ -7,6 +7,7 @@
 import { useState, type ReactNode } from 'react'
 import type { GradientDef, Goo2DConfig } from '../ipc/document'
 import { ColorSwatch } from './ColorPicker'
+import { GradientClipboardButtons, type GradientBox } from './GradientClipboard'
 import { Dropdown, GradientStopList, GRADIENT_KINDS, NumberField } from './InspectorPanel'
 import { Slider } from './Slider'
 
@@ -39,7 +40,7 @@ function gradientCss(gradient: GradientDef): string {
 }
 
 /** A colour that can switch to a gradient (in the group owner's space). */
-function PaintField({ label, color, gradient, onColor, onGradient }: { label: string; color: Rgba; gradient: GradientDef | null; onColor: (c: Rgba) => void; onGradient: (g: GradientDef | null) => void }) {
+function PaintField({ label, color, gradient, onColor, onGradient, box = null }: { label: string; color: Rgba; gradient: GradientDef | null; onColor: (c: Rgba) => void; onGradient: (g: GradientDef | null) => void; box?: GradientBox | null }) {
   const [open, setOpen] = useState(false)
   const makeGradient = (): GradientDef => ({
     kind: 'Linear',
@@ -71,6 +72,7 @@ function PaintField({ label, color, gradient, onColor, onGradient }: { label: st
           </button>
         </div>
         {gradient && <button type="button" onClick={() => setOpen((o) => !o)} className="ml-auto h-4 w-12 rounded border border-panel-border" style={{ background: gradientCss(gradient) }} title="Edit gradient" />}
+        <GradientClipboardButtons gradient={gradient} box={box} onPaste={(g) => { onGradient(g); setOpen(true) }} />
       </div>
       {!gradient && <ColorSwatch value={color} onChange={onColor} />}
       {gradient && open && (
@@ -119,7 +121,7 @@ export function AntialiasFields({ value, onChange, standalone = false }: { value
   )
 }
 
-export function Goo2DFields({ config, onChange, antialias = null, onAntialias }: { config: Goo2DConfig; onChange: (c: Goo2DConfig) => void; antialias?: number | null; onAntialias?: (softness: number | null) => void }) {
+export function Goo2DFields({ config, onChange, antialias = null, onAntialias, box = null }: { config: Goo2DConfig; onChange: (c: Goo2DConfig) => void; antialias?: number | null; onAntialias?: (softness: number | null) => void; box?: GradientBox | null }) {
   const update = (patch: Partial<Goo2DConfig>) => onChange({ ...config, ...patch })
   return (
     <div className="flex flex-col gap-1.5">
@@ -129,8 +131,8 @@ export function Goo2DFields({ config, onChange, antialias = null, onAntialias }:
       <Row label="Group" title="Members with the same number are one liquid.">
         <NumberField label="#" value={config.group} onCommit={(v) => update({ group: Math.max(0, Math.round(v)) })} />
       </Row>
-      <PaintField label="Fill" color={config.color} gradient={config.gradient} onColor={(color) => update({ color })} onGradient={(gradient) => update({ gradient })} />
-      <PaintField label="Rim" color={config.edgeColor} gradient={config.edgeGradient} onColor={(edgeColor) => update({ edgeColor })} onGradient={(edgeGradient) => update({ edgeGradient })} />
+      <PaintField label="Fill" color={config.color} gradient={config.gradient} onColor={(color) => update({ color })} onGradient={(gradient) => update({ gradient })} box={box} />
+      <PaintField label="Rim" color={config.edgeColor} gradient={config.edgeGradient} onColor={(edgeColor) => update({ edgeColor })} onGradient={(edgeGradient) => update({ edgeGradient })} box={box} />
       <Row label="Rim width">
         <SliderNum value={config.edgeWidth} min={0} max={30} step={0.5} onChange={(edgeWidth) => update({ edgeWidth })} />
       </Row>
