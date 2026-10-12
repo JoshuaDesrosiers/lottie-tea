@@ -4663,6 +4663,7 @@ function App() {
             content: (
               <LayersPanel
                 artboards={artboards}
+                sortingLayers={editorRef.current && doc ? (editorRef.current.sorting_layers() as { id: number; name: string }[]) : []}
                 selectedNodeIds={multiSelectedIds}
                 onSelectNode={(artboardId, nodeId, event) =>
                   event.ctrlKey || event.metaKey || event.shiftKey ? toggleMultiSelect(artboardId, nodeId) : selectSingle(artboardId, nodeId)

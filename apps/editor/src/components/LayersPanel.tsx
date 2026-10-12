@@ -120,6 +120,10 @@ function KindIcon({ kind }: { kind: NodeSummary['kind'] }) {
  * "double-click to rename in place" convention every layer/file-tree UI
  * uses, rather than a separate rename dialog or Inspector-only field.
  */
+/** Sorting layer id → name, for the rows' layer tags (set by
+ * `LayersPanel` from its `sortingLayers` prop). */
+let sortingLayerNames: Record<number, string> = {}
+
 function LayerPill({
   name,
   kind,
@@ -138,10 +142,14 @@ function LayerPill({
   onAddChild,
   layerMaskCheckbox,
   prefab,
+  sortingLayer,
 }: {
   /** Unity's blue prefab tint: `'root'` on an instance root, `'part'` on
    * the nodes inside it. */
   prefab?: 'root' | 'part'
+  /** The sorting layer this row sets (shown as a tag — it draws above or
+   * below other layers whatever its place in this list). */
+  sortingLayer?: string
   name: string
   kind?: NodeSummary['kind']
   expandable?: boolean
@@ -255,6 +263,14 @@ function LayerPill({
           {kind && <span className={`shrink-0 ${prefab ? 'text-accent' : 'text-ink-dim'}`}>{<KindIcon kind={kind} />}</span>}
           <span className={`truncate ${prefab === 'root' ? 'font-medium text-accent' : prefab === 'part' ? 'text-accent/80' : ''}`} title={prefab ? 'Prefab instance' : undefined}>
             {name}
+            {sortingLayer && (
+              <span
+                className="ml-1 shrink-0 rounded bg-accent/15 px-1 text-[9px] font-medium text-accent"
+                title={`Sorting layer “${sortingLayer}”: drawn with that layer, above or below other layers whatever its place in this list (and its children with it)`}
+              >
+                {sortingLayer}
+              </span>
+            )}
           </span>
           {maskBadge && (
             <span
@@ -552,6 +568,11 @@ function LayerRow({
           onClearMask={isGroup ? () => onSetGroupMask(artboardId, node.id, null) : () => parentNode && onSetGroupMask(artboardId, parentNode.id, null)}
           onAddChild={isGroup ? () => onAddChildShape(artboardId, node.id) : undefined}
           prefab={node.prefab ? (node.prefab.isRoot ? 'root' : 'part') : undefined}
+          sortingLayer={(() => {
+            const own = node.behaviors.find((b) => b.enabled && b.behavior.kind === 'SortingLayer2D')?.behavior
+            if (!own || own.kind !== 'SortingLayer2D') return undefined
+            return sortingLayerNames[own.layer] ?? `Layer ${own.layer}`
+          })()}
           layerMaskCheckbox={
             layerMaskEditing
               ? {
@@ -685,7 +706,11 @@ export function LayersPanel({
   onGroupSelection,
   onAddChildShape,
   layerMaskEditing,
+  sortingLayers = [],
 }: {
+  /** The project's sorting layers (`[{ id, name }]`) — rows on a layer
+   * other than Normal show its name. */
+  sortingLayers?: { id: number; name: string }[]
   artboards: ArtboardSummary[]
   /** Every currently-selected node id (multi-select — Ctrl/Cmd/Shift-click
    * adds/removes from this set) — a plain `[nodeId]` for the common
@@ -712,6 +737,7 @@ export function LayersPanel({
     onToggleNode: (nodeId: OpaqueId) => void
   }
 }) {
+  sortingLayerNames = Object.fromEntries(sortingLayers.filter((l) => l.id !== 0).map((l) => [l.id, l.name]))
   const [draggedId, setDraggedId] = useState<OpaqueId | null>(null)
   // Collapsed group ids, keyed by `idKey` — an artboard's own pseudo-key
   // (`artboard:<idKey>`) lives in the same set, collapsing its whole node
