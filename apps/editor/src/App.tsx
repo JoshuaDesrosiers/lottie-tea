@@ -14,6 +14,7 @@ import { EffectsPanel } from './components/EffectsPanel'
 import { CameraKindIcon, CloseIcon, LightKindIcon, TrailKindIcon, ZoomInIcon, ZoomOutIcon } from './components/icons'
 import { FloatingPanel } from './components/FloatingPanel'
 import { GradientHandle } from './components/GradientHandle'
+import { useGooGradientTarget } from './components/GooFields'
 import { alignDeltas, MultiFillPanel, MultiTransformHandles, type AlignKind, type WorldBox } from './components/MultiSelection'
 import { PathEditOverlay } from './components/PathEditOverlay'
 import { TilemapPaintOverlay } from './components/TilemapPaintOverlay'
@@ -1830,21 +1831,29 @@ function App() {
   // Goo 2D: the selected node's goo gradient gets on-canvas handles too
   // (when its fill has none of its own, or the goo hides it). Goo gradients
   // live in the goo group's owner's space (its first member).
+  const gooGradientTarget = useGooGradientTarget()
   const gooHandle = (() => {
     if (!transformHandlesNode || !activeArtboard || multiSelectedIds.length > 1) return null
     const own = transformHandlesNode.behaviors.find((b) => b.enabled && b.behavior.kind === 'Goo2D')?.behavior
     if (!own || own.kind !== 'Goo2D') return null
-    if (transformHandlesNode.gradient && !own.hideSource) return null
+    // The group's look lives on its owner (first member in document order).
     const owner = activeArtboard.nodes.find((n) => n.behaviors.some((b) => b.enabled && b.behavior.kind === 'Goo2D' && b.behavior.group === own.group))
     if (!owner) return null
     const ownerGoo = owner.behaviors.find((b) => b.enabled && b.behavior.kind === 'Goo2D')!.behavior
-    if (ownerGoo.kind !== 'Goo2D' || !ownerGoo.gradient) return null
-    const commit = (gradient: GradientDef) => {
+    if (ownerGoo.kind !== 'Goo2D') return null
+    // Fill or rim — whichever the Goo 2D fields last picked (falling back
+    // to the one that has a gradient).
+    const wantRim = gooGradientTarget === 'rim' ? !!ownerGoo.edgeGradient || !ownerGoo.gradient : !ownerGoo.gradient
+    const gradient = wantRim ? ownerGoo.edgeGradient : ownerGoo.gradient
+    if (!gradient) return null
+    // A shape with its own visible gradient fill keeps its own handles.
+    if (transformHandlesNode.gradient && !own.hideSource) return null
+    const commit = (next: GradientDef) => {
       if (!editorRef.current) return
-      const behaviors = owner.behaviors.map((b) => (b.behavior.kind === 'Goo2D' ? { ...b, behavior: { ...b.behavior, gradient } } : b))
+      const behaviors = owner.behaviors.map((b) => (b.behavior.kind === 'Goo2D' ? { ...b, behavior: { ...b.behavior, ...(wantRim ? { edgeGradient: next } : { gradient: next }) } } : b))
       setDoc(setNodeBehaviors(editorRef.current, activeArtboard.id, owner.id, behaviors))
     }
-    return { node: { ...owner, gradient: ownerGoo.gradient }, commit }
+    return { node: { ...owner, gradient }, commit }
   })()
 
   // Every Camera node's frame — the scene's own width x height divided by

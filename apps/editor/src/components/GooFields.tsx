@@ -4,7 +4,7 @@
  * Everything with the same group number melts together; the group is drawn
  * with its first member's look (body + rim, each a colour or a gradient).
  */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { GradientDef, Goo2DConfig } from '../ipc/document'
 import { ColorSwatch } from './ColorPicker'
 import { GradientClipboardButtons, type GradientBox } from './GradientClipboard'
@@ -33,25 +33,53 @@ function SliderNum({ value, min, max, step, onChange, digits = 1 }: { value: num
   )
 }
 
-/** A preview of a gradient as CSS (linear colours → display sRGB). */
-function gradientCss(gradient: GradientDef): string {
-  const stop = (c: number[]) => `rgba(${c.slice(0, 3).map((v) => Math.round(Math.pow(Math.max(0, v), 1 / 2.2) * 255)).join(',')},${c[3]})`
-  return `linear-gradient(90deg, ${gradient.stops.map((s) => `${stop(s.color)} ${Math.round(s.offset * 100)}%`).join(', ')})`
+/** Which goo gradient the canvas gradient handles edit — the fill or the
+ * rim (set from the Goo 2D fields; read by the canvas). */
+export type GooGradientTarget = 'fill' | 'rim'
+let gooTarget: GooGradientTarget = 'fill'
+const gooTargetListeners = new Set<() => void>()
+export function getGooGradientTarget(): GooGradientTarget {
+  return gooTarget
+}
+function setGooGradientTarget(t: GooGradientTarget) {
+  gooTarget = t
+  gooTargetListeners.forEach((l) => l())
+}
+/** Re-renders when the goo gradient target changes. */
+export function useGooGradientTarget(): GooGradientTarget {
+  const [, bump] = useState(0)
+  useEffect(() => {
+    const l = () => bump((n) => n + 1)
+    gooTargetListeners.add(l)
+    return () => {
+      gooTargetListeners.delete(l)
+    }
+  }, [])
+  return gooTarget
 }
 
-/** A colour that can switch to a gradient (in the group owner's space). */
-function PaintField({ label, color, gradient, onColor, onGradient, box = null }: { label: string; color: Rgba; gradient: GradientDef | null; onColor: (c: Rgba) => void; onGradient: (g: GradientDef | null) => void; box?: GradientBox | null }) {
-  const [open, setOpen] = useState(false)
-  const makeGradient = (): GradientDef => ({
-    kind: 'Linear',
-    start: { x: -120, y: 0 },
-    end: { x: 120, y: 0 },
-    stops: [
-      { offset: 0, color, midpoint: 0.5 },
-      // A second stop with the channels rotated: an instant, visible pairing to tweak.
-      { offset: 1, color: [color[2], color[0], color[1], color[3]], midpoint: 0.5 },
-    ],
-  })
+/** A colour that can switch to a gradient — edited like a shape's fill:
+ * kind and stops here, the gradient's line on the canvas (Affinity-style
+ * handles: drag the ends, the stops and their midpoints). Points are in the
+ * group owner's (first member's) space. */
+function PaintField({ label, target, color, gradient, onColor, onGradient, box = null }: { label: string; target: GooGradientTarget; color: Rgba; gradient: GradientDef | null; onColor: (c: Rgba) => void; onGradient: (g: GradientDef | null) => void; box?: GradientBox | null }) {
+  const active = useGooGradientTarget()
+  const makeGradient = (): GradientDef => {
+    // Across the object, left to right — like a shape fill's default.
+    const b = box ?? { min: { x: -120, y: 0 }, max: { x: 120, y: 0 } }
+    const midY = (b.min.y + b.max.y) / 2
+    return {
+      kind: 'Linear',
+      start: { x: b.min.x, y: midY },
+      end: { x: b.max.x, y: midY },
+      stops: [
+        { offset: 0, color, midpoint: 0.5 },
+        // A second stop with the channels rotated: an instant, visible pairing to tweak.
+        { offset: 1, color: [color[2], color[0], color[1], color[3]], midpoint: 0.5 },
+      ],
+    }
+  }
+  const onCanvas = gradient && active === target
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
@@ -64,32 +92,40 @@ function PaintField({ label, color, gradient, onColor, onGradient, box = null }:
             type="button"
             onClick={() => {
               if (!gradient) onGradient(makeGradient())
-              setOpen(true)
+              setGooGradientTarget(target)
             }}
             className={`rounded px-2 py-0.5 text-[10px] ${gradient ? 'bg-accent/20 text-accent' : 'text-ink-dim hover:text-ink'}`}
           >
             Gradient
           </button>
         </div>
-        {gradient && <button type="button" onClick={() => setOpen((o) => !o)} className="ml-auto h-4 w-12 rounded border border-panel-border" style={{ background: gradientCss(gradient) }} title="Edit gradient" />}
-        <GradientClipboardButtons gradient={gradient} box={box} onPaste={(g) => { onGradient(g); setOpen(true) }} />
+        <GradientClipboardButtons
+          gradient={gradient}
+          box={box}
+          onPaste={(g) => {
+            onGradient(g)
+            setGooGradientTarget(target)
+          }}
+        />
       </div>
       {!gradient && <ColorSwatch value={color} onChange={onColor} />}
-      {gradient && open && (
+      {gradient && (
         <div className="flex flex-col gap-1 rounded-md bg-overlay/5 p-1.5">
-          <Dropdown value={gradient.kind} options={GRADIENT_KINDS} onChange={(kind) => onGradient({ ...gradient, kind })} />
-          <div className="flex items-center gap-1 text-[10px] text-ink-dim">
-            From
-            <NumberField label="X" value={gradient.start.x} onCommit={(x) => onGradient({ ...gradient, start: { ...gradient.start, x } })} />
-            <NumberField label="Y" value={gradient.start.y} onCommit={(y) => onGradient({ ...gradient, start: { ...gradient.start, y } })} />
+          <div className="flex items-center gap-1">
+            <div className="min-w-0 flex-1">
+              <Dropdown value={gradient.kind} options={GRADIENT_KINDS} onChange={(kind) => onGradient({ ...gradient, kind })} />
+            </div>
+            <button
+              type="button"
+              onClick={() => setGooGradientTarget(target)}
+              title="Edit this gradient's line on the canvas"
+              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${onCanvas ? 'bg-accent/20 text-accent' : 'bg-overlay/10 text-ink-dim hover:text-ink'}`}
+            >
+              {onCanvas ? 'On canvas ✓' : 'Edit on canvas'}
+            </button>
           </div>
-          <div className="flex items-center gap-1 text-[10px] text-ink-dim">
-            To
-            <NumberField label="X" value={gradient.end.x} onCommit={(x) => onGradient({ ...gradient, end: { ...gradient.end, x } })} />
-            <NumberField label="Y" value={gradient.end.y} onCommit={(y) => onGradient({ ...gradient, end: { ...gradient.end, y } })} />
-          </div>
-          <span className="text-[10px] text-ink-dim">Points are in the group's first member's own space.</span>
           <GradientStopList gradient={gradient} onChange={onGradient} />
+          {onCanvas && <span className="text-[10px] text-ink-dim">Drag the line, stops and midpoints on the canvas (select the goo&apos;s first member if the handles aren&apos;t showing).</span>}
         </div>
       )}
     </div>
@@ -131,8 +167,8 @@ export function Goo2DFields({ config, onChange, antialias = null, onAntialias, b
       <Row label="Group" title="Members with the same number are one liquid.">
         <NumberField label="#" value={config.group} onCommit={(v) => update({ group: Math.max(0, Math.round(v)) })} />
       </Row>
-      <PaintField label="Fill" color={config.color} gradient={config.gradient} onColor={(color) => update({ color })} onGradient={(gradient) => update({ gradient })} box={box} />
-      <PaintField label="Rim" color={config.edgeColor} gradient={config.edgeGradient} onColor={(edgeColor) => update({ edgeColor })} onGradient={(edgeGradient) => update({ edgeGradient })} box={box} />
+      <PaintField label="Fill" target="fill" color={config.color} gradient={config.gradient} onColor={(color) => update({ color })} onGradient={(gradient) => update({ gradient })} box={box} />
+      <PaintField label="Rim" target="rim" color={config.edgeColor} gradient={config.edgeGradient} onColor={(edgeColor) => update({ edgeColor })} onGradient={(edgeGradient) => update({ edgeGradient })} box={box} />
       <Row label="Rim width">
         <SliderNum value={config.edgeWidth} min={0} max={30} step={0.5} onChange={(edgeWidth) => update({ edgeWidth })} />
       </Row>
