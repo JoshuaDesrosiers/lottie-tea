@@ -65,13 +65,16 @@ export function useGooGradientTarget(): GooGradientTarget {
 function PaintField({ label, target, color, gradient, onColor, onGradient, box = null }: { label: string; target: GooGradientTarget; color: Rgba; gradient: GradientDef | null; onColor: (c: Rgba) => void; onGradient: (g: GradientDef | null) => void; box?: GradientBox | null }) {
   const active = useGooGradientTarget()
   const makeGradient = (): GradientDef => {
-    // Across the object, left to right — like a shape fill's default.
-    const b = box ?? { min: { x: -120, y: 0 }, max: { x: 120, y: 0 } }
-    const midY = (b.min.y + b.max.y) / 2
+    // Across the object, left to right — like a shape fill's default. A
+    // particle emitter's box is just its small gizmo, so there the line
+    // runs from the emitter up 240 px, along the stream.
+    const tiny = !box || (box.max.x - box.min.x < 60 && box.max.y - box.min.y < 60)
+    const midY = box ? (box.min.y + box.max.y) / 2 : 0
+    const [start, end] = tiny ? [{ x: 0, y: 0 }, { x: 0, y: 240 }] : [{ x: box!.min.x, y: midY }, { x: box!.max.x, y: midY }]
     return {
       kind: 'Linear',
-      start: { x: b.min.x, y: midY },
-      end: { x: b.max.x, y: midY },
+      start,
+      end,
       stops: [
         { offset: 0, color, midpoint: 0.5 },
         // A second stop with the channels rotated: an instant, visible pairing to tweak.
