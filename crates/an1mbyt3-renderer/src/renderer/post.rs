@@ -57,6 +57,9 @@ struct UberUniforms {
     texel: [f32; 4],
     info: [f32; 4],
     ops: [[f32; 4]; MAX_OPS * 3],
+    /// The pass's sampling op (anaglyph, aberration, sharpen, edges,
+    /// distortions): mode + params, 0 = a plain sample.
+    sample: [[f32; 4]; 2],
 }
 
 /// (pass kind, source, second texture, nearest sampler?, uniform slot).
@@ -180,15 +183,31 @@ struct Pending {
     /// A bloom to add (always `Bloom(0)`) and its intensity.
     bloom: Option<f32>,
     ops: Vec<[[f32; 4]; 3]>,
+    /// How the source is sampled (see `sample_op`).
+    sample: Option<[[f32; 4]; 2]>,
 }
 
 impl Pending {
     fn from(source: PostTarget) -> Self {
-        Self { source, pixelate: 0.0, bloom: None, ops: Vec::new() }
+        Self { source, pixelate: 0.0, bloom: None, ops: Vec::new(), sample: None }
     }
     fn has_work(&self) -> bool {
-        self.pixelate > 0.0 || self.bloom.is_some() || !self.ops.is_empty()
+        self.pixelate > 0.0 || self.bloom.is_some() || !self.ops.is_empty() || self.sample.is_some()
     }
+}
+
+/// An effect that reads *neighbouring* pixels (so it runs where the uber
+/// pass samples its source, once per pass): mode + params.
+fn sample_op(effect: &PostEffect) -> Option<[[f32; 4]; 2]> {
+    Some(match *effect {
+        PostEffect::Anaglyph { offset, mono } => [[1.0, offset, mono, 0.0], [0.0; 4]],
+        PostEffect::ChromaticAberration { strength } => [[2.0, strength, 0.0, 0.0], [0.0; 4]],
+        PostEffect::Sharpen { amount } => [[3.0, amount, 0.0, 0.0], [0.0; 4]],
+        PostEffect::EdgeDetect { thickness, threshold, color, only } => [[4.0, thickness, threshold, only], linear_rgba(color)],
+        PostEffect::WaveDistortion { amplitude, frequency, speed } => [[5.0, amplitude, frequency, speed], [0.0; 4]],
+        PostEffect::LensDistortion { strength, zoom } => [[6.0, strength, zoom, 0.0], [0.0; 4]],
+        _ => return None,
+    })
 }
 
 /// The per-pixel colour op an effect is, if it is one.
@@ -198,6 +217,16 @@ fn colour_op(effect: &PostEffect) -> Option<[[f32; 4]; 3]> {
         PostEffect::Posterize { levels } => [[3.0, levels, 0.0, 0.0], [0.0; 4], [0.0; 4]],
         PostEffect::GradientMap { shadow, highlight } => [[4.0, 0.0, 0.0, 0.0], linear_rgba(shadow), linear_rgba(highlight)],
         PostEffect::Vignette { color, intensity, radius, blur } => [[7.0, intensity, radius, blur], linear_rgba(color), [0.0; 4]],
+        PostEffect::Dither { levels, scale, strength, mono, dark, light } => {
+            let (d, l) = (linear_rgba(dark), linear_rgba(light));
+            [[8.0, levels, scale, strength], [d[0], d[1], d[2], mono], l]
+        }
+        PostEffect::Scanlines { intensity, spacing, mask } => [[9.0, intensity, spacing, mask], [0.0; 4], [0.0; 4]],
+        PostEffect::FilmGrain { amount, size } => [[10.0, amount, size, 0.0], [0.0; 4], [0.0; 4]],
+        PostEffect::Halftone { size, angle, ink, paper, mix } => {
+            let (i, p) = (linear_rgba(ink), linear_rgba(paper));
+            [[11.0, size, angle, mix], i, p]
+        }
         _ => return None,
     })
 }
@@ -321,6 +350,15 @@ impl Renderer {
                 pending.ops.push(op);
                 continue;
             }
+            if let Some(op) = sample_op(effect) {
+                // Reads neighbours of the *image so far*: anything queued
+                // becomes an image first (one sampling op per pass).
+                if pending.has_work() {
+                    pending = Pending::from(self.flush_post(encoder, pending, None));
+                }
+                pending.sample = Some(op);
+                continue;
+            }
             match *effect {
                 PostEffect::Pixelate { block_size } => {
                     // Snaps the *sample position*: anything already queued
@@ -362,8 +400,9 @@ impl Renderer {
         }
         let uniforms = UberUniforms {
             texel: [1.0 / width as f32, 1.0 / height as f32, pending.pixelate, pending.bloom.unwrap_or(0.0)],
-            info: [pending.ops.len() as f32, 0.0, 0.0, 0.0],
+            info: [pending.ops.len() as f32, self.shader_time.get(), 0.0, 0.0],
             ops,
+            sample: pending.sample.unwrap_or([[0.0; 4]; 2]),
         };
         let slot = self.post_uniform(bytemuck::bytes_of(&uniforms));
         let bloom = if pending.bloom.is_some() { PostTarget::Bloom(0) } else { PostTarget::Black };

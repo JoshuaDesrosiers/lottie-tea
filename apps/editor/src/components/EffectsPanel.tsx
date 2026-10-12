@@ -129,7 +129,58 @@ export function EffectParams({ effect, onChange }: { effect: PostEffect; onChang
       )
     case 'Vignette':
       return <VignetteFields value={effect} onChange={(v) => onChange({ ...effect, ...v })} />
+    default:
+      return <GenericEffectFields effect={effect} onChange={onChange} />
   }
+}
+
+/** Field specs for the newer effects: `[key, label, step, min, max]` for
+ * numbers, `[key, label, 'color']` for colours, `[key, label, 'toggle']`
+ * for 0/1 switches. */
+type FieldSpec = [string, string, number, number, number] | [string, string, 'color' | 'toggle']
+const EFFECT_FIELDS: Partial<Record<PostEffect['kind'], FieldSpec[]>> = {
+  Anaglyph: [['offset', 'Offset (px)', 0.5, 0, 40], ['mono', 'Mono', 0.05, 0, 1]],
+  Dither: [['levels', 'Levels', 1, 2, 16], ['scale', 'Pixel size', 1, 1, 16], ['strength', 'Strength', 0.05, 0, 2], ['mono', 'Two colours', 'toggle'], ['dark', 'Dark', 'color'], ['light', 'Light', 'color']],
+  ChromaticAberration: [['strength', 'Strength (px)', 0.5, 0, 40]],
+  Scanlines: [['intensity', 'Intensity', 0.05, 0, 1], ['spacing', 'Spacing (px)', 0.5, 1, 16], ['mask', 'RGB mask', 0.05, 0, 1]],
+  FilmGrain: [['amount', 'Amount', 0.01, 0, 1], ['size', 'Grain (px)', 0.25, 0.5, 8]],
+  Sharpen: [['amount', 'Amount', 0.05, 0, 2]],
+  EdgeDetect: [['thickness', 'Thickness (px)', 0.25, 0.5, 8], ['threshold', 'Threshold', 0.02, 0, 2], ['color', 'Ink', 'color'], ['only', 'Lines only', 'toggle']],
+  Halftone: [['size', 'Dot spacing (px)', 0.5, 2, 40], ['angle', 'Angle', 5, 0, 180], ['mix', 'Mix original', 0.05, 0, 1], ['ink', 'Ink', 'color'], ['paper', 'Paper', 'color']],
+  WaveDistortion: [['amplitude', 'Amplitude (px)', 0.5, 0, 60], ['frequency', 'Waves', 0.5, 0, 60], ['speed', 'Speed', 0.1, -20, 20]],
+  LensDistortion: [['strength', 'Strength', 0.02, -1, 1], ['zoom', 'Zoom', 0.01, 0.5, 2]],
+}
+
+/** The newer effects' fields, from `EFFECT_FIELDS`. */
+function GenericEffectFields({ effect, onChange }: { effect: PostEffect; onChange: (effect: PostEffect) => void }) {
+  const fields = EFFECT_FIELDS[effect.kind] ?? []
+  const values = effect as unknown as Record<string, number | [number, number, number, number]>
+  const set = (key: string, value: unknown) => onChange({ ...effect, [key]: value } as PostEffect)
+  return (
+    <>
+      {fields.map((spec) => {
+        const [key, label] = spec
+        if (spec[2] === 'color') {
+          return (
+            <label key={key} className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+              {label}
+              <ColorSwatch value={values[key] as [number, number, number, number]} onChange={(c) => set(key, c)} />
+            </label>
+          )
+        }
+        if (spec[2] === 'toggle') {
+          return (
+            <label key={key} className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+              <input type="checkbox" checked={(values[key] as number) > 0.5} onChange={(e) => set(key, e.target.checked ? 1 : 0)} />
+              {label}
+            </label>
+          )
+        }
+        const [, , step, min, max] = spec as [string, string, number, number, number]
+        return <NumberField key={key} label={label} value={values[key] as number} step={step} onCommit={(v) => set(key, Math.min(max, Math.max(min, v)))} />
+      })}
+    </>
+  )
 }
 
 /** Color/Intensity/Radius/Blur — shared by the Vignette post effect and the

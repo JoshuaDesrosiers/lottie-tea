@@ -279,6 +279,102 @@ impl Node {
         })
     }
 
+    /// This node's enabled DropShadow2D, if any.
+    pub fn drop_shadow(&self) -> Option<&crate::DropShadow2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::DropShadow2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Outline2D, if any.
+    pub fn outline2d(&self) -> Option<&crate::Outline2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Outline2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Repeater2D, if any.
+    pub fn repeater(&self) -> Option<&crate::Repeater2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Repeater2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Mirror2D, if any.
+    pub fn mirror2d(&self) -> Option<&crate::Mirror2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Mirror2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Wiggle2D, if any.
+    pub fn wiggle(&self) -> Option<&crate::Wiggle2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Wiggle2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Parallax2D, if any.
+    pub fn parallax(&self) -> Option<&crate::Parallax2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Parallax2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled PixelSnap2D, if any.
+    pub fn pixel_snap(&self) -> Option<&crate::PixelSnap2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::PixelSnap2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled StrokeStyle2D, if any.
+    pub fn stroke_style(&self) -> Option<&crate::StrokeStyle2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::StrokeStyle2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled CameraShake2D, if any.
+    pub fn camera_shake(&self) -> Option<&crate::CameraShake2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::CameraShake2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's own enabled Sorting Layer, if any.
+    pub fn sorting_layer(&self) -> Option<u32> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::SortingLayer2D(value) if entry.enabled => Some(value.layer),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Light Layers, if any.
+    pub fn light_layers(&self) -> Option<&crate::LightLayers2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::LightLayers2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
+    /// This node's enabled Light Flicker, if any.
+    pub fn light_flicker(&self) -> Option<&crate::LightFlicker2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::LightFlicker2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Particle Look, if any.
     pub fn particle_look(&self) -> Option<&crate::ParticleLook2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

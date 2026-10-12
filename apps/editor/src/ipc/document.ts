@@ -925,6 +925,16 @@ export type PostEffect =
   | { kind: 'Posterize'; levels: number }
   | { kind: 'GradientMap'; shadow: [number, number, number, number]; highlight: [number, number, number, number] }
   | { kind: 'Vignette'; color: [number, number, number, number]; intensity: number; radius: number; blur: number }
+  | { kind: 'Anaglyph'; offset: number; mono: number }
+  | { kind: 'Dither'; levels: number; scale: number; strength: number; mono: number; dark: [number, number, number, number]; light: [number, number, number, number] }
+  | { kind: 'ChromaticAberration'; strength: number }
+  | { kind: 'Scanlines'; intensity: number; spacing: number; mask: number }
+  | { kind: 'FilmGrain'; amount: number; size: number }
+  | { kind: 'Sharpen'; amount: number }
+  | { kind: 'EdgeDetect'; thickness: number; threshold: number; color: [number, number, number, number]; only: number }
+  | { kind: 'Halftone'; size: number; angle: number; ink: [number, number, number, number]; paper: [number, number, number, number]; mix: number }
+  | { kind: 'WaveDistortion'; amplitude: number; frequency: number; speed: number }
+  | { kind: 'LensDistortion'; strength: number; zoom: number }
 
 /** Mirrors `crates/an1mbyt3-wasm/src/dto.rs`'s `PostEffectLayerDto` — one
  * entry in an artboard's post-processing stack. `enabled` lets an entry be
@@ -950,6 +960,16 @@ export const POST_EFFECT_DEFAULTS: Record<PostEffect['kind'], PostEffect> = {
   Posterize: { kind: 'Posterize', levels: 4 },
   GradientMap: { kind: 'GradientMap', shadow: [0.05, 0.0, 0.2, 1.0], highlight: [1.0, 0.8, 0.3, 1.0] },
   Vignette: { kind: 'Vignette', color: [0, 0, 0, 1], intensity: 0.45, radius: 0.75, blur: 0.5 },
+  Anaglyph: { kind: 'Anaglyph', offset: 4, mono: 0 },
+  Dither: { kind: 'Dither', levels: 4, scale: 1, strength: 1, mono: 0, dark: [0.06, 0.22, 0.06, 1], light: [0.61, 0.74, 0.06, 1] },
+  ChromaticAberration: { kind: 'ChromaticAberration', strength: 4 },
+  Scanlines: { kind: 'Scanlines', intensity: 0.35, spacing: 3, mask: 0.25 },
+  FilmGrain: { kind: 'FilmGrain', amount: 0.12, size: 1.5 },
+  Sharpen: { kind: 'Sharpen', amount: 0.6 },
+  EdgeDetect: { kind: 'EdgeDetect', thickness: 1, threshold: 0.2, color: [0.05, 0.04, 0.08, 1], only: 0 },
+  Halftone: { kind: 'Halftone', size: 6, angle: 45, ink: [0.08, 0.08, 0.12, 1], paper: [0.98, 0.96, 0.9, 1], mix: 0 },
+  WaveDistortion: { kind: 'WaveDistortion', amplitude: 4, frequency: 6, speed: 2 },
+  LensDistortion: { kind: 'LensDistortion', strength: 0.25, zoom: 1.05 },
 }
 
 export interface DocumentSummary {
@@ -1567,6 +1587,18 @@ export type NodeBehavior =
   | ({ kind: 'GroupFill' } & GroupFillConfig)
   | ({ kind: 'GooMaterial2D' } & GooMaterial2DConfig)
   | ({ kind: 'ParticleLook2D' } & ParticleLook2DConfig)
+  | { kind: 'SortingLayer2D'; layer: number }
+  | { kind: 'LightLayers2D'; layers: number[] }
+  | { kind: 'LightFlicker2D'; amount: number; speed: number; smoothness: number; radiusAmount: number; seed: number }
+  | { kind: 'DropShadow2D'; color: [number, number, number, number]; offset: [number, number]; softness: number }
+  | { kind: 'Outline2D'; color: [number, number, number, number]; width: number; smooth: boolean }
+  | { kind: 'Repeater2D'; count: number; offset: [number, number]; rotation: number; scale: number; endOpacity: number }
+  | { kind: 'Mirror2D'; x: boolean; y: boolean }
+  | { kind: 'Wiggle2D'; position: number; rotation: number; scale: number; frequency: number; seed: number }
+  | { kind: 'Parallax2D'; factor: [number, number] }
+  | { kind: 'PixelSnap2D'; grid: number; angleStep: number }
+  | { kind: 'StrokeStyle2D'; dash: number; gap: number; dashOffset: number; trimStart: number; trimEnd: number; trimOffset: number }
+  | { kind: 'CameraShake2D'; amplitude: number; frequency: number; recovery: number; constant: number }
 
 export type ParticleShape2D = 'Circle' | 'Square' | 'Triangle' | 'Diamond' | 'Star' | 'Hexagon' | 'Ring' | 'Streak' | 'Image' | 'Shape'
 

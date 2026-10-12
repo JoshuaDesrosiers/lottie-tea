@@ -154,6 +154,32 @@ pub enum NodeBehavior {
     /// [`crate::ParticleLook2D`]: a 2D particle system's particle shape,
     /// blend mode and glow. (Appended last.)
     ParticleLook2D(crate::ParticleLook2D),
+    /// [`crate::SortingLayer2D`]: which sorting layer a node draws on.
+    /// (Appended last.)
+    SortingLayer2D(crate::SortingLayer2D),
+    /// [`crate::LightLayers2D`]: the sorting layers a Light 2D lights.
+    /// (Appended last.)
+    LightLayers2D(crate::LightLayers2D),
+    /// [`crate::LightFlicker2D`]: a Light 2D's flicker. (Appended last.)
+    LightFlicker2D(crate::LightFlicker2D),
+    /// [`crate::DropShadow2D`] (appended last).
+    DropShadow2D(crate::DropShadow2D),
+    /// [`crate::Outline2D`] (appended last).
+    Outline2D(crate::Outline2D),
+    /// [`crate::Repeater2D`] (appended last).
+    Repeater2D(crate::Repeater2D),
+    /// [`crate::Mirror2D`] (appended last).
+    Mirror2D(crate::Mirror2D),
+    /// [`crate::Wiggle2D`] (appended last).
+    Wiggle2D(crate::Wiggle2D),
+    /// [`crate::Parallax2D`] (appended last).
+    Parallax2D(crate::Parallax2D),
+    /// [`crate::PixelSnap2D`] (appended last).
+    PixelSnap2D(crate::PixelSnap2D),
+    /// [`crate::StrokeStyle2D`] (appended last).
+    StrokeStyle2D(crate::StrokeStyle2D),
+    /// [`crate::CameraShake2D`] (appended last).
+    CameraShake2D(crate::CameraShake2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

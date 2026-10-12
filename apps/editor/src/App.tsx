@@ -14,7 +14,7 @@ import { EffectsPanel } from './components/EffectsPanel'
 import { CameraKindIcon, CloseIcon, LightKindIcon, TrailKindIcon, ZoomInIcon, ZoomOutIcon } from './components/icons'
 import { FloatingPanel } from './components/FloatingPanel'
 import { GradientHandle } from './components/GradientHandle'
-import { MultiFillPanel, MultiTransformHandles, type WorldBox } from './components/MultiSelection'
+import { alignDeltas, MultiFillPanel, MultiTransformHandles, type AlignKind, type WorldBox } from './components/MultiSelection'
 import { PathEditOverlay } from './components/PathEditOverlay'
 import { TilemapPaintOverlay } from './components/TilemapPaintOverlay'
 import { TilePalettePanel } from './components/TilePalettePanel'
@@ -1789,6 +1789,32 @@ function App() {
     const bottomRight = worldToScreen(multiSelectionWorldBox.maxX, multiSelectionWorldBox.minY, camera, canvasSize)
     return { left: topLeft.x, top: topLeft.y, width: bottomRight.x - topLeft.x, height: bottomRight.y - topLeft.y }
   })()
+
+  // Align & distribute the multi-selection (each node by its world box).
+  const handleAlign = (kind: AlignKind) => {
+    if (!editorRef.current || !selection) return
+    const artboard = artboards.find((a) => idsEqual(a.id, selection.artboardId))
+    if (!artboard) return
+    const boxOf = (id: OpaqueId): WorldBox | null => {
+      const node = artboard.nodes.find((n) => idsEqual(n.id, id))
+      if (!node) return null
+      const { translation, rotation, scale } = node.worldTransform
+      const cos = Math.cos(rotation)
+      const sin = Math.sin(rotation)
+      const xs: number[] = []
+      const ys: number[] = []
+      for (const c of [node.localMin, { x: node.localMax.x, y: node.localMin.y }, node.localMax, { x: node.localMin.x, y: node.localMax.y }]) {
+        const sx = c.x * scale.x
+        const sy = c.y * scale.y
+        xs.push(translation.x + sx * cos - sy * sin)
+        ys.push(translation.y + sx * sin + sy * cos)
+      }
+      return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) }
+    }
+    const ids = multiSelectedIds.filter((id) => boxOf(id))
+    const deltas = alignDeltas(kind, ids.map((id) => boxOf(id)!))
+    setDoc(editorRef.current.translate_nodes(selection.artboardId, ids, Float32Array.from(deltas.flat())) as DocumentSummary)
+  }
 
   // A multi-selection's Fill (see `MultiFillPanel`): its colour and its
   // world-space gradient, which only exist while that selection does.
@@ -4664,6 +4690,7 @@ function App() {
                   gradient={currentMultiFill.gradient}
                   onColor={(c) => applyMultiFill(c, null)}
                   onGradient={(g) => applyMultiFill(null, g)}
+                  onAlign={handleAlign}
                 />
               )}
               {selectedNode && multiSelectedIds.length <= 1 && (

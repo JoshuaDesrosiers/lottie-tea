@@ -132,6 +132,10 @@ pub use ui::{slider_fraction, stack_positions, StackAlign, StackDirection, UiAnc
 pub use space3d::{AnimationName, Camera3D, Light3D, Light3DKind, Mesh3D, Node3D, Node3DContent, Primitive3D, Transform3D};
 pub use shader_graph::{compile_wgsl, ShaderDomain, ShaderEdgeDef, ShaderGraphDef, ShaderGraphError, ShaderNodeDef, ShaderNodeKind, ShaderType};
 pub use node::{BoneNode, CameraNode, CameraVignette, GroupNode, PixelCropFrame, PixelGridSnapping, PixelPerfect, ImageNode, Node, NodeKind, ShapeNode, Stroke, StrokeCap, StrokeJoin, TextNode};
+pub mod effects2d;
+pub use effects2d::{DropShadow2D, Outline2D, Repeater2D, Mirror2D, Wiggle2D, Parallax2D, PixelSnap2D, StrokeStyle2D, CameraShake2D, noise1};
+pub use document::SortingLayerDef;
+pub use light2d::{LightFlicker2D, LightLayers2D, SortingLayer2D};
 pub use particle::{ParticleLook2D, ParticleShape2D, EmitterShape, ParticleBurst, ParticleEmission, ParticleMain, ParticleRange, ParticleSystemNode, SimulationSpace, SizeKeyframe};
 pub use path::{Path, PathCommand};
 pub use rig2d::{affine_to_array, array_to_affine, HingeJoint2D, IkConstraint2D, SpriteSkin2D};

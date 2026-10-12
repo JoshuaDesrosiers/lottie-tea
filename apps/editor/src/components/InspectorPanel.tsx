@@ -48,6 +48,7 @@ import { POST_EFFECT_DEFAULTS } from '../ipc/document'
 import type { WasmEditor } from '../ipc/wasmEditor'
 import { ColorSwatch } from './ColorPicker'
 import { GradientClipboardButtons } from './GradientClipboard'
+import { LightLayersFields, SimpleComponentFields, SIMPLE_COMPONENT_FIELDS, SortingLayerField } from './Effects2DFields'
 import { EFFECT_KINDS, EffectParams, VignetteFields } from './EffectsPanel'
 import { Light2DFields, MaterialField, TrailFields } from './LightingFields'
 import {
@@ -704,8 +705,34 @@ function BehaviorsFields({
       }
       case 'Light2D': {
         const { kind: _k, ...config } = behavior
-        return <Light2DFields bare config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'Light2D', ...c })} />
+        const layersEntry = behaviors.find((b) => b.behavior.kind === 'LightLayers2D')
+        const lightLayers = layersEntry && layersEntry.behavior.kind === 'LightLayers2D' ? layersEntry.behavior.layers : null
+        const setLayers = (layers: number[] | null) => {
+          const rest = behaviors.filter((b) => b.behavior.kind !== 'LightLayers2D')
+          onChange(layers === null ? rest : [...rest, { behavior: { kind: 'LightLayers2D', layers }, enabled: true }])
+        }
+        const hasFlicker = behaviors.some((b) => b.behavior.kind === 'LightFlicker2D')
+        return (
+          <div className="flex flex-col gap-1.5">
+            <Light2DFields bare config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'Light2D', ...c })} />
+            <span className="mt-1 text-[11px] font-medium text-ink-dim">Sorting layers lit</span>
+            <LightLayersFields editor={editor} layers={lightLayers} onChange={setLayers} revision={node} />
+            {!hasFlicker && (
+              <button
+                type="button"
+                onClick={() => onChange([...behaviors, { behavior: { kind: 'LightFlicker2D', amount: 0.35, speed: 8, smoothness: 0.6, radiusAmount: 0.1, seed: 0 }, enabled: true }])}
+                className="self-start rounded bg-overlay/10 px-2 py-0.5 text-[11px] text-ink hover:bg-accent/20 hover:text-accent"
+              >
+                + Flicker
+              </button>
+            )}
+          </div>
+        )
       }
+      case 'LightLayers2D':
+        return <p className="text-[10px] leading-snug text-ink-dim">Which sorting layers this light lights — set under its Light 2D.</p>
+      case 'SortingLayer2D':
+        return <p className="text-[10px] leading-snug text-ink-dim">This node&apos;s sorting layer — change it with the Layer field above.</p>
       case 'TrailRenderer': {
         const { kind: _k, ...config } = behavior
         return <TrailFields bare config={config} images={images} editor={editor} onChange={(c) => replaceAt(index, { kind: 'TrailRenderer', ...c })} />
@@ -1196,7 +1223,7 @@ function BehaviorsFields({
         )
       }
       default:
-        return null
+        return SIMPLE_COMPONENT_FIELDS[behavior.kind] ? <SimpleComponentFields behavior={behavior} onChange={(b) => replaceAt(index, b)} /> : null
     }
   }
 
@@ -2664,6 +2691,8 @@ export function InspectorPanel({
         <span className="w-20 shrink-0 text-[11px] text-ink-dim">Z Index</span>
         <NumberField label="z" value={node.zIndex} step={1} onCommit={onSetNodeZIndex} />
       </div>
+
+      {node.kind !== 'Node3D' && <SortingLayerField editor={editor} behaviors={node.behaviors} onSetBehaviors={onSetNodeBehaviors} onDocumentChange={onDocumentChange} revision={node} />}
 
       {node.kind === 'Group' && node.groupYSort !== null && (
         <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">

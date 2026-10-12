@@ -1119,7 +1119,7 @@ fn build_scene_ops<'a>(
     // carry over into that overlay (unlit content draws unclipped).
     if let Some(unlit) = unlit_split {
         if node.unlit {
-            if !node.deleted && node.visible {
+            if !node.deleted && node.visible && editor.scene_collect_unlit.get() {
                 collect_unlit_subtree(editor, artboard, index, node_id, unlit);
             }
             return;
@@ -1137,7 +1137,7 @@ fn collect_unlit_subtree<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core
         return;
     }
     if !index.is_mask_target(node_id) {
-        out.extend(node_draws(editor, artboard, node_id, node));
+        out.extend(apply_draw_effects(editor, artboard, node_id, node_draws(editor, artboard, node_id, node)));
     }
     for &child_id in index.children(Some(node_id)) {
         collect_unlit_subtree(editor, artboard, index, child_id, out);
@@ -1178,8 +1178,11 @@ fn build_scene_ops_lit<'a>(
     }
 
     let is_mask_target = index.is_mask_target(node_id);
-    if !is_mask_target {
-        for draw in node_draws(editor, artboard, node_id, node) {
+    // Sorting layers: a layer pass draws only its own layer's nodes (the
+    // walk still visits everything, so masks / clips stay correct).
+    let on_layer = editor.scene_layer_filter.get().is_none_or(|f| effective_layer(artboard, node_id) == f);
+    if !is_mask_target && on_layer {
+        for draw in apply_draw_effects(editor, artboard, node_id, node_draws(editor, artboard, node_id, node)) {
             if depth == 0 {
                 unmasked.push(draw);
             } else {
@@ -2634,6 +2637,17 @@ pub struct WasmEditor {
     /// each moved node's transform when it started (see
     /// `multi_transform_begin`).
     multi_transform: Option<(ArtboardId, Vec<(NodeId, an1mbyt3_core::Transform2D)>)>,
+    /// The scene walk's current sorting-layer pass (`None` = every layer)
+    /// and whether it also collects the unlit overlay (only one pass may).
+    scene_layer_filter: std::cell::Cell<Option<u32>>,
+    scene_collect_unlit: std::cell::Cell<bool>,
+    /// Draw bindings for draw-effect copies (shadows, outlines, repeats,
+    /// mirrors) — handed out during the scene walk, reset each frame.
+    effect_bindings: BindingArena,
+    /// The scene camera's position this frame (Parallax).
+    effect_camera_pan: std::cell::Cell<Vec2>,
+    /// Camera Shake "trauma" per camera (0..1), decaying each frame.
+    camera_trauma: HashMap<NodeId, f32>,
     /// Move / rotate / scale (W / E / R).
     view3d_mode: crate::view3d::GizmoMode,
     /// A selected bone of the selected avatar (humanoid name): the gizmo
@@ -3150,6 +3164,11 @@ impl WasmEditor {
             view3d_camera: crate::view3d::EditorCamera3D::default(),
             view3d_selected: None,
             multi_transform: None,
+            scene_layer_filter: std::cell::Cell::new(None),
+            scene_collect_unlit: std::cell::Cell::new(true),
+            effect_bindings: BindingArena::default(),
+            effect_camera_pan: std::cell::Cell::new(Vec2::ZERO),
+            camera_trauma: HashMap::new(),
             view3d_hot: None,
             view3d_mode: crate::view3d::GizmoMode::Move,
             view3d_bone: None,
@@ -3639,6 +3658,26 @@ impl WasmEditor {
         self.sync_materials();
         self.shader_clock += delta_seconds.max(0.0);
         self.renderer.set_shader_time(self.shader_clock);
+        // Draw-effect copies hand out fresh bindings each frame; Camera
+        // Shake trauma settles.
+        self.effect_bindings.reset();
+        if !self.camera_trauma.is_empty() {
+            let dt = delta_seconds.max(0.0);
+            let recovery: HashMap<NodeId, f32> = self
+                .camera_trauma
+                .keys()
+                .map(|id| (*id, self.document.artboard(artboard_id).and_then(|a| a.node(*id)).and_then(|n| n.camera_shake()).map_or(0.5, |s| s.recovery.max(0.01))))
+                .collect();
+            self.camera_trauma.retain(|id, t| {
+                *t -= dt / recovery[id];
+                *t > 0.0
+            });
+        }
+        // Parallax follows the scene camera.
+        if let Some(a) = self.document.artboard(artboard_id) {
+            let pan = a.active_camera().and_then(|c| a.try_world_transform(c)).map_or(Vec2::ZERO, |t| t.translation);
+            self.effect_camera_pan.set(pan);
+        }
         // 3D: gather this frame's Node3Ds for the renderer's 3D pass.
         let t3d = crate::profiler::now_ms();
         self.collect_scene_3d(artboard_id);
@@ -3707,7 +3746,12 @@ impl WasmEditor {
             // frame by `node_draws`, same as the fill's own paint fields.
             match &shape.stroke {
                 Some(stroke) => {
-                    let source_key = (shape.path.clone(), stroke.width, stroke.cap, stroke.join);
+                    // Stroke Style: dashes / Trim Path reshape the stroked path.
+                    let stroked = match node.stroke_style() {
+                        Some(style) => style_stroke_path(&shape.path, style),
+                        None => shape.path.clone(),
+                    };
+                    let source_key = (stroked.clone(), stroke.width, stroke.cap, stroke.join);
                     if self.stroke_mesh_source.get(&node_id) != Some(&source_key) {
                         let style = StrokeStyle {
                             width: stroke.width,
@@ -3722,7 +3766,7 @@ impl WasmEditor {
                                 an1mbyt3_core::StrokeJoin::Bevel => StrokeJoin::Bevel,
                             },
                         };
-                        let mesh = tessellate_stroke(&shape.path, &style);
+                        let mesh = tessellate_stroke(&stroked, &style);
                         if mesh.positions.is_empty() || mesh.indices.is_empty() {
                             self.stroke_mesh_cache.remove(&node_id);
                             self.stroke_mesh_source.remove(&node_id);
@@ -4367,15 +4411,50 @@ impl WasmEditor {
         // 2D lighting (Unity URP-style): only switches on when the scene
         // actually contains a Light2D, so unlit scenes render exactly as
         // before. See `lighting2d` / `an1mbyt3_renderer::Lighting`.
-        let collected_lights = crate::lighting2d::collect_lights(artboard);
+        let collected_lights = crate::lighting2d::collect_lights(artboard, self.shader_clock);
         let lighting_on = collected_lights.any_light;
         let mut unlit_draws: Vec<DrawCall> = Vec::new();
         // One O(N) pass for draw order + mask targets (the walk below would
         // otherwise rescan every node at every node — O(N²)).
         let scene_index = artboard.scene_index();
-        for &root_id in scene_index.children(None) {
-            let split = if lighting_on { Some(&mut unlit_draws) } else { None };
-            build_scene_ops(self, artboard, &scene_index, root_id, 0, 0, &mut next_island, &mut unmasked, &mut masked, split);
+        // Sorting layers: one walk per layer in use, back to front (just
+        // one plain walk when everything is on one layer). With per-layer
+        // light filters, consecutive layers lit alike become light groups.
+        let layer_order: Vec<u32> = self.document.sorting_layers().iter().map(|l| l.id).collect();
+        let used = used_layers(artboard, &layer_order);
+        let grouping = lighting_on && collected_lights.filtered;
+        // (layer, unmasked, masked) per walk.
+        let mut layer_parts: Vec<(Option<u32>, Vec<DrawCall>, Vec<an1mbyt3_renderer::SceneOp>)> = Vec::new();
+        let passes: Vec<Option<u32>> = if used.len() > 1 || grouping { used.iter().map(|l| Some(*l)).collect() } else { vec![None] };
+        for (i, pass) in passes.iter().enumerate() {
+            self.scene_layer_filter.set(*pass);
+            self.scene_collect_unlit.set(i == 0);
+            let (mut u, mut m) = (Vec::new(), Vec::new());
+            for &root_id in scene_index.children(None) {
+                let split = if lighting_on { Some(&mut unlit_draws) } else { None };
+                build_scene_ops(self, artboard, &scene_index, root_id, 0, 0, &mut next_island, &mut u, &mut m, split);
+            }
+            layer_parts.push((*pass, u, m));
+        }
+        self.scene_layer_filter.set(None);
+        self.scene_collect_unlit.set(true);
+        // Light groups: runs of layers that the same lights reach.
+        let lights_reaching = |layer: u32| -> Vec<usize> { collected_lights.lights.iter().enumerate().filter(|(_, l)| l.layers.as_ref().is_none_or(|ls| ls.contains(&layer))).map(|(i, _)| i).collect() };
+        let mut group_parts: Vec<(Vec<DrawCall>, Vec<an1mbyt3_renderer::SceneOp>, Vec<usize>, ([f32; 3], [f32; 3]))> = Vec::new();
+        if grouping {
+            for (layer, u, m) in layer_parts.drain(..) {
+                let layer = layer.unwrap_or(0);
+                let reach = lights_reaching(layer);
+                let ambient = collected_lights.ambient_for(layer);
+                match group_parts.last_mut() {
+                    Some(g) if g.2 == reach && g.3 == ambient => append_scene_parts(&mut g.0, &mut g.1, u, m),
+                    _ => group_parts.push((u, m, reach, ambient)),
+                }
+            }
+        } else {
+            for (_, u, m) in layer_parts.drain(..) {
+                append_scene_parts(&mut unmasked, &mut masked, u, m);
+            }
         }
         let light_casters = if lighting_on {
             crate::lighting2d::collect_casters(artboard, |id| crate::dto::local_bounds(artboard, id), |id| self.caster_local_outline(artboard, id))
@@ -4459,12 +4538,20 @@ impl WasmEditor {
                 }
             }
         }
+        // Each light group's own lights (the same draws, filtered).
+        let group_lights: Vec<Vec<an1mbyt3_renderer::LightDraw>> = group_parts.iter().map(|g| g.2.iter().filter_map(|&i| light_draws.get(i).copied()).collect()).collect();
+        let lit_groups: Vec<an1mbyt3_renderer::LitGroup> = group_parts
+            .iter()
+            .zip(group_lights.iter())
+            .map(|(g, lights)| an1mbyt3_renderer::LitGroup { unmasked: &g.0, masked: &g.1, ambient_multiply: g.3 .0, ambient_additive: g.3 .1, lights })
+            .collect();
         let lighting = lighting_on.then(|| an1mbyt3_renderer::Lighting {
             ambient_multiply: collected_lights.ambient_multiply,
             ambient_additive: collected_lights.ambient_additive,
             lights: &light_draws,
             casters: &light_casters,
             unlit: &unlit_draws,
+            groups: &lit_groups,
         });
 
         if let Some(dot_mesh) = &self.motion_path_dot_mesh {
@@ -4887,6 +4974,15 @@ impl WasmEditor {
         let camera_node = artboard.node(camera_id).filter(|n| !n.deleted)?;
         let camera = *camera_node.camera()?;
         let mut pan = artboard.try_world_transform(camera_id)?.translation;
+        // Camera Shake: trauma² × noise.
+        if let Some(shake) = camera_node.camera_shake() {
+            let trauma = self.camera_trauma.get(&camera_id).copied().unwrap_or(0.0).max(shake.constant.clamp(0.0, 1.0));
+            if trauma > 0.0 {
+                let t = self.shader_clock * shake.frequency.max(0.0);
+                let k = trauma * trauma * shake.amplitude;
+                pan += Vec2::new(an1mbyt3_core::noise1(t, 1, 7), an1mbyt3_core::noise1(t, 2, 7)) * k;
+            }
+        }
         let mut frame_w = artboard.width.max(1.0) / camera.zoom.max(0.01);
         let mut frame_h = artboard.height.max(1.0) / camera.zoom.max(0.01);
         if artboard.screen.mode == an1mbyt3_core::ScreenMode::Responsive {
@@ -7379,6 +7475,18 @@ impl WasmEditor {
             "BoneAttachment" => B::BoneAttachment(an1mbyt3_core::BoneAttachment::default()),
             "GooMaterial2D" => B::GooMaterial2D(an1mbyt3_core::GooMaterial2D::default()),
             "ParticleLook2D" => B::ParticleLook2D(an1mbyt3_core::ParticleLook2D::default()),
+            "SortingLayer2D" => B::SortingLayer2D(an1mbyt3_core::SortingLayer2D::default()),
+            "LightLayers2D" => B::LightLayers2D(an1mbyt3_core::LightLayers2D::default()),
+            "LightFlicker2D" => B::LightFlicker2D(an1mbyt3_core::LightFlicker2D::default()),
+            "DropShadow2D" => B::DropShadow2D(an1mbyt3_core::DropShadow2D::default()),
+            "Outline2D" => B::Outline2D(an1mbyt3_core::Outline2D::default()),
+            "Repeater2D" => B::Repeater2D(an1mbyt3_core::Repeater2D::default()),
+            "Mirror2D" => B::Mirror2D(an1mbyt3_core::Mirror2D::default()),
+            "Wiggle2D" => B::Wiggle2D(an1mbyt3_core::Wiggle2D::default()),
+            "Parallax2D" => B::Parallax2D(an1mbyt3_core::Parallax2D::default()),
+            "PixelSnap2D" => B::PixelSnap2D(an1mbyt3_core::PixelSnap2D::default()),
+            "StrokeStyle2D" => B::StrokeStyle2D(an1mbyt3_core::StrokeStyle2D::default()),
+            "CameraShake2D" => B::CameraShake2D(an1mbyt3_core::CameraShake2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -11828,6 +11936,68 @@ impl WasmEditor {
         self.document_summary()
     }
 
+    /// The project's sorting layers, back to front: `[{ id, name }]`.
+    pub fn sorting_layers(&self) -> Result<JsValue, JsValue> {
+        #[derive(serde::Serialize)]
+        struct L {
+            id: u32,
+            name: String,
+        }
+        to_js_value(&self.document.sorting_layers().into_iter().map(|l| L { id: l.id, name: l.name }).collect::<Vec<_>>())
+    }
+
+    /// Replaces the sorting layers (`[{ id, name }]`, back to front).
+    pub fn set_sorting_layers(&mut self, layers: JsValue) -> Result<JsValue, JsValue> {
+        #[derive(serde::Deserialize)]
+        struct L {
+            id: u32,
+            name: String,
+        }
+        let layers: Vec<L> = parse_id(layers)?;
+        self.document.set_sorting_layers(layers.into_iter().map(|l| an1mbyt3_core::SortingLayerDef { id: l.id, name: l.name }).collect());
+        self.document_summary()
+    }
+
+    /// Script API (`ref.shake2(amount)`): kicks a camera's Camera Shake
+    /// (adds `amount` 0..1 of trauma).
+    pub fn camera_shake(&mut self, node: JsValue, amount: f32) -> Result<(), JsValue> {
+        let node_id: NodeId = parse_id(node)?;
+        let t = self.camera_trauma.entry(node_id).or_insert(0.0);
+        *t = (*t + amount.max(0.0)).min(1.0);
+        Ok(())
+    }
+
+    /// Align & distribute: moves each of `nodes` by its own world-space
+    /// `deltas` (`[dx, dy, dx, dy, …]`), as one undo step.
+    pub fn translate_nodes(&mut self, artboard: JsValue, nodes: JsValue, deltas: Vec<f32>) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let nodes: Vec<NodeId> = parse_id(nodes)?;
+        let moves: Vec<(NodeId, Vec2)> = {
+            let Some(art) = self.document.artboard(artboard_id) else { return self.document_summary() };
+            nodes
+                .iter()
+                .enumerate()
+                .filter_map(|(i, id)| {
+                    let d = Vec2::new(*deltas.get(i * 2)?, *deltas.get(i * 2 + 1)?);
+                    if d.length_squared() < 1e-10 {
+                        return None;
+                    }
+                    let node = art.node(*id)?;
+                    let parent = node.parent.and_then(|p| art.try_world_transform(p)).map_or(glam::Affine2::IDENTITY, |t| t.to_affine2());
+                    Some((*id, node.transform.translation + parent.matrix2.inverse() * d))
+                })
+                .collect()
+        };
+        let count = moves.len();
+        for (id, value) in moves {
+            self.document.apply(Command::SetTranslation { artboard: artboard_id, node: id, value });
+        }
+        if count > 1 {
+            self.document.merge_last(count);
+        }
+        self.document_summary()
+    }
+
     /// Multi-selection transform (the multi-select box's scale / rotate
     /// handles), step 1: remembers where every node in `nodes` starts.
     /// Nodes whose ancestor is also selected are left out (they ride along
@@ -13626,4 +13796,352 @@ fn map_gradient(gradient: &an1mbyt3_core::GradientDef, m: glam::Affine2) -> an1m
     g.start = m.transform_point2(g.start);
     g.end = m.transform_point2(g.end);
     g
+}
+
+/// Hands out draw bindings during the (immutable) scene walk — draw-effect
+/// copies each need their own (one binding per draw). Bindings are boxed
+/// and never removed, so references stay valid; `reset` (each frame, with
+/// `&mut`) just starts handing them out again from the first.
+#[derive(Default)]
+pub(crate) struct BindingArena {
+    items: std::cell::RefCell<Vec<Box<DrawBinding>>>,
+    next: std::cell::Cell<usize>,
+}
+
+impl BindingArena {
+    fn reset(&mut self) {
+        self.next.set(0);
+    }
+    fn get<'a>(&'a self, renderer: &Renderer) -> &'a DrawBinding {
+        let i = self.next.get();
+        self.next.set(i + 1);
+        let mut items = self.items.borrow_mut();
+        while items.len() <= i {
+            items.push(Box::new(renderer.create_draw_binding()));
+        }
+        let ptr: *const DrawBinding = &*items[i];
+        // SAFETY: each binding is boxed (its address never moves when the
+        // vec grows) and items are only ever appended — never removed or
+        // replaced — so the reference lives as long as `self` does.
+        unsafe { &*ptr }
+    }
+}
+
+/// The sorting layer `node` draws on: its own, else its nearest
+/// ancestor's, else Normal (0).
+fn effective_layer(artboard: &an1mbyt3_core::Artboard, node: NodeId) -> u32 {
+    let mut at = Some(node);
+    while let Some(id) = at {
+        let Some(n) = artboard.node(id) else { break };
+        if let Some(layer) = n.sorting_layer() {
+            return layer;
+        }
+        at = n.parent;
+    }
+    0
+}
+
+/// The sorting layers anything in `artboard` is on, in `order` (unknown
+/// ids after, Normal always included).
+fn used_layers(artboard: &an1mbyt3_core::Artboard, order: &[u32]) -> Vec<u32> {
+    let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    seen.insert(0);
+    for id in artboard.node_ids() {
+        if let Some(l) = artboard.node(id).and_then(|n| n.sorting_layer()) {
+            seen.insert(l);
+        }
+    }
+    let mut out: Vec<u32> = order.iter().copied().filter(|l| seen.contains(l)).collect();
+    let mut rest: Vec<u32> = seen.into_iter().filter(|l| !order.contains(l)).collect();
+    rest.sort();
+    out.extend(rest);
+    out
+}
+
+/// Appends one walk's draws onto another's, keeping each island's place
+/// among the unmasked draws (`SceneOp::Begin` indices shift by the
+/// unmasked draws already there).
+fn append_scene_parts<'a>(unmasked: &mut Vec<DrawCall<'a>>, masked: &mut Vec<an1mbyt3_renderer::SceneOp<'a>>, u: Vec<DrawCall<'a>>, m: Vec<an1mbyt3_renderer::SceneOp<'a>>) {
+    let offset = unmasked.len();
+    unmasked.extend(u);
+    masked.extend(m.into_iter().map(|op| match op {
+        an1mbyt3_renderer::SceneOp::Begin { island, after } => an1mbyt3_renderer::SceneOp::Begin { island, after: after + offset },
+        other => other,
+    }));
+}
+
+/// A Transform2D from an affine (translation, rotation, scale; a mirror
+/// shows as a negative y scale; skew is dropped).
+fn transform_from_affine(m: glam::Affine2) -> an1mbyt3_core::Transform2D {
+    let x = m.matrix2.x_axis;
+    let y = m.matrix2.y_axis;
+    let sx = x.length().max(1e-9);
+    let sy = (x.x * y.y - x.y * y.x) / sx;
+    an1mbyt3_core::Transform2D { translation: m.translation, rotation: x.y.atan2(x.x), scale: Vec2::new(sx, sy), anchor: Vec2::ZERO }
+}
+
+/// Does `node` carry any draw effect?
+fn has_draw_effect(node: &Node) -> bool {
+    node.drop_shadow().is_some() || node.outline2d().is_some() || node.repeater().is_some() || node.mirror2d().is_some() || node.wiggle().is_some() || node.parallax().is_some() || node.pixel_snap().is_some()
+}
+
+/// Applies the draw effects of `node_id` and its ancestors (nearest first)
+/// to its draws — see `an1mbyt3_core::effects2d`. Effects on a group act
+/// on everything inside it, about the group's own origin.
+fn apply_draw_effects<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId, draws: Vec<DrawCall<'a>>) -> Vec<DrawCall<'a>> {
+    use glam::Affine2;
+    if draws.is_empty() {
+        return draws;
+    }
+    let mut chain: Vec<(NodeId, &Node)> = Vec::new();
+    let mut at = Some(node_id);
+    while let Some(id) = at {
+        let Some(n) = artboard.node(id) else { break };
+        if has_draw_effect(n) {
+            chain.push((id, n));
+        }
+        at = n.parent;
+    }
+    if chain.is_empty() {
+        return draws;
+    }
+    let affine = |t: &an1mbyt3_core::Transform2D| t.to_affine2();
+    // A copy of `d` with world affine `m` (and its own binding).
+    let copy = |d: &DrawCall<'a>, m: Affine2| DrawCall { transform: transform_from_affine(m), binding: editor.effect_bindings.get(&editor.renderer), ..*d };
+    let mut draws = draws;
+    let t = editor.shader_clock;
+    for (owner, n) in chain {
+        let world = artboard.world_transform(owner).to_affine2();
+        let inv = world.inverse();
+        // About the owner's own origin: M = world · D · world⁻¹.
+        let about = |d: Affine2| world * d * inv;
+        if let Some(w) = n.wiggle() {
+            let f = t * w.frequency.max(0.0);
+            let s = w.seed;
+            let d = Affine2::from_scale_angle_translation(
+                Vec2::splat(1.0 + w.scale * an1mbyt3_core::noise1(f, 3, s)),
+                (w.rotation * an1mbyt3_core::noise1(f, 2, s)).to_radians(),
+                Vec2::new(an1mbyt3_core::noise1(f, 0, s), an1mbyt3_core::noise1(f, 1, s)) * w.position,
+            );
+            let m = about(d);
+            for dr in &mut draws {
+                dr.transform = transform_from_affine(m * affine(&dr.transform));
+            }
+        }
+        if let Some(p) = n.parallax() {
+            let shift = editor.effect_camera_pan.get() * Vec2::from(p.factor);
+            for dr in &mut draws {
+                dr.transform.translation += shift;
+            }
+        }
+        if let Some(mirror) = n.mirror2d() {
+            let mut extra = Vec::new();
+            let flips: Vec<Vec2> = [(mirror.x, Vec2::new(-1.0, 1.0)), (mirror.y, Vec2::new(1.0, -1.0)), (mirror.x && mirror.y, Vec2::new(-1.0, -1.0))].into_iter().filter(|(on, _)| *on).map(|(_, s)| s).collect();
+            for s in flips {
+                let m = about(Affine2::from_scale(s));
+                extra.extend(draws.iter().map(|d| copy(d, m * affine(&d.transform))));
+            }
+            draws.extend(extra);
+        }
+        if let Some(r) = n.repeater() {
+            let count = r.count.clamp(1, 64);
+            let step = Affine2::from_scale_angle_translation(Vec2::splat(r.scale.max(0.01)), r.rotation.to_radians(), Vec2::from(r.offset));
+            let mut copies = Vec::new();
+            // Back to front: the last copy first, the original on top.
+            for k in (1..count).rev() {
+                let mut d = Affine2::IDENTITY;
+                for _ in 0..k {
+                    d = d * step;
+                }
+                let m = about(d);
+                let fade = 1.0 + (r.end_opacity.clamp(0.0, 1.0) - 1.0) * k as f32 / (count - 1).max(1) as f32;
+                for dr in &draws {
+                    let mut c = copy(dr, m * affine(&dr.transform));
+                    c.fill_color[3] *= fade;
+                    copies.push(c);
+                }
+            }
+            copies.extend(draws);
+            draws = copies;
+        }
+        // Silhouette copies behind: a flat colour (no gradient / material).
+        let silhouette = |d: &DrawCall<'a>, offset: Vec2, color: [f32; 4]| {
+            let mut c = copy(d, Affine2::from_translation(offset) * affine(&d.transform));
+            c.gradient = None;
+            c.material = None;
+            c.blend_mode = BlendMode::Normal;
+            c.fill_color = if c.texture.is_some() { [color[0], color[1], color[2], color[3]] } else { [color[0], color[1], color[2], color[3] * d.fill_color[3].clamp(0.0, 1.0)] };
+            c
+        };
+        let paintable = |d: &DrawCall<'a>| d.material.is_none();
+        let mut behind: Vec<DrawCall<'a>> = Vec::new();
+        if let Some(s) = n.drop_shadow() {
+            let base = Vec2::from(s.offset);
+            let ring: Vec<Vec2> = if s.softness > 0.5 { (0..8).map(|i| { let a = i as f32 / 8.0 * std::f32::consts::TAU; Vec2::new(a.cos(), a.sin()) * s.softness * 0.5 }).chain(std::iter::once(Vec2::ZERO)).collect() } else { vec![Vec2::ZERO] };
+            let mut c = s.color;
+            if ring.len() > 1 {
+                c[3] = 1.0 - (1.0 - c[3].clamp(0.0, 0.999)).powf(1.0 / ring.len() as f32);
+            }
+            for o in &ring {
+                behind.extend(draws.iter().filter(|d| paintable(d)).map(|d| silhouette(d, base + *o, c)));
+            }
+        }
+        if let Some(o) = n.outline2d() {
+            let dirs = if o.smooth { 16 } else { 8 };
+            for i in 0..dirs {
+                let a = i as f32 / dirs as f32 * std::f32::consts::TAU;
+                // 8-way pixel outlines use whole-pixel king moves.
+                let v = if o.smooth { Vec2::new(a.cos(), a.sin()) } else { Vec2::new(a.cos().round(), a.sin().round()) };
+                behind.extend(draws.iter().filter(|d| paintable(d)).map(|d| silhouette(d, v * o.width, o.color)));
+            }
+        }
+        if !behind.is_empty() {
+            behind.extend(draws);
+            draws = behind;
+        }
+        if let Some(p) = n.pixel_snap() {
+            let g = p.grid.max(0.01);
+            let step = p.angle_step.to_radians();
+            for dr in &mut draws {
+                dr.transform.translation = (dr.transform.translation / g).round() * g;
+                if step > 0.0 {
+                    dr.transform.rotation = (dr.transform.rotation / step).round() * step;
+                }
+            }
+        }
+    }
+    draws
+}
+
+/// A path reshaped by a Stroke Style: trimmed to its `trim_start..trim_end`
+/// window (by length, slid by `trim_offset`), then cut into dashes. The
+/// result is open polylines, ready to stroke.
+fn style_stroke_path(path: &an1mbyt3_core::Path, style: &an1mbyt3_core::StrokeStyle2D) -> an1mbyt3_core::Path {
+    use an1mbyt3_core::PathCommand as C;
+    // Flatten into polylines (cubics sampled).
+    let mut lines: Vec<Vec<Vec2>> = Vec::new();
+    let mut cur = Vec2::ZERO;
+    let mut start = Vec2::ZERO;
+    for c in &path.commands {
+        match *c {
+            C::MoveTo(p) => {
+                lines.push(vec![p]);
+                cur = p;
+                start = p;
+            }
+            C::LineTo(p) => {
+                if lines.is_empty() {
+                    lines.push(vec![cur]);
+                }
+                lines.last_mut().unwrap().push(p);
+                cur = p;
+            }
+            C::CubicTo { control1: ctrl1, control2: ctrl2, to } => {
+                if lines.is_empty() {
+                    lines.push(vec![cur]);
+                }
+                let l = lines.last_mut().unwrap();
+                for i in 1..=16 {
+                    let t = i as f32 / 16.0;
+                    let u = 1.0 - t;
+                    l.push(cur * u * u * u + ctrl1 * 3.0 * u * u * t + ctrl2 * 3.0 * u * t * t + to * t * t * t);
+                }
+                cur = to;
+            }
+            C::Close => {
+                if let Some(l) = lines.last_mut() {
+                    l.push(start);
+                }
+                cur = start;
+            }
+        }
+    }
+    // Every segment, with its distance along the whole path.
+    let mut segments: Vec<(Vec2, Vec2, f32, usize)> = Vec::new();
+    let mut total = 0.0;
+    for (li, l) in lines.iter().enumerate() {
+        for w in l.windows(2) {
+            let len = w[0].distance(w[1]);
+            if len > 1e-6 {
+                segments.push((w[0], w[1], total, li));
+                total += len;
+            }
+        }
+    }
+    if total <= 0.0 {
+        return path.clone();
+    }
+    // The visible window(s), in length units (may wrap).
+    let mut a = style.trim_start.min(style.trim_end).clamp(0.0, 1.0);
+    let mut b = style.trim_start.max(style.trim_end).clamp(0.0, 1.0);
+    let off = style.trim_offset.rem_euclid(1.0);
+    a += off;
+    b += off;
+    let mut windows: Vec<(f32, f32)> = Vec::new();
+    if b - a >= 0.9999 {
+        windows.push((0.0, total));
+    } else if b <= 1.0 {
+        windows.push((a * total, b * total));
+    } else if a >= 1.0 {
+        windows.push(((a - 1.0) * total, (b - 1.0) * total));
+    } else {
+        windows.push((a * total, total));
+        windows.push((0.0, (b - 1.0) * total));
+    }
+    windows.sort_by(|x, y| x.0.total_cmp(&y.0));
+    // Dash pattern (0 dash = solid).
+    let period = style.dash.max(0.0) + style.gap.max(0.0);
+    let dashed = style.dash > 0.0 && style.gap > 0.0;
+    let on = |s: f32| -> bool { !dashed || (s + style.dash_offset).rem_euclid(period) < style.dash };
+    let mut out: Vec<C> = Vec::new();
+    let mut pen_down = false;
+    let mut last_line = usize::MAX;
+    for (p0, p1, d0, li) in segments {
+        let len = p0.distance(p1);
+        // Split each segment at window and dash boundaries.
+        let mut cuts: Vec<f32> = vec![0.0, len];
+        for (wa, wb) in &windows {
+            for edge in [*wa, *wb] {
+                if edge > d0 && edge < d0 + len {
+                    cuts.push(edge - d0);
+                }
+            }
+        }
+        if dashed {
+            let mut k = ((d0 + style.dash_offset) / period).floor() * period - style.dash_offset;
+            while k < d0 + len {
+                for edge in [k, k + style.dash] {
+                    if edge > d0 && edge < d0 + len {
+                        cuts.push(edge - d0);
+                    }
+                }
+                k += period;
+            }
+        }
+        cuts.sort_by(|x, y| x.total_cmp(y));
+        if li != last_line {
+            pen_down = false;
+            last_line = li;
+        }
+        for w in cuts.windows(2) {
+            let (s0, s1) = (w[0], w[1]);
+            if s1 - s0 < 1e-5 {
+                continue;
+            }
+            let mid = d0 + (s0 + s1) * 0.5;
+            let visible = windows.iter().any(|(wa, wb)| mid >= *wa && mid <= *wb) && on(mid);
+            let q0 = p0.lerp(p1, s0 / len);
+            let q1 = p0.lerp(p1, s1 / len);
+            if visible {
+                if !pen_down {
+                    out.push(C::MoveTo(q0));
+                    pen_down = true;
+                }
+                out.push(C::LineTo(q1));
+            } else {
+                pen_down = false;
+            }
+        }
+    }
+    an1mbyt3_core::Path { commands: out }
 }

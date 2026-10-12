@@ -482,6 +482,9 @@ export class ScriptHost {
           reset: (node) => flushed(() => editor.cloth_reset(node)),
         },
         unloadVoxelChunk: (node, cx, cz) => flushed(() => unloadVoxelChunk(editor, artboardId, node, cx, cz)),
+        camera2: {
+          shake: (node, amount) => editor.camera_shake(node, amount),
+        },
         model3: {
           setBone: (node, bone, x, y, z) => flushed(() => editor.model_set_bone(artboardId, node, bone, x, y, z)),
           setBoneOffset: (node, bone, x, y, z) => flushed(() => editor.model_set_bone_offset(artboardId, node, bone, x, y, z)),

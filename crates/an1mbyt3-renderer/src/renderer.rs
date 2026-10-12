@@ -23,7 +23,7 @@ mod lighting;
 mod post;
 mod three_d;
 pub use three_d::{Blend3D, FluidLayer3D, GpuMaterial3D, GpuMesh3D, MeshDraw3D, ParticleQuad3D, PointLight3D, Scene3D, Shadows3D, MATERIAL_PARAMS_3D, MAX_POINT_LIGHTS, TOON_ARCANE_WGSL, TOON_MTOON_WGSL};
-pub use lighting::{LightDraw, LightShadows, LightShape, LightVolumetric, Lighting, ShadowCasterShape, MAX_FREEFORM_POINTS};
+pub use lighting::{LightDraw, LightShadows, LightShape, LightVolumetric, Lighting, LitGroup, ShadowCasterShape, MAX_FREEFORM_POINTS};
 
 /// How many gradient stops `shader.wgsl` has room for — matches that
 /// shader's own `MAX_GRADIENT_STOPS` constant exactly; a `GradientDef` with
@@ -816,6 +816,8 @@ pub struct Renderer {
     /// targets at *this* scale (not silently snapping back to native)
     /// whenever the window/canvas itself resizes.
     current_resolution_scale: f32,
+    /// The last `set_shader_time` (seconds) — animated post effects.
+    shader_time: std::cell::Cell<f32>,
     /// Adaptive resolution: the fraction (0.4 … 1) of native size the
     /// scene and post targets render at, on top of
     /// `current_resolution_scale` — lowered by the host when frames run
@@ -1757,6 +1759,7 @@ impl Renderer {
             post_blur_intermediate_view: post_targets.blur_intermediate_view,
             post_stencil_view: post_targets.stencil_view,
             current_resolution_scale: 1.0,
+            shader_time: std::cell::Cell::new(0.0),
             dynamic_scale: 1.0,
             post,
             textured_pipeline,
@@ -2071,6 +2074,7 @@ impl Renderer {
     /// Sets the `Time` every shader-graph material sees (seconds). Call
     /// once per frame before drawing.
     pub fn set_shader_time(&self, seconds: f32) {
+        self.shader_time.set(seconds);
         let resources = self.material_resources();
         self.queue.write_buffer(&resources.globals_buffer, 0, bytemuck::cast_slice(&[seconds, 0.0f32, 0.0, 0.0]));
     }
@@ -2330,7 +2334,20 @@ impl Renderer {
 
         let texel_size = [1.0 / src_width.max(1) as f32, 1.0 / src_height.max(1) as f32];
         let uniforms = match processing.effect {
-            PostEffect::None | PostEffect::Blur { .. } | PostEffect::Glow { .. } => PostUniforms {
+            // (Scene-only effects bake as a plain copy into an image.)
+            PostEffect::None
+            | PostEffect::Blur { .. }
+            | PostEffect::Glow { .. }
+            | PostEffect::Anaglyph { .. }
+            | PostEffect::Dither { .. }
+            | PostEffect::ChromaticAberration { .. }
+            | PostEffect::Scanlines { .. }
+            | PostEffect::FilmGrain { .. }
+            | PostEffect::Sharpen { .. }
+            | PostEffect::EdgeDetect { .. }
+            | PostEffect::Halftone { .. }
+            | PostEffect::WaveDistortion { .. }
+            | PostEffect::LensDistortion { .. } => PostUniforms {
                 texel_size_radius: [texel_size[0], texel_size[1], 0.0, 0.0],
                 threshold_intensity: [0.0, 1.0, 0.0, 0.0],
                 gradient_map_highlight: [0.0; 4],
@@ -2984,6 +3001,9 @@ impl Renderer {
                 let uniforms = DrawUniforms::from_draw(mvp, draw);
                 draw.binding.write(bytemuck::bytes_of(&uniforms));
             }
+            for group in lighting.groups {
+                self.write_masked_scene_uniforms(viewport_size, camera, group.unmasked, group.masked);
+            }
         }
 
         for draw in chrome {
@@ -3029,13 +3049,36 @@ impl Renderer {
         // The scene always draws into `post_scene_view` first; with 2D
         // lighting on, the lit composite (`lighting_targets.lit_view`) is
         // what every later stage reads instead — see `renderer/lighting.rs`.
-        self.draw_masked_scene(&mut encoder, &self.post_scene_view, &self.post_stencil_view, wgpu::LoadOp::Clear(TRANSPARENT), unmasked, masked, Some(self.post_target_dims()));
         let source = match lighting {
+            // Light groups: each group of sorting layers drawn, lit by its
+            // own lights and composited over the groups before it.
+            Some(lighting) if !lighting.groups.is_empty() => {
+                for (i, group) in lighting.groups.iter().enumerate() {
+                    let with_3d = (i == 0).then(|| self.post_target_dims());
+                    self.draw_masked_scene(&mut encoder, &self.post_scene_view, &self.post_stencil_view, wgpu::LoadOp::Clear(TRANSPARENT), group.unmasked, group.masked, with_3d);
+                    let last = i + 1 == lighting.groups.len();
+                    let sub = Lighting {
+                        ambient_multiply: group.ambient_multiply,
+                        ambient_additive: group.ambient_additive,
+                        lights: group.lights,
+                        casters: lighting.casters,
+                        // The unlit overlay goes on once, over everything.
+                        unlit: if last { lighting.unlit } else { &[] },
+                        groups: &[],
+                    };
+                    self.draw_lighting_onto(&mut encoder, viewport_size, camera, &sub, i > 0);
+                }
+                post::PostTarget::Lit
+            }
             Some(lighting) => {
+                self.draw_masked_scene(&mut encoder, &self.post_scene_view, &self.post_stencil_view, wgpu::LoadOp::Clear(TRANSPARENT), unmasked, masked, Some(self.post_target_dims()));
                 self.draw_lighting(&mut encoder, viewport_size, camera, lighting);
                 post::PostTarget::Lit
             }
-            None => post::PostTarget::Scene,
+            None => {
+                self.draw_masked_scene(&mut encoder, &self.post_scene_view, &self.post_stencil_view, wgpu::LoadOp::Clear(TRANSPARENT), unmasked, masked, Some(self.post_target_dims()));
+                post::PostTarget::Scene
+            }
         };
 
         // The effect stack (fused where it can be — see `renderer/post.rs`),

@@ -385,6 +385,10 @@ var g = class e {
 		if (r[2]) throw U(r[1]);
 		return r[0] !== 0;
 	}
+	camera_shake(e, t) {
+		let n = G.wasmeditor_camera_shake(this.__wbg_ptr, e, t);
+		if (n[1]) throw U(n[0]);
+	}
 	cloth_drag(e, t, n) {
 		let r = G.wasmeditor_cloth_drag(this.__wbg_ptr, e, t, n);
 		if (r[1]) throw U(r[0]);
@@ -1490,6 +1494,11 @@ var g = class e {
 		if (r[2]) throw U(r[1]);
 		return U(r[0]);
 	}
+	set_sorting_layers(e) {
+		let t = G.wasmeditor_set_sorting_layers(this.__wbg_ptr, e);
+		if (t[2]) throw U(t[1]);
+		return U(t[0]);
+	}
 	set_state_blend(e, t, n, r, i) {
 		let a = H(n, G.__wbindgen_malloc, G.__wbindgen_realloc), o = W, s = G.wasmeditor_set_state_blend(this.__wbg_ptr, e, t, a, o, r, i);
 		if (s[2]) throw U(s[1]);
@@ -1588,6 +1597,11 @@ var g = class e {
 		if (a[2]) throw U(a[1]);
 		return U(a[0]);
 	}
+	sorting_layers() {
+		let e = G.wasmeditor_sorting_layers(this.__wbg_ptr);
+		if (e[2]) throw U(e[1]);
+		return U(e[0]);
+	}
 	spawn_prefab(e, t, n, r, i) {
 		let a = H(t, G.__wbindgen_malloc, G.__wbindgen_realloc), o = W, s = G.wasmeditor_spawn_prefab(this.__wbg_ptr, e, a, o, n, r, i);
 		if (s[2]) throw U(s[1]);
@@ -1605,6 +1619,11 @@ var g = class e {
 		let t = G.wasmeditor_take_project_file_bytes(this.__wbg_ptr, e);
 		var n = N(t[0], t[1]).slice();
 		return G.__wbindgen_free(t[0], t[1] * 1, 1), n;
+	}
+	translate_nodes(e, t, n) {
+		let r = V(n, G.__wbindgen_malloc), i = W, a = G.wasmeditor_translate_nodes(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw U(a[1]);
+		return U(a[0]);
 	}
 	tree_regrow(e) {
 		let t = G.wasmeditor_tree_regrow(this.__wbg_ptr, e);
@@ -5861,6 +5880,10 @@ function or(e, t, n, r, i, a) {
 				0
 			])
 		},
+		shake2: {
+			enumerable: !1,
+			value: (e = .5) => a.camera2?.shake(s.id, Number(e) || 0)
+		},
 		playAnim3: {
 			enumerable: !1,
 			value: (e, t = {}) => a.model3.playAnim(s.id, String(e ?? ""), t.loop === void 0 ? -1 : +!!t.loop, t.speed ?? -1, t.blend ?? -1)
@@ -6525,6 +6548,7 @@ var Mr = class {
 					reset: (e) => f(() => n.cloth_reset(e))
 				},
 				unloadVoxelChunk: (e, t, r) => f(() => Ut(n, s, e, t, r)),
+				camera2: { shake: (e, t) => n.camera_shake(e, t) },
 				model3: {
 					setBone: (e, t, r, i, a) => f(() => n.model_set_bone(s, e, t, r, i, a)),
 					setBoneOffset: (e, t, r, i, a) => f(() => n.model_set_bone_offset(s, e, t, r, i, a)),

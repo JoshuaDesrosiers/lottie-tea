@@ -79,6 +79,42 @@ pub enum PostEffect {
     /// edge softness, `intensity` how strongly the edge color covers.
     /// Appended last (variant index stability for `.teab`).
     Vignette { color: [f32; 4], intensity: f32, radius: f32, blur: f32 },
+    // ---- Appended (variant index stability for `.teab`) ----
+    /// Red / cyan 3D-glasses look: the red channel shifted one way, green
+    /// and blue the other, by `offset` pixels. `mono` (0..1) greys the
+    /// image first (classic anaglyph prints).
+    Anaglyph { offset: f32, mono: f32 },
+    /// Ordered (Bayer) dithering: quantizes to `levels` steps per channel
+    /// with a 4×4 threshold pattern, `scale` screen pixels per pattern
+    /// pixel (match your pixel size), `strength` 0..1. `mono` (0/1) makes it
+    /// a 1-bit-style two-colour dither between `dark` and `light`
+    /// (Game Boy / Obra Dinn looks).
+    Dither { levels: f32, scale: f32, strength: f32, mono: f32, dark: [f32; 4], light: [f32; 4] },
+    /// Lens colour fringing: red and blue split radially from the centre,
+    /// `strength` pixels at the corners.
+    ChromaticAberration { strength: f32 },
+    /// CRT scanlines: dark lines every `spacing` pixels at `intensity`
+    /// (0..1), plus an RGB aperture-grille `mask` (0..1).
+    Scanlines { intensity: f32, spacing: f32, mask: f32 },
+    /// Film grain: animated noise, `amount` 0..1, grain `size` in pixels.
+    FilmGrain { amount: f32, size: f32 },
+    /// Sharpens edges (unsharp mask), `amount` 0..2.
+    Sharpen { amount: f32 },
+    /// Ink outlines where brightness or opacity changes sharply —
+    /// `thickness` pixels, `threshold` 0..1 sensitivity, in `color`; `only`
+    /// (0/1) draws the lines alone on transparent.
+    EdgeDetect { thickness: f32, threshold: f32, color: [f32; 4], only: f32 },
+    /// Print halftone: the image as dots of `ink` on `paper`, dots
+    /// `size` pixels apart at `angle` degrees; `mix` 0..1 blends with the
+    /// original colours.
+    Halftone { size: f32, angle: f32, ink: [f32; 4], paper: [f32; 4], mix: f32 },
+    /// Wavy distortion (heat haze, underwater, dream): rows shift by up to
+    /// `amplitude` pixels, `frequency` waves per screen height, moving at
+    /// `speed`.
+    WaveDistortion { amplitude: f32, frequency: f32, speed: f32 },
+    /// Lens distortion: barrel (`strength` > 0, fisheye / CRT bulge) or
+    /// pincushion (< 0); `zoom` > 1 crops in to hide the edges.
+    LensDistortion { strength: f32, zoom: f32 },
 }
 
 impl PostEffect {
@@ -96,6 +132,16 @@ impl PostEffect {
             "Posterize" => Some(PostEffect::Posterize { levels: 4.0 }),
             "GradientMap" => Some(PostEffect::GradientMap { shadow: [0.05, 0.0, 0.2, 1.0], highlight: [1.0, 0.8, 0.3, 1.0] }),
             "Vignette" => Some(PostEffect::Vignette { color: [0.0, 0.0, 0.0, 1.0], intensity: 0.45, radius: 0.75, blur: 0.5 }),
+            "Anaglyph" => Some(PostEffect::Anaglyph { offset: 4.0, mono: 0.0 }),
+            "Dither" => Some(PostEffect::Dither { levels: 4.0, scale: 1.0, strength: 1.0, mono: 0.0, dark: [0.06, 0.22, 0.06, 1.0], light: [0.61, 0.74, 0.06, 1.0] }),
+            "ChromaticAberration" => Some(PostEffect::ChromaticAberration { strength: 4.0 }),
+            "Scanlines" => Some(PostEffect::Scanlines { intensity: 0.35, spacing: 3.0, mask: 0.25 }),
+            "FilmGrain" => Some(PostEffect::FilmGrain { amount: 0.12, size: 1.5 }),
+            "Sharpen" => Some(PostEffect::Sharpen { amount: 0.6 }),
+            "EdgeDetect" => Some(PostEffect::EdgeDetect { thickness: 1.0, threshold: 0.2, color: [0.05, 0.04, 0.08, 1.0], only: 0.0 }),
+            "Halftone" => Some(PostEffect::Halftone { size: 6.0, angle: 45.0, ink: [0.08, 0.08, 0.12, 1.0], paper: [0.98, 0.96, 0.9, 1.0], mix: 0.0 }),
+            "WaveDistortion" => Some(PostEffect::WaveDistortion { amplitude: 4.0, frequency: 6.0, speed: 2.0 }),
+            "LensDistortion" => Some(PostEffect::LensDistortion { strength: 0.25, zoom: 1.05 }),
             _ => None,
         }
     }

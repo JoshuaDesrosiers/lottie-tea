@@ -1926,6 +1926,16 @@ pub enum PostEffectDto {
     Posterize { levels: f32 },
     GradientMap { shadow: [f32; 4], highlight: [f32; 4] },
     Vignette { color: [f32; 4], intensity: f32, radius: f32, blur: f32 },
+    Anaglyph { offset: f32, mono: f32 },
+    Dither { levels: f32, scale: f32, strength: f32, mono: f32, dark: [f32; 4], light: [f32; 4] },
+    ChromaticAberration { strength: f32 },
+    Scanlines { intensity: f32, spacing: f32, mask: f32 },
+    FilmGrain { amount: f32, size: f32 },
+    Sharpen { amount: f32 },
+    EdgeDetect { thickness: f32, threshold: f32, color: [f32; 4], only: f32 },
+    Halftone { size: f32, angle: f32, ink: [f32; 4], paper: [f32; 4], mix: f32 },
+    WaveDistortion { amplitude: f32, frequency: f32, speed: f32 },
+    LensDistortion { strength: f32, zoom: f32 },
 }
 
 impl From<&PostEffect> for PostEffectDto {
@@ -1939,6 +1949,16 @@ impl From<&PostEffect> for PostEffectDto {
             PostEffect::Posterize { levels } => PostEffectDto::Posterize { levels },
             PostEffect::GradientMap { shadow, highlight } => PostEffectDto::GradientMap { shadow, highlight },
             PostEffect::Vignette { color, intensity, radius, blur } => PostEffectDto::Vignette { color, intensity, radius, blur },
+            PostEffect::Anaglyph { offset, mono } => PostEffectDto::Anaglyph { offset, mono },
+            PostEffect::Dither { levels, scale, strength, mono, dark, light } => PostEffectDto::Dither { levels, scale, strength, mono, dark, light },
+            PostEffect::ChromaticAberration { strength } => PostEffectDto::ChromaticAberration { strength },
+            PostEffect::Scanlines { intensity, spacing, mask } => PostEffectDto::Scanlines { intensity, spacing, mask },
+            PostEffect::FilmGrain { amount, size } => PostEffectDto::FilmGrain { amount, size },
+            PostEffect::Sharpen { amount } => PostEffectDto::Sharpen { amount },
+            PostEffect::EdgeDetect { thickness, threshold, color, only } => PostEffectDto::EdgeDetect { thickness, threshold, color, only },
+            PostEffect::Halftone { size, angle, ink, paper, mix } => PostEffectDto::Halftone { size, angle, ink, paper, mix },
+            PostEffect::WaveDistortion { amplitude, frequency, speed } => PostEffectDto::WaveDistortion { amplitude, frequency, speed },
+            PostEffect::LensDistortion { strength, zoom } => PostEffectDto::LensDistortion { strength, zoom },
         }
     }
 }
@@ -1954,6 +1974,16 @@ impl From<PostEffectDto> for PostEffect {
             PostEffectDto::Posterize { levels } => PostEffect::Posterize { levels },
             PostEffectDto::GradientMap { shadow, highlight } => PostEffect::GradientMap { shadow, highlight },
             PostEffectDto::Vignette { color, intensity, radius, blur } => PostEffect::Vignette { color, intensity, radius, blur },
+            PostEffectDto::Anaglyph { offset, mono } => PostEffect::Anaglyph { offset, mono },
+            PostEffectDto::Dither { levels, scale, strength, mono, dark, light } => PostEffect::Dither { levels, scale, strength, mono, dark, light },
+            PostEffectDto::ChromaticAberration { strength } => PostEffect::ChromaticAberration { strength },
+            PostEffectDto::Scanlines { intensity, spacing, mask } => PostEffect::Scanlines { intensity, spacing, mask },
+            PostEffectDto::FilmGrain { amount, size } => PostEffect::FilmGrain { amount, size },
+            PostEffectDto::Sharpen { amount } => PostEffect::Sharpen { amount },
+            PostEffectDto::EdgeDetect { thickness, threshold, color, only } => PostEffect::EdgeDetect { thickness, threshold, color, only },
+            PostEffectDto::Halftone { size, angle, ink, paper, mix } => PostEffect::Halftone { size, angle, ink, paper, mix },
+            PostEffectDto::WaveDistortion { amplitude, frequency, speed } => PostEffect::WaveDistortion { amplitude, frequency, speed },
+            PostEffectDto::LensDistortion { strength, zoom } => PostEffect::LensDistortion { strength, zoom },
         }
     }
 }
@@ -2201,6 +2231,18 @@ pub enum NodeBehaviorDto {
     GroupFill(GroupFillDto),
     GooMaterial2D(an1mbyt3_core::GooMaterial2D),
     ParticleLook2D(an1mbyt3_core::ParticleLook2D),
+    SortingLayer2D(an1mbyt3_core::SortingLayer2D),
+    LightLayers2D(an1mbyt3_core::LightLayers2D),
+    LightFlicker2D(an1mbyt3_core::LightFlicker2D),
+    DropShadow2D(an1mbyt3_core::DropShadow2D),
+    Outline2D(an1mbyt3_core::Outline2D),
+    Repeater2D(an1mbyt3_core::Repeater2D),
+    Mirror2D(an1mbyt3_core::Mirror2D),
+    Wiggle2D(an1mbyt3_core::Wiggle2D),
+    Parallax2D(an1mbyt3_core::Parallax2D),
+    PixelSnap2D(an1mbyt3_core::PixelSnap2D),
+    StrokeStyle2D(an1mbyt3_core::StrokeStyle2D),
+    CameraShake2D(an1mbyt3_core::CameraShake2D),
 }
 
 /// `an1mbyt3_core::GroupFill`, its gradient in the frontend's `{x, y}` shape.
@@ -2265,6 +2307,18 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::BoneAttachment(b) => NodeBehaviorDto::BoneAttachment(b.clone()),
             an1mbyt3_core::NodeBehavior::GooMaterial2D(m) => NodeBehaviorDto::GooMaterial2D(m.clone()),
             an1mbyt3_core::NodeBehavior::ParticleLook2D(l) => NodeBehaviorDto::ParticleLook2D(l.clone()),
+            an1mbyt3_core::NodeBehavior::SortingLayer2D(v) => NodeBehaviorDto::SortingLayer2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::LightLayers2D(v) => NodeBehaviorDto::LightLayers2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::LightFlicker2D(v) => NodeBehaviorDto::LightFlicker2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::DropShadow2D(v) => NodeBehaviorDto::DropShadow2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::Outline2D(v) => NodeBehaviorDto::Outline2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::Repeater2D(v) => NodeBehaviorDto::Repeater2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::Mirror2D(v) => NodeBehaviorDto::Mirror2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::Wiggle2D(v) => NodeBehaviorDto::Wiggle2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::Parallax2D(v) => NodeBehaviorDto::Parallax2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::PixelSnap2D(v) => NodeBehaviorDto::PixelSnap2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::StrokeStyle2D(v) => NodeBehaviorDto::StrokeStyle2D(v.clone()),
+            an1mbyt3_core::NodeBehavior::CameraShake2D(v) => NodeBehaviorDto::CameraShake2D(v.clone()),
             an1mbyt3_core::NodeBehavior::GroupFill(f) => NodeBehaviorDto::GroupFill(GroupFillDto { color: f.color, gradient: f.gradient.as_ref().map(Into::into) }),
         }
     }
@@ -2324,6 +2378,18 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::BoneAttachment(b) => an1mbyt3_core::NodeBehavior::BoneAttachment(b),
             NodeBehaviorDto::GooMaterial2D(m) => an1mbyt3_core::NodeBehavior::GooMaterial2D(m),
             NodeBehaviorDto::ParticleLook2D(l) => an1mbyt3_core::NodeBehavior::ParticleLook2D(l),
+            NodeBehaviorDto::SortingLayer2D(v) => an1mbyt3_core::NodeBehavior::SortingLayer2D(v),
+            NodeBehaviorDto::LightLayers2D(v) => an1mbyt3_core::NodeBehavior::LightLayers2D(v),
+            NodeBehaviorDto::LightFlicker2D(v) => an1mbyt3_core::NodeBehavior::LightFlicker2D(v),
+            NodeBehaviorDto::DropShadow2D(v) => an1mbyt3_core::NodeBehavior::DropShadow2D(v),
+            NodeBehaviorDto::Outline2D(v) => an1mbyt3_core::NodeBehavior::Outline2D(v),
+            NodeBehaviorDto::Repeater2D(v) => an1mbyt3_core::NodeBehavior::Repeater2D(v),
+            NodeBehaviorDto::Mirror2D(v) => an1mbyt3_core::NodeBehavior::Mirror2D(v),
+            NodeBehaviorDto::Wiggle2D(v) => an1mbyt3_core::NodeBehavior::Wiggle2D(v),
+            NodeBehaviorDto::Parallax2D(v) => an1mbyt3_core::NodeBehavior::Parallax2D(v),
+            NodeBehaviorDto::PixelSnap2D(v) => an1mbyt3_core::NodeBehavior::PixelSnap2D(v),
+            NodeBehaviorDto::StrokeStyle2D(v) => an1mbyt3_core::NodeBehavior::StrokeStyle2D(v),
+            NodeBehaviorDto::CameraShake2D(v) => an1mbyt3_core::NodeBehavior::CameraShake2D(v),
             NodeBehaviorDto::GroupFill(f) => an1mbyt3_core::NodeBehavior::GroupFill(an1mbyt3_core::GroupFill { color: f.color, gradient: f.gradient.map(Into::into) }),
         }
     }

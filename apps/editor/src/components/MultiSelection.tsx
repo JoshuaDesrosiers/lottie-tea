@@ -179,6 +179,79 @@ export function MultiTransformHandles({
   )
 }
 
+export type AlignKind = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hspace' | 'vspace'
+
+/** Align & distribute buttons (Figma / Illustrator): edges and centres
+ * line up with the selection's box; distribute spaces them evenly. */
+export function AlignBar({ count, onAlign }: { count: number; onAlign: (kind: AlignKind) => void }) {
+  const items: [AlignKind, string, string][] = [
+    ['left', '⇤', 'Align left edges'],
+    ['hcenter', '↔', 'Align horizontal centres'],
+    ['right', '⇥', 'Align right edges'],
+    ['top', '⤒', 'Align top edges'],
+    ['vcenter', '↕', 'Align vertical centres'],
+    ['bottom', '⤓', 'Align bottom edges'],
+    ['hspace', '⋯', 'Distribute horizontally (equal gaps)'],
+    ['vspace', '⋮', 'Distribute vertically (equal gaps)'],
+  ]
+  return (
+    <div className="flex flex-wrap gap-0.5">
+      {items.map(([kind, icon, title]) => (
+        <button
+          key={kind}
+          type="button"
+          disabled={(kind === 'hspace' || kind === 'vspace') && count < 3}
+          onClick={() => onAlign(kind)}
+          title={title}
+          className="flex h-6 w-7 items-center justify-center rounded bg-overlay/8 text-[13px] text-ink-dim hover:bg-accent/20 hover:text-accent disabled:opacity-30"
+        >
+          {icon}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Per-node world-space deltas for an align / distribute. `boxes` are the
+ * nodes' world boxes, in selection order. */
+export function alignDeltas(kind: AlignKind, boxes: WorldBox[]): [number, number][] {
+  const all = { minX: Math.min(...boxes.map((b) => b.minX)), minY: Math.min(...boxes.map((b) => b.minY)), maxX: Math.max(...boxes.map((b) => b.maxX)), maxY: Math.max(...boxes.map((b) => b.maxY)) }
+  const cx = (b: WorldBox) => (b.minX + b.maxX) / 2
+  const cy = (b: WorldBox) => (b.minY + b.maxY) / 2
+  if (kind === 'hspace' || kind === 'vspace') {
+    const h = kind === 'hspace'
+    const order = boxes.map((_, i) => i).sort((a, b) => (h ? boxes[a].minX - boxes[b].minX : boxes[a].minY - boxes[b].minY))
+    const size = (b: WorldBox) => (h ? b.maxX - b.minX : b.maxY - b.minY)
+    const span = h ? all.maxX - all.minX : all.maxY - all.minY
+    const gap = (span - boxes.reduce((s, b) => s + size(b), 0)) / Math.max(1, boxes.length - 1)
+    const out: [number, number][] = boxes.map(() => [0, 0])
+    let at = h ? all.minX : all.minY
+    for (const i of order) {
+      const b = boxes[i]
+      const d = at - (h ? b.minX : b.minY)
+      out[i] = h ? [d, 0] : [0, d]
+      at += size(b) + gap
+    }
+    return out
+  }
+  return boxes.map((b) => {
+    switch (kind) {
+      case 'left':
+        return [all.minX - b.minX, 0]
+      case 'right':
+        return [all.maxX - b.maxX, 0]
+      case 'hcenter':
+        return [(all.minX + all.maxX) / 2 - cx(b), 0]
+      case 'top':
+        return [0, all.maxY - b.maxY]
+      case 'bottom':
+        return [0, all.minY - b.minY]
+      default:
+        return [0, (all.minY + all.maxY) / 2 - cy(b)]
+    }
+  })
+}
+
 /** The Inspector's Fill for a multi-selection (see the module doc). */
 export function MultiFillPanel({
   count,
@@ -187,7 +260,9 @@ export function MultiFillPanel({
   gradient,
   onColor,
   onGradient,
+  onAlign,
 }: {
+  onAlign?: (kind: AlignKind) => void
   count: number
   box: WorldBox | null
   color: Rgba
@@ -212,6 +287,7 @@ export function MultiFillPanel({
   return (
     <div className="flex flex-col gap-1.5 border-b border-panel-border px-3 py-2">
       <span className="text-[11px] font-medium text-ink">{count} objects selected</span>
+      {onAlign && <AlignBar count={count} onAlign={onAlign} />}
       <div className="flex items-center gap-1">
         <span className="w-10 shrink-0 text-[11px] text-ink-dim">Fill</span>
         <div className="flex flex-1 gap-0.5 rounded-md bg-overlay/5 p-0.5">

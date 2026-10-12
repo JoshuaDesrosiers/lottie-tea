@@ -250,3 +250,79 @@ impl Default for ShadowCaster2D {
         Self { enabled: true, casting_option: ShadowCastingOption::CastShadow, trim_edge: 0.0 }
     }
 }
+
+/// **Sorting Layer** of a 2D node (and, unless they set their own,
+/// everything under it): which of the project's sorting layers it draws
+/// on — see `crate::SortingLayerDef`. Without one a node is on "Normal"
+/// (or its parent's layer).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SortingLayer2D {
+    pub layer: u32,
+}
+
+/// **Light Layers** on a Light 2D: the sorting layers it lights (Unity's
+/// Target Sorting Layers). Empty (or no component) = every layer.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LightLayers2D {
+    pub layers: Vec<u32>,
+}
+
+impl LightLayers2D {
+    /// Does this light reach `layer`?
+    pub fn lights(&self, layer: u32) -> bool {
+        self.layers.is_empty() || self.layers.contains(&layer)
+    }
+}
+
+/// **Flicker** on a Light 2D: its brightness (and a little of its size)
+/// wavers like a candle, torch or failing neon.
+/// - `amount` (0..1): how deep the dips go.
+/// - `speed`: flickers per second.
+/// - `smoothness` (0..1): 0 = jittery / electric, 1 = soft candle sway.
+/// - `radius_amount` (0..1): how much the radius breathes with it.
+/// - `seed`: so neighbouring torches don't flicker in sync.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LightFlicker2D {
+    pub amount: f32,
+    pub speed: f32,
+    pub smoothness: f32,
+    pub radius_amount: f32,
+    pub seed: u32,
+}
+
+impl Default for LightFlicker2D {
+    fn default() -> Self {
+        Self { amount: 0.35, speed: 8.0, smoothness: 0.6, radius_amount: 0.1, seed: 0 }
+    }
+}
+
+impl LightFlicker2D {
+    /// The flicker's brightness factor at time `t` (seconds): 1 = full,
+    /// down to `1 - amount`.
+    pub fn factor(&self, t: f32) -> f32 {
+        // Value noise at two octaves; smoothness eases between samples and
+        // mutes the fast octave.
+        let hash = |i: i64| {
+            let mut x = (i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ (self.seed as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            x ^= x >> 31;
+            x = x.wrapping_mul(0x94D0_49BB_1331_11EB);
+            ((x >> 40) as f32) / ((1u64 << 24) as f32)
+        };
+        let noise = |x: f32| {
+            let i = x.floor();
+            let f = x - i;
+            let s = self.smoothness.clamp(0.0, 1.0);
+            // Smoothstep blend; at 0 smoothness it holds then snaps.
+            let k = if s <= 0.0 { if f > 0.5 { 1.0 } else { 0.0 } } else { let e = f * f * (3.0 - 2.0 * f); f + (e - f) * s };
+            let k = k.clamp(0.0, 1.0);
+            hash(i as i64) * (1.0 - k) + hash(i as i64 + 1) * k
+        };
+        let x = t * self.speed.max(0.0);
+        let s = self.smoothness.clamp(0.0, 1.0);
+        let n = noise(x) * 0.7 + noise(x * 2.7 + 13.0) * 0.3 * (1.0 - s * 0.7);
+        1.0 - self.amount.clamp(0.0, 1.0) * n
+    }
+}

@@ -171,6 +171,10 @@ export interface ScriptContext {
     wind(node: OpaqueId, wind: [number, number] | null): void
     reset(node: OpaqueId): void
   }
+  /** 2D cameras — `ref.shake2`. */
+  camera2?: {
+    shake(node: OpaqueId, amount: number): void
+  }
   /** Imported models / VRM avatars — see `ref.setBone3` etc. */
   model3: {
     setBone(node: OpaqueId, bone: string, x: number, y: number, z: number): boolean
@@ -591,6 +595,9 @@ export interface ComponentRef {
   /** **Ragdoll 3D**: go limp (`true`, optionally flung at `velocity` m/s)
    * or get back up (`false`). VRM avatars, Playground. */
   ragdoll3(on: boolean, options?: { velocity?: Vec3Like }): boolean
+  /** **Camera Shake**: kick this camera's shake by `amount` (0..1, adds
+   * up; strength is squared). Needs a Camera Shake component. */
+  shake2(amount?: number): void
   /** **Humanoid Animator**: play one of the avatar's imported clips
    * (crossfading), optionally overriding `loop` / `speed` / `blend`. `''`
    * goes back to the component's own clip. */
@@ -1064,6 +1071,10 @@ function makeComponentRefFromState(
     ragdoll3: {
       enumerable: false,
       value: (on: boolean, options: { velocity?: Vec3Like } = {}) => ctx.model3.ragdoll(node.id, !!on, options.velocity ? vec3Of(options.velocity) : [0, 0, 0]),
+    },
+    shake2: {
+      enumerable: false,
+      value: (amount: number = 0.5) => ctx.camera2?.shake(node.id, Number(amount) || 0),
     },
     playAnim3: {
       enumerable: false,

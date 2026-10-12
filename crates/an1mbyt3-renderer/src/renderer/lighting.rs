@@ -37,6 +37,7 @@ const SHADOW_EXTRUDE: f32 = 50_000.0;
 pub const MAX_FREEFORM_POINTS: usize = 32;
 
 /// The shape-specific half of a light.
+#[derive(Clone, Copy)]
 pub enum LightShape<'a> {
     /// A radial light with optional cone, aimed along the light's local +Y.
     /// Angles are *full* cone widths in degrees (360 = point light).
@@ -48,6 +49,7 @@ pub enum LightShape<'a> {
 }
 
 /// One non-Global light, ready to draw.
+#[derive(Clone, Copy)]
 pub struct LightDraw<'a> {
     pub shape: LightShape<'a>,
     /// The light node's world transform.
@@ -113,6 +115,21 @@ pub struct Lighting<'a> {
     pub casters: &'a [ShadowCasterShape],
     /// Draws that skip lighting (`Node::unlit`) — drawn over the lit image.
     pub unlit: &'a [DrawCall<'a>],
+    /// **Light groups** (sorting layers lit by different lights): when not
+    /// empty, the scene is these groups, back to front — each drawn alone,
+    /// lit by its own lights / ambient, and composited over the ones before
+    /// — instead of `render_with_post_effects`' `unmasked` / `masked`
+    /// (which are then ignored) and this struct's own lights.
+    pub groups: &'a [LitGroup<'a>],
+}
+
+/// One light group (see [`Lighting::groups`]).
+pub struct LitGroup<'a> {
+    pub unmasked: &'a [DrawCall<'a>],
+    pub masked: &'a [crate::SceneOp<'a>],
+    pub ambient_multiply: [f32; 3],
+    pub ambient_additive: [f32; 3],
+    pub lights: &'a [LightDraw<'a>],
 }
 
 /// `light.wgsl`'s `LightUniforms`, byte for byte.
@@ -139,6 +156,9 @@ pub(super) struct LightingResources {
     shadow_on_pipeline: wgpu::RenderPipeline,
     shadow_off_pipeline: wgpu::RenderPipeline,
     composite_pipeline: wgpu::RenderPipeline,
+    /// The same composite, alpha-blended over what's there (later light
+    /// groups over earlier ones).
+    composite_over_pipeline: wgpu::RenderPipeline,
     light_uniform_layout: wgpu::BindGroupLayout,
     mask_layout: wgpu::BindGroupLayout,
     composite_layout: wgpu::BindGroupLayout,
@@ -324,22 +344,32 @@ pub(super) fn build_lighting_resources(device: &wgpu::Device, queue: &wgpu::Queu
         bind_group_layouts: &[Some(&composite_layout)],
         immediate_size: 0,
     });
-    let composite_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("an1mbyt3 light composite"),
-        layout: Some(&composite_pipeline_layout),
-        vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_fullscreen"), compilation_options: Default::default(), buffers: &[] },
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_composite"),
-            compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState { format: output_format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
+    let composite = |label: &str, blend: Option<wgpu::BlendState>| {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(&composite_pipeline_layout),
+            vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_fullscreen"), compilation_options: Default::default(), buffers: &[] },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_composite"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState { format: output_format, blend, write_mask: wgpu::ColorWrites::ALL })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        })
+    };
+    let composite_pipeline = composite("an1mbyt3 light composite", None);
+    let composite_over_pipeline = composite(
+        "an1mbyt3 light composite (over)",
+        Some(wgpu::BlendState {
+            color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::SrcAlpha, dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha, operation: wgpu::BlendOperation::Add },
+            alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One, dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha, operation: wgpu::BlendOperation::Add },
         }),
-        multiview_mask: None,
-        cache: None,
-    });
+    );
 
     let mask_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
         label: Some("an1mbyt3 shadow mask sampler"),
@@ -399,6 +429,7 @@ pub(super) fn build_lighting_resources(device: &wgpu::Device, queue: &wgpu::Queu
         shadow_on_pipeline,
         shadow_off_pipeline,
         composite_pipeline,
+        composite_over_pipeline,
         light_uniform_layout,
         mask_layout,
         composite_layout,
@@ -465,6 +496,12 @@ impl Renderer {
     /// Runs the lighting stage (see this module's doc comment), reading
     /// `post_scene_view` and writing the lit result into `post_lit_view`.
     pub(super) fn draw_lighting(&self, encoder: &mut wgpu::CommandEncoder, viewport_size: (f32, f32), camera: Camera, lighting: &Lighting<'_>) {
+        self.draw_lighting_onto(encoder, viewport_size, camera, lighting, false);
+    }
+
+    /// `draw_lighting`, compositing either fresh into the lit target or
+    /// (`over`) over what earlier light groups left there.
+    pub(super) fn draw_lighting_onto(&self, encoder: &mut wgpu::CommandEncoder, viewport_size: (f32, f32), camera: Camera, lighting: &Lighting<'_>, over: bool) {
         let res = &self.lighting;
         let targets = &self.lighting_targets;
         let (target_w, target_h) = self.post_target_dims();
@@ -752,7 +789,7 @@ impl Renderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &targets.lit_view,
                     resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
+                    ops: wgpu::Operations { load: if over { wgpu::LoadOp::Load } else { wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT) }, store: wgpu::StoreOp::Store },
                     depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
@@ -760,7 +797,7 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_pipeline(&res.composite_pipeline);
+            pass.set_pipeline(if over { &res.composite_over_pipeline } else { &res.composite_pipeline });
             pass.set_bind_group(0, &composite_bind, &[]);
             pass.draw(0..3, 0..1);
         }

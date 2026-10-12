@@ -259,6 +259,17 @@ pub(crate) struct CollectedLight {
     pub node: NodeId,
     pub light: Light2DNode,
     pub transform: an1mbyt3_core::Transform2D,
+    /// The sorting layers it lights (`None` = all) — Light Layers.
+    pub layers: Option<Vec<u32>>,
+}
+
+/// A Global light, kept apart so ambient can be summed per layer.
+pub(crate) struct CollectedGlobal {
+    pub multiply: bool,
+    pub overlap: LightOverlapOperation,
+    /// Linear colour × intensity.
+    pub color: [f32; 3],
+    pub layers: Option<Vec<u32>>,
 }
 
 /// Every Light2D in the artboard this frame: Global lights folded into the
@@ -268,10 +279,32 @@ pub(crate) struct CollectedLighting {
     pub ambient_multiply: [f32; 3],
     pub ambient_additive: [f32; 3],
     pub lights: Vec<CollectedLight>,
+    pub globals: Vec<CollectedGlobal>,
+    /// Some light only lights some sorting layers.
+    pub filtered: bool,
 }
 
-pub(crate) fn collect_lights(artboard: &Artboard) -> CollectedLighting {
-    let mut out = CollectedLighting { any_light: false, ambient_multiply: [0.0; 3], ambient_additive: [0.0; 3], lights: Vec::new() };
+impl CollectedLighting {
+    /// The ambient (multiply, additive) a sorting layer gets.
+    pub fn ambient_for(&self, layer: u32) -> ([f32; 3], [f32; 3]) {
+        let (mut m, mut a) = ([0.0f32; 3], [0.0f32; 3]);
+        for g in self.globals.iter().filter(|g| g.layers.as_ref().is_none_or(|l| l.contains(&layer))) {
+            let target = if g.multiply { &mut m } else { &mut a };
+            for c in 0..3 {
+                match g.overlap {
+                    LightOverlapOperation::Additive => target[c] += g.color[c],
+                    LightOverlapOperation::AlphaBlend => target[c] = g.color[c],
+                    LightOverlapOperation::Max => target[c] = target[c].max(g.color[c]),
+                }
+            }
+        }
+        (m, a)
+    }
+}
+
+/// Every Light 2D, with Flicker applied at time `t` (seconds).
+pub(crate) fn collect_lights(artboard: &Artboard, t: f32) -> CollectedLighting {
+    let mut out = CollectedLighting { any_light: false, ambient_multiply: [0.0; 3], ambient_additive: [0.0; 3], lights: Vec::new(), globals: Vec::new(), filtered: false };
     for node_id in artboard.node_ids() {
         let Some(node) = artboard.node(node_id) else { continue };
         let Some(light) = node.light2d() else { continue };
@@ -279,7 +312,25 @@ pub(crate) fn collect_lights(artboard: &Artboard) -> CollectedLighting {
             continue;
         }
         out.any_light = true;
+        let layers = node.light_layers().filter(|l| !l.layers.is_empty()).map(|l| l.layers.clone());
+        out.filtered |= layers.is_some();
+        // Flicker: brightness (and a little of the radius) waver.
+        let mut light = light.clone();
+        if let Some(f) = node.light_flicker() {
+            let k = f.factor(t + (node_id_hash(node_id) % 1000) as f32 * 0.37);
+            light.intensity *= k;
+            let r = 1.0 - (1.0 - k) * f.radius_amount.clamp(0.0, 1.0);
+            light.outer_radius *= r;
+            light.inner_radius *= r;
+        }
+        let light = &light;
         if light.light_type == Light2DType::Global {
+            out.globals.push(CollectedGlobal {
+                multiply: light.blend_style == LightBlendStyle::Multiply,
+                overlap: light.overlap_operation,
+                color: [0, 1, 2].map(|c| an1mbyt3_renderer::srgb_to_linear(light.color[c]) * light.intensity),
+                layers: layers.clone(),
+            });
             let target = match light.blend_style {
                 LightBlendStyle::Multiply => &mut out.ambient_multiply,
                 LightBlendStyle::Additive => &mut out.ambient_additive,
@@ -295,7 +346,7 @@ pub(crate) fn collect_lights(artboard: &Artboard) -> CollectedLighting {
             }
             continue;
         }
-        out.lights.push(CollectedLight { node: node_id, light: light.clone(), transform: artboard.world_transform(node_id) });
+        out.lights.push(CollectedLight { node: node_id, light: light.clone(), transform: artboard.world_transform(node_id), layers });
     }
     out.lights.sort_by_key(|l| l.light.light_order);
     out
@@ -442,10 +493,18 @@ mod tests {
         artboard.add_node(Node::new("Global", None, NodeKind::Light2D(Light2DNode { intensity: 0.5, ..Light2DNode::global() })));
         artboard.add_node(Node::new("B", None, NodeKind::Light2D(Light2DNode { light_order: 2, ..Light2DNode::default() })));
         artboard.add_node(Node::new("A", None, NodeKind::Light2D(Light2DNode { light_order: 1, ..Light2DNode::default() })));
-        let collected = collect_lights(&artboard);
+        let collected = collect_lights(&artboard, 0.0);
         assert!(collected.any_light);
         assert_eq!(collected.ambient_multiply, [0.5, 0.5, 0.5]);
         assert_eq!(collected.lights.len(), 2);
         assert_eq!(collected.lights[0].light.light_order, 1);
     }
+}
+
+/// A stable small number per node (so flickers don't sync).
+fn node_id_hash(id: NodeId) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    id.hash(&mut h);
+    h.finish()
 }

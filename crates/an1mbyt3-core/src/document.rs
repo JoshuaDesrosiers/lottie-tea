@@ -70,6 +70,12 @@ pub struct Document {
     /// with it on (see `AdaptiveResolution`).
     #[serde(default)]
     adaptive_resolution: AdaptiveResolution,
+    /// The project's **sorting layers** (Unity's Sorting Layers), back to
+    /// front. Empty = just "Normal" (id 0). After `adaptive_resolution`,
+    /// the newest trailing field (an empty list encodes as one zero byte,
+    /// so older padded files load with it empty).
+    #[serde(default)]
+    sorting_layers: Vec<SortingLayerDef>,
     #[serde(skip)]
     undo_stack: Vec<Command>,
     #[serde(skip)]
@@ -109,6 +115,17 @@ impl AdaptiveResolution {
     pub fn min_scale(&self) -> f32 {
         if self.min_percent == 0 { 0.5 } else { (self.min_percent as f32 / 100.0).clamp(0.4, 1.0) }
     }
+}
+
+/// One **sorting layer**: everything on a layer draws above every layer
+/// before it in the list, whatever the hierarchy; inside a layer the usual
+/// order (hierarchy, z-index, y-sort) applies. `id` is stable (nodes and
+/// lights refer to it); the list order is the draw order. Id 0 is
+/// "Normal", where everything starts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SortingLayerDef {
+    pub id: u32,
+    pub name: String,
 }
 
 /// See `Document::instance`.
@@ -273,6 +290,27 @@ impl Document {
     }
 
     /// Every non-deleted property of every scene, in creation order.
+    /// The sorting layers, back to front (always at least "Normal").
+    pub fn sorting_layers(&self) -> Vec<SortingLayerDef> {
+        if self.sorting_layers.iter().any(|l| l.id == 0) {
+            self.sorting_layers.clone()
+        } else {
+            let mut all = vec![SortingLayerDef { id: 0, name: "Normal".into() }];
+            all.extend(self.sorting_layers.iter().cloned());
+            all
+        }
+    }
+
+    /// Replaces the sorting layers (order = draw order). A project
+    /// setting: no undo entry, but counts as a change to save. Layer 0
+    /// ("Normal") is kept even if left out.
+    pub fn set_sorting_layers(&mut self, layers: Vec<SortingLayerDef>) {
+        if self.sorting_layers != layers {
+            self.sorting_layers = layers;
+            self.revision += 1;
+        }
+    }
+
     /// The adaptive-resolution setting (see [`AdaptiveResolution`]).
     pub fn adaptive_resolution(&self) -> AdaptiveResolution {
         self.adaptive_resolution
