@@ -1554,11 +1554,15 @@ pub(crate) struct LiquidGpu {
     /// Fingerprint of the look `shader` was generated from.
     look_key: u64,
     binding: DrawBinding,
+    /// The glow's additive material key (`liquid_materials`) and its own
+    /// binding (one binding per draw).
+    glow_shader: Option<String>,
+    glow_binding: DrawBinding,
 }
 
 impl LiquidGpu {
     fn new(renderer: &Renderer) -> Self {
-        Self { texture: None, mesh: None, shader: String::new(), look_key: 0, binding: renderer.create_draw_binding() }
+        Self { texture: None, mesh: None, shader: String::new(), glow_shader: None, look_key: 0, binding: renderer.create_draw_binding(), glow_binding: renderer.create_draw_binding() }
     }
 
     /// Uploads `field` (+ `second` on its grid), rebuilds the quad in the
@@ -1579,6 +1583,16 @@ impl LiquidGpu {
             return;
         }
         self.look_key = look_key;
+        // The glow: its own additive material (keyed apart from normal ones).
+        self.glow_shader = crate::goo_gpu::glow_shader(look).map(|glow| {
+            let key = format!("additive\n{glow}");
+            if !materials.contains_key(&key) {
+                if let Ok(m) = renderer.compile_material_blended(&glow, true) {
+                    materials.insert(key.clone(), m);
+                }
+            }
+            key
+        });
         let wgsl = crate::goo_gpu::shader(look);
         if !materials.contains_key(&wgsl) {
             match renderer.compile_material(&wgsl) {
@@ -1593,18 +1607,28 @@ impl LiquidGpu {
         self.shader = wgsl;
     }
 
-    /// Its draw (`transform`: the draw's space → world).
-    fn draw<'a>(&'a self, materials: &'a HashMap<String, an1mbyt3_renderer::GpuMaterial>, transform: an1mbyt3_core::Transform2D) -> Option<DrawCall<'a>> {
-        Some(DrawCall {
-            mesh: self.mesh.as_ref()?,
-            binding: &self.binding,
+    /// Its draws (`transform`: the draw's space → world): the liquid, then
+    /// its glow (additive, on top) if it has one.
+    fn draw<'a>(&'a self, materials: &'a HashMap<String, an1mbyt3_renderer::GpuMaterial>, transform: an1mbyt3_core::Transform2D) -> Vec<DrawCall<'a>> {
+        let (Some(mesh), Some(texture)) = (self.mesh.as_ref(), self.texture.as_ref()) else { return Vec::new() };
+        let call = |binding: &'a DrawBinding, material: &'a an1mbyt3_renderer::GpuMaterial| DrawCall {
+            mesh,
+            binding,
             transform,
             fill_color: [1.0; 4],
             blend_mode: BlendMode::Normal,
             gradient: None,
-            texture: Some(&self.texture.as_ref()?.image),
-            material: Some(materials.get(&self.shader)?),
-        })
+            texture: Some(&texture.image),
+            material: Some(material),
+        };
+        let mut out = Vec::new();
+        if let Some(m) = materials.get(&self.shader) {
+            out.push(call(&self.binding, m));
+        }
+        if let Some(m) = self.glow_shader.as_ref().and_then(|k| materials.get(k)) {
+            out.push(call(&self.glow_binding, m));
+        }
+        out
     }
 }
 
@@ -1742,21 +1766,36 @@ fn goo_look(goo: &an1mbyt3_core::Goo2D, field: &crate::metaball2d::Field, antial
 
 /// A Goo 2D group's liquid, drawn with its owner's world transform.
 fn goo_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId) -> Vec<DrawCall<'a>> {
-    editor.goo_gpu.get(&node_id).and_then(|g| g.draw(&editor.liquid_materials, artboard.world_transform(node_id))).into_iter().collect()
+    editor.goo_gpu.get(&node_id).map(|g| g.draw(&editor.liquid_materials, artboard.world_transform(node_id))).unwrap_or_default()
 }
 
 /// A node's Particle Fluid 2D liquid (its quad is in world space).
 fn fluid_draws(editor: &WasmEditor, node_id: NodeId) -> Vec<DrawCall<'_>> {
-    editor.particle_fluid_gpu.get(&node_id).and_then(|g| g.draw(&editor.liquid_materials, an1mbyt3_core::Transform2D::default())).into_iter().collect()
+    editor.particle_fluid_gpu.get(&node_id).map(|g| g.draw(&editor.liquid_materials, an1mbyt3_core::Transform2D::default())).unwrap_or_default()
 }
 
 /// A Particle System component's live particles.
 fn particle_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId, config: &'a an1mbyt3_core::ParticleSystemNode) -> Vec<DrawCall<'a>> {
-    let (Some(mesh), Some(runtime), Some(bindings)) =
+    let (Some(disc), Some(runtime), Some(bindings)) =
         (editor.particle_mesh.as_ref(), editor.particle_runtimes.get(&node_id), editor.particle_bindings.get(&node_id))
     else {
         return Vec::new();
     };
+    // Particle Look: shape, blend, alignment, image and glow.
+    let look = artboard.node(node_id).and_then(|n| n.particle_look());
+    let mesh = editor.particle_shape_keys.get(&node_id).and_then(|k| editor.particle_shape_meshes.get(k)).unwrap_or(disc);
+    let image = look.filter(|l| l.shape == an1mbyt3_core::ParticleShape2D::Image).and_then(|l| l.image).and_then(|id| editor.image_cache.get(&id));
+    let (mesh, aspect) = match (image, editor.image_quad_mesh.as_ref()) {
+        (Some(_), Some(quad)) => {
+            // The image's aspect, from its PNG header (square otherwise).
+            let aspect = look.and_then(|l| l.image).and_then(|id| editor.document.image(id)).and_then(|a| png_aspect(&a.source)).unwrap_or(1.0);
+            (quad, aspect)
+        }
+        _ => (mesh, 1.0),
+    };
+    let align = look.is_some_and(|l| l.align_to_velocity || l.shape == an1mbyt3_core::ParticleShape2D::Streak);
+    let stretch = look.map_or(0.0, |l| l.stretch.max(0.0));
+    let blend_mode = look.map_or(BlendMode::Normal, |l| l.blend_mode);
     // `Local` draws every particle in the emitter's own local space,
     // composed fresh with this node's *current* world transform
     // every frame (so it visibly drags along if the emitter moves);
@@ -1773,7 +1812,8 @@ fn particle_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artbo
     // `touching`'s own AABB check already establishes elsewhere.
     let emitter_world = artboard.world_transform(node_id);
     let (sin, cos) = emitter_world.rotation.sin_cos();
-    runtime
+    let local_space = config.main.simulation_space == an1mbyt3_core::SimulationSpace::Local;
+    let mut draws: Vec<DrawCall<'a>> = runtime
         .particles()
         .iter()
         .zip(bindings.iter())
@@ -1799,6 +1839,17 @@ fn particle_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artbo
                     }
                 }
             };
+            let mut transform = transform;
+            // Facing the motion (world direction), stretched by speed.
+            let speed = particle.velocity.length();
+            if align && speed > 1e-3 {
+                let dir = if local_space { emitter_world.rotation + particle.velocity.y.atan2(particle.velocity.x) } else { particle.velocity.y.atan2(particle.velocity.x) };
+                transform.rotation = dir;
+            }
+            if stretch > 0.0 {
+                transform.scale.x *= 1.0 + stretch * speed / 100.0;
+            }
+            transform.scale.x *= aspect;
             DrawCall {
                 mesh,
                 binding,
@@ -1809,13 +1860,117 @@ fn particle_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artbo
                     config.main.start_color[2] * tint[2],
                     config.main.start_color[3] * tint[3],
                 ],
-                blend_mode: BlendMode::Normal,
+                blend_mode,
                 gradient: None,
-                texture: None,
+                texture: image,
                 material: None,
             }
         })
-        .collect()
+        .collect();
+    // Glow: a soft additive halo per particle, over all of them.
+    if let (Some(look), Some((quad, material)), Some(glow_bindings)) = (look.filter(|l| l.glow > 0.0), editor.particle_glow.as_ref(), editor.particle_glow_bindings.get(&node_id)) {
+        let halos: Vec<DrawCall<'a>> = draws
+            .iter()
+            .zip(glow_bindings.iter())
+            .map(|(d, binding)| {
+                let base = if look.glow_tint { d.fill_color } else { look.glow_color };
+                let size = d.transform.scale.x.abs().max(d.transform.scale.y.abs()) * look.glow_size.max(0.1);
+                DrawCall {
+                    mesh: quad,
+                    binding,
+                    transform: an1mbyt3_core::Transform2D { translation: d.transform.translation, rotation: 0.0, scale: Vec2::splat(size), anchor: Vec2::ZERO },
+                    fill_color: [base[0], base[1], base[2], (base[3] * look.glow.min(1.0)).clamp(0.0, 1.0)],
+                    blend_mode: BlendMode::Normal,
+                    gradient: None,
+                    texture: None,
+                    material: Some(material),
+                }
+            })
+            .collect();
+        draws.extend(halos);
+    }
+    draws
+}
+
+/// A particle's soft glow: a radial falloff on a unit quad, in the draw's
+/// colour, added as light (compiled additive).
+const PARTICLE_GLOW_WGSL: &str = r#"
+fn material_fragment(in: VertexOutput) -> vec4<f32> {
+    let d = length(in.local_position) * 2.0;
+    let fall = clamp(1.0 - d, 0.0, 1.0);
+    return vec4<f32>(uniforms.color.rgb * 1.4, uniforms.color.a * fall * fall);
+}
+"#;
+
+/// A Particle Look's shape as a path (any size; `unit_mesh` fits it), with
+/// a cache key — `None` for the default circle and for images.
+fn particle_shape_path(artboard: &an1mbyt3_core::Artboard, look: &an1mbyt3_core::ParticleLook2D) -> Option<(u64, an1mbyt3_core::Path)> {
+    use an1mbyt3_core::{Path, ParticleShape2D as S};
+    let builtin = |k: u64, p: Path| Some((k, p));
+    match look.shape {
+        S::Circle | S::Image => None,
+        S::Square => builtin(1, Path::rect(64.0, 64.0)),
+        S::Triangle => builtin(2, Path::polygon(3, 32.0)),
+        S::Diamond => builtin(3, Path::polygon(4, 32.0)),
+        S::Star => builtin(4, Path::star(5, 32.0, 14.0)),
+        S::Hexagon => builtin(5, Path::polygon(6, 32.0)),
+        S::Ring => {
+            // Outer circle one way, inner the other: a hole under any fill rule.
+            use an1mbyt3_core::PathCommand as C;
+            let ring = |r: f32, reverse: bool| {
+                let mut out = Vec::new();
+                for i in 0..48 {
+                    let i = if reverse { 48 - i } else { i };
+                    let a = i as f32 / 48.0 * std::f32::consts::TAU;
+                    let p = Vec2::new(a.cos() * r, a.sin() * r);
+                    out.push(if out.is_empty() { C::MoveTo(p) } else { C::LineTo(p) });
+                }
+                out.push(C::Close);
+                out
+            };
+            let mut commands = ring(32.0, false);
+            commands.extend(ring(22.0, true));
+            builtin(6, Path { commands })
+        }
+        S::Streak => {
+            // A long thin lens along +x (the motion direction).
+            use an1mbyt3_core::PathCommand as C;
+            let pts = [Vec2::new(32.0, 0.0), Vec2::new(0.0, 5.0), Vec2::new(-32.0, 0.0), Vec2::new(0.0, -5.0)];
+            let mut commands: Vec<C> = pts.iter().enumerate().map(|(i, p)| if i == 0 { C::MoveTo(*p) } else { C::LineTo(*p) }).collect();
+            commands.push(C::Close);
+            builtin(7, Path { commands })
+        }
+        S::Shape => {
+            let id = look.node?;
+            let NodeKind::Shape(shape) = &artboard.node(id)?.kind else { return None };
+            let key = fingerprint_debug(&(id, &shape.path)) | (1 << 63);
+            Some((key, shape.path.clone()))
+        }
+    }
+}
+
+/// Width / height of a PNG, from its header.
+fn png_aspect(bytes: &[u8]) -> Option<f32> {
+    if bytes.len() < 24 || &bytes[1..4] != b"PNG" {
+        return None;
+    }
+    let w = u32::from_be_bytes(bytes[16..20].try_into().ok()?);
+    let h = u32::from_be_bytes(bytes[20..24].try_into().ok()?);
+    (w > 0 && h > 0).then(|| w as f32 / h as f32)
+}
+
+/// `path` tessellated and fitted into the unit box (−0.5 … 0.5), centred.
+/// (Tessellated at its own size — lyon's tolerance is absolute.)
+fn unit_mesh(path: &an1mbyt3_core::Path) -> an1mbyt3_geometry::Mesh {
+    let mut mesh = tessellate_path(path);
+    let (min, max) = path.bounds();
+    let center = (min + max) * 0.5;
+    let extent = (max - min).max_element().max(1e-3);
+    for p in &mut mesh.positions {
+        p[0] = (p[0] - center.x) / extent;
+        p[1] = (p[1] - center.y) / extent;
+    }
+    mesh
 }
 
 /// A Tree 2D's parts, back to front, in the node's own space.
@@ -2587,6 +2742,15 @@ pub struct WasmEditor {
     /// count grows back rather than freeing and re-allocating GPU resources
     /// every time the live count fluctuates.
     particle_bindings: HashMap<NodeId, Vec<DrawBinding>>,
+    /// Particle Look shapes (unit-sized meshes), by shape key — built-in
+    /// shapes once, Shape-node outlines per (node, path).
+    particle_shape_meshes: HashMap<u64, GpuMesh>,
+    /// Which shape mesh each Particle Look system draws with this frame.
+    particle_shape_keys: HashMap<NodeId, u64>,
+    /// Particle glow: a unit quad and its soft additive halo material.
+    particle_glow: Option<(GpuMesh, an1mbyt3_renderer::GpuMaterial)>,
+    /// One glow binding per live particle, per system (one binding per draw).
+    particle_glow_bindings: HashMap<NodeId, Vec<DrawBinding>>,
     /// Particle Fluid 2D: this frame's liquid meshes per node (world space,
     /// back to front: rim, body, highlight) and the bindings they reuse.
     particle_fluid_gpu: HashMap<NodeId, LiquidGpu>,
@@ -3017,6 +3181,10 @@ impl WasmEditor {
             sections: Default::default(),
             particle_mesh: None,
             particle_bindings: HashMap::new(),
+            particle_shape_meshes: HashMap::new(),
+            particle_shape_keys: HashMap::new(),
+            particle_glow: None,
+            particle_glow_bindings: HashMap::new(),
             particle_fluid_gpu: HashMap::new(),
             goo_gpu: HashMap::new(),
             liquid_materials: HashMap::new(),
@@ -3792,9 +3960,40 @@ impl WasmEditor {
                 let local = config.main.simulation_space == an1mbyt3_core::SimulationSpace::Local;
                 apply_particle_behaviors_2d(fx, runtime.particles_mut(), local, emitter_world, delta_seconds);
             }
+            let live = runtime.particles().len();
             let bindings = self.particle_bindings.entry(node_id).or_default();
-            while bindings.len() < runtime.particles().len() {
+            while bindings.len() < live {
                 bindings.push(self.renderer.create_draw_binding());
+            }
+            // Particle Look: this system's shape mesh, and glow bindings.
+            if let Some(look) = node.particle_look() {
+                if let Some((key, path)) = particle_shape_path(artboard, look) {
+                    if !self.particle_shape_meshes.contains_key(&key) {
+                        let mesh = unit_mesh(&path);
+                        self.particle_shape_meshes.insert(key, self.renderer.upload_mesh(&mesh));
+                    }
+                    self.particle_shape_keys.insert(node_id, key);
+                } else {
+                    self.particle_shape_keys.remove(&node_id);
+                }
+                if look.glow > 0.0 {
+                    let glow = self.particle_glow_bindings.entry(node_id).or_default();
+                    while glow.len() < live {
+                        glow.push(self.renderer.create_draw_binding());
+                    }
+                }
+            } else {
+                self.particle_shape_keys.remove(&node_id);
+            }
+        }
+        if self.particle_glow.is_none() {
+            let quad = an1mbyt3_geometry::Mesh {
+                positions: vec![[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]],
+                indices: vec![0, 1, 2, 0, 2, 3],
+                uvs: vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]],
+            };
+            if let Ok(material) = self.renderer.compile_material_blended(PARTICLE_GLOW_WGSL, true) {
+                self.particle_glow = Some((self.renderer.upload_mesh(&quad), material));
             }
         }
 
@@ -7179,6 +7378,7 @@ impl WasmEditor {
             "FootIK" => B::FootIK(an1mbyt3_core::FootIK::default()),
             "BoneAttachment" => B::BoneAttachment(an1mbyt3_core::BoneAttachment::default()),
             "GooMaterial2D" => B::GooMaterial2D(an1mbyt3_core::GooMaterial2D::default()),
+            "ParticleLook2D" => B::ParticleLook2D(an1mbyt3_core::ParticleLook2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };

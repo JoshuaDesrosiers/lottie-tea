@@ -297,3 +297,69 @@ mod tests {
         assert_eq!(node.rotation_speed, 0.0);
     }
 }
+
+/// What each particle of a 2D Particle System looks like (see
+/// [`ParticleLook2D`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub enum ParticleShape2D {
+    #[default]
+    Circle,
+    Square,
+    Triangle,
+    Diamond,
+    Star,
+    Hexagon,
+    Ring,
+    /// A thin streak, always pointing along the particle's motion (sparks,
+    /// rain, speed lines).
+    Streak,
+    /// An image asset (`ParticleLook2D::image`), as a sprite.
+    Image,
+    /// The outline of a Shape node in the scene (`ParticleLook2D::node`) —
+    /// any custom shape (leaves, hearts, logos).
+    Shape,
+}
+
+/// **Particle Look** — a 2D Particle System's per-particle look, on the
+/// same node as the Particle System:
+/// - `shape`: the particle's shape (circle by default), an image, or any
+///   Shape node's outline; fitted to the particle's size.
+/// - `align_to_velocity`: turn each particle to face where it's going
+///   (Streak always does); `stretch` lengthens it with speed (motion
+///   streaks; 0 = none).
+/// - `blend_mode`: how particles composite (Normal, Multiply, Screen, Add —
+///   Add for fire, magic and light). Image particles draw Normal.
+/// - Glow: a soft halo round every particle, added on top as light —
+///   `glow` strength (0 = off), `glow_size` (× the particle's size), in the
+///   particle's own colour (`glow_tint`) or `glow_color`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ParticleLook2D {
+    pub shape: ParticleShape2D,
+    pub image: Option<crate::ImageId>,
+    pub node: Option<crate::NodeId>,
+    pub align_to_velocity: bool,
+    pub stretch: f32,
+    pub blend_mode: crate::BlendMode,
+    pub glow: f32,
+    pub glow_size: f32,
+    pub glow_tint: bool,
+    pub glow_color: [f32; 4],
+}
+
+impl Default for ParticleLook2D {
+    fn default() -> Self {
+        Self {
+            shape: ParticleShape2D::Circle,
+            image: None,
+            node: None,
+            align_to_velocity: false,
+            stretch: 0.0,
+            blend_mode: crate::BlendMode::Normal,
+            glow: 0.0,
+            glow_size: 2.5,
+            glow_tint: true,
+            glow_color: [1.0, 0.8, 0.4, 1.0],
+        }
+    }
+}

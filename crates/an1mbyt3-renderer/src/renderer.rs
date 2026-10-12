@@ -2099,6 +2099,22 @@ impl Renderer {
     /// Compiles a shader-graph material (validated first — an invalid graph
     /// is an `Err`, never a GPU error).
     pub fn compile_material(&self, fragment: &str) -> Result<GpuMaterial, String> {
+        self.compile_material_blended(fragment, false)
+    }
+
+    /// Like [`Renderer::compile_material`], but `additive` blends it as
+    /// light: `dst + src.rgb * src.a`, leaving the target's alpha alone —
+    /// glows, sparks, neon that brighten whatever is beneath them. (Shaders
+    /// output straight alpha either way.)
+    pub fn compile_material_blended(&self, fragment: &str, additive: bool) -> Result<GpuMaterial, String> {
+        let blend = if additive {
+            wgpu::BlendState {
+                color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::SrcAlpha, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
+                alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::Zero, dst_factor: wgpu::BlendFactor::One, operation: wgpu::BlendOperation::Add },
+            }
+        } else {
+            wgpu_blend_state(BlendMode::Normal)
+        };
         Self::validate_material(fragment)?;
         let source = Self::material_shader_source(fragment);
         let module = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -2133,7 +2149,7 @@ impl Renderer {
                     module: &module,
                     entry_point: Some("fs_material"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    targets: &[Some(wgpu::ColorTargetState { format: self.render_format, blend: Some(wgpu_blend_state(BlendMode::Normal)), write_mask: wgpu::ColorWrites::ALL })],
+                    targets: &[Some(wgpu::ColorTargetState { format: self.render_format, blend: Some(blend), write_mask: wgpu::ColorWrites::ALL })],
                 }),
                 multiview_mask: None,
                 cache: None,

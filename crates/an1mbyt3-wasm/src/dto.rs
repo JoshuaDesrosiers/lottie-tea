@@ -2200,6 +2200,7 @@ pub enum NodeBehaviorDto {
     BoneAttachment(an1mbyt3_core::BoneAttachment),
     GroupFill(GroupFillDto),
     GooMaterial2D(an1mbyt3_core::GooMaterial2D),
+    ParticleLook2D(an1mbyt3_core::ParticleLook2D),
 }
 
 /// `an1mbyt3_core::GroupFill`, its gradient in the frontend's `{x, y}` shape.
@@ -2263,6 +2264,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::FootIK(f) => NodeBehaviorDto::FootIK(*f),
             an1mbyt3_core::NodeBehavior::BoneAttachment(b) => NodeBehaviorDto::BoneAttachment(b.clone()),
             an1mbyt3_core::NodeBehavior::GooMaterial2D(m) => NodeBehaviorDto::GooMaterial2D(m.clone()),
+            an1mbyt3_core::NodeBehavior::ParticleLook2D(l) => NodeBehaviorDto::ParticleLook2D(l.clone()),
             an1mbyt3_core::NodeBehavior::GroupFill(f) => NodeBehaviorDto::GroupFill(GroupFillDto { color: f.color, gradient: f.gradient.as_ref().map(Into::into) }),
         }
     }
@@ -2321,6 +2323,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::FootIK(f) => an1mbyt3_core::NodeBehavior::FootIK(f),
             NodeBehaviorDto::BoneAttachment(b) => an1mbyt3_core::NodeBehavior::BoneAttachment(b),
             NodeBehaviorDto::GooMaterial2D(m) => an1mbyt3_core::NodeBehavior::GooMaterial2D(m),
+            NodeBehaviorDto::ParticleLook2D(l) => an1mbyt3_core::NodeBehavior::ParticleLook2D(l),
             NodeBehaviorDto::GroupFill(f) => an1mbyt3_core::NodeBehavior::GroupFill(an1mbyt3_core::GroupFill { color: f.color, gradient: f.gradient.map(Into::into) }),
         }
     }

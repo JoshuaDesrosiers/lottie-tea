@@ -188,33 +188,7 @@ pub fn shader(look: &Look) -> String {
     let mut s = String::new();
     s.push_str(&format!(
         r#"
-const GOO_RANGE: f32 = {range};
-
-fn goo_tap(uv: vec2<f32>) -> vec4<f32> {{
-    return textureSampleLevel(image_texture, image_sampler, uv, 0.0);
-}}
-
-// Both packed fields at `uv`, cubic B-spline filtered (four bilinear taps).
-fn goo_fields(uv: vec2<f32>) -> vec2<f32> {{
-    let dims = vec2<f32>(textureDimensions(image_texture));
-    let st = uv * dims - vec2<f32>(0.5, 0.5);
-    let i = floor(st);
-    let t = st - i;
-    let t2 = t * t;
-    let t3 = t2 * t;
-    let w0 = (1.0 - 3.0 * t + 3.0 * t2 - t3) / 6.0;
-    let w1 = (4.0 - 6.0 * t2 + 3.0 * t3) / 6.0;
-    let w2 = (1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3) / 6.0;
-    let w3 = t3 / 6.0;
-    let g0 = w0 + w1;
-    let g1 = w2 + w3;
-    let h0 = (i - vec2<f32>(1.0, 1.0) + w1 / g0 + vec2<f32>(0.5, 0.5)) / dims;
-    let h1 = (i + vec2<f32>(1.0, 1.0) + w3 / g1 + vec2<f32>(0.5, 0.5)) / dims;
-    let s = g0.y * (g0.x * goo_tap(vec2<f32>(h0.x, h0.y)) + g1.x * goo_tap(vec2<f32>(h1.x, h0.y)))
-          + g1.y * (g0.x * goo_tap(vec2<f32>(h0.x, h1.y)) + g1.x * goo_tap(vec2<f32>(h1.x, h1.y)));
-    let k = 255.0 * GOO_RANGE / 65535.0;
-    return vec2<f32>((s.r * 256.0 + s.g) * k, (s.b * 256.0 + s.a) * k);
-}}
+{fields}
 
 {cover}
 
@@ -227,7 +201,7 @@ fn goo_over(dst: vec4<f32>, src: vec4<f32>) -> vec4<f32> {{
     return vec4<f32>((src.rgb * src.a + dst.rgb * dst.a * (1.0 - src.a)) / a, a);
 }}
 "#,
-        range = f(RANGE),
+        fields = field_sampling(),
         cover = match look.antialias {
             // Hard edge: a pixel is liquid or it isn't.
             None => "fn goo_cover(v: f32, level: f32) -> f32 {
@@ -255,17 +229,6 @@ fn goo_cover(v: f32, level: f32) -> f32 {{
         s.push('\n');
     }
     s.push_str("\nfn material_fragment(in: VertexOutput) -> vec4<f32> {\n    let fields = goo_fields(in.uv);\n    let v = fields.x;\n    var c = vec4<f32>(0.0, 0.0, 0.0, 0.0);\n");
-    if let Some(glow) = &look.glow {
-        // Under everything: rises from nothing at `outer` to full at the
-        // edge, eased so it reads as light falling off.
-        s.push_str(&format!(
-            "    let glow_t = clamp((v - {outer}) / max({edge} - {outer}, 0.00001), 0.0, 1.0);\n    let glow = {color};\n    c = goo_over(c, vec4<f32>(glow.rgb, glow.a * {strength} * glow_t * glow_t));\n",
-            outer = f(glow.outer),
-            edge = f(glow.edge),
-            color = vec4(glow.color),
-            strength = f(glow.strength.clamp(0.0, 1.0))
-        ));
-    }
     if let Some((level, _)) = &look.rim {
         s.push_str(&format!("    let rim = goo_rim_paint(in.local_position);\n    c = goo_over(c, vec4<f32>(rim.rgb, rim.a * goo_cover(v, {})));\n", f(*level)));
     }
@@ -306,4 +269,68 @@ mod tests {
         let back = (bytes[at] as f32 * 256.0 + bytes[at + 1] as f32) / 65535.0 * RANGE;
         assert!((back - field.samples()[j * w + i]).abs() < RANGE / 65535.0 + 1e-6);
     }
+}
+
+/// The field sampling every liquid shader shares (`goo_fields`).
+fn field_sampling() -> String {
+    format!(r#"const GOO_RANGE: f32 = {range};
+
+fn goo_tap(uv: vec2<f32>) -> vec4<f32> {{
+    return textureSampleLevel(image_texture, image_sampler, uv, 0.0);
+}}
+
+// Both packed fields at `uv`, cubic B-spline filtered (four bilinear taps).
+fn goo_fields(uv: vec2<f32>) -> vec2<f32> {{
+    let dims = vec2<f32>(textureDimensions(image_texture));
+    let st = uv * dims - vec2<f32>(0.5, 0.5);
+    let i = floor(st);
+    let t = st - i;
+    let t2 = t * t;
+    let t3 = t2 * t;
+    let w0 = (1.0 - 3.0 * t + 3.0 * t2 - t3) / 6.0;
+    let w1 = (4.0 - 6.0 * t2 + 3.0 * t3) / 6.0;
+    let w2 = (1.0 + 3.0 * t + 3.0 * t2 - 3.0 * t3) / 6.0;
+    let w3 = t3 / 6.0;
+    let g0 = w0 + w1;
+    let g1 = w2 + w3;
+    let h0 = (i - vec2<f32>(1.0, 1.0) + w1 / g0 + vec2<f32>(0.5, 0.5)) / dims;
+    let h1 = (i + vec2<f32>(1.0, 1.0) + w3 / g1 + vec2<f32>(0.5, 0.5)) / dims;
+    let s = g0.y * (g0.x * goo_tap(vec2<f32>(h0.x, h0.y)) + g1.x * goo_tap(vec2<f32>(h1.x, h0.y)))
+          + g1.y * (g0.x * goo_tap(vec2<f32>(h0.x, h1.y)) + g1.x * goo_tap(vec2<f32>(h1.x, h1.y)));
+    let k = 255.0 * GOO_RANGE / 65535.0;
+    return vec2<f32>((s.r * 256.0 + s.g) * k, (s.b * 256.0 + s.a) * k);
+}}
+"#, range = f(RANGE))
+}
+
+/// The liquid's **glow**, as its own shader — drawn *after* the liquid
+/// with additive blending, so it lights up the liquid's edge and whatever
+/// is around and beneath it (rather than sitting under the liquid as a
+/// tint). Brightest at the outline, fading out to `glow.outer` outside it
+/// and easing off toward the inside, so the body keeps its colour with a
+/// luminous rim. `None` when the look has no glow.
+pub fn glow_shader(look: &Look) -> Option<String> {
+    let glow = look.glow.as_ref()?;
+    let c = an1mbyt3_renderer::linear_rgba(glow.color);
+    Some(format!(
+        r#"
+{fields}
+
+fn material_fragment(in: VertexOutput) -> vec4<f32> {{
+    let v = goo_fields(in.uv).x;
+    let outside = clamp((v - {outer}) / max({edge} - {outer}, 0.00001), 0.0, 1.0);
+    let inside = clamp((v - {edge}) / max({edge} * 0.8, 0.00001), 0.0, 1.0);
+    let a = outside * outside * mix(1.0, 0.3, inside);
+    return vec4<f32>(vec3<f32>({r}, {g}, {b}) * {strength}, {alpha} * a);
+}}
+"#,
+        fields = field_sampling(),
+        outer = f(glow.outer),
+        edge = f(glow.edge),
+        r = f(c[0]),
+        g = f(c[1]),
+        b = f(c[2]),
+        alpha = f(c[3].clamp(0.0, 1.0)),
+        strength = f(glow.strength.max(0.0) * 1.6),
+    ))
 }

@@ -151,6 +151,9 @@ pub enum NodeBehavior {
     /// [`crate::GooMaterial2D`]: a goo group's material and glow.
     /// (Appended last.)
     GooMaterial2D(crate::GooMaterial2D),
+    /// [`crate::ParticleLook2D`]: a 2D particle system's particle shape,
+    /// blend mode and glow. (Appended last.)
+    ParticleLook2D(crate::ParticleLook2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

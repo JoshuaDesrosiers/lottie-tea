@@ -956,6 +956,74 @@ function BehaviorsFields({
         const { kind: _k, ...config } = behavior
         return <Goo2DFields config={config} onChange={(c) => replaceAt(index, { kind: 'Goo2D', ...c })} antialias={antialias} onAntialias={setAntialias} box={{ min: node.localMin, max: node.localMax }} />
       }
+      case 'ParticleLook2D': {
+        const { kind: _k, ...config } = behavior
+        const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'ParticleLook2D', ...config, ...patch })
+        const none = 'none'
+        const keyOf = (id: OpaqueId) => `${id.idx}:${id.version}`
+        const shapes = (artboard?.nodes ?? []).filter((n) => n.kind === 'Shape' && !(n.id.idx === node.id.idx && n.id.version === node.id.version))
+        const SHAPES = ['Circle', 'Square', 'Triangle', 'Diamond', 'Star', 'Hexagon', 'Ring', 'Streak', 'Image', 'Shape'] as const
+        const row = (label: string, child: ReactNode, title?: string) => (
+          <div className="flex items-center gap-2" title={title}>
+            <span className="w-24 shrink-0 text-[11px] text-ink-dim">{label}</span>
+            <div className="min-w-0 flex-1">{child}</div>
+          </div>
+        )
+        const slider = (label: string, key: 'stretch' | 'glow' | 'glowSize', min: number, max: number, step: number, title: string) =>
+          row(
+            label,
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <Slider value={config[key]} min={min} max={max} step={step} onChange={(v) => set({ [key]: v })} />
+              </div>
+              <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-ink-dim">{config[key].toFixed(2)}</span>
+            </div>,
+            title,
+          )
+        return (
+          <div className="flex flex-col gap-1.5">
+            {row('Shape', <Dropdown value={config.shape} options={[...SHAPES]} onChange={(shape) => set({ shape })} />)}
+            {config.shape === 'Image' &&
+              row(
+                'Image',
+                <Dropdown
+                  value={config.image ? keyOf(config.image) : none}
+                  options={[none, ...images.map((i) => keyOf(i.id))]}
+                  renderValue={(k) => (k === none ? 'Pick an image' : (images.find((i) => keyOf(i.id) === k)?.name ?? 'Missing image'))}
+                  renderOption={(k) => (k === none ? 'None' : (images.find((i) => keyOf(i.id) === k)?.name ?? k))}
+                  onChange={(k) => set({ image: images.find((i) => keyOf(i.id) === k)?.id ?? null })}
+                />,
+              )}
+            {config.shape === 'Shape' &&
+              row(
+                'Shape node',
+                <Dropdown
+                  value={config.node ? keyOf(config.node) : none}
+                  options={[none, ...shapes.map((n) => keyOf(n.id))]}
+                  renderValue={(k) => (k === none ? 'Pick a shape' : (shapes.find((n) => keyOf(n.id) === k)?.name ?? 'Missing shape'))}
+                  renderOption={(k) => (k === none ? 'None' : (shapes.find((n) => keyOf(n.id) === k)?.name ?? k))}
+                  onChange={(k) => set({ node: shapes.find((n) => keyOf(n.id) === k)?.id ?? null })}
+                />,
+                'Any Shape node in the scene: each particle takes its outline (hide the original if you only want it as a template).',
+              )}
+            {row('Blend', <Dropdown value={config.blendMode} options={['Normal', 'Multiply', 'Screen', 'Add'] as const} onChange={(blendMode) => set({ blendMode })} />, 'Add: light (fire, sparks, magic). Multiply: shadows / ink. Screen: soft light.')}
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Turn each particle to face where it's moving (Streak always does).">
+              <input type="checkbox" checked={config.alignToVelocity} onChange={(e) => set({ alignToVelocity: e.target.checked })} />
+              Face the direction of motion
+            </label>
+            {slider('Stretch', 'stretch', 0, 3, 0.05, 'Lengthen particles with their speed (motion streaks). 0 = off.')}
+            {slider('Glow', 'glow', 0, 1, 0.01, 'A soft halo round every particle, added as light. 0 = off.')}
+            {config.glow > 0 && slider('Glow size', 'glowSize', 1, 8, 0.1, 'Halo size, in particle sizes.')}
+            {config.glow > 0 && (
+              <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+                <input type="checkbox" checked={config.glowTint} onChange={(e) => set({ glowTint: e.target.checked })} />
+                Glow in the particle&apos;s own colour
+              </label>
+            )}
+            {config.glow > 0 && !config.glowTint && row('Glow colour', <ColorSwatch value={config.glowColor} onChange={(glowColor) => set({ glowColor })} />)}
+          </div>
+        )
+      }
       case 'GooMaterial2D': {
         const { kind: _k, ...config } = behavior
         const set = (patch: Partial<typeof config>) => replaceAt(index, { kind: 'GooMaterial2D', ...config, ...patch })

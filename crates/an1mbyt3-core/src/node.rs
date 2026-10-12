@@ -279,6 +279,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Particle Look, if any.
+    pub fn particle_look(&self) -> Option<&crate::ParticleLook2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::ParticleLook2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Goo Material, if any.
     pub fn goo_material(&self) -> Option<&crate::GooMaterial2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

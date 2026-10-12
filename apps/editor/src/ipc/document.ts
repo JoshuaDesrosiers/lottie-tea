@@ -1566,6 +1566,24 @@ export type NodeBehavior =
   | ({ kind: 'BoneAttachment' } & BoneAttachmentConfig)
   | ({ kind: 'GroupFill' } & GroupFillConfig)
   | ({ kind: 'GooMaterial2D' } & GooMaterial2DConfig)
+  | ({ kind: 'ParticleLook2D' } & ParticleLook2DConfig)
+
+export type ParticleShape2D = 'Circle' | 'Square' | 'Triangle' | 'Diamond' | 'Star' | 'Hexagon' | 'Ring' | 'Streak' | 'Image' | 'Shape'
+
+/** Mirrors `an1mbyt3_core::ParticleLook2D`: a 2D particle system's
+ * particle shape, alignment, blend mode and glow. */
+export interface ParticleLook2DConfig {
+  shape: ParticleShape2D
+  image: OpaqueId | null
+  node: OpaqueId | null
+  alignToVelocity: boolean
+  stretch: number
+  blendMode: 'Normal' | 'Multiply' | 'Screen' | 'Add'
+  glow: number
+  glowSize: number
+  glowTint: boolean
+  glowColor: [number, number, number, number]
+}
 
 /** Mirrors `an1mbyt3_core::GooMaterial2D`: a goo group's shader-graph
  * material (multiplies its fill) and glow. */
