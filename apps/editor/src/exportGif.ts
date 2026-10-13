@@ -103,11 +103,13 @@ export async function exportActiveAnimation(editor: WasmEditor, canvas: HTMLCanv
   }
 
   editor.set_export_transparent(transparent)
+  editor.set_exporting(true)
   try {
     if (options.format === 'gif') await encodeGif(readback, ctx2d, frameCount, transparent, renderFrame, outPath)
     else await encodeVideo(readback, options.format, frameCount, fps, transparent, renderFrame, outPath)
   } finally {
     editor.set_export_transparent(false)
+    editor.set_exporting(false)
   }
 }
 

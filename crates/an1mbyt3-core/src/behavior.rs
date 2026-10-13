@@ -188,6 +188,8 @@ pub enum NodeBehavior {
     ClipOptions2D(crate::ClipOptions2D),
     /// [`crate::ClipFade2D`]: soft clipping opacities. (Appended last.)
     ClipFade2D(crate::ClipFade2D),
+    /// [`crate::AntiGoo2D`]: carves into a goo group. (Appended last.)
+    AntiGoo2D(crate::AntiGoo2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

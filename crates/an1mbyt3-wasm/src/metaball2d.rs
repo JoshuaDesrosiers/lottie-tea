@@ -377,23 +377,36 @@ impl Field {
     /// [`Field::from_sources`], reusing cached polygon patches (see
     /// [`SourceCache`]).
     pub fn from_sources_cached(sources: &[Source], reach: f32, detail: f32, mut cache: Option<&mut SourceCache>) -> Field {
-        let sources: Vec<&Source> = sources.iter().filter(|s| s.weight() > 0.0).collect();
+        // Negative weights (Anti Goo) carve: they only lower the field, so
+        // the grid spans the positive members alone, and carvers out of
+        // their reach are skipped.
         let reach = reach.max(0.5);
         let share = visible_share(GOO_THRESHOLD);
         let big_r = reach / (1.0 - share);
         let r0 = big_r * share;
-        if sources.is_empty() {
-            return Field { data: Vec::new(), w: 0, h: 0, origin: Vec2::ZERO, cell: 1.0, big_r, r0 };
-        }
         let mut min = Vec2::splat(f32::INFINITY);
         let mut max = Vec2::splat(f32::NEG_INFINITY);
-        for s in &sources {
+        for s in sources.iter().filter(|s| s.weight() > 0.0) {
             let (a, b) = s.bounds();
             min = min.min(a);
             max = max.max(b);
         }
+        if min.x > max.x {
+            return Field { data: Vec::new(), w: 0, h: 0, origin: Vec2::ZERO, cell: 1.0, big_r, r0 };
+        }
         min -= Vec2::splat(reach);
         max += Vec2::splat(reach);
+        let sources: Vec<&Source> = sources
+            .iter()
+            .filter(|s| {
+                let w = s.weight();
+                if w > 0.0 {
+                    return true;
+                }
+                let (a, b) = s.bounds();
+                w < 0.0 && a.x - reach <= max.x && b.x + reach >= min.x && a.y - reach <= max.y && b.y + reach >= min.y
+            })
+            .collect();
         let (cell, origin, w, h) = world_grid(min, max, (reach * detail.clamp(0.05, 1.0)).max(0.25));
         let mut data = vec![0.0f32; w * h];
         let cell_of = |p: Vec2| (p - origin) / cell;

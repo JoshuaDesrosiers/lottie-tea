@@ -1443,6 +1443,10 @@ fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard,
     // Goo 2D: a group's liquid is drawn at its front-most member, under
     // that member's own drawing (which "Hide source" leaves out entirely).
     // (While designing there's no liquid: members draw as themselves.)
+    // Anti Goo with Hide source: not drawn while its goo runs.
+    if node.anti_goo().is_some_and(|a| a.hide_source && (editor.effects_live() || editor.goo_preview.contains(&a.group))) {
+        return Vec::new();
+    }
     if let Some(goo) = node.goo().filter(|g| editor.effects_live() || editor.goo_preview.contains(&g.group)) {
         let mut draws = editor.goo_draw_at.get(&node_id).map(|owner| goo_draws(editor, artboard, *owner)).unwrap_or_default();
         if !goo.hide_source {
@@ -2760,6 +2764,9 @@ pub struct WasmEditor {
     /// Exporting a transparent GIF / video: frames clear to alpha 0 and
     /// skip editor chrome (the grid) — see `set_export_transparent`.
     export_transparent: bool,
+    /// An Export (GIF / video) is rendering frames: post effects, particles
+    /// and goo render as at play time — see `set_exporting`.
+    exporting: bool,
     /// Design-mode "preview on" screen size (CSS px) — how UI Layouts,
     /// UI Anchors and Show When react to a phone / tablet / desktop
     /// without leaving the editor. `None` = the artboard's own size.
@@ -3290,6 +3297,7 @@ impl WasmEditor {
             preview_screen: None,
             last_screen: None,
             export_transparent: false,
+            exporting: false,
             model_gpu: HashMap::new(),
             anim_clocks: HashMap::new(),
             particles3d: Default::default(),
@@ -3640,7 +3648,7 @@ impl WasmEditor {
     /// designing they're skipped entirely, so Design stays light; goo
     /// members show as their plain shapes there.
     fn effects_live(&self) -> bool {
-        self.playground_active || self.state_machine_active
+        self.playground_active || self.state_machine_active || self.exporting
     }
 
     pub fn render(
@@ -4123,7 +4131,14 @@ impl WasmEditor {
         self.goo_preview = if fx_live {
             Default::default()
         } else {
-            artboard.node_ids().filter(|id| fx_preview(artboard, selected, *id)).filter_map(|id| artboard.node(id)?.goo().map(|g| g.group)).collect()
+            artboard
+                .node_ids()
+                .filter(|id| fx_preview(artboard, selected, *id))
+                .filter_map(|id| {
+                    let n = artboard.node(id)?;
+                    n.goo().map(|g| g.group).or(n.anti_goo().map(|a| a.group))
+                })
+                .collect()
         };
         for node_id in artboard.node_ids() {
             if artboard.is_effectively_deleted(node_id) {
@@ -4135,7 +4150,7 @@ impl WasmEditor {
             // a disabled GameObject in Unity: no simulation, and it restarts
             // fresh when shown again. Same while designing: particles only
             // run in Playground (keeps Design light).
-            let previewed = fx_preview(artboard, selected, node_id) || node.goo().is_some_and(|g| self.goo_preview.contains(&g.group));
+            let previewed = fx_preview(artboard, selected, node_id) || node.goo().map(|g| g.group).or(node.anti_goo().map(|a| a.group)).is_some_and(|g| self.goo_preview.contains(&g));
             if !(fx_live || previewed) || !crate::lighting2d::effectively_visible(artboard, node_id) {
                 self.particle_runtimes.remove(&node_id);
                 continue;
@@ -4254,6 +4269,26 @@ impl WasmEditor {
             match groups.iter_mut().find(|g| g.0 == goo.group) {
                 Some(g) => g.3.extend(sources),
                 None => groups.push((goo.group, id, goo.clone(), sources)),
+            }
+        }
+        // Anti Goo: carving members, as negative sources of their group
+        // (a group needs at least one real member to exist).
+        for id in artboard.node_ids() {
+            if artboard.is_effectively_deleted(id) || !crate::lighting2d::effectively_visible(artboard, id) {
+                continue;
+            }
+            let Some(node) = artboard.node(id) else { continue };
+            let Some(anti) = node.anti_goo() else { continue };
+            let Some(g) = groups.iter_mut().find(|g| g.0 == anti.group) else { continue };
+            // (Only its outline / particles count — not its own Goo or
+            // Flipbook frames.)
+            let plain = Node { behaviors: node.behaviors.iter().filter(|b| matches!(b.behavior, an1mbyt3_core::NodeBehavior::ParticleSystem(_))).cloned().collect(), ..node.clone() };
+            let strength = anti.strength.max(0.0);
+            for mut s in goo_sources(self, artboard, id, &plain) {
+                match &mut s {
+                    crate::metaball2d::Source::Circle { weight, .. } | crate::metaball2d::Source::Polygons { weight, .. } => *weight = -weight.abs() * strength,
+                }
+                g.3.push(s);
             }
         }
         self.sections.goo_sources_ms = crate::profiler::now_ms() - t_sources;
@@ -4795,8 +4830,14 @@ impl WasmEditor {
         // still shows up (and keeps its authored parameters/position) in
         // the Effects panel's list, per `Artboard::post_effects`'s own doc
         // comment, it just contributes nothing to this frame.
-        let mut effects: Vec<an1mbyt3_core::PostEffect> =
-            artboard.post_effects().iter().filter(|layer| layer.enabled).map(|layer| layer.effect).collect();
+        // Post effects only run at play time (Playground / the State
+        // Machine preview): Design shows the scene as authored, and stays
+        // light.
+        let mut effects: Vec<an1mbyt3_core::PostEffect> = if self.effects_live() {
+            artboard.post_effects().iter().filter(|layer| layer.enabled).map(|layer| layer.effect).collect()
+        } else {
+            Vec::new()
+        };
         // The active camera's vignette (Playground only, like everything
         // else a camera controls) — last in the chain, so it frames the
         // final image the way a lens would.
@@ -7689,6 +7730,7 @@ impl WasmEditor {
             "Repeater2D" => B::Repeater2D(an1mbyt3_core::Repeater2D::default()),
             "Mirror2D" => B::Mirror2D(an1mbyt3_core::Mirror2D::default()),
             "Wiggle2D" => B::Wiggle2D(an1mbyt3_core::Wiggle2D::default()),
+            "AntiGoo2D" => B::AntiGoo2D(an1mbyt3_core::AntiGoo2D::default()),
             "Parallax2D" => B::Parallax2D(an1mbyt3_core::Parallax2D::default()),
             "PixelSnap2D" => B::PixelSnap2D(an1mbyt3_core::PixelSnap2D::default()),
             "StrokeStyle2D" => B::StrokeStyle2D(an1mbyt3_core::StrokeStyle2D::default()),
@@ -10458,6 +10500,13 @@ impl WasmEditor {
     /// canvas read back holds only the artwork, with its alpha.
     pub fn set_export_transparent(&mut self, on: bool) {
         self.export_transparent = on;
+    }
+
+    /// Export mode (any GIF / video export): while on, the frames render
+    /// the way the game looks — post effects, particles and goo included —
+    /// even when exporting from Design.
+    pub fn set_exporting(&mut self, on: bool) {
+        self.exporting = on;
     }
 
     /// Sets the artboard's screen behaviour (Fixed / Responsive, scale

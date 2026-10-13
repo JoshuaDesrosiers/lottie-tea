@@ -351,6 +351,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Anti Goo 2D, if any.
+    pub fn anti_goo(&self) -> Option<&crate::AntiGoo2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::AntiGoo2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's clip fade (mask / hidden-part opacity), if any.
     pub fn clip_fade(&self) -> crate::ClipFade2D {
         self.behaviors

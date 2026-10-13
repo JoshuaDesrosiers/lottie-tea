@@ -146,6 +146,30 @@ pub struct GooMaterial2D {
     pub glow_spread: f32,
 }
 
+/// **Anti Goo 2D** — carves into a Goo 2D group instead of joining it.
+/// This node (shape, text, sprite, particles — anything Goo 2D accepts)
+/// becomes a *negative* member of goo group `group`: where it sits the
+/// liquid is pushed away with the same soft, gooey falloff it melts
+/// together with, so the goo bends round it and splits apart where it
+/// cuts through.
+/// - `strength`: how hard it carves (1 = cancels one goo member exactly;
+///   raise it to cut through thick, overlapping goo).
+/// - `hide_source`: the carving node isn't drawn itself while the goo runs
+///   (still shown while designing, so it can be seen and moved).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AntiGoo2D {
+    pub group: u32,
+    pub strength: f32,
+    pub hide_source: bool,
+}
+
+impl Default for AntiGoo2D {
+    fn default() -> Self {
+        Self { group: 0, strength: 1.5, hide_source: true }
+    }
+}
+
 impl Default for GooMaterial2D {
     fn default() -> Self {
         Self { material: None, glow_color: [0.4, 0.85, 1.0, 1.0], glow: 0.8, glow_spread: 0.5 }

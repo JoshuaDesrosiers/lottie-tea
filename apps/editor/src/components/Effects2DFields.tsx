@@ -44,6 +44,10 @@ export const SIMPLE_COMPONENT_FIELDS: Record<string, { fields: Spec[]; help: str
     fields: [['x', 'Mirror left ↔ right', 'toggle'], ['y', 'Mirror top ↕ bottom', 'toggle']],
     help: 'Mirrored copies across this node’s own axes (through its origin) — symmetric characters, patterns, kaleidoscopes.',
   },
+  AntiGoo2D: {
+    fields: [['group', 'Goo group #', 'int', 0, 99], ['strength', 'Strength', 'slider', 0.05, 0, 5], ['hideSource', 'Hide this node while goo runs', 'toggle']],
+    help: 'Carves into the Goo 2D group with this number: the liquid is pushed away from this shape (or text, sprite, particles) with the same gooey falloff, bending round it and splitting where it cuts through. Raise Strength to cut through thick goo.',
+  },
   Wiggle2D: {
     fields: [['position', 'Position (px)', 'slider', 0.5, 0, 100], ['rotation', 'Rotation (°)', 'slider', 0.5, 0, 90], ['scale', 'Scale', 'slider', 0.01, 0, 1], ['frequency', 'Frequency (Hz)', 'slider', 0.1, 0, 30], ['seed', 'Seed', 'int', 0, 9999]],
     help: 'Smooth random motion (After Effects’ wiggle): floating, idle sway, nervous shake. Use different seeds to desync copies.',

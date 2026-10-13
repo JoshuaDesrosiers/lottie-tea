@@ -1602,6 +1602,7 @@ export type NodeBehavior =
   | { kind: 'Mask2D'; mask: OpaqueId | null; invert: boolean }
   | { kind: 'ClipOptions2D'; hideMask: boolean; invert: boolean }
   | { kind: 'ClipFade2D'; maskOpacity: number; hiddenOpacity: number }
+  | { kind: 'AntiGoo2D'; group: number; strength: number; hideSource: boolean }
   | {
       kind: 'ParticlePath2D'
       path: OpaqueId | null
