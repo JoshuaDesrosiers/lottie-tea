@@ -813,3 +813,45 @@ mod tests {
         assert_eq!(contour(&[blob(0.0), blob(11.0)], 0.5, 1.0).len(), 1, "merged");
     }
 }
+
+/// The liquid (`field` at or above `level`) eroded by `depth` world units,
+/// as a value per sample on `field`'s grid: 1 at least `depth` inside the
+/// edge, falling smoothly to 0 at the edge (the inside mask blurred twice,
+/// so corners round off). Goo Gloss places its shine on this: unlike the
+/// goo field itself, which is flat once `reach` inside, it keeps telling
+/// depths apart however big the liquid is.
+pub fn erode(field: &Field, level: f32, depth: f32) -> Vec<f32> {
+    let (w, h, _, cell) = field.layout();
+    let mut a: Vec<f32> = field.samples().iter().map(|v| if *v >= level { 1.0 } else { 0.0 }).collect();
+    if w == 0 || h == 0 {
+        return a;
+    }
+    // Two box blurs (a tent) of half the depth each: at a straight edge
+    // the result reaches 1 exactly `depth` inside.
+    let r = ((depth / cell) * 0.5).round().max(1.0) as usize;
+    let mut b = vec![0.0f32; w * h];
+    for _ in 0..2 {
+        box_blur(&a, &mut b, w, h, r, true);
+        box_blur(&b, &mut a, w, h, r, false);
+    }
+    a
+}
+
+/// One box-blur pass along rows (`horizontal`) or columns, radius `r`
+/// samples; outside the grid counts as empty (0).
+fn box_blur(src: &[f32], dst: &mut [f32], w: usize, h: usize, r: usize, horizontal: bool) {
+    let (len, lines) = if horizontal { (w, h) } else { (h, w) };
+    let at = |line: usize, k: usize| if horizontal { line * w + k } else { k * w + line };
+    let norm = 1.0 / (2 * r + 1) as f32;
+    let mut prefix = vec![0.0f32; len + 1];
+    for line in 0..lines {
+        for k in 0..len {
+            prefix[k + 1] = prefix[k] + src[at(line, k)];
+        }
+        for k in 0..len {
+            let lo = k.saturating_sub(r);
+            let hi = (k + r + 1).min(len);
+            dst[at(line, k)] = (prefix[hi] - prefix[lo]) * norm;
+        }
+    }
+}

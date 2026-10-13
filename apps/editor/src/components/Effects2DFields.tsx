@@ -44,6 +44,18 @@ export const SIMPLE_COMPONENT_FIELDS: Record<string, { fields: Spec[]; help: str
     fields: [['x', 'Mirror left ↔ right', 'toggle'], ['y', 'Mirror top ↕ bottom', 'toggle']],
     help: 'Mirrored copies across this node’s own axes (through its origin) — symmetric characters, patterns, kaleidoscopes.',
   },
+  GooGloss2D: {
+    fields: [
+      ['depth', 'Depth from edge (px)', 'slider', 1, 1, 300],
+      ['angle', 'Direction (°)', 'slider', 1, 0, 360],
+      ['distance', 'Offset (px)', 'slider', 1, 0, 200],
+      ['opacity', 'Opacity', 'slider', 0.01, 0, 1],
+      ['softness', 'Softness', 'slider', 0.01, 0, 1],
+      ['color', 'Colour', 'color'],
+      ['blend', 'Colour amount', 'slider', 0.01, 0, 1],
+    ],
+    help: 'The shine on this goo group (put it on any member). Depth keeps it that many pixels in from the edge at any size (only parts thicker than twice that catch a shine); Direction and Offset nudge it (135° = up-left); Softness 0 keeps a crisp pixel-art edge. The group\'s Gloss still turns the shine on and scales it.',
+  },
   AntiGoo2D: {
     fields: [['group', 'Goo group #', 'int', 0, 99], ['strength', 'Strength', 'slider', 0.05, 0, 5], ['hideSource', 'Hide this node while goo runs', 'toggle']],
     help: 'Carves into the Goo 2D group with this number: the liquid is pushed away from this shape (or text, sprite, particles) with the same gooey falloff, bending round it and splitting where it cuts through. Raise Strength to cut through thick goo.',

@@ -115,7 +115,38 @@ pub enum PostEffect {
     /// Lens distortion: barrel (`strength` > 0, fisheye / CRT bulge) or
     /// pincushion (< 0); `zoom` > 1 crops in to hide the edges.
     LensDistortion { strength: f32, zoom: f32 },
+    /// **Palette**: every pixel snaps to the nearest of the first `count`
+    /// of `colors` (perceptual / Oklab distance) — a fixed retro palette
+    /// (PICO-8, Game Boy, NES …) over the whole frame. `dither` (0..1)
+    /// mixes the two nearest colours with an ordered (Bayer) pattern,
+    /// `scale` screen pixels per pattern cell; `mix` (0..1) blends with the
+    /// original colours. A fixed-size array (so the effect stays `Copy`
+    /// and fits one uniform block); up to [`PALETTE_MAX`] colours.
+    Palette { colors: [[f32; 4]; PALETTE_MAX], count: u32, dither: f32, scale: f32, mix: f32 },
 }
+
+/// The most colours a [`PostEffect::Palette`] holds.
+pub const PALETTE_MAX: usize = 32;
+
+/// PICO-8's 16 colours — the Palette effect's starting palette.
+pub const PICO8_PALETTE: [[f32; 4]; 16] = [
+    [0.0, 0.0, 0.0, 1.0],
+    [0.114, 0.169, 0.325, 1.0],
+    [0.494, 0.145, 0.325, 1.0],
+    [0.0, 0.529, 0.318, 1.0],
+    [0.671, 0.322, 0.212, 1.0],
+    [0.373, 0.341, 0.310, 1.0],
+    [0.761, 0.765, 0.780, 1.0],
+    [1.0, 0.945, 0.910, 1.0],
+    [1.0, 0.0, 0.302, 1.0],
+    [1.0, 0.639, 0.0, 1.0],
+    [1.0, 0.925, 0.153, 1.0],
+    [0.0, 0.894, 0.212, 1.0],
+    [0.161, 0.678, 1.0, 1.0],
+    [0.514, 0.463, 0.612, 1.0],
+    [1.0, 0.467, 0.659, 1.0],
+    [1.0, 0.8, 0.667, 1.0],
+];
 
 impl PostEffect {
     /// A freshly-added stack entry's starting parameters — the Effects
@@ -142,6 +173,11 @@ impl PostEffect {
             "Halftone" => Some(PostEffect::Halftone { size: 6.0, angle: 45.0, ink: [0.08, 0.08, 0.12, 1.0], paper: [0.98, 0.96, 0.9, 1.0], mix: 0.0 }),
             "WaveDistortion" => Some(PostEffect::WaveDistortion { amplitude: 4.0, frequency: 6.0, speed: 2.0 }),
             "LensDistortion" => Some(PostEffect::LensDistortion { strength: 0.25, zoom: 1.05 }),
+            "Palette" => {
+                let mut colors = [[0.0, 0.0, 0.0, 1.0]; PALETTE_MAX];
+                colors[..PICO8_PALETTE.len()].copy_from_slice(&PICO8_PALETTE);
+                Some(PostEffect::Palette { colors, count: PICO8_PALETTE.len() as u32, dither: 0.0, scale: 1.0, mix: 1.0 })
+            }
             _ => None,
         }
     }

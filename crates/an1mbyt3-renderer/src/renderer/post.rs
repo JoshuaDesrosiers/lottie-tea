@@ -27,7 +27,7 @@ use std::collections::HashMap;
 use super::{create_post_scene_view, linear_rgba, wgpu_blend_state, BlendMode, PostEffect, PostUniforms, Renderer, TRANSPARENT};
 
 /// Bytes per pooled uniform slot (fits [`UberUniforms`] and [`PostUniforms`]).
-const UNIFORM_SLOT: u64 = 512;
+const UNIFORM_SLOT: u64 = 1024;
 /// Per-pixel colour ops one uber pass can apply (more starts a new pass).
 const MAX_OPS: usize = 8;
 /// Bloom mip levels at most (½ … 1/128).
@@ -60,6 +60,8 @@ struct UberUniforms {
     /// The pass's sampling op (anaglyph, aberration, sharpen, edges,
     /// distortions): mode + params, 0 = a plain sample.
     sample: [[f32; 4]; 2],
+    /// The pass's Palette colours (one Palette per pass), linear.
+    palette: [[f32; 4]; an1mbyt3_core::PALETTE_MAX],
 }
 
 /// (pass kind, source, second texture, nearest sampler?, uniform slot).
@@ -185,11 +187,13 @@ struct Pending {
     ops: Vec<[[f32; 4]; 3]>,
     /// How the source is sampled (see `sample_op`).
     sample: Option<[[f32; 4]; 2]>,
+    /// A Palette op's colours (linear); one per pass.
+    palette: Option<[[f32; 4]; an1mbyt3_core::PALETTE_MAX]>,
 }
 
 impl Pending {
     fn from(source: PostTarget) -> Self {
-        Self { source, pixelate: 0.0, bloom: None, ops: Vec::new(), sample: None }
+        Self { source, pixelate: 0.0, bloom: None, ops: Vec::new(), sample: None, palette: None }
     }
     fn has_work(&self) -> bool {
         self.pixelate > 0.0 || self.bloom.is_some() || !self.ops.is_empty() || self.sample.is_some()
@@ -343,6 +347,16 @@ impl Renderer {
         self.post.next_uniform.set(0);
         let mut pending = Pending::from(source);
         for effect in effects {
+            // Palette: a colour op whose colours ride in the pass's own
+            // palette block (so a second Palette needs a new pass).
+            if let PostEffect::Palette { colors, count, dither, scale, mix } = *effect {
+                if pending.ops.len() == MAX_OPS || pending.palette.is_some() {
+                    pending = Pending::from(self.flush_post(encoder, pending, None));
+                }
+                pending.palette = Some(colors.map(linear_rgba));
+                pending.ops.push([[12.0, count.min(an1mbyt3_core::PALETTE_MAX as u32) as f32, dither, scale], [mix, 0.0, 0.0, 0.0], [0.0; 4]]);
+                continue;
+            }
             if let Some(op) = colour_op(effect) {
                 if pending.ops.len() == MAX_OPS {
                     pending = Pending::from(self.flush_post(encoder, pending, None));
@@ -403,6 +417,7 @@ impl Renderer {
             info: [pending.ops.len() as f32, self.shader_time.get(), 0.0, 0.0],
             ops,
             sample: pending.sample.unwrap_or([[0.0; 4]; 2]),
+            palette: pending.palette.unwrap_or([[0.0; 4]; an1mbyt3_core::PALETTE_MAX]),
         };
         let slot = self.post_uniform(bytemuck::bytes_of(&uniforms));
         let bloom = if pending.bloom.is_some() { PostTarget::Bloom(0) } else { PostTarget::Black };

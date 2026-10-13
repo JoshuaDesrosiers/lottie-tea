@@ -123,6 +123,9 @@ pub struct Highlight {
     pub color: [f32; 4],
     pub offset_texels: Vec2,
     pub second_field: bool,
+    /// `Some(outer level)`: a soft shine, fading in from this (lower)
+    /// field level up to `level`; `None`: the liquid's own edge style.
+    pub soft_from: Option<f32>,
 }
 
 fn f(v: f32) -> String {
@@ -235,16 +238,18 @@ fn goo_cover(v: f32, level: f32) -> f32 {{
     let body = if look.material.is_some() { "goo_body_paint(in.local_position) * goo_user_material(in)" } else { "goo_body_paint(in.local_position)" };
     s.push_str(&format!("    let body_cover = goo_cover(v, {});\n    let body = {body};\n    c = goo_over(c, vec4<f32>(body.rgb, body.a * body_cover));\n", f(look.body.0)));
     if let Some(hl) = &look.highlight {
-        let sample = if hl.second_field {
+        let sample = if hl.second_field && hl.offset_texels == Vec2::ZERO {
             "fields.y".to_string()
+        } else if hl.second_field {
+            format!("goo_fields(in.uv + vec2<f32>({}, {}) / vec2<f32>(textureDimensions(image_texture))).y", f(hl.offset_texels.x), f(hl.offset_texels.y))
         } else {
             format!("goo_fields(in.uv + vec2<f32>({}, {}) / vec2<f32>(textureDimensions(image_texture))).x", f(hl.offset_texels.x), f(hl.offset_texels.y))
         };
-        s.push_str(&format!(
-            "    let shine = {color};\n    c = goo_over(c, vec4<f32>(shine.rgb, shine.a * goo_cover({sample}, {level}) * body_cover));\n",
-            color = vec4(hl.color),
-            level = f(hl.level)
-        ));
+        let cover = match hl.soft_from {
+            Some(from) if from < hl.level => format!("smoothstep({}, {}, {sample})", f(from), f(hl.level)),
+            _ => format!("goo_cover({sample}, {})", f(hl.level)),
+        };
+        s.push_str(&format!("    let shine = {color};\n    c = goo_over(c, vec4<f32>(shine.rgb, shine.a * {cover} * body_cover));\n", color = vec4(hl.color)));
     }
     // The draw's own opacity (fades, clip fade) scales the whole liquid.
     s.push_str("    return vec4<f32>(c.rgb, c.a * uniforms.color.a);\n}\n");

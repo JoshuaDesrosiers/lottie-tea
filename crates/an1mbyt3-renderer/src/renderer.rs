@@ -2356,7 +2356,8 @@ impl Renderer {
             | PostEffect::EdgeDetect { .. }
             | PostEffect::Halftone { .. }
             | PostEffect::WaveDistortion { .. }
-            | PostEffect::LensDistortion { .. } => PostUniforms {
+            | PostEffect::LensDistortion { .. }
+            | PostEffect::Palette { .. } => PostUniforms {
                 texel_size_radius: [texel_size[0], texel_size[1], 0.0, 0.0],
                 threshold_intensity: [0.0, 1.0, 0.0, 0.0],
                 gradient_map_highlight: [0.0; 4],

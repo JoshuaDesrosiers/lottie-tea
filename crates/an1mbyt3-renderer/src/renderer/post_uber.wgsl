@@ -42,6 +42,8 @@ struct Uber {
     // The sampling op: (mode, params...), extra params.
     sample_a: vec4<f32>,
     sample_b: vec4<f32>,
+    // The pass's Palette colours (linear), op mode 12.
+    palette: array<vec4<f32>, 32>,
 };
 
 @group(0) @binding(0) var source: texture_2d<f32>;
@@ -65,6 +67,21 @@ fn bayer4(p: vec2<f32>) -> f32 {
     let y = u32(p.y) % 4u;
     var m = array<f32, 16>(0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
     return (m[y * 4u + x] + 0.5) / 16.0;
+}
+
+// Linear sRGB to Oklab (perceptual: equal distances look equally different).
+fn oklab(c: vec3<f32>) -> vec3<f32> {
+    let l = 0.4122214708 * c.r + 0.5363325363 * c.g + 0.0514459929 * c.b;
+    let m = 0.2119034982 * c.r + 0.6806995451 * c.g + 0.1073969566 * c.b;
+    let s = 0.0883024619 * c.r + 0.2817188376 * c.g + 0.6299787005 * c.b;
+    let l_ = pow(max(l, 0.0), 1.0 / 3.0);
+    let m_ = pow(max(m, 0.0), 1.0 / 3.0);
+    let s_ = pow(max(s, 0.0), 1.0 / 3.0);
+    return vec3<f32>(
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    );
 }
 
 fn tap(uv: vec2<f32>) -> vec4<f32> {
@@ -200,6 +217,45 @@ fn apply(c_in: vec4<f32>, i: i32, uv: vec2<f32>) -> vec4<f32> {
         let px = floor(uv / u.texel.xy / max(a.z, 0.5));
         let n = hash12(px + floor(u.info.y * 24.0) * vec2<f32>(17.0, 59.0)) - 0.5;
         c = vec4<f32>(clamp(c.rgb + vec3<f32>(n * a.y), vec3<f32>(0.0), vec3<f32>(1.0)), c.a);
+    } else if (mode == 12.0) {
+        // Palette: nearest of a.y colours (Oklab); a.z dither between the
+        // two nearest (Bayer, a.w px per cell); b.x mix with the original.
+        let n = i32(a.y);
+        if (n > 0) {
+            let lab = oklab(c.rgb);
+            var best = 0;
+            var second = 0;
+            var d1 = 1e9;
+            var d2 = 1e9;
+            for (var k: i32 = 0; k < 32; k = k + 1) {
+                if (k >= n) {
+                    break;
+                }
+                let diff = oklab(u.palette[k].rgb) - lab;
+                let d = dot(diff, diff);
+                if (d < d1) {
+                    d2 = d1;
+                    second = best;
+                    d1 = d;
+                    best = k;
+                } else if (d < d2) {
+                    d2 = d;
+                    second = k;
+                }
+            }
+            var pick = best;
+            if (a.z > 0.0 && n > 1) {
+                let r1 = sqrt(d1);
+                let r2 = sqrt(d2);
+                // 0 on a palette colour, 0.5 halfway to the next nearest.
+                let ratio = r1 / max(r1 + r2, 1e-6);
+                let px = uv / u.texel.xy / max(a.w, 1.0);
+                if (bayer4(px) < ratio * a.z) {
+                    pick = second;
+                }
+            }
+            c = vec4<f32>(mix(c.rgb, u.palette[pick].rgb, clamp(b.x, 0.0, 1.0)), c.a);
+        }
     } else if (mode == 11.0) {
         // Halftone: dots on a rotated grid, sized by darkness.
         let px = uv / u.texel.xy;

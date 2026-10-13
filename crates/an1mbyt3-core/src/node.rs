@@ -351,6 +351,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Goo Gloss 2D, if any.
+    pub fn goo_gloss(&self) -> Option<&crate::GooGloss2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::GooGloss2D(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's enabled Anti Goo 2D, if any.
     pub fn anti_goo(&self) -> Option<&crate::AntiGoo2D> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

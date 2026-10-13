@@ -170,6 +170,36 @@ impl Default for AntiGoo2D {
     }
 }
 
+/// **Goo Gloss 2D** — places and shapes a Goo 2D group's shine (put it on
+/// any member of the group; the group's Gloss slider still sets whether
+/// there's a shine at all and scales its strength).
+/// - `depth` (world px): how far inside the liquid's edge the shine
+///   starts — any size, so big blobs can keep it well clear of the edge
+///   (only parts thicker than twice this catch a shine; corners round off).
+/// - `angle` (degrees, 0 = right, 90 = up) and `distance` (px): which way
+///   and how far the shine is nudged.
+/// - `opacity`: the shine's strength.
+/// - `softness` (0..1): 0 a crisp edge (pixel art), higher a soft fade.
+/// - `color` / `blend`: the shine's colour, and how far the liquid's own
+///   colour moves toward it (1 = exactly `color`).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GooGloss2D {
+    pub depth: f32,
+    pub angle: f32,
+    pub distance: f32,
+    pub opacity: f32,
+    pub softness: f32,
+    pub color: [f32; 4],
+    pub blend: f32,
+}
+
+impl Default for GooGloss2D {
+    fn default() -> Self {
+        Self { depth: 24.0, angle: 135.0, distance: 8.0, opacity: 0.4, softness: 0.0, color: [1.0; 4], blend: 0.6 }
+    }
+}
+
 impl Default for GooMaterial2D {
     fn default() -> Self {
         Self { material: None, glow_color: [0.4, 0.85, 1.0, 1.0], glow: 0.8, glow_spread: 0.5 }

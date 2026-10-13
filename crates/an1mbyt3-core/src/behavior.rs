@@ -190,6 +190,8 @@ pub enum NodeBehavior {
     ClipFade2D(crate::ClipFade2D),
     /// [`crate::AntiGoo2D`]: carves into a goo group. (Appended last.)
     AntiGoo2D(crate::AntiGoo2D),
+    /// [`crate::GooGloss2D`]: a goo group's shine. (Appended last.)
+    GooGloss2D(crate::GooGloss2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

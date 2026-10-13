@@ -410,11 +410,12 @@ impl Layer {
         // nothing to blend by — play the state's own animation instead of
         // sitting frozen on the low clip's first frame.
         let Some(blend) = state.blend.as_ref().filter(|b| !b.input.is_empty()) else {
-            return Some(artboard.animation(state.animation)?.sample_pose(self.playback.time));
+            // (A deleted animation plays nothing.)
+            return Some(artboard.animation(state.animation).filter(|a| !a.deleted)?.sample_pose(self.playback.time));
         };
 
-        let low_pose = artboard.animation(blend.low)?.sample_pose(0.0);
-        let high_pose = artboard.animation(blend.high)?.sample_pose(0.0);
+        let low_pose = artboard.animation(blend.low).filter(|a| !a.deleted)?.sample_pose(0.0);
+        let high_pose = artboard.animation(blend.high).filter(|a| !a.deleted)?.sample_pose(0.0);
         let weight = if blend.high_value != blend.low_value {
             ((inputs.number(&blend.input) - blend.low_value) / (blend.high_value - blend.low_value)).clamp(0.0, 1.0)
         } else {

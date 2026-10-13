@@ -114,7 +114,7 @@ pub use events::{ActionKind, BindTarget, Binding, EventAction, PropertyBindings,
 pub use text_file::{TextFile, FILE_REF_PREFIX};
 pub use cloth::{Cloth2D, ClothPatternKind, ClothPin};
 pub use tree::{Tree2D, TreeSpecies};
-pub use particle_fx2d::{AntiGoo2D, GooMaterial2D, Antialias2D, Goo2D, ParticleBehaviors2D, ParticleFluid2D};
+pub use particle_fx2d::{AntiGoo2D, GooGloss2D, GooMaterial2D, Antialias2D, Goo2D, ParticleBehaviors2D, ParticleFluid2D};
 pub use vrm_pose::{BoneAttachment, BonePose, ExpressionWeight, FootIK, HumanoidAnimator, HumanoidClipRef, Ragdoll3D, VrmPose, VrmPoses};
 pub use particle3d::{Emitter3DShape, LifeCurve, ParticleBehavior3D, ParticleBehaviorKind3D, ParticleBlend3D, ParticleSystem3D, PointSpace};
 pub use drawing::{DrawingAnimation, DrawingAsset, DrawingCel, DrawingCelContent, DrawingContent, DrawingLayer, Flipbook};
@@ -143,7 +143,7 @@ pub use physics2d::{
     BoxCollider2D, CapsuleCollider2D, CapsuleDirection2D, CircleCollider2D, CollisionDetection2D, Liquid2D, PhysicsMaterial2D, PolygonCollider2D,
     Rigidbody2D, RigidbodyType2D,
 };
-pub use post_effect::{PostEffect, PostEffectLayer};
+pub use post_effect::{PostEffect, PostEffectLayer, PALETTE_MAX, PICO8_PALETTE};
 pub use program::{GraphEdgeDef, GraphNodeDef, GraphNodeKind, GraphProperty, NodeGraphDef, ProgramDef, SocketOverride};
 pub use sprite_group::SpriteGroup;
 pub use state_machine::{Blend1DDef, ConditionDef, InputDef, InputKind, LoopMode, PlaybackDirection, StateDef, StateMachineDef, StateMachineLayerDef, TransitionDef};

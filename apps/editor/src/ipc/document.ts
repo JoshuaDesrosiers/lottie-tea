@@ -935,6 +935,7 @@ export type PostEffect =
   | { kind: 'Halftone'; size: number; angle: number; ink: [number, number, number, number]; paper: [number, number, number, number]; mix: number }
   | { kind: 'WaveDistortion'; amplitude: number; frequency: number; speed: number }
   | { kind: 'LensDistortion'; strength: number; zoom: number }
+  | { kind: 'Palette'; colors: [number, number, number, number][]; dither: number; scale: number; mix: number }
 
 /** Mirrors `crates/an1mbyt3-wasm/src/dto.rs`'s `PostEffectLayerDto` — one
  * entry in an artboard's post-processing stack. `enabled` lets an entry be
@@ -951,6 +952,11 @@ export interface PostEffectLayer {
  * layer's parameters need to make sense as a *default*, not just satisfy
  * the type (a `radius: 0`/`blockSize: 0` effect would visibly do nothing
  * until a slider was first dragged). */
+/** Space-separated hex colours (`"ff004d 29adff"`) as straight RGBA. */
+export function hexPalette(hexes: string): [number, number, number, number][] {
+  return (hexes.match(/[0-9a-fA-F]{6}/g) ?? []).map((h) => [parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255, 1])
+}
+
 export const POST_EFFECT_DEFAULTS: Record<PostEffect['kind'], PostEffect> = {
   None: { kind: 'None' },
   Blur: { kind: 'Blur', radius: 4 },
@@ -970,6 +976,7 @@ export const POST_EFFECT_DEFAULTS: Record<PostEffect['kind'], PostEffect> = {
   Halftone: { kind: 'Halftone', size: 6, angle: 45, ink: [0.08, 0.08, 0.12, 1], paper: [0.98, 0.96, 0.9, 1], mix: 0 },
   WaveDistortion: { kind: 'WaveDistortion', amplitude: 4, frequency: 6, speed: 2 },
   LensDistortion: { kind: 'LensDistortion', strength: 0.25, zoom: 1.05 },
+  Palette: { kind: 'Palette', colors: hexPalette('000000 1d2b53 7e2553 008751 ab5236 5f574f c2c3c7 fff1e8 ff004d ffa300 ffec27 00e436 29adff 83769c ff77a8 ffccaa'), dither: 0, scale: 1, mix: 1 },
 }
 
 export interface DocumentSummary {
@@ -1603,6 +1610,7 @@ export type NodeBehavior =
   | { kind: 'ClipOptions2D'; hideMask: boolean; invert: boolean }
   | { kind: 'ClipFade2D'; maskOpacity: number; hiddenOpacity: number }
   | { kind: 'AntiGoo2D'; group: number; strength: number; hideSource: boolean }
+  | { kind: 'GooGloss2D'; depth: number; angle: number; distance: number; opacity: number; softness: number; color: [number, number, number, number]; blend: number }
   | {
       kind: 'ParticlePath2D'
       path: OpaqueId | null

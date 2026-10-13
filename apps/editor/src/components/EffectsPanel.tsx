@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PostEffect, PostEffectLayer } from '../ipc/document'
-import { POST_EFFECT_DEFAULTS } from '../ipc/document'
+import { POST_EFFECT_DEFAULTS, hexPalette } from '../ipc/document'
 import { ColorSwatch } from './ColorPicker'
 import { NumberField } from './InspectorPanel'
 import { ChevronDownIcon, PlusIcon, TrashIcon } from './icons'
@@ -129,6 +129,8 @@ export function EffectParams({ effect, onChange }: { effect: PostEffect; onChang
       )
     case 'Vignette':
       return <VignetteFields value={effect} onChange={(v) => onChange({ ...effect, ...v })} />
+    case 'Palette':
+      return <PaletteFields effect={effect} onChange={onChange} />
     default:
       return <GenericEffectFields effect={effect} onChange={onChange} />
   }
@@ -316,6 +318,92 @@ export function EffectsPanel({ layers, onChange }: { layers: PostEffectLayer[]; 
         />
       ))}
       <AddEffectMenu onAdd={add} />
+    </div>
+  )
+}
+
+/** Well-known retro palettes for the Palette effect. */
+const PALETTE_PRESETS: { name: string; hex: string }[] = [
+  { name: 'PICO-8', hex: '000000 1d2b53 7e2553 008751 ab5236 5f574f c2c3c7 fff1e8 ff004d ffa300 ffec27 00e436 29adff 83769c ff77a8 ffccaa' },
+  { name: 'Game Boy', hex: '0f380f 306230 8bac0f 9bbc0f' },
+  { name: '1-bit', hex: '000000 ffffff' },
+  { name: 'CGA', hex: '000000 55ffff ff55ff ffffff' },
+  { name: 'Sweetie 16', hex: '1a1c2c 5d275d b13e53 ef7d57 ffcd75 a7f070 38b764 257179 29366f 3b5dc9 41a6f6 73eff7 f4f4f4 94b0c2 566c86 333c57' },
+  { name: 'Endesga 32', hex: 'be4a2f d77643 ead4aa e4a672 b86f50 733e39 3e2731 a22633 e43b44 f77622 feae34 fee761 63c74d 3e8948 265c42 193c3e 124e89 0099db 2ce8f5 ffffff c0cbdc 8b9bb4 5a6988 3a4466 262b44 181425 ff0044 68386c b55088 f6757a e8b796 c28569' },
+  { name: 'NES-ish', hex: '000000 fcfcfc bcbcbc 7c7c7c a4e4fc 3cbcfc 0078f8 0000fc b8b8f8 6888fc 0058f8 0000bc d8b8f8 9878f8 6844fc 4428bc f8b8f8 f878f8 d800cc 940084 f8a4c0 f85898 e40058 a80020 f0d0b0 f87858 f83800 a81000 fce0a8 fca044 e45c10 881400' },
+]
+
+/** Palette effect: the colour list (click a swatch to edit, × to drop),
+ * presets, pasting hex codes, dither and mix. */
+function PaletteFields({ effect, onChange }: { effect: Extract<PostEffect, { kind: 'Palette' }>; onChange: (effect: PostEffect) => void }) {
+  const [hexText, setHexText] = useState('')
+  const toHex = (c: [number, number, number, number]) => c.slice(0, 3).map((v) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0')).join('')
+  const setColors = (colors: [number, number, number, number][]) => onChange({ ...effect, colors: colors.slice(0, 32) })
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-1">
+        {effect.colors.map((c, i) => (
+          <div key={i} className="group relative">
+            <ColorSwatch value={c} onChange={(next) => setColors(effect.colors.map((old, j) => (j === i ? next : old)))} />
+            <button
+              type="button"
+              title="Remove colour"
+              onClick={() => setColors(effect.colors.filter((_, j) => j !== i))}
+              className="absolute -right-1 -top-1 hidden h-3.5 w-3.5 items-center justify-center rounded-full bg-panel text-[9px] leading-none text-ink-dim shadow group-hover:flex hover:text-ink"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        {effect.colors.length < 32 && (
+          <button
+            type="button"
+            title="Add colour"
+            onClick={() => setColors([...effect.colors, effect.colors[effect.colors.length - 1] ?? [1, 1, 1, 1]])}
+            className="flex h-5 w-5 items-center justify-center rounded bg-overlay/10 text-ink-dim hover:bg-accent/20 hover:text-accent"
+          >
+            <PlusIcon />
+          </button>
+        )}
+      </div>
+      <span className="text-[10px] text-ink-dim">{effect.colors.length} / 32 colours — every pixel snaps to the nearest one.</span>
+      <div className="flex flex-wrap gap-1">
+        {PALETTE_PRESETS.map((p) => (
+          <button key={p.name} type="button" onClick={() => setColors(hexPalette(p.hex))} className="rounded bg-overlay/10 px-1.5 py-0.5 text-[10px] text-ink hover:bg-accent/20 hover:text-accent">
+            {p.name}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <input
+          value={hexText}
+          onChange={(e) => setHexText(e.target.value)}
+          placeholder="Paste hex codes (e.g. Lospec)…"
+          className="min-w-0 flex-1 rounded bg-overlay/5 px-1.5 py-0.5 text-[11px] text-ink outline-none focus:bg-overlay/10"
+        />
+        <button
+          type="button"
+          disabled={!hexPalette(hexText).length}
+          onClick={() => {
+            setColors(hexPalette(hexText))
+            setHexText('')
+          }}
+          className="rounded bg-overlay/10 px-1.5 text-[10px] text-ink hover:bg-accent/20 hover:text-accent disabled:opacity-40"
+        >
+          Use
+        </button>
+        <button
+          type="button"
+          title="Copy this palette as hex codes"
+          onClick={() => void navigator.clipboard?.writeText(effect.colors.map(toHex).join(' '))}
+          className="rounded bg-overlay/10 px-1.5 text-[10px] text-ink hover:bg-accent/20 hover:text-accent"
+        >
+          Copy
+        </button>
+      </div>
+      <NumberField label="Dither" value={effect.dither} step={0.05} onCommit={(dither) => onChange({ ...effect, dither: Math.min(1, Math.max(0, dither)) })} />
+      <NumberField label="Dither pixel size" value={effect.scale} step={1} onCommit={(scale) => onChange({ ...effect, scale: Math.min(16, Math.max(1, Math.round(scale))) })} />
+      <NumberField label="Mix" value={effect.mix} step={0.05} onCommit={(mix) => onChange({ ...effect, mix: Math.min(1, Math.max(0, mix)) })} />
     </div>
   )
 }

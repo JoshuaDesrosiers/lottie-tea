@@ -1729,6 +1729,7 @@ fn fluid_look(fluid: &an1mbyt3_core::ParticleFluid2D, antialias: Option<f32>) ->
             color: [c[0] + (1.0 - c[0]) * k, c[1] + (1.0 - c[1]) * k, c[2] + (1.0 - c[2]) * k, c[3] * fluid.gloss.clamp(0.0, 1.0) * 0.8],
             offset_texels: Vec2::ZERO,
             second_field: true,
+            soft_from: None,
         }),
         antialias,
         material: None,
@@ -1834,7 +1835,7 @@ fn fingerprint_debug<T: std::fmt::Debug>(value: &T) -> u64 {
 /// A Goo 2D group's look: the rim (whole outline, edge colour/gradient),
 /// the body (`edge_width` inside it, fill colour/gradient), and a soft
 /// highlight (deeper inside, nudged up and left, the fill lightened).
-fn goo_look(goo: &an1mbyt3_core::Goo2D, field: &crate::metaball2d::Field, antialias: Option<f32>) -> crate::goo_gpu::Look {
+fn goo_look(goo: &an1mbyt3_core::Goo2D, gloss: Option<&an1mbyt3_core::GooGloss2D>, field: &crate::metaball2d::Field, antialias: Option<f32>) -> crate::goo_gpu::Look {
     use crate::goo_gpu::{Highlight, Look, Paint};
     let paint = |color: [f32; 4], gradient: &Option<an1mbyt3_core::GradientDef>| gradient.clone().map_or(Paint::Solid(color), Paint::Gradient);
     let reach = goo.reach.max(1.0);
@@ -1842,22 +1843,60 @@ fn goo_look(goo: &an1mbyt3_core::Goo2D, field: &crate::metaball2d::Field, antial
     let body_inset = if has_rim { goo.edge_width } else { 0.0 };
     let (_, _, _, cell) = field.layout();
     let base = goo.gradient.as_ref().and_then(|g| g.stops.first().map(|s| s.color)).unwrap_or(goo.color);
-    let k = 0.6;
+    let k = gloss.map_or(0.6, |g| g.blend.clamp(0.0, 1.0));
+    let tint = gloss.map_or([1.0; 4], |g| g.color);
+    let opacity = gloss.map_or(0.4, |g| g.opacity.clamp(0.0, 1.0));
+    let color = [base[0] + (tint[0] - base[0]) * k, base[1] + (tint[1] - base[1]) * k, base[2] + (tint[2] - base[2]) * k, goo.gloss.clamp(0.0, 1.0) * opacity * tint[3]];
+    let highlight = match gloss {
+        // Built in: just inside the edge (the field saturates deeper in).
+        None => (goo.gloss > 0.0).then(|| Highlight {
+            level: field.level_for_inset(body_inset + reach * 0.62),
+            color,
+            offset_texels: Vec2::new(1.0, -1.0) * reach * 0.12 / cell,
+            second_field: false,
+            soft_from: None,
+        }),
+        // Goo Gloss: on the liquid eroded by `depth` px (the second field,
+        // see `metaball2d::erode`, 1 deep inside), nudged toward `angle`
+        // (the field is read the opposite way), soft over `softness`.
+        Some(g) => (goo.gloss > 0.0 && g.opacity > 0.0).then(|| {
+            let (sin, cos) = g.angle.to_radians().sin_cos();
+            let (_, start, full) = gloss_levels(g);
+            Highlight {
+                level: full,
+                color,
+                offset_texels: -Vec2::new(cos, sin) * g.distance.max(0.0) / cell,
+                second_field: true,
+                soft_from: (full > start).then_some(start),
+            }
+        }),
+    };
     Look {
         rim: has_rim.then(|| (field.level_for_inset(0.0), paint(goo.edge_color, &goo.edge_gradient))),
         body: (field.level_for_inset(body_inset), paint(goo.color, &goo.gradient)),
         // Deep inside, so only thick parts (blobs, merged bulges) catch a
         // glint; shown nudged up-left (so the field is read down-right).
-        highlight: (goo.gloss > 0.0).then(|| Highlight {
-            level: field.level_for_inset(body_inset + reach * 0.62),
-            color: [base[0] + (1.0 - base[0]) * k, base[1] + (1.0 - base[1]) * k, base[2] + (1.0 - base[2]) * k, goo.gloss.clamp(0.0, 1.0) * 0.4],
-            offset_texels: Vec2::new(1.0, -1.0) * reach * 0.12 / cell,
-            second_field: false,
-        }),
+        highlight,
         antialias,
         material: None,
         glow: None,
     }
+}
+
+/// A Goo Gloss's erosion depth (world px) and the eroded-liquid values its
+/// shine starts at and is fully opaque at. The erosion (`metaball2d::erode`)
+/// is a tent blur reaching 1 at depth `d_max`; at distance `x` inside the
+/// edge it reads `1 - (1 - x/d_max)² / 2`. The shine starts at 0.8 × Depth
+/// in and, with Softness, fades in further inward (up to 2 × Depth) —
+/// never toward the edge.
+fn gloss_levels(g: &an1mbyt3_core::GooGloss2D) -> (f32, f32, f32) {
+    let depth = g.depth.max(1.0);
+    let soft = g.softness.clamp(0.0, 1.0);
+    let d_max = depth * (1.0 + 1.5 * soft);
+    let at = |x: f32| 1.0 - (1.0 - (x / d_max).min(1.0)).powi(2) / 2.0;
+    let start = at(0.8 * depth);
+    let full = if soft > 0.0 { at(0.8 * d_max).min(0.995) } else { start };
+    (d_max, start, full)
 }
 
 /// A Goo 2D group's liquid, drawn with its owner's world transform.
@@ -3725,10 +3764,16 @@ impl WasmEditor {
                 inputs.set_bool("isPortrait", screen.portrait);
             }
 
+            // Only while a live (not deleted) state machine is active: the
+            // runtime still holds the last one built, which would otherwise
+            // keep posing nodes after that machine was deleted.
             let artboard_ref = self.document.artboard(artboard_id).unwrap();
-            self.state_machine.advance(delta_seconds, artboard_ref);
-            let artboard_mut = self.document.artboard_mut(artboard_id).unwrap();
-            self.state_machine.apply(artboard_mut);
+            let live = self.active_state_machine.and_then(|id| artboard_ref.state_machine(id)).is_some_and(|def| !def.deleted);
+            if live {
+                self.state_machine.advance(delta_seconds, artboard_ref);
+                let artboard_mut = self.document.artboard_mut(artboard_id).unwrap();
+                self.state_machine.apply(artboard_mut);
+            }
         }
         stats.logic_ms = stopwatch.lap();
 
@@ -4333,11 +4378,18 @@ impl WasmEditor {
             let to_owner = artboard.world_transform(owner).to_affine2().inverse();
             // The owner's Goo Material (and its graph) are part of the look.
             let goo_material = artboard.node(owner).and_then(|n| n.goo_material()).cloned();
+            // Goo Gloss on the owner, else on any member of the group.
+            let gloss = artboard.node(owner).and_then(|n| n.goo_gloss()).copied().or_else(|| {
+                artboard.node_ids().filter(|id| !artboard.is_effectively_deleted(*id)).find_map(|id| {
+                    let n = artboard.node(id)?;
+                    (n.goo().is_some_and(|g| g.group == goo.group)).then(|| n.goo_gloss().copied()).flatten()
+                })
+            });
             let graph = goo_material.as_ref().and_then(|m| m.material).and_then(|id| self.document.material(id)).and_then(|m| match &m.kind {
                 an1mbyt3_core::MaterialKind::ShaderGraph(g) => Some(g.clone()),
                 _ => None,
             });
-            let mut extra = fingerprint_debug(&(&goo, smoothing(artboard.node(owner)), &goo_material, &graph));
+            let mut extra = fingerprint_debug(&(&goo, smoothing(artboard.node(owner)), &goo_material, &graph, &gloss));
             for v in to_owner.to_cols_array() {
                 extra = extra.rotate_left(7) ^ v.to_bits() as u64;
             }
@@ -4356,7 +4408,7 @@ impl WasmEditor {
                 self.goo_gpu.remove(&owner);
                 continue;
             }
-            let mut look = goo_look(&goo, &field, smoothing(artboard.node(owner)));
+            let mut look = goo_look(&goo, gloss.as_ref(), &field, smoothing(artboard.node(owner)));
             if let Some(m) = &goo_material {
                 look.material = graph.as_ref().and_then(|g| an1mbyt3_core::compile_wgsl(g).ok());
                 if m.glow > 0.0 {
@@ -4367,7 +4419,9 @@ impl WasmEditor {
                 }
             }
             let slot = self.goo_gpu.entry(owner).or_insert_with(|| LiquidGpu::new(&self.renderer));
-            slot.update(&self.renderer, &mut self.liquid_materials, &field, None, &look, to_owner);
+            // Goo Gloss: the liquid eroded by its depth, for the shine.
+            let eroded = gloss.map(|g| crate::metaball2d::erode(&field, look.body.0, gloss_levels(&g).0));
+            slot.update(&self.renderer, &mut self.liquid_materials, &field, eroded.as_deref(), &look, to_owner);
             upload_ms += crate::profiler::now_ms() - t_upload;
         }
 
@@ -7731,6 +7785,7 @@ impl WasmEditor {
             "Mirror2D" => B::Mirror2D(an1mbyt3_core::Mirror2D::default()),
             "Wiggle2D" => B::Wiggle2D(an1mbyt3_core::Wiggle2D::default()),
             "AntiGoo2D" => B::AntiGoo2D(an1mbyt3_core::AntiGoo2D::default()),
+            "GooGloss2D" => B::GooGloss2D(an1mbyt3_core::GooGloss2D::default()),
             "Parallax2D" => B::Parallax2D(an1mbyt3_core::Parallax2D::default()),
             "PixelSnap2D" => B::PixelSnap2D(an1mbyt3_core::PixelSnap2D::default()),
             "StrokeStyle2D" => B::StrokeStyle2D(an1mbyt3_core::StrokeStyle2D::default()),

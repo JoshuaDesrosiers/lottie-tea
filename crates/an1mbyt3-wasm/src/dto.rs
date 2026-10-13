@@ -1936,6 +1936,8 @@ pub enum PostEffectDto {
     Halftone { size: f32, angle: f32, ink: [f32; 4], paper: [f32; 4], mix: f32 },
     WaveDistortion { amplitude: f32, frequency: f32, speed: f32 },
     LensDistortion { strength: f32, zoom: f32 },
+    /// The frontend edits a plain colour list (at most `PALETTE_MAX`).
+    Palette { colors: Vec<[f32; 4]>, dither: f32, scale: f32, mix: f32 },
 }
 
 impl From<&PostEffect> for PostEffectDto {
@@ -1959,6 +1961,7 @@ impl From<&PostEffect> for PostEffectDto {
             PostEffect::Halftone { size, angle, ink, paper, mix } => PostEffectDto::Halftone { size, angle, ink, paper, mix },
             PostEffect::WaveDistortion { amplitude, frequency, speed } => PostEffectDto::WaveDistortion { amplitude, frequency, speed },
             PostEffect::LensDistortion { strength, zoom } => PostEffectDto::LensDistortion { strength, zoom },
+            PostEffect::Palette { colors, count, dither, scale, mix } => PostEffectDto::Palette { colors: colors[..(count as usize).min(an1mbyt3_core::PALETTE_MAX)].to_vec(), dither, scale, mix },
         }
     }
 }
@@ -1984,6 +1987,12 @@ impl From<PostEffectDto> for PostEffect {
             PostEffectDto::Halftone { size, angle, ink, paper, mix } => PostEffect::Halftone { size, angle, ink, paper, mix },
             PostEffectDto::WaveDistortion { amplitude, frequency, speed } => PostEffect::WaveDistortion { amplitude, frequency, speed },
             PostEffectDto::LensDistortion { strength, zoom } => PostEffect::LensDistortion { strength, zoom },
+            PostEffectDto::Palette { colors, dither, scale, mix } => {
+                let mut fixed = [[0.0, 0.0, 0.0, 1.0]; an1mbyt3_core::PALETTE_MAX];
+                let count = colors.len().min(an1mbyt3_core::PALETTE_MAX);
+                fixed[..count].copy_from_slice(&colors[..count]);
+                PostEffect::Palette { colors: fixed, count: count as u32, dither, scale, mix }
+            }
         }
     }
 }
@@ -2248,6 +2257,7 @@ pub enum NodeBehaviorDto {
     ClipOptions2D(an1mbyt3_core::ClipOptions2D),
     ClipFade2D(an1mbyt3_core::ClipFade2D),
     AntiGoo2D(an1mbyt3_core::AntiGoo2D),
+    GooGloss2D(an1mbyt3_core::GooGloss2D),
 }
 
 /// `an1mbyt3_core::GroupFill`, its gradient in the frontend's `{x, y}` shape.
@@ -2329,6 +2339,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::ClipOptions2D(v) => NodeBehaviorDto::ClipOptions2D(*v),
             an1mbyt3_core::NodeBehavior::ClipFade2D(v) => NodeBehaviorDto::ClipFade2D(*v),
             an1mbyt3_core::NodeBehavior::AntiGoo2D(v) => NodeBehaviorDto::AntiGoo2D(*v),
+            an1mbyt3_core::NodeBehavior::GooGloss2D(v) => NodeBehaviorDto::GooGloss2D(*v),
             an1mbyt3_core::NodeBehavior::GroupFill(f) => NodeBehaviorDto::GroupFill(GroupFillDto { color: f.color, gradient: f.gradient.as_ref().map(Into::into) }),
         }
     }
@@ -2405,6 +2416,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::ClipOptions2D(v) => an1mbyt3_core::NodeBehavior::ClipOptions2D(v),
             NodeBehaviorDto::ClipFade2D(v) => an1mbyt3_core::NodeBehavior::ClipFade2D(v),
             NodeBehaviorDto::AntiGoo2D(v) => an1mbyt3_core::NodeBehavior::AntiGoo2D(v),
+            NodeBehaviorDto::GooGloss2D(v) => an1mbyt3_core::NodeBehavior::GooGloss2D(v),
             NodeBehaviorDto::GroupFill(f) => an1mbyt3_core::NodeBehavior::GroupFill(an1mbyt3_core::GroupFill { color: f.color, gradient: f.gradient.map(Into::into) }),
         }
     }
