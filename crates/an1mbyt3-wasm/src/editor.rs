@@ -1201,7 +1201,7 @@ fn build_scene_ops_lit<'a>(
             }
         }
     }
-    if !is_mask_target && on_layer && !hidden_clip && !is_mask2d_shape(editor, artboard, node_id) && !(editor.effects_live() && hidden_by_goo_flipbook(artboard, node_id)) {
+    if !is_mask_target && on_layer && !hidden_clip && !is_mask2d_shape(editor, artboard, node_id) && !hidden_by_goo_flipbook(editor, artboard, node_id) {
         for draw in apply_draw_effects(editor, artboard, node_id, node_draws(editor, artboard, node_id, node)) {
             if depth == 0 {
                 unmasked.push(draw);
@@ -1443,7 +1443,7 @@ fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard,
     // Goo 2D: a group's liquid is drawn at its front-most member, under
     // that member's own drawing (which "Hide source" leaves out entirely).
     // (While designing there's no liquid: members draw as themselves.)
-    if let Some(goo) = node.goo().filter(|_| editor.effects_live()) {
+    if let Some(goo) = node.goo().filter(|g| editor.effects_live() || editor.goo_preview.contains(&g.group)) {
         let mut draws = editor.goo_draw_at.get(&node_id).map(|owner| goo_draws(editor, artboard, *owner)).unwrap_or_default();
         if !goo.hide_source {
             draws.extend(node_draws_plain(editor, artboard, node_id, node));
@@ -2872,6 +2872,8 @@ pub struct WasmEditor {
     /// draw order, sorting layers included) → the group's owner (first
     /// member, whose settings / space it uses).
     goo_draw_at: HashMap<NodeId, NodeId>,
+    /// Goo groups previewed in Design this frame (a member is selected).
+    goo_preview: std::collections::HashSet<u32>,
     /// A unit square (−0.5 … 0.5) — the huge quad an inverted Mask 2D
     /// writes into the stencil.
     mask_quad: Option<GpuMesh>,
@@ -3318,6 +3320,7 @@ impl WasmEditor {
             particle_fluid_gpu: HashMap::new(),
             goo_gpu: HashMap::new(),
             goo_draw_at: HashMap::new(),
+            goo_preview: Default::default(),
             mask_quad: None,
             mask2d_targets: std::collections::HashSet::new(),
             liquid_materials: HashMap::new(),
@@ -4114,6 +4117,14 @@ impl WasmEditor {
         let artboard = self.document.artboard(artboard_id).unwrap();
         // Particles, Particle Fluid 2D and Goo 2D only run in Playground.
         let fx_live = self.effects_live();
+        let selected = self.selected_node;
+        // A goo group previews whole when any member is selected (its
+        // particle members run too).
+        self.goo_preview = if fx_live {
+            Default::default()
+        } else {
+            artboard.node_ids().filter(|id| fx_preview(artboard, selected, *id)).filter_map(|id| artboard.node(id)?.goo().map(|g| g.group)).collect()
+        };
         for node_id in artboard.node_ids() {
             if artboard.is_effectively_deleted(node_id) {
                 continue;
@@ -4124,7 +4135,8 @@ impl WasmEditor {
             // a disabled GameObject in Unity: no simulation, and it restarts
             // fresh when shown again. Same while designing: particles only
             // run in Playground (keeps Design light).
-            if !fx_live || !crate::lighting2d::effectively_visible(artboard, node_id) {
+            let previewed = fx_preview(artboard, selected, node_id) || node.goo().is_some_and(|g| self.goo_preview.contains(&g.group));
+            if !(fx_live || previewed) || !crate::lighting2d::effectively_visible(artboard, node_id) {
                 self.particle_runtimes.remove(&node_id);
                 continue;
             }
@@ -4185,7 +4197,7 @@ impl WasmEditor {
         let artboard = self.document.artboard(artboard_id).unwrap();
         let fluids: Vec<(NodeId, an1mbyt3_core::ParticleFluid2D, Vec<crate::metaball2d::Blob>, f32)> = artboard
             .node_ids()
-            .filter(|id| fx_live && !artboard.is_effectively_deleted(*id) && crate::lighting2d::effectively_visible(artboard, *id))
+            .filter(|id| (fx_live || fx_preview(artboard, selected, *id)) && !artboard.is_effectively_deleted(*id) && crate::lighting2d::effectively_visible(artboard, *id))
             .filter_map(|id| {
                 let node = artboard.node(id)?;
                 let fluid = *node.particle_fluid()?;
@@ -4230,11 +4242,14 @@ impl WasmEditor {
         let t_sources = crate::profiler::now_ms();
         let (mut mesh_ms, mut upload_ms) = (0.0, 0.0);
         for id in artboard.node_ids() {
-            if !fx_live || artboard.is_effectively_deleted(id) || !crate::lighting2d::effectively_visible(artboard, id) {
+            if artboard.is_effectively_deleted(id) || !crate::lighting2d::effectively_visible(artboard, id) {
                 continue;
             }
             let Some(node) = artboard.node(id) else { continue };
             let Some(goo) = node.goo() else { continue };
+            if !fx_live && !self.goo_preview.contains(&goo.group) {
+                continue;
+            }
             let sources = goo_sources(self, artboard, id, node);
             match groups.iter_mut().find(|g| g.0 == goo.group) {
                 Some(g) => g.3.extend(sources),
@@ -14658,14 +14673,33 @@ fn flipbook_particle_draws<'a>(
 
 /// Is `node` inside a goo member that's a Flipbook with Hide source (its
 /// frames are only the liquid's outline)?
-fn hidden_by_goo_flipbook(artboard: &an1mbyt3_core::Artboard, node: NodeId) -> bool {
+fn hidden_by_goo_flipbook(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node: NodeId) -> bool {
     let mut at = artboard.node(node).and_then(|n| n.parent);
     while let Some(id) = at {
         let Some(n) = artboard.node(id) else { break };
-        if n.flipbook().is_some() && n.goo().is_some_and(|g| g.hide_source) {
+        // (Only while the goo is actually running.)
+        if n.flipbook().is_some() && n.goo().is_some_and(|g| g.hide_source && (editor.effects_live() || editor.goo_preview.contains(&g.group))) {
             return true;
         }
         at = n.parent;
     }
     false
+}
+
+/// Design-time preview: particles / fluid / goo on `node` run while it's
+/// selected, or the selection is inside it (a flipbook frame) or above it
+/// (its group).
+fn fx_preview(artboard: &an1mbyt3_core::Artboard, selected: Option<NodeId>, node: NodeId) -> bool {
+    let Some(selected) = selected else { return false };
+    let is_ancestor = |above: NodeId, below: NodeId| {
+        let mut at = Some(below);
+        while let Some(id) = at {
+            if id == above {
+                return true;
+            }
+            at = artboard.node(id).and_then(|n| n.parent);
+        }
+        false
+    };
+    is_ancestor(selected, node) || is_ancestor(node, selected)
 }
