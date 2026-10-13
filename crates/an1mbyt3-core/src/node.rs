@@ -389,6 +389,14 @@ impl Node {
         })
     }
 
+    /// This node's enabled Flipbook, if any.
+    pub fn flipbook(&self) -> Option<&crate::Flipbook> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Flipbook(value) if entry.enabled => Some(value),
+            _ => None,
+        })
+    }
+
     /// This node's own enabled Sorting Layer, if any.
     pub fn sorting_layer(&self) -> Option<u32> {
         self.behaviors.iter().find_map(|entry| match &entry.behavior {

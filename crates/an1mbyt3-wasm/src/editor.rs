@@ -1201,7 +1201,7 @@ fn build_scene_ops_lit<'a>(
             }
         }
     }
-    if !is_mask_target && on_layer && !hidden_clip && !is_mask2d_shape(editor, artboard, node_id) {
+    if !is_mask_target && on_layer && !hidden_clip && !is_mask2d_shape(editor, artboard, node_id) && !hidden_by_goo_flipbook(artboard, node_id) {
         for draw in apply_draw_effects(editor, artboard, node_id, node_draws(editor, artboard, node_id, node)) {
             if depth == 0 {
                 unmasked.push(draw);
@@ -1777,6 +1777,25 @@ fn goo_sources(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node_id:
         }
         _ => {}
     }
+    // A Flipbook member: the frame it's showing (and everything in it)
+    // shapes the liquid — the goo animates with the flipbook.
+    if node.flipbook().is_some() && node.particle_system().is_none() {
+        fn shown_sources(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, id: NodeId, out: &mut Vec<crate::metaball2d::Source>) {
+            let Some(n) = artboard.node(id) else { return };
+            if n.deleted {
+                return;
+            }
+            // (Without its own Goo 2D: a frame is part of its parent's goo.)
+            let plain = Node { behaviors: Vec::new(), ..n.clone() };
+            out.extend(goo_sources(editor, artboard, id, &plain));
+            for (child, _) in artboard.children_of(id) {
+                shown_sources(editor, artboard, child, out);
+            }
+        }
+        if let Some((frame, _)) = artboard.children_of(node_id).find(|(_, c)| !c.deleted && c.visible) {
+            shown_sources(editor, artboard, frame, &mut out);
+        }
+    }
     if let (Some(config), Some(runtime)) = (node.particle_system(), editor.particle_runtimes.get(&node_id)) {
         let emitter = artboard.world_transform(node_id);
         let local = config.main.simulation_space == an1mbyt3_core::SimulationSpace::Local;
@@ -1868,6 +1887,14 @@ fn particle_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artbo
     let align = look.is_some_and(|l| l.align_to_velocity || l.shape == an1mbyt3_core::ParticleShape2D::Streak);
     let stretch = look.map_or(0.0, |l| l.stretch.max(0.0));
     let blend_mode = look.map_or(BlendMode::Normal, |l| l.blend_mode);
+    // Flipbook on the emitter: each particle shows its frames (the node's
+    // children) over its own life.
+    if let Some(book) = artboard.node(node_id).and_then(|n| n.flipbook()) {
+        let frames: Vec<NodeId> = artboard.children_of(node_id).filter(|(_, n)| !n.deleted).map(|(c, _)| c).collect();
+        if !frames.is_empty() {
+            return flipbook_particle_draws(editor, artboard, node_id, config, book, &frames, runtime.particles());
+        }
+    }
     // `Local` draws every particle in the emitter's own local space,
     // composed fresh with this node's *current* world transform
     // every frame (so it visibly drags along if the emitter moves);
@@ -9224,6 +9251,16 @@ impl WasmEditor {
             .collect();
         for (id, book) in books {
             let frames: Vec<NodeId> = artboard.children_of(id).filter(|(_, n)| !n.deleted).map(|(c, _)| c).collect();
+            // On a particle system the frames are each particle's art
+            // (`particle_draws`), not something drawn at the emitter.
+            if artboard.node(id).is_some_and(|n| n.particle_system().is_some()) {
+                for child in frames {
+                    if let Some(node) = artboard.node_mut(child) {
+                        node.visible = false;
+                    }
+                }
+                continue;
+            }
             let shown = if playing {
                 let clock = self.flipbook_clocks.entry(id).or_insert(0.0);
                 let shown = book.frame_at(*clock, frames.len());
@@ -14509,6 +14546,94 @@ fn is_mask2d_shape(editor: &WasmEditor, artboard: &an1mbyt3_core::Artboard, node
             return true;
         }
         at = artboard.node(id).and_then(|n| n.parent);
+    }
+    false
+}
+
+/// A frame node's draws and its descendants', in world space, visible or
+/// not (flipbook frames are hidden as nodes; they're drawn as particle art
+/// or used as goo outlines).
+fn frame_subtree_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, id: NodeId, out: &mut Vec<DrawCall<'a>>) {
+    let Some(node) = artboard.node(id) else { return };
+    if node.deleted {
+        return;
+    }
+    out.extend(node_draws_plain(editor, artboard, id, node));
+    for (child, _) in artboard.children_of(id) {
+        frame_subtree_draws(editor, artboard, child, out);
+    }
+}
+
+/// Particles drawn as a Flipbook's frames: each particle shows frame
+/// `book.frame_at(its age)`, the frame art (in the emitter's space) fitted
+/// so the first frame's size matches the particle's size, turned with the
+/// particle and tinted by its colour over life.
+fn flipbook_particle_draws<'a>(
+    editor: &'a WasmEditor,
+    artboard: &'a an1mbyt3_core::Artboard,
+    node_id: NodeId,
+    config: &'a an1mbyt3_core::ParticleSystemNode,
+    book: &an1mbyt3_core::Flipbook,
+    frames: &[NodeId],
+    particles: &[an1mbyt3_runtime::Particle],
+) -> Vec<DrawCall<'a>> {
+    let emitter = artboard.world_transform(node_id);
+    let to_emitter = emitter.to_affine2().inverse();
+    // The art's size: the first frame's box (local to the emitter).
+    let extent = {
+        let (min, max) = crate::dto::local_bounds(artboard, frames[0]);
+        let t = artboard.node(frames[0]).map_or(Vec2::ONE, |n| n.transform.scale.abs());
+        ((max - min) * t).max_element().max(1.0)
+    };
+    // Each frame's draws once, in the emitter's space.
+    let frame_draws: Vec<Vec<(DrawCall<'a>, glam::Affine2)>> = frames
+        .iter()
+        .map(|f| {
+            let mut draws = Vec::new();
+            frame_subtree_draws(editor, artboard, *f, &mut draws);
+            draws.into_iter().map(|d| {
+                let m = to_emitter * d.transform.to_affine2();
+                (d, m)
+            }).collect()
+        })
+        .collect();
+    let (sin, cos) = emitter.rotation.sin_cos();
+    let mut out = Vec::new();
+    for p in particles {
+        let age = p.normalized_age();
+        let size = p.base_size * sample_size_over_lifetime(&config.size_over_lifetime, age);
+        let tint = sample_color_over_lifetime(&config.color_over_lifetime, age).unwrap_or([1.0; 4]);
+        let color = [0, 1, 2, 3].map(|i| config.main.start_color[i] * tint[i]);
+        let (position, rotation, scale) = match config.main.simulation_space {
+            an1mbyt3_core::SimulationSpace::World => (p.position, p.rotation, size),
+            an1mbyt3_core::SimulationSpace::Local => {
+                let scaled = p.position * emitter.scale;
+                (emitter.translation + Vec2::new(scaled.x * cos - scaled.y * sin, scaled.x * sin + scaled.y * cos), emitter.rotation + p.rotation, size * (emitter.scale.x.abs() + emitter.scale.y.abs()) * 0.5)
+            }
+        };
+        let place = glam::Affine2::from_scale_angle_translation(Vec2::splat(scale / extent), rotation, position);
+        let frame = book.frame_at(p.age, frames.len());
+        for (d, m) in &frame_draws[frame] {
+            let mut c = DrawCall { binding: editor.effect_bindings.get(&editor.renderer), transform: transform_from_affine(place * *m), ..*d };
+            for i in 0..4 {
+                c.fill_color[i] *= color[i];
+            }
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Is `node` inside a goo member that's a Flipbook with Hide source (its
+/// frames are only the liquid's outline)?
+fn hidden_by_goo_flipbook(artboard: &an1mbyt3_core::Artboard, node: NodeId) -> bool {
+    let mut at = artboard.node(node).and_then(|n| n.parent);
+    while let Some(id) = at {
+        let Some(n) = artboard.node(id) else { break };
+        if n.flipbook().is_some() && n.goo().is_some_and(|g| g.hide_source) {
+            return true;
+        }
+        at = n.parent;
     }
     false
 }
