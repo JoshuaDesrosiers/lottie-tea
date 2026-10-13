@@ -210,6 +210,7 @@ fn sample_op(effect: &PostEffect) -> Option<[[f32; 4]; 2]> {
         PostEffect::EdgeDetect { thickness, threshold, color, only } => [[4.0, thickness, threshold, only], linear_rgba(color)],
         PostEffect::WaveDistortion { amplitude, frequency, speed } => [[5.0, amplitude, frequency, speed], [0.0; 4]],
         PostEffect::LensDistortion { strength, zoom } => [[6.0, strength, zoom, 0.0], [0.0; 4]],
+        PostEffect::PixelScatter { amount, size, speed } => [[7.0, amount, size, speed], [0.0; 4]],
         _ => return None,
     })
 }
@@ -349,6 +350,21 @@ impl Renderer {
         for effect in effects {
             // Palette: a colour op whose colours ride in the pass's own
             // palette block (so a second Palette needs a new pass).
+            // Gradient Map (stops): colours + offsets ride in the same block.
+            if let PostEffect::GradientMapStops { colors, offsets, count, mix } = *effect {
+                if pending.ops.len() == MAX_OPS || pending.palette.is_some() {
+                    pending = Pending::from(self.flush_post(encoder, pending, None));
+                }
+                let n = an1mbyt3_core::GRADIENT_MAP_MAX;
+                let mut block = [[0.0f32; 4]; an1mbyt3_core::PALETTE_MAX];
+                for i in 0..n {
+                    block[i] = linear_rgba(colors[i]);
+                    block[n + i / 4][i % 4] = offsets[i];
+                }
+                pending.palette = Some(block);
+                pending.ops.push([[13.0, count.min(n as u32) as f32, mix, 0.0], [0.0; 4], [0.0; 4]]);
+                continue;
+            }
             if let PostEffect::Palette { colors, count, dither, scale, mix } = *effect {
                 if pending.ops.len() == MAX_OPS || pending.palette.is_some() {
                     pending = Pending::from(self.flush_post(encoder, pending, None));

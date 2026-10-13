@@ -2357,7 +2357,8 @@ impl Renderer {
             | PostEffect::Halftone { .. }
             | PostEffect::WaveDistortion { .. }
             | PostEffect::LensDistortion { .. }
-            | PostEffect::Palette { .. } => PostUniforms {
+            | PostEffect::Palette { .. }
+            | PostEffect::PixelScatter { .. } => PostUniforms {
                 texel_size_radius: [texel_size[0], texel_size[1], 0.0, 0.0],
                 threshold_intensity: [0.0, 1.0, 0.0, 0.0],
                 gradient_map_highlight: [0.0; 4],
@@ -2381,6 +2382,12 @@ impl Renderer {
                 texel_size_radius: [texel_size[0], texel_size[1], 0.0, 4.0],
                 threshold_intensity: linear_rgba(shadow),
                 gradient_map_highlight: linear_rgba(highlight),
+            },
+            // (An image bake maps between the end stops.)
+            PostEffect::GradientMapStops { colors, count, .. } => PostUniforms {
+                texel_size_radius: [texel_size[0], texel_size[1], 0.0, 4.0],
+                threshold_intensity: linear_rgba(colors[0]),
+                gradient_map_highlight: linear_rgba(colors[(count as usize).clamp(1, an1mbyt3_core::GRADIENT_MAP_MAX) - 1]),
             },
             PostEffect::Vignette { color, intensity, radius, blur } => PostUniforms {
                 texel_size_radius: [texel_size[0], texel_size[1], 0.0, 7.0],

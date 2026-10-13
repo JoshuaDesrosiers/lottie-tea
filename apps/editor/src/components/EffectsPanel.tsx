@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { PostEffect, PostEffectLayer } from '../ipc/document'
 import { POST_EFFECT_DEFAULTS, hexPalette } from '../ipc/document'
 import { ColorSwatch } from './ColorPicker'
@@ -115,18 +115,7 @@ export function EffectParams({ effect, onChange }: { effect: PostEffect; onChang
         <NumberField label="Levels" value={effect.levels} step={1} onCommit={(levels) => onChange({ ...effect, levels: Math.max(2, Math.round(levels)) })} />
       )
     case 'GradientMap':
-      return (
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
-            Shadow
-            <ColorSwatch value={effect.shadow} onChange={(shadow) => onChange({ ...effect, shadow })} />
-          </label>
-          <label className="flex items-center gap-1.5 text-[11px] text-ink-dim">
-            Highlight
-            <ColorSwatch value={effect.highlight} onChange={(highlight) => onChange({ ...effect, highlight })} />
-          </label>
-        </div>
-      )
+      return <GradientMapFields effect={effect} onChange={onChange} />
     case 'Vignette':
       return <VignetteFields value={effect} onChange={(v) => onChange({ ...effect, ...v })} />
     case 'Palette':
@@ -151,6 +140,7 @@ const EFFECT_FIELDS: Partial<Record<PostEffect['kind'], FieldSpec[]>> = {
   Halftone: [['size', 'Dot spacing (px)', 0.5, 2, 40], ['angle', 'Angle', 5, 0, 180], ['mix', 'Mix original', 0.05, 0, 1], ['ink', 'Ink', 'color'], ['paper', 'Paper', 'color']],
   WaveDistortion: [['amplitude', 'Amplitude (px)', 0.5, 0, 60], ['frequency', 'Waves', 0.5, 0, 60], ['speed', 'Speed', 0.1, -20, 20]],
   LensDistortion: [['strength', 'Strength', 0.02, -1, 1], ['zoom', 'Zoom', 0.01, 0.5, 2]],
+  PixelScatter: [['amount', 'Scatter (px)', 0.5, 0, 60], ['size', 'Grain (px)', 1, 1, 32], ['speed', 'Shimmer / sec', 0.5, 0, 60]],
 }
 
 /** The newer effects' fields, from `EFFECT_FIELDS`. */
@@ -403,6 +393,97 @@ function PaletteFields({ effect, onChange }: { effect: Extract<PostEffect, { kin
       </div>
       <NumberField label="Dither" value={effect.dither} step={0.05} onCommit={(dither) => onChange({ ...effect, dither: Math.min(1, Math.max(0, dither)) })} />
       <NumberField label="Dither pixel size" value={effect.scale} step={1} onCommit={(scale) => onChange({ ...effect, scale: Math.min(16, Math.max(1, Math.round(scale))) })} />
+      <NumberField label="Mix" value={effect.mix} step={0.05} onCommit={(mix) => onChange({ ...effect, mix: Math.min(1, Math.max(0, mix)) })} />
+    </div>
+  )
+}
+
+type MapStop = { offset: number; color: [number, number, number, number] }
+
+/** Gradient Map: a draggable stop bar (click the strip to add a stop at
+ * that brightness, drag a marker to move it, click one to select it,
+ * Delete / the bin removes it) over the selected stop's colour, plus mix.
+ * Shadows map to the left end, highlights to the right. */
+function GradientMapFields({ effect, onChange }: { effect: Extract<PostEffect, { kind: 'GradientMap' }>; onChange: (effect: PostEffect) => void }) {
+  const [selected, setSelected] = useState(0)
+  const barRef = useRef<HTMLDivElement>(null)
+  const stops = effect.stops
+  const css = (c: MapStop['color']) => `rgba(${Math.round(c[0] * 255)}, ${Math.round(c[1] * 255)}, ${Math.round(c[2] * 255)}, ${c[3]})`
+  const sorted = [...stops].sort((x, y) => x.offset - y.offset)
+  const background = `linear-gradient(to right, ${sorted.map((st) => `${css(st.color)} ${(st.offset * 100).toFixed(1)}%`).join(', ')})`
+  const setStops = (next: MapStop[]) => onChange({ ...effect, stops: next })
+  const offsetAt = (clientX: number) => {
+    const rect = barRef.current?.getBoundingClientRect()
+    if (!rect) return 0
+    return Math.min(1, Math.max(0, (clientX - rect.left) / Math.max(rect.width, 1)))
+  }
+  const colorAt = (t: number): MapStop['color'] => {
+    const after = sorted.find((st) => st.offset >= t) ?? sorted[sorted.length - 1]
+    const before = [...sorted].reverse().find((st) => st.offset <= t) ?? sorted[0]
+    const k = (t - before.offset) / Math.max(after.offset - before.offset, 0.0001)
+    return [0, 1, 2, 3].map((i) => before.color[i] + (after.color[i] - before.color[i]) * k) as MapStop['color']
+  }
+  const addAt = (clientX: number) => {
+    if (stops.length >= 16) return
+    const offset = offsetAt(clientX)
+    setStops([...stops, { offset, color: colorAt(offset) }])
+    setSelected(stops.length)
+  }
+  const drag = (index: number, e: ReactPointerEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setSelected(index)
+    const move = (ev: PointerEvent) => setStops(stops.map((st, i) => (i === index ? { ...st, offset: offsetAt(ev.clientX) } : st)))
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  const remove = (index: number) => {
+    if (stops.length <= 2) return
+    setStops(stops.filter((_, i) => i !== index))
+    setSelected(0)
+  }
+  const current = stops[Math.min(selected, stops.length - 1)]
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div
+        ref={barRef}
+        title="Click to add a stop; drag markers to move them"
+        onPointerDown={(e) => addAt(e.clientX)}
+        className="relative h-5 cursor-copy rounded border border-panel-border"
+        style={{ background }}
+      >
+        {stops.map((st, i) => (
+          <div
+            key={i}
+            onPointerDown={(e) => drag(i, e)}
+            onKeyDown={(e) => {
+              if (e.key === 'Delete' || e.key === 'Backspace') remove(i)
+            }}
+            tabIndex={0}
+            className={`absolute top-full h-3 w-3 -translate-x-1/2 cursor-ew-resize rounded-sm border-2 outline-none ${i === selected ? 'border-accent' : 'border-ink/70'}`}
+            style={{ left: `${st.offset * 100}%`, background: css(st.color) }}
+          />
+        ))}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        {current && <ColorSwatch value={current.color} onChange={(color) => setStops(stops.map((st, i) => (i === selected ? { ...st, color } : st)))} />}
+        <span className="text-[10px] text-ink-dim">
+          Stop {Math.min(selected, stops.length - 1) + 1} / {stops.length} at {Math.round((current?.offset ?? 0) * 100)}% brightness
+        </span>
+        <button
+          type="button"
+          title="Remove this stop"
+          disabled={stops.length <= 2}
+          onClick={() => remove(selected)}
+          className="ml-auto rounded bg-red-500/10 px-1 py-0.5 text-red-300 hover:bg-red-500/20 disabled:opacity-30"
+        >
+          <TrashIcon />
+        </button>
+      </div>
       <NumberField label="Mix" value={effect.mix} step={0.05} onCommit={(mix) => onChange({ ...effect, mix: Math.min(1, Math.max(0, mix)) })} />
     </div>
   )

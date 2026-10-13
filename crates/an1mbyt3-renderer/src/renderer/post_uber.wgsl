@@ -97,6 +97,14 @@ fn sample_source(uv_in: vec2<f32>) -> vec4<f32> {
     if (mode == 5.0) {
         // Wave: rows slide sideways.
         uv.x = uv.x + sin(uv.y * a.z * 6.2831853 + u.info.y * a.w) * a.y * texel.x;
+    } else if (mode == 7.0) {
+        // Pixel scatter: each a.z-px grain reads from a random spot up to
+        // a.y px away, re-rolled a.w times a second.
+        let grain = floor(uv / texel / max(a.z, 1.0));
+        let roll = floor(u.info.y * a.w);
+        let seed = grain + roll * vec2<f32>(37.0, 91.0);
+        let jitter = vec2<f32>(hash12(seed), hash12(seed + vec2<f32>(17.3, 5.1))) * 2.0 - vec2<f32>(1.0);
+        uv = uv + jitter * a.y * texel;
     } else if (mode == 6.0) {
         // Lens: radial bulge (barrel) or pinch, cropped by zoom.
         let aspect = texel.y / texel.x;
@@ -217,6 +225,32 @@ fn apply(c_in: vec4<f32>, i: i32, uv: vec2<f32>) -> vec4<f32> {
         let px = floor(uv / u.texel.xy / max(a.z, 0.5));
         let n = hash12(px + floor(u.info.y * 24.0) * vec2<f32>(17.0, 59.0)) - 0.5;
         c = vec4<f32>(clamp(c.rgb + vec3<f32>(n * a.y), vec3<f32>(0.0), vec3<f32>(1.0)), c.a);
+    } else if (mode == 13.0) {
+        // Gradient map (stops): brightness picks a colour along a.y stops
+        // (colours palette[0..16], offsets packed 4 per vec4 from
+        // palette[16]); a.z mixes with the original.
+        let n = i32(a.y);
+        if (n > 0) {
+            let l = clamp(dot(c.rgb, LUMA), 0.0, 1.0);
+            var mapped = u.palette[0].rgb;
+            var prev_off = u.palette[16].x;
+            if (l > prev_off) {
+                mapped = u.palette[n - 1].rgb;
+                for (var k: i32 = 1; k < 16; k = k + 1) {
+                    if (k >= n) {
+                        break;
+                    }
+                    let off = u.palette[16 + k / 4][k % 4];
+                    if (l <= off) {
+                        let t = (l - prev_off) / max(off - prev_off, 0.00001);
+                        mapped = mix(u.palette[k - 1].rgb, u.palette[k].rgb, t);
+                        break;
+                    }
+                    prev_off = off;
+                }
+            }
+            c = vec4<f32>(mix(c.rgb, mapped, clamp(a.z, 0.0, 1.0)), c.a);
+        }
     } else if (mode == 12.0) {
         // Palette: nearest of a.y colours (Oklab); a.z dither between the
         // two nearest (Bayer, a.w px per cell); b.x mix with the original.

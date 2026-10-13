@@ -923,7 +923,7 @@ export type PostEffect =
   | { kind: 'Pixelate'; blockSize: number }
   | { kind: 'ColorGrading'; brightness: number; contrast: number; saturation: number }
   | { kind: 'Posterize'; levels: number }
-  | { kind: 'GradientMap'; shadow: [number, number, number, number]; highlight: [number, number, number, number] }
+  | { kind: 'GradientMap'; stops: { offset: number; color: [number, number, number, number] }[]; mix: number }
   | { kind: 'Vignette'; color: [number, number, number, number]; intensity: number; radius: number; blur: number }
   | { kind: 'Anaglyph'; offset: number; mono: number }
   | { kind: 'Dither'; levels: number; scale: number; strength: number; mono: number; dark: [number, number, number, number]; light: [number, number, number, number] }
@@ -936,6 +936,7 @@ export type PostEffect =
   | { kind: 'WaveDistortion'; amplitude: number; frequency: number; speed: number }
   | { kind: 'LensDistortion'; strength: number; zoom: number }
   | { kind: 'Palette'; colors: [number, number, number, number][]; dither: number; scale: number; mix: number }
+  | { kind: 'PixelScatter'; amount: number; size: number; speed: number }
 
 /** Mirrors `crates/an1mbyt3-wasm/src/dto.rs`'s `PostEffectLayerDto` — one
  * entry in an artboard's post-processing stack. `enabled` lets an entry be
@@ -964,7 +965,15 @@ export const POST_EFFECT_DEFAULTS: Record<PostEffect['kind'], PostEffect> = {
   Pixelate: { kind: 'Pixelate', blockSize: 8 },
   ColorGrading: { kind: 'ColorGrading', brightness: 0, contrast: 1, saturation: 1 },
   Posterize: { kind: 'Posterize', levels: 4 },
-  GradientMap: { kind: 'GradientMap', shadow: [0.05, 0.0, 0.2, 1.0], highlight: [1.0, 0.8, 0.3, 1.0] },
+  GradientMap: {
+    kind: 'GradientMap',
+    stops: [
+      { offset: 0, color: [0.05, 0.0, 0.2, 1] },
+      { offset: 0.5, color: [0.85, 0.2, 0.4, 1] },
+      { offset: 1, color: [1.0, 0.85, 0.35, 1] },
+    ],
+    mix: 1,
+  },
   Vignette: { kind: 'Vignette', color: [0, 0, 0, 1], intensity: 0.45, radius: 0.75, blur: 0.5 },
   Anaglyph: { kind: 'Anaglyph', offset: 4, mono: 0 },
   Dither: { kind: 'Dither', levels: 4, scale: 1, strength: 1, mono: 0, dark: [0.06, 0.22, 0.06, 1], light: [0.61, 0.74, 0.06, 1] },
@@ -976,6 +985,7 @@ export const POST_EFFECT_DEFAULTS: Record<PostEffect['kind'], PostEffect> = {
   Halftone: { kind: 'Halftone', size: 6, angle: 45, ink: [0.08, 0.08, 0.12, 1], paper: [0.98, 0.96, 0.9, 1], mix: 0 },
   WaveDistortion: { kind: 'WaveDistortion', amplitude: 4, frequency: 6, speed: 2 },
   LensDistortion: { kind: 'LensDistortion', strength: 0.25, zoom: 1.05 },
+  PixelScatter: { kind: 'PixelScatter', amount: 3, size: 1, speed: 0 },
   Palette: { kind: 'Palette', colors: hexPalette('000000 1d2b53 7e2553 008751 ab5236 5f574f c2c3c7 fff1e8 ff004d ffa300 ffec27 00e436 29adff 83769c ff77a8 ffccaa'), dither: 0, scale: 1, mix: 1 },
 }
 

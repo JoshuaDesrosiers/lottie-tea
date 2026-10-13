@@ -1924,7 +1924,9 @@ pub enum PostEffectDto {
     },
     ColorGrading { brightness: f32, contrast: f32, saturation: f32 },
     Posterize { levels: f32 },
-    GradientMap { shadow: [f32; 4], highlight: [f32; 4] },
+    /// Edited as stops (`{ offset, color }`) — both core gradient-map
+    /// variants read as this, and it saves as `GradientMapStops`.
+    GradientMap { stops: Vec<PostGradientStopDto>, mix: f32 },
     Vignette { color: [f32; 4], intensity: f32, radius: f32, blur: f32 },
     Anaglyph { offset: f32, mono: f32 },
     Dither { levels: f32, scale: f32, strength: f32, mono: f32, dark: [f32; 4], light: [f32; 4] },
@@ -1938,6 +1940,14 @@ pub enum PostEffectDto {
     LensDistortion { strength: f32, zoom: f32 },
     /// The frontend edits a plain colour list (at most `PALETTE_MAX`).
     Palette { colors: Vec<[f32; 4]>, dither: f32, scale: f32, mix: f32 },
+    PixelScatter { amount: f32, size: f32, speed: f32 },
+}
+
+/// One Gradient Map stop.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PostGradientStopDto {
+    pub offset: f32,
+    pub color: [f32; 4],
 }
 
 impl From<&PostEffect> for PostEffectDto {
@@ -1949,7 +1959,12 @@ impl From<&PostEffect> for PostEffectDto {
             PostEffect::Pixelate { block_size } => PostEffectDto::Pixelate { block_size },
             PostEffect::ColorGrading { brightness, contrast, saturation } => PostEffectDto::ColorGrading { brightness, contrast, saturation },
             PostEffect::Posterize { levels } => PostEffectDto::Posterize { levels },
-            PostEffect::GradientMap { shadow, highlight } => PostEffectDto::GradientMap { shadow, highlight },
+            PostEffect::GradientMap { shadow, highlight } => PostEffectDto::GradientMap { stops: vec![PostGradientStopDto { offset: 0.0, color: shadow }, PostGradientStopDto { offset: 1.0, color: highlight }], mix: 1.0 },
+            PostEffect::GradientMapStops { colors, offsets, count, mix } => PostEffectDto::GradientMap {
+                stops: (0..(count as usize).min(an1mbyt3_core::GRADIENT_MAP_MAX)).map(|i| PostGradientStopDto { offset: offsets[i], color: colors[i] }).collect(),
+                mix,
+            },
+            PostEffect::PixelScatter { amount, size, speed } => PostEffectDto::PixelScatter { amount, size, speed },
             PostEffect::Vignette { color, intensity, radius, blur } => PostEffectDto::Vignette { color, intensity, radius, blur },
             PostEffect::Anaglyph { offset, mono } => PostEffectDto::Anaglyph { offset, mono },
             PostEffect::Dither { levels, scale, strength, mono, dark, light } => PostEffectDto::Dither { levels, scale, strength, mono, dark, light },
@@ -1975,7 +1990,18 @@ impl From<PostEffectDto> for PostEffect {
             PostEffectDto::Pixelate { block_size } => PostEffect::Pixelate { block_size },
             PostEffectDto::ColorGrading { brightness, contrast, saturation } => PostEffect::ColorGrading { brightness, contrast, saturation },
             PostEffectDto::Posterize { levels } => PostEffect::Posterize { levels },
-            PostEffectDto::GradientMap { shadow, highlight } => PostEffect::GradientMap { shadow, highlight },
+            PostEffectDto::GradientMap { mut stops, mix } => {
+                stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
+                let n = stops.len().min(an1mbyt3_core::GRADIENT_MAP_MAX);
+                let mut colors = [[0.0, 0.0, 0.0, 1.0]; an1mbyt3_core::GRADIENT_MAP_MAX];
+                let mut offsets = [1.0f32; an1mbyt3_core::GRADIENT_MAP_MAX];
+                for (i, s) in stops.iter().take(n).enumerate() {
+                    colors[i] = s.color;
+                    offsets[i] = s.offset.clamp(0.0, 1.0);
+                }
+                PostEffect::GradientMapStops { colors, offsets, count: n as u32, mix }
+            }
+            PostEffectDto::PixelScatter { amount, size, speed } => PostEffect::PixelScatter { amount, size, speed },
             PostEffectDto::Vignette { color, intensity, radius, blur } => PostEffect::Vignette { color, intensity, radius, blur },
             PostEffectDto::Anaglyph { offset, mono } => PostEffect::Anaglyph { offset, mono },
             PostEffectDto::Dither { levels, scale, strength, mono, dark, light } => PostEffect::Dither { levels, scale, strength, mono, dark, light },

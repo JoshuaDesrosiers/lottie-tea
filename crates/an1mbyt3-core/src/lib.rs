@@ -143,7 +143,7 @@ pub use physics2d::{
     BoxCollider2D, CapsuleCollider2D, CapsuleDirection2D, CircleCollider2D, CollisionDetection2D, Liquid2D, PhysicsMaterial2D, PolygonCollider2D,
     Rigidbody2D, RigidbodyType2D,
 };
-pub use post_effect::{PostEffect, PostEffectLayer, PALETTE_MAX, PICO8_PALETTE};
+pub use post_effect::{PostEffect, PostEffectLayer, GRADIENT_MAP_MAX, PALETTE_MAX, PICO8_PALETTE};
 pub use program::{GraphEdgeDef, GraphNodeDef, GraphNodeKind, GraphProperty, NodeGraphDef, ProgramDef, SocketOverride};
 pub use sprite_group::SpriteGroup;
 pub use state_machine::{Blend1DDef, ConditionDef, InputDef, InputKind, LoopMode, PlaybackDirection, StateDef, StateMachineDef, StateMachineLayerDef, TransitionDef};

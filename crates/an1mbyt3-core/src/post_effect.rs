@@ -123,7 +123,22 @@ pub enum PostEffect {
     /// original colours. A fixed-size array (so the effect stays `Copy`
     /// and fits one uniform block); up to [`PALETTE_MAX`] colours.
     Palette { colors: [[f32; 4]; PALETTE_MAX], count: u32, dither: f32, scale: f32, mix: f32 },
+    /// **Pixel Scatter**: every grain of `size` px shows the image from a
+    /// random spot up to `amount` px away — frosted glass, sand, static,
+    /// dissolving. `speed` re-rolls the scatter that many times a second
+    /// (0 = still).
+    PixelScatter { amount: f32, size: f32, speed: f32 },
+    /// **Gradient Map** with any number of stops (up to
+    /// [`GRADIENT_MAP_MAX`]): the image's brightness picks a colour along
+    /// the first `count` stops (`offsets` ascending, 0 = darkest, 1 =
+    /// brightest); `mix` (0..1) blends with the original. Supersedes the
+    /// two-colour [`PostEffect::GradientMap`] (which still loads and is
+    /// edited as two stops).
+    GradientMapStops { colors: [[f32; 4]; GRADIENT_MAP_MAX], offsets: [f32; GRADIENT_MAP_MAX], count: u32, mix: f32 },
 }
+
+/// The most stops a [`PostEffect::GradientMapStops`] holds.
+pub const GRADIENT_MAP_MAX: usize = 16;
 
 /// The most colours a [`PostEffect::Palette`] holds.
 pub const PALETTE_MAX: usize = 32;
@@ -173,6 +188,7 @@ impl PostEffect {
             "Halftone" => Some(PostEffect::Halftone { size: 6.0, angle: 45.0, ink: [0.08, 0.08, 0.12, 1.0], paper: [0.98, 0.96, 0.9, 1.0], mix: 0.0 }),
             "WaveDistortion" => Some(PostEffect::WaveDistortion { amplitude: 4.0, frequency: 6.0, speed: 2.0 }),
             "LensDistortion" => Some(PostEffect::LensDistortion { strength: 0.25, zoom: 1.05 }),
+            "PixelScatter" => Some(PostEffect::PixelScatter { amount: 3.0, size: 1.0, speed: 0.0 }),
             "Palette" => {
                 let mut colors = [[0.0, 0.0, 0.0, 1.0]; PALETTE_MAX];
                 colors[..PICO8_PALETTE.len()].copy_from_slice(&PICO8_PALETTE);
