@@ -246,7 +246,8 @@ fn goo_cover(v: f32, level: f32) -> f32 {{
             level = f(hl.level)
         ));
     }
-    s.push_str("    return c;\n}\n");
+    // The draw's own opacity (fades, clip fade) scales the whole liquid.
+    s.push_str("    return vec4<f32>(c.rgb, c.a * uniforms.color.a);\n}\n");
     s
 }
 
@@ -321,7 +322,7 @@ fn material_fragment(in: VertexOutput) -> vec4<f32> {{
     let outside = clamp((v - {outer}) / max({edge} - {outer}, 0.00001), 0.0, 1.0);
     let inside = clamp((v - {edge}) / max({edge} * 0.8, 0.00001), 0.0, 1.0);
     let a = outside * outside * mix(1.0, 0.3, inside);
-    return vec4<f32>(vec3<f32>({r}, {g}, {b}) * {strength}, {alpha} * a);
+    return vec4<f32>(vec3<f32>({r}, {g}, {b}) * {strength}, {alpha} * a * uniforms.color.a);
 }}
 "#,
         fields = field_sampling(),

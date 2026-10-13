@@ -1601,6 +1601,7 @@ export type NodeBehavior =
   | { kind: 'CameraShake2D'; amplitude: number; frequency: number; recovery: number; constant: number }
   | { kind: 'Mask2D'; mask: OpaqueId | null; invert: boolean }
   | { kind: 'ClipOptions2D'; hideMask: boolean; invert: boolean }
+  | { kind: 'ClipFade2D'; maskOpacity: number; hiddenOpacity: number }
   | {
       kind: 'ParticlePath2D'
       path: OpaqueId | null

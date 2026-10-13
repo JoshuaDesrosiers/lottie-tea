@@ -729,6 +729,7 @@ function BehaviorsFields({
           </div>
         )
       }
+      case 'ClipFade2D':
       case 'ClipOptions2D':
         return <p className="text-[10px] leading-snug text-ink-dim">Invisible / inverted clipping — set with the toggles under &quot;Clip children to this shape&quot;.</p>
       case 'Mask2D': {
@@ -2760,6 +2761,30 @@ export function InspectorPanel({
               <input type="checkbox" checked={opts.invert} onChange={(e) => set({ invert: e.target.checked })} />
               Invert (hide inside)
             </label>
+            {node.clipChildren && (() => {
+              const fadeEntry = node.behaviors.find((b) => b.behavior.kind === 'ClipFade2D')
+              const fade = fadeEntry && fadeEntry.behavior.kind === 'ClipFade2D' ? fadeEntry.behavior : { kind: 'ClipFade2D' as const, maskOpacity: 0, hiddenOpacity: 0 }
+              const setFade = (patch: { maskOpacity?: number; hiddenOpacity?: number }) => {
+                const next = { ...fade, ...patch }
+                const rest = node.behaviors.filter((b) => b.behavior.kind !== 'ClipFade2D')
+                onSetNodeBehaviors(next.maskOpacity > 0 || next.hiddenOpacity > 0 ? [...rest, { behavior: next, enabled: true }] : rest)
+              }
+              const row = (label: string, title: string, value: number, onChange: (v: number) => void) => (
+                <div className="flex items-center gap-2" title={title}>
+                  <span className="w-28 shrink-0 text-[11px] text-ink-dim">{label}</span>
+                  <div className="min-w-0 flex-1">
+                    <Slider value={value} min={0} max={1} step={0.01} onChange={onChange} />
+                  </div>
+                  <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-ink-dim">{Math.round(value * 100)}%</span>
+                </div>
+              )
+              return (
+                <>
+                  {opts.hideMask && row('Mask opacity', 'How much of the (invisible) mask shape still shows — 0 = fully invisible', fade.maskOpacity, (v) => setFade({ maskOpacity: v }))}
+                  {row('Hidden part opacity', 'The part the clip removes shows faded at this opacity instead of disappearing — 0 = a hard cut', fade.hiddenOpacity, (v) => setFade({ hiddenOpacity: v }))}
+                </>
+              )
+            })()}
           </div>
         )
       })()}

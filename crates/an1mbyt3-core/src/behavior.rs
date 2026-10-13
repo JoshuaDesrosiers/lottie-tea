@@ -186,6 +186,8 @@ pub enum NodeBehavior {
     Mask2D(crate::Mask2D),
     /// [`crate::ClipOptions2D`]: invisible / inverted clipping. (Appended last.)
     ClipOptions2D(crate::ClipOptions2D),
+    /// [`crate::ClipFade2D`]: soft clipping opacities. (Appended last.)
+    ClipFade2D(crate::ClipFade2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

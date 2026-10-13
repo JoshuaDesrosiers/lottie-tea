@@ -351,6 +351,17 @@ impl Node {
         })
     }
 
+    /// This node's clip fade (mask / hidden-part opacity), if any.
+    pub fn clip_fade(&self) -> crate::ClipFade2D {
+        self.behaviors
+            .iter()
+            .find_map(|entry| match &entry.behavior {
+                crate::NodeBehavior::ClipFade2D(value) if entry.enabled => Some(*value),
+                _ => None,
+            })
+            .unwrap_or_default()
+    }
+
     /// This node's clipping options (invisible / inverted), if any.
     pub fn clip_options(&self) -> crate::ClipOptions2D {
         self.behaviors

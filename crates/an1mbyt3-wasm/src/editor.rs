@@ -1185,7 +1185,22 @@ fn build_scene_ops_lit<'a>(
     // walk still visits everything, so masks / clips stay correct).
     let on_layer = editor.scene_layer_filter.get().is_none_or(|f| effective_layer(artboard, node_id) == f);
     let clip_opts = node.clip_options();
+    let clip_fade = node.clip_fade();
     let hidden_clip = node.clip_children && clip_opts.hide_mask;
+    // An "invisible" mask shape shown faintly (its own copy + binding: the
+    // node's bindings also carry its stencil write this frame).
+    if hidden_clip && clip_fade.mask_opacity > 0.0 && !is_mask_target && on_layer {
+        let k = clip_fade.mask_opacity.clamp(0.0, 1.0);
+        for draw in node_draws(editor, artboard, node_id, node) {
+            let mut faint = DrawCall { binding: editor.effect_bindings.get(&editor.renderer), ..draw };
+            faint.fill_color[3] *= k;
+            if depth == 0 {
+                unmasked.push(faint);
+            } else {
+                masked.push(an1mbyt3_renderer::SceneOp::Draw { draw: faint, depth, island });
+            }
+        }
+    }
     if !is_mask_target && on_layer && !hidden_clip && !is_mask2d_shape(editor, artboard, node_id) {
         for draw in apply_draw_effects(editor, artboard, node_id, node_draws(editor, artboard, node_id, node)) {
             if depth == 0 {
@@ -1283,6 +1298,23 @@ fn build_scene_ops_lit<'a>(
     } else {
         depth_after_group_mask
     };
+
+    // Clip fade: the clipped content is drawn *together* as one flattened
+    // layer, then pasted at full strength inside the clip and at the fade's
+    // opacity in the part the clip cuts away (the stencil there holds the
+    // other level: one lower outside a plain clip, one higher inside an
+    // inverted one). One fade for the whole image — not per particle.
+    if node.clip_children && !is_mask_target && clip_fade.hidden_opacity > 0.0 && group_mask.is_none() {
+        let fade_depth = if invert { child_depth + 1 } else { child_depth - 1 };
+        let k = clip_fade.hidden_opacity.clamp(0.0, 1.0);
+        let (mut layer_unmasked, mut layer_masked) = (Vec::new(), Vec::new());
+        let mut layer_islands = 0u32;
+        for &child_id in index.children(Some(node_id)) {
+            build_scene_ops(editor, artboard, index, child_id, 0, 0, &mut layer_islands, &mut layer_unmasked, &mut layer_masked, unlit_split.as_deref_mut());
+        }
+        masked.push(an1mbyt3_renderer::SceneOp::Layer { unmasked: layer_unmasked, masked: layer_masked, composites: vec![(child_depth, 1.0), (fade_depth, k)], island });
+        return;
+    }
 
     // `sorted_children`, not `children_of`: the authored order alone would
     // ignore Y-sort groups and `z_index` entirely — the actual on-screen

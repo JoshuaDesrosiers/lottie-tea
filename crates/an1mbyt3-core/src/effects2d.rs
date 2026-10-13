@@ -224,6 +224,19 @@ pub struct ClipOptions2D {
     pub invert: bool,
 }
 
+/// **Clip fade** — soft versions of a node's clipping (set next to the
+/// "Clip children" toggles):
+/// - `mask_opacity`: with "Invisible mask" on, the clipping shape still
+///   shows at this opacity (0 = fully invisible).
+/// - `hidden_opacity`: the clipped-away part of the children shows at
+///   this opacity instead of disappearing (0 = a hard cut).
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ClipFade2D {
+    pub mask_opacity: f32,
+    pub hidden_opacity: f32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

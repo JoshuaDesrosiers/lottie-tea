@@ -19,6 +19,7 @@ pub use an1mbyt3_core::PostEffect;
 use an1mbyt3_core::Transform2D;
 use an1mbyt3_geometry::Mesh;
 
+mod layers;
 mod lighting;
 mod post;
 mod three_d;
@@ -826,6 +827,8 @@ pub struct Renderer {
     /// The fused post-process chain's pipelines, mip targets and caches
     /// (`renderer/post.rs`).
     post: post::PostChain,
+    /// Flattened layers (see `renderer/layers.rs`).
+    layers: layers::Layers,
     /// Point/nearest-filtered counterpart to `post_sampler` (which is fixed
     /// Linear) — used only for `render_with_post_effects`'s very last pass
     /// (the one writing to the swapchain) when `current_resolution_scale >
@@ -1062,12 +1065,17 @@ pub enum SceneOp<'a> {
     /// (and a clipped Multiply/Screen child blended over things meant to
     /// be above it).
     Begin { island: u32, after: usize },
+    /// A **flattened layer**: `unmasked` / `masked` (a scene of its own,
+    /// starting from depth 0) drawn together into an offscreen texture,
+    /// then pasted into this island once per `composites` entry — at that
+    /// stencil level, at that opacity. See `renderer/layers.rs`.
+    Layer { unmasked: Vec<DrawCall<'a>>, masked: Vec<SceneOp<'a>>, composites: Vec<(u32, f32)>, island: u32 },
 }
 
 impl SceneOp<'_> {
     fn island(&self) -> u32 {
         match self {
-            SceneOp::WriteMask { island, .. } | SceneOp::Draw { island, .. } | SceneOp::Begin { island, .. } => *island,
+            SceneOp::WriteMask { island, .. } | SceneOp::Draw { island, .. } | SceneOp::Begin { island, .. } | SceneOp::Layer { island, .. } => *island,
         }
     }
 }
@@ -1762,6 +1770,7 @@ impl Renderer {
             shader_time: std::cell::Cell::new(0.0),
             dynamic_scale: 1.0,
             post,
+            layers: Default::default(),
             textured_pipeline,
             material_resources: std::cell::OnceCell::new(),
             state_3d: Default::default(),
@@ -2725,6 +2734,10 @@ impl Renderer {
                 SceneOp::WriteMask { mask, .. } => mask,
                 SceneOp::Draw { draw, .. } => draw,
                 SceneOp::Begin { .. } => continue,
+                SceneOp::Layer { unmasked, masked, .. } => {
+                    self.write_masked_scene_uniforms(viewport_size, camera, unmasked, masked);
+                    continue;
+                }
             };
             let mvp = build_mvp(draw.transform.to_affine2(), viewport_size, camera);
             let uniforms = DrawUniforms::from_draw(mvp, draw);
@@ -2756,7 +2769,26 @@ impl Renderer {
     /// `Load` and alpha-composite over it, while a caller drawing into a
     /// scratch offscreen texture (`render_with_post_effects`'s `post_scene_view`)
     /// has nothing there yet and needs a real `Clear`.
+    #[allow(clippy::too_many_arguments)]
     fn draw_masked_scene(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        target_view: &wgpu::TextureView,
+        stencil_view: &wgpu::TextureView,
+        load: wgpu::LoadOp<wgpu::Color>,
+        unmasked: &[DrawCall<'_>],
+        masked: &[SceneOp<'_>],
+        with_3d: Option<(u32, u32)>,
+    ) {
+        // The target's size (flattened layers match it): the post targets,
+        // or the window.
+        let size = if std::ptr::eq(stencil_view, &self.stencil_view) { (self.config.width, self.config.height) } else { self.post_target_dims() };
+        self.draw_masked_scene_sized(encoder, target_view, stencil_view, load, unmasked, masked, with_3d, size);
+    }
+
+    /// [`Renderer::draw_masked_scene`] with the target's `size` given.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn draw_masked_scene_sized(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
@@ -2767,6 +2799,7 @@ impl Renderer {
         // `Some(target size)` on the *scene* call (not the chrome call):
         // draw the pending 3D scene first, so the 2D layer lands on top.
         with_3d: Option<(u32, u32)>,
+        size: (u32, u32),
     ) {
         let mut load = load;
         if let Some((width, height)) = with_3d {
@@ -2826,6 +2859,12 @@ impl Renderer {
                 cursor = after;
             }
 
+            // An island runs in one pass, except that a flattened layer
+            // ends it (the layer draws elsewhere, then composites here) and
+            // the pass resumes with the island's stencil kept.
+            let mut i = start;
+            let mut first_pass = true;
+            while i < end {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("an1mbyt3 masked pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -2839,15 +2878,21 @@ impl Renderer {
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: stencil_view,
-                    depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }),
-                    stencil_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0), store: wgpu::StoreOp::Discard }),
+                    depth_ops: Some(wgpu::Operations { load: if first_pass { wgpu::LoadOp::Clear(1.0) } else { wgpu::LoadOp::Load }, store: wgpu::StoreOp::Store }),
+                    stencil_ops: Some(wgpu::Operations { load: if first_pass { wgpu::LoadOp::Clear(0) } else { wgpu::LoadOp::Load }, store: wgpu::StoreOp::Store }),
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
 
-            for op in &masked[start..end] {
+            first_pass = false;
+            while i < end {
+                let op = &masked[i];
+                if matches!(op, SceneOp::Layer { .. }) {
+                    break;
+                }
+                i += 1;
                 match op {
                     SceneOp::WriteMask { mask, depth, .. } => {
                         pass.set_stencil_reference(*depth);
@@ -2912,11 +2957,16 @@ impl Renderer {
                         pass.set_index_buffer(draw.mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         pass.draw_indexed(0..draw.mesh.index_count, 0, 0..1);
                     }
-                    SceneOp::Begin { .. } => {}
+                    SceneOp::Begin { .. } | SceneOp::Layer { .. } => {}
                 }
             }
 
             drop(pass);
+            if let Some(SceneOp::Layer { unmasked: layer_unmasked, masked: layer_masked, composites, .. }) = masked.get(i).filter(|_| i < end) {
+                self.draw_layer(encoder, target_view, stencil_view, size, layer_unmasked, layer_masked, composites);
+                i += 1;
+            }
+            }
             start = end;
         }
         if cursor < unmasked.len() {
