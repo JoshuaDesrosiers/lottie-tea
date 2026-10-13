@@ -263,9 +263,13 @@ fn quad_points(out: &mut (Vec<[f32; 2]>, Vec<u32>), a: Vec2, b: Vec2, c: Vec2, d
 fn disc(out: &mut (Vec<[f32; 2]>, Vec<u32>), c: Vec2, r: f32, sides: u32) {
     let base = out.0.len() as u32;
     out.0.push([c.x, c.y]);
-    for k in 0..sides {
-        let a = k as f32 / sides as f32 * std::f32::consts::TAU;
-        out.0.push([c.x + a.cos() * r, c.y + a.sin() * r]);
+    // One sin/cos per disc, then step a unit vector around by rotation:
+    // trees rebuild every frame in Playground and wasm's sin/cos are slow.
+    let (step_sin, step_cos) = (std::f32::consts::TAU / sides.max(1) as f32).sin_cos();
+    let mut dir = Vec2::X;
+    for _ in 0..sides {
+        out.0.push([c.x + dir.x * r, c.y + dir.y * r]);
+        dir = Vec2::new(dir.x * step_cos - dir.y * step_sin, dir.x * step_sin + dir.y * step_cos);
     }
     for k in 0..sides {
         out.1.extend([base, base + 1 + k, base + 1 + (k + 1) % sides]);

@@ -1201,7 +1201,7 @@ fn build_scene_ops_lit<'a>(
             }
         }
     }
-    if !is_mask_target && on_layer && !hidden_clip && !is_mask2d_shape(editor, artboard, node_id) && !hidden_by_goo_flipbook(artboard, node_id) {
+    if !is_mask_target && on_layer && !hidden_clip && !is_mask2d_shape(editor, artboard, node_id) && !(editor.effects_live() && hidden_by_goo_flipbook(artboard, node_id)) {
         for draw in apply_draw_effects(editor, artboard, node_id, node_draws(editor, artboard, node_id, node)) {
             if depth == 0 {
                 unmasked.push(draw);
@@ -1442,7 +1442,8 @@ fn build_tilemap_mesh(tilemap: &an1mbyt3_core::TilemapNode) -> Mesh {
 fn node_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId, node: &'a Node) -> Vec<DrawCall<'a>> {
     // Goo 2D: a group's liquid is drawn at its front-most member, under
     // that member's own drawing (which "Hide source" leaves out entirely).
-    if let Some(goo) = node.goo() {
+    // (While designing there's no liquid: members draw as themselves.)
+    if let Some(goo) = node.goo().filter(|_| editor.effects_live()) {
         let mut draws = editor.goo_draw_at.get(&node_id).map(|owner| goo_draws(editor, artboard, *owner)).unwrap_or_default();
         if !goo.hide_source {
             draws.extend(node_draws_plain(editor, artboard, node_id, node));
@@ -3115,6 +3116,10 @@ struct ClothGpu {
 struct TreeGpu {
     parts: Vec<(GpuMesh, [f32; 4])>,
     bindings: Vec<DrawBinding>,
+    /// What `parts` was built from: the settings, the tree's clock / shake /
+    /// falling-leaf count, and the grow amount. While designing none of
+    /// these move, so the tree is built once instead of every frame.
+    key: Option<(an1mbyt3_core::Tree2D, u32, u32, usize, u32)>,
 }
 
 /// What a cloth's texture was baked from.
@@ -3627,6 +3632,14 @@ impl WasmEditor {
     /// exact same formula this mirrors, just against the frontend's own
     /// already-logical `camera`/`canvasSize`.
     #[allow(clippy::too_many_arguments)]
+    /// Whether particles, Particle Fluid 2D and Goo 2D run and draw: only in
+    /// Playground (and the State Machine tab's live preview). While
+    /// designing they're skipped entirely, so Design stays light; goo
+    /// members show as their plain shapes there.
+    fn effects_live(&self) -> bool {
+        self.playground_active || self.state_machine_active
+    }
+
     pub fn render(
         &mut self,
         delta_seconds: f32,
@@ -4099,6 +4112,8 @@ impl WasmEditor {
             self.particle_mesh = Some(self.renderer.upload_mesh(&disc));
         }
         let artboard = self.document.artboard(artboard_id).unwrap();
+        // Particles, Particle Fluid 2D and Goo 2D only run in Playground.
+        let fx_live = self.effects_live();
         for node_id in artboard.node_ids() {
             if artboard.is_effectively_deleted(node_id) {
                 continue;
@@ -4107,8 +4122,9 @@ impl WasmEditor {
             let Some(config) = node.particle_system() else { continue };
             // A hidden emitter (itself or any ancestor) is switched off, like
             // a disabled GameObject in Unity: no simulation, and it restarts
-            // fresh when shown again.
-            if !crate::lighting2d::effectively_visible(artboard, node_id) {
+            // fresh when shown again. Same while designing: particles only
+            // run in Playground (keeps Design light).
+            if !fx_live || !crate::lighting2d::effectively_visible(artboard, node_id) {
                 self.particle_runtimes.remove(&node_id);
                 continue;
             }
@@ -4169,7 +4185,7 @@ impl WasmEditor {
         let artboard = self.document.artboard(artboard_id).unwrap();
         let fluids: Vec<(NodeId, an1mbyt3_core::ParticleFluid2D, Vec<crate::metaball2d::Blob>, f32)> = artboard
             .node_ids()
-            .filter(|id| !artboard.is_effectively_deleted(*id) && crate::lighting2d::effectively_visible(artboard, *id))
+            .filter(|id| fx_live && !artboard.is_effectively_deleted(*id) && crate::lighting2d::effectively_visible(artboard, *id))
             .filter_map(|id| {
                 let node = artboard.node(id)?;
                 let fluid = *node.particle_fluid()?;
@@ -4214,7 +4230,7 @@ impl WasmEditor {
         let t_sources = crate::profiler::now_ms();
         let (mut mesh_ms, mut upload_ms) = (0.0, 0.0);
         for id in artboard.node_ids() {
-            if artboard.is_effectively_deleted(id) || !crate::lighting2d::effectively_visible(artboard, id) {
+            if !fx_live || artboard.is_effectively_deleted(id) || !crate::lighting2d::effectively_visible(artboard, id) {
                 continue;
             }
             let Some(node) = artboard.node(id) else { continue };
@@ -4229,7 +4245,8 @@ impl WasmEditor {
         // The liquid draws at its group's front-most member — so moving any
         // member up or down the layers moves the liquid with it (it used
         // to sit at the first-created member's place, whatever the order).
-        {
+        self.goo_draw_at.clear();
+        if !groups.is_empty() {
             let layer_order: Vec<u32> = self.document.sorting_layers().iter().map(|l| l.id).collect();
             let rank: HashMap<NodeId, (usize, usize)> = artboard
                 .pickable_nodes()
@@ -4239,7 +4256,6 @@ impl WasmEditor {
                     (id, (layer_order.iter().position(|l| *l == layer).unwrap_or(layer_order.len()), i))
                 })
                 .collect();
-            self.goo_draw_at.clear();
             let mut front: HashMap<u32, (NodeId, (usize, usize))> = HashMap::new();
             for id in artboard.node_ids() {
                 let Some(goo) = artboard.node(id).and_then(|n| n.goo()) else { continue };
@@ -4436,17 +4452,33 @@ impl WasmEditor {
             } else {
                 1.0
             };
+            let key = Some((config, state.time.to_bits(), state.shake.to_bits(), state.leaves.len(), grow.to_bits()));
+            let gpu = self.tree_gpu.entry(node_id).or_insert_with(|| TreeGpu { parts: Vec::new(), bindings: Vec::new(), key: None });
+            if gpu.key == key {
+                continue;
+            }
+            gpu.key = key;
             let mesh = an1mbyt3_runtime::build_tree_mesh(&config, state, grow);
-            let gpu = self.tree_gpu.entry(node_id).or_insert_with(|| TreeGpu { parts: Vec::new(), bindings: Vec::new() });
             while gpu.bindings.len() < mesh.parts.len() {
                 gpu.bindings.push(self.renderer.create_draw_binding());
             }
-            gpu.parts = mesh
-                .parts
-                .into_iter()
-                .filter(|(_, positions, indices)| !positions.is_empty() && !indices.is_empty())
-                .map(|(color, positions, indices)| (self.renderer.upload_mesh(&an1mbyt3_geometry::Mesh { positions, indices, uvs: Vec::new() }), color))
-                .collect();
+            // Refill last frame's GPU buffers in place (a swaying tree
+            // rebuilds every frame in Playground) rather than allocating new.
+            let mut pool = std::mem::take(&mut gpu.parts).into_iter();
+            for (color, positions, indices) in mesh.parts {
+                if positions.is_empty() || indices.is_empty() {
+                    continue;
+                }
+                let part = an1mbyt3_geometry::Mesh { positions, indices, uvs: Vec::new() };
+                let gpu_mesh = match pool.next() {
+                    Some((mut old, _)) => {
+                        self.renderer.rewrite_mesh(&mut old, &part);
+                        old
+                    }
+                    None => self.renderer.upload_mesh_with_headroom(&part, 1.5),
+                };
+                gpu.parts.push((gpu_mesh, color));
+            }
         }
 
         // Motion-path world positions for the selected node's Translation
