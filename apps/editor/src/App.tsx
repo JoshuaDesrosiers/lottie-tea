@@ -685,7 +685,15 @@ function App() {
      * batched-into-one-undo-step, group move (see the mouseup handler's own
      * comment for why one combined undo step isn't done here yet). */
     others: { nodeId: OpaqueId; origin: { x: number; y: number } }[]
+    /** Started inside the already-selected node's box (see
+     * `handleCanvasMouseDown`): a click that doesn't move picks normally
+     * on release (unless it hit the selection itself), so a big selected
+     * object never blocks selecting something on top of it. */
+    clickPick?: { clientX: number; clientY: number }
   } | null>(null)
+  /** The click-pick for `dragRef.clickPick` — rebuilt every render (fresh
+   * state), called from the window mouseup listener. */
+  const clickPickRef = useRef<(point: { x: number; y: number }, selected: OpaqueId) => void>(() => {})
   // An empty-canvas mousedown starts panning the camera instead of a node
   // drag (`handleCanvasMouseDown`) — same "plain ref, no re-render needed"
   // reasoning as `dragRef`.
@@ -3820,6 +3828,27 @@ function App() {
    * *resolved* target, not the raw hit, so selecting/dragging a group moves
    * the whole thing as one rigid body instead of just the one leaf shape the
    * cursor happened to land on. */
+  clickPickRef.current = (point, selected) => {
+    const editor = editorRef.current
+    const artboard = artboards[0]
+    if (!editor || !artboard) return
+    const hit = pickNodeAt(editor, artboard.id, point.x, point.y)
+    let at: OpaqueId | null = hit
+    while (at) {
+      if (idsEqual(at, selected)) return
+      at = findNode(artboard, at)?.parent ?? null
+    }
+    if (!hit) {
+      setSelection(null)
+      setMultiSelectedIds([])
+      setSelectionScope(null)
+      return
+    }
+    const { target, nextScope } = resolveCanvasSelection(hit, artboard, selectionScope)
+    if (nextScope !== selectionScope) setSelectionScope(nextScope)
+    selectSingle(artboard.id, target)
+  }
+
   const handleCanvasMouseDown = (event: ReactMouseEvent<HTMLCanvasElement>) => {
     // Without this, a fast drag can anchor the browser's native text
     // selection on whatever's behind/around the canvas, which then visibly
@@ -3835,6 +3864,33 @@ function App() {
     if (mode === 'Playground') return
 
     const point = toArtboardPoint(event.clientX, event.clientY)
+    // Already selected (from the Layers panel, Inspector or a drill-in)
+    // and pressed inside its transform box: that's a drag of *it* — no
+    // re-resolving to its top-level group, however deep it's nested.
+    if (selection && multiSelectedIds.length <= 1 && !(event.ctrlKey || event.metaKey || event.shiftKey) && idsEqual(selection.artboardId, artboard.id)) {
+      const selected = findNode(artboard, selection.nodeId)
+      if (selected && selected.kind !== 'Node3D') {
+        const { translation, rotation, scale } = selected.worldTransform
+        const dx = point.x - translation.x
+        const dy = point.y - translation.y
+        const cos = Math.cos(-rotation)
+        const sin = Math.sin(-rotation)
+        const lx = (dx * cos - dy * sin) / (scale.x || 1)
+        const ly = (dx * sin + dy * cos) / (scale.y || 1)
+        const inside = lx >= selected.localMin.x && lx <= selected.localMax.x && ly >= selected.localMin.y && ly <= selected.localMax.y
+        if (inside) {
+          dragRef.current = {
+            artboardId: artboard.id,
+            nodeId: selected.id,
+            origin: { x: selected.transform.translation.x, y: selected.transform.translation.y },
+            startPointer: point,
+            others: [],
+            clickPick: { clientX: event.clientX, clientY: event.clientY },
+          }
+          return
+        }
+      }
+    }
     const hit = pickNodeAt(editor, artboard.id, point.x, point.y)
     if (!hit) {
       setSelection(null)
@@ -4020,6 +4076,12 @@ function App() {
       if (!drag || !editor || !artboard) return
 
       const point = toArtboardPoint(event.clientX, event.clientY)
+      // A click (no drag) inside the selected node's box: select what's
+      // under the cursor instead (unless it's part of the selection).
+      if (drag.clickPick && Math.hypot(event.clientX - drag.clickPick.clientX, event.clientY - drag.clickPick.clientY) < 3) {
+        clickPickRef.current(point, drag.nodeId)
+        return
+      }
       // Same world-to-local delta conversion as the mousemove preview above
       // — this commit has to resolve to the exact same local translation
       // the preview last showed, or the shape would visibly jump the
