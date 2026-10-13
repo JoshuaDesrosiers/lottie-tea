@@ -1308,6 +1308,9 @@ var g = class e {
 	set_export_transparent(e) {
 		G.wasmeditor_set_export_transparent(this.__wbg_ptr, e);
 	}
+	set_exporting(e) {
+		G.wasmeditor_set_exporting(this.__wbg_ptr, e);
+	}
 	set_fill_color(e, t, n) {
 		let r = G.wasmeditor_set_fill_color(this.__wbg_ptr, e, t, n);
 		if (r[2]) throw U(r[1]);
