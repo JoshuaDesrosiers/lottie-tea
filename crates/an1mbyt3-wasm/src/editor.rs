@@ -2696,7 +2696,14 @@ pub struct WasmEditor {
     /// not per-flag, so switching directly between Animate and State Machine
     /// (no Design in between) neither re-snapshots an already-animated
     /// pose/color nor loses the original.
-    design_pose_snapshot: Option<Vec<PoseEntry>>,
+    ///
+    /// The snapshot carries the scene it was taken of and is only ever
+    /// restored onto *that* scene. (It used to be restored onto "the
+    /// current scene": deleting the open scene mid-play made the current
+    /// scene fall back to another one, and the deleted scene's poses —
+    /// transforms, visibility, fills, z — were written onto that scene's
+    /// nodes wherever the `NodeId`s collided.)
+    design_pose_snapshot: Option<PoseSnapshot>,
     /// Prefab instances scripts spawned during this Playground session
     /// (`spawn_prefab`) — not document edits, so they're hard-removed when
     /// play ends (`despawn_runtime_spawned`) instead of being undone.
@@ -2975,6 +2982,12 @@ pub struct WasmEditor {
 
 /// One node's runtime-mutable state, as captured on entering a live mode
 /// (see `WasmEditor::snapshot_design_pose`).
+/// A whole scene's [`PoseEntry`]s, tagged with the scene they belong to.
+struct PoseSnapshot {
+    artboard: ArtboardId,
+    entries: Vec<PoseEntry>,
+}
+
 struct PoseEntry {
     id: NodeId,
     transform: an1mbyt3_core::Transform2D,
@@ -3425,7 +3438,7 @@ impl WasmEditor {
     /// untracked `preview_*` writes (transform, fill/light color, z-index,
     /// an Image's frame, a Text's string), so stopping Playground puts the
     /// scene back exactly as it was designed.
-    fn snapshot_design_pose(&self, artboard_id: ArtboardId) -> Option<Vec<PoseEntry>> {
+    fn snapshot_design_pose(&self, artboard_id: ArtboardId) -> Option<PoseSnapshot> {
         let artboard_ref = self.document.artboard(artboard_id)?;
         // Every (node, field path) some animation here keys.
         let mut field_tracks: HashMap<NodeId, Vec<String>> = HashMap::new();
@@ -3439,8 +3452,9 @@ impl WasmEditor {
                 }
             }
         }
-        Some(
-            artboard_ref
+        Some(PoseSnapshot {
+            artboard: artboard_id,
+            entries: artboard_ref
                 .node_ids()
                 .filter_map(|id| {
                     artboard_ref.node(id).map(|n| PoseEntry {
@@ -3471,7 +3485,7 @@ impl WasmEditor {
                     })
                 })
                 .collect(),
-        )
+        })
     }
 
     /// Writes a `snapshot_design_pose` capture back. `only_keyed`: restore
@@ -3479,7 +3493,8 @@ impl WasmEditor {
     /// nodes Animate/State Machine ever move) — leaving every other node's
     /// current pose alone, so plain Design edits made while those tabs were
     /// open survive. See `set_mode`'s own comment for when each applies.
-    fn restore_design_pose(&mut self, artboard_id: ArtboardId, snapshot: Vec<PoseEntry>, only_keyed: bool) {
+    fn restore_design_pose(&mut self, snapshot: PoseSnapshot, only_keyed: bool) {
+        let PoseSnapshot { artboard: artboard_id, entries: snapshot } = snapshot;
         // Which properties each node has tracks for (any animation).
         let mut keyed: HashMap<NodeId, std::collections::HashSet<PropertyKind>> = HashMap::new();
         if only_keyed {
@@ -3585,13 +3600,13 @@ impl WasmEditor {
         if entering_playground {
             self.runtime_spawned.clear();
             if let Some(snapshot) = self.design_pose_snapshot.take() {
-                self.restore_design_pose(artboard_id, snapshot, true);
+                self.restore_design_pose(snapshot, true);
             }
             self.design_pose_snapshot = self.snapshot_design_pose(artboard_id);
         } else if leaving_playground {
             self.despawn_runtime_spawned();
             if let Some(snapshot) = self.design_pose_snapshot.take() {
-                self.restore_design_pose(artboard_id, snapshot, false);
+                self.restore_design_pose(snapshot, false);
             }
             if will_be_active {
                 self.design_pose_snapshot = self.snapshot_design_pose(artboard_id);
@@ -3600,7 +3615,7 @@ impl WasmEditor {
             self.design_pose_snapshot = self.snapshot_design_pose(artboard_id);
         } else if !will_be_active && was_active {
             if let Some(snapshot) = self.design_pose_snapshot.take() {
-                self.restore_design_pose(artboard_id, snapshot, true);
+                self.restore_design_pose(snapshot, true);
             }
         }
 
@@ -5473,11 +5488,11 @@ impl WasmEditor {
                 self.despawn_runtime_spawned_in(old_id);
             }
         }
+        // (Restored onto the scene it was taken of — even if that scene
+        // was just deleted — never onto whatever is "current" now.)
         if let Some(snapshot) = self.design_pose_snapshot.take() {
-            if let Some(old_id) = self.current_artboard_id() {
-                let only_keyed = !self.playground_active;
-                self.restore_design_pose(old_id, snapshot, only_keyed);
-            }
+            let only_keyed = !self.playground_active;
+            self.restore_design_pose(snapshot, only_keyed);
             self.design_pose_snapshot = self.snapshot_design_pose(artboard_id);
         }
         self.active_artboard = Some(artboard_id);
@@ -11600,7 +11615,7 @@ impl WasmEditor {
                 keys.push((0.0, f.path.clone(), *o));
             }
             // Leaving Animate puts the value back to its design value.
-            if let Some(entry) = self.design_pose_snapshot.as_mut().and_then(|snap| snap.iter_mut().find(|e| e.id == node_id)) {
+            if let Some(entry) = self.design_pose_snapshot.as_mut().filter(|snap| snap.artboard == artboard_id).and_then(|snap| snap.entries.iter_mut().find(|e| e.id == node_id)) {
                 if !entry.fields.iter().any(|(p, _)| *p == f.path) {
                     entry.fields.push((f.path.clone(), *o));
                 }
@@ -13517,6 +13532,8 @@ impl WasmEditor {
         self.cloth_gpu.clear();
         self.tree_states.clear();
         self.tree_gpu.clear();
+        // A new document: no live pose snapshot belongs to it.
+        self.design_pose_snapshot = None;
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
@@ -13692,6 +13709,8 @@ impl WasmEditor {
         self.cloth_gpu.clear();
         self.tree_states.clear();
         self.tree_gpu.clear();
+        // A new document: no live pose snapshot belongs to it.
+        self.design_pose_snapshot = None;
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
@@ -13785,6 +13804,8 @@ impl WasmEditor {
         self.cloth_gpu.clear();
         self.tree_states.clear();
         self.tree_gpu.clear();
+        // A new document: no live pose snapshot belongs to it.
+        self.design_pose_snapshot = None;
         self.runtime_spawned.clear();
         self.active_animation = self.current_artboard_id().and_then(|id| self.document.artboard(id)).and_then(|a| a.animations().next()).map(|(id, _)| id);
         self.reset_active_state_machine_after_load();
