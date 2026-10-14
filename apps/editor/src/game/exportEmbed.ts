@@ -148,7 +148,7 @@ function exampleHtml(title: string): string {
   body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: #111318; color: #e8e6ef; }
   main { max-width: 960px; margin: 0 auto; padding: 24px; display: grid; gap: 16px; }
   #game { height: 480px; border-radius: 12px; overflow: hidden; background: #000; }
-  #log { height: 140px; overflow: auto; background: #1a1d24; border-radius: 8px; padding: 8px 12px; font: 12px/1.6 ui-monospace, monospace; }
+  #log { height: 140px; overflow: auto; white-space: pre-wrap; background: #1a1d24; border-radius: 8px; padding: 8px 12px; font: 12px/1.6 ui-monospace, monospace; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   button, input, select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid #333846; background: #1f232c; color: inherit; }
 </style>
