@@ -384,7 +384,7 @@ function FileMenu({ actions, onSave }: { actions: FileMenuActions; onSave: () =>
  * transparent), a transparent WebM or an MP4 video; or the whole game as
  * a web page or a desktop app.
  */
-function ExportMenu({ onExportAnimation, onExportGame, onExportDesktopGame }: { onExportAnimation: (options: AnimationExportOptions) => void; onExportGame: () => void; onExportDesktopGame: () => void }) {
+function ExportMenu({ onExportAnimation, onExportGame, onExportDesktopGame, onExportEmbed }: { onExportAnimation: (options: AnimationExportOptions) => void; onExportGame: () => void; onExportDesktopGame: () => void; onExportEmbed: () => void }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -402,6 +402,7 @@ function ExportMenu({ onExportAnimation, onExportGame, onExportDesktopGame }: { 
     { kind: 'separator' },
     { kind: 'item', label: 'Game → Web page (.html)', icon: <GameExportIcon />, onSelect: onExportGame, hint: 'One self-contained page — runs in any browser' },
     { kind: 'item', label: 'Game → Desktop app (.exe)', icon: <DesktopExportIcon />, onSelect: onExportDesktopGame, hint: 'One file, double-click to play, F11 for fullscreen' },
+    { kind: 'item', label: 'Game → Website embed (React / JS)', icon: <GameExportIcon />, onSelect: onExportEmbed, hint: 'A folder for your web project: <An1Player> / createPlayer, live data, inputs, scenes and events' },
   ]
   return (
     <div ref={rootRef} className="relative">
@@ -496,6 +497,7 @@ export function TopToolbar({
   onExportAnimation,
   onExportGame,
   onExportDesktopGame,
+  onExportEmbed,
   onAddShape,
   onAddParticleSystem,
   onImportSvg,
@@ -553,6 +555,7 @@ export function TopToolbar({
   /** Exports the document as one self-contained, playable `.html`. */
   onExportGame: () => void
   onExportDesktopGame: () => void
+  onExportEmbed: () => void
   onAddShape: (kind: ShapePreset) => void
   onAddParticleSystem: () => void
   onImportSvg: () => void
@@ -732,7 +735,7 @@ export function TopToolbar({
               <SaveIcon />
               {fileMenu.dirty && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-accent" />}
             </button>
-            <ExportMenu onExportAnimation={onExportAnimation} onExportGame={onExportGame} onExportDesktopGame={onExportDesktopGame} />
+            <ExportMenu onExportAnimation={onExportAnimation} onExportGame={onExportGame} onExportDesktopGame={onExportDesktopGame} onExportEmbed={onExportEmbed} />
             <div className="mx-1 h-4 w-px bg-overlay/10" />
             <button
               onClick={onUndo}

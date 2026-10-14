@@ -15,6 +15,7 @@
  * fresh summaries, input state, and the camera hooks — everything that
  * differs between "inside the editor" and "standalone".
  */
+import { embedBridge } from './embedBridge'
 import { renderDpr } from './adaptiveResolution'
 import { audio, type SoundHandle } from './audio'
 import type { ArtboardSummary, OpaqueId, StateMachineDefSummary, StateMachineSummary } from '../ipc/document'
@@ -437,6 +438,8 @@ export class ScriptHost {
         net: gameNet,
         props: sceneProps.proxy((name) => gameConsole.add('warn', `ctx.props.${name} — this scene has no property "${name}" (add it in the Inspector's Properties, with nothing selected)`, { scene: scene.name, state: program.state, layer: program.layer, kind: 'Script' })),
         on: (name: string, fn: (arg?: unknown) => unknown) => registerFunction(name, fn),
+        emit: (name: string, payload?: unknown) => embedBridge.emit(name, payload, { scene: scene.name, layer: program.layer, state: program.state }),
+        data: embedBridge.data,
         // Hot per-frame writes are queued and sent in one call (`writes`);
         // everything else flushes the queue first so engine state is
         // up to date before it's read or changed some other way.

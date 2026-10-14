@@ -14,6 +14,7 @@
  */
 import type { ActionKind, EventAction, OpaqueId } from '../ipc/document'
 import { gameConsole, type ConsoleOrigin } from './console'
+import { embedBridge } from './embedBridge'
 
 /** Component methods an action can call: component kind → methods. */
 export const COMPONENT_METHODS: Record<string, { method: string; label: string; arg?: string }[]> = {
@@ -59,6 +60,14 @@ export function registerFunction(name: string, fn: (arg?: unknown) => unknown): 
 }
 
 /** A new play session: forget the previous run's functions. */
+/** Runs a script function registered with `ctx.on(name, fn)` — the
+ * embed API's `player.call(name, arg)`. `false` if none is registered. */
+export function callFunction(name: string, arg?: unknown): { found: boolean; result?: unknown } {
+  const fn = functions.get(name)
+  if (!fn) return { found: false }
+  return { found: true, result: fn(arg) }
+}
+
 export function resetFunctions(): void {
   functions.clear()
 }
@@ -117,7 +126,11 @@ export function runActions(actions: readonly EventAction[], self: OpaqueId, env:
         if (!env.setProperty(a.SetProperty.property, a.SetProperty.value)) fail(`this scene has no property "${a.SetProperty.property}"`)
       } else if ('CallFunction' in a) {
         const fn = functions.get(a.CallFunction.function)
-        if (!fn) fail(`no script registered "${a.CallFunction.function}" (use ctx.on('${a.CallFunction.function}', () => { … }) in a script)`)
+        // No script handles it: on an embedded page it becomes a page
+        // event (`player.on('event', …)`), so buttons can talk to the
+        // site with no code in the game at all.
+        if (!fn && embedBridge.embedded) embedBridge.emit(a.CallFunction.function, parseArg(a.CallFunction.arg), env.origin)
+        else if (!fn) fail(`no script registered "${a.CallFunction.function}" (use ctx.on('${a.CallFunction.function}', () => { … }) in a script, or listen for it on the page when embedded)`)
         else fn(parseArg(a.CallFunction.arg))
       }
     } catch (err) {

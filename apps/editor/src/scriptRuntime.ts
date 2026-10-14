@@ -294,8 +294,19 @@ export interface ScriptContext {
    * Property Binding components and HTML `data-bind` update from them. */
   props: Record<string, any>
   /** Registers `fn` as a function an On Click action can call by `name`
-   * ("Call script function"). */
+   * ("Call script function") — and the embedding page with
+   * `player.call(name, arg)`. */
   on(name: string, fn: (arg?: unknown) => unknown): void
+  /** Sends an event to the web page this game is embedded in:
+   * `ctx.emit('purchase', { item: 'sword' })` reaches the page's
+   * `player.on('event', …)` / `<An1Player onEvent>`. (In the editor it's
+   * just logged.) */
+  emit(name: string, payload?: unknown): void
+  /** Data the embedding page passed in (`player.set(name, value)`,
+   * `<An1Player data={…}>`), read-only — e.g. `ctx.data.userName`. Values
+   * also fill same-named scene Properties automatically. `{}` in the
+   * editor. */
+  data: Readonly<Record<string, unknown>>
   /** Untracked, no-undo-entry writes — the same "live preview, no history
    * spam" mutation every on-canvas drag handle already uses
    * (`previewNodeTranslation` etc., `ipc/wasmEditor.ts`), not the

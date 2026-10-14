@@ -85,7 +85,7 @@ import type {
   Stroke,
   Transform2D,
 } from './ipc/document'
-import { pickOpenAudioPath, pickOpenImagePath, pickOpenModelPath, pickOpenSvgPath, pickSaveHtmlPath, pickSaveExePath, pickSaveFilePath, exportDesktopGame, readBinaryFile, readTextFile, writeTextFile } from './ipc/nativeFile'
+import { pickOpenAudioPath, pickOpenImagePath, pickOpenModelPath, pickOpenSvgPath, pickSaveHtmlPath, pickSaveExePath, pickSaveFilePath, exportDesktopGame, readBinaryFile, readTextFile, writeTextFile, pickProjectFolder } from './ipc/nativeFile'
 import { exportActiveAnimation, EXPORT_FORMAT_INFO, GifExportError, type AnimationExportOptions } from './exportGif'
 import {
   addAnimation,
@@ -286,6 +286,7 @@ import { BoneGizmos } from './components/BoneGizmos'
 import { adaptiveResolution, renderDpr } from './game/adaptiveResolution'
 import { PerfMeter } from './game/perf'
 import { buildGameHtml } from './game/exportGame'
+import { exportEmbed } from './game/exportEmbed'
 
 const MIN_CAMERA_ZOOM = 0.1
 const MAX_CAMERA_ZOOM = 8
@@ -3699,6 +3700,30 @@ function App() {
     }
   }
 
+  /** Export → Website embed (React / JS): a folder with the game, the
+   * engine and the embed library (`game/exportEmbed.ts`), in a new
+   * `<name>-embed` folder inside the one picked. */
+  const handleExportEmbed = async () => {
+    const editor = editorRef.current
+    if (!editor || !activeArtboard) return
+    const title = activeArtboard.name || 'Game'
+    const stem = title.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'game'
+    const parent = await pickProjectFolder()
+    if (!parent) return
+    if (mode === 'Playground') {
+      setMode('Design')
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    try {
+      const folder = `${parent.replace(/[\\/]+$/, '')}/${stem}-embed`
+      await exportEmbed(editor, folder, title, activeArtboard.name, getDocumentSummary(editor))
+      window.alert(`Website embed saved to ${folder} — see its README.md`)
+    } catch (err) {
+      console.error('Export embed failed', err)
+      window.alert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
   /** Export menu → GIF / transparent GIF / WebM (transparent) / MP4. */
   const handleExportAnimation = (options: AnimationExportOptions) => {
     const artboard = artboards[0]
@@ -4658,6 +4683,7 @@ function App() {
         onExportAnimation={handleExportAnimation}
         onExportGame={() => void handleExportGame()}
         onExportDesktopGame={() => void handleExportGame('desktop')}
+        onExportEmbed={() => void handleExportEmbed()}
         onAddShape={handleAddShape}
         onAddParticleSystem={handleAddParticleSystem}
         onImportSvg={handleImportSvg}
