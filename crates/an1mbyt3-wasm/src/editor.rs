@@ -12658,16 +12658,44 @@ impl WasmEditor {
     /// can switch to it (`setActiveArtboard`) before entering Playground.
     /// Unlike every earlier demo it doesn't build into the current scene —
     /// it *adds* scenes, so the author's own work is left untouched.
-    /// The + menu's Demos → "Amyruth's Birthday" — a town treasure hunt for
-    /// a secret birthday letter (`demo_birthday`). Adds its own scene,
-    /// bakes its art, returns the scene id for the frontend to switch to.
-    pub async fn load_birthday_demo(&mut self) -> Result<JsValue, JsValue> {
-        let demo = crate::demo_birthday::build_demo_birthday(&mut self.document);
-        migrate_document(&mut self.document);
-        for image_id in demo.images {
-            self.bake_and_cache_image(image_id).await;
+    /// Sprite Editor → "Automatic": every separate sprite on image asset
+    /// `image`, as flat `[x, y, width, height, ...]` pixel boxes in reading
+    /// order (see `an1mbyt3_image::alpha_islands`).
+    pub fn auto_slice_image(&self, image: JsValue, alpha_min: u8, min_size: u32, merge_gap: u32) -> Result<Vec<u32>, JsValue> {
+        let image_id: an1mbyt3_core::ImageId = parse_id(image)?;
+        let asset = self.document.image(image_id).ok_or_else(|| JsValue::from_str("auto_slice_image: unknown image"))?;
+        let boxes = an1mbyt3_image::alpha_islands(&asset.source, alpha_min, min_size, merge_gap).map_err(|e| JsValue::from_str(&format!("auto_slice_image: {e:?}")))?;
+        Ok(boxes.into_iter().flatten().collect())
+    }
+
+    /// Sprite Editor → "Slice": crops `rects` (flat `[x, y, w, h, ...]`
+    /// pixels) out of image asset `image` into new image assets named
+    /// `names[i]` (same filter / processing as the sheet), registers them
+    /// as one `SpriteGroup` called `group` (`frame_ms` per frame, so the
+    /// frames also play as a flipbook), bakes them, and returns the
+    /// document summary.
+    pub async fn slice_image(&mut self, image: JsValue, rects: Vec<u32>, names: JsValue, group: String, frame_ms: u32) -> Result<JsValue, JsValue> {
+        let image_id: an1mbyt3_core::ImageId = parse_id(image)?;
+        let names: Vec<String> = serde_wasm_bindgen::from_value(names).unwrap_or_default();
+        let (source, processing) = {
+            let asset = self.document.image(image_id).ok_or_else(|| JsValue::from_str("slice_image: unknown image"))?;
+            (asset.source.clone(), asset.processing.clone())
+        };
+        let boxes: Vec<[u32; 4]> = rects.chunks_exact(4).map(|c| [c[0], c[1], c[2], c[3]]).collect();
+        let crops = an1mbyt3_image::crop_rects(&source, &boxes).map_err(|e| JsValue::from_str(&format!("slice_image: {e:?}")))?;
+        let mut frames = Vec::with_capacity(crops.len());
+        for (i, (png, _, _)) in crops.into_iter().enumerate() {
+            let name = names.get(i).cloned().unwrap_or_else(|| format!("{group} {i}"));
+            let id = self.document.add_image(an1mbyt3_core::ImageAsset { name, source: png, processing: processing.clone(), file: None });
+            frames.push(id);
         }
-        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+        if !frames.is_empty() {
+            self.document.add_sprite_group(an1mbyt3_core::SpriteGroup { name: group, frames: frames.iter().map(|&id| (id, frame_ms.max(1))).collect() });
+        }
+        for id in frames {
+            self.bake_and_cache_image(id).await;
+        }
+        self.document_summary()
     }
 
     pub async fn load_ninja_demo(&mut self) -> Result<JsValue, JsValue> {

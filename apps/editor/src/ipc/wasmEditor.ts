@@ -164,11 +164,6 @@ export function loadGeometryDashDemo(editor: WasmEditor, artboard: OpaqueId): Do
 /** Adds the Ninja Adventure demo's two scenes (Village + House) and bakes
  * all its art. Returns the Village's id as `newArtboard` — the caller
  * switches to it (`setActiveArtboard`) before entering Playground. */
-/** Adds the "Amyruth's Birthday" town scene and bakes its art. */
-export async function loadBirthdayDemo(editor: WasmEditor): Promise<AddArtboardResult> {
-  return (await editor.load_birthday_demo()) as AddArtboardResult
-}
-
 export async function loadNinjaDemo(editor: WasmEditor): Promise<AddArtboardResult> {
   return (await editor.load_ninja_demo()) as AddArtboardResult
 }

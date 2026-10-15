@@ -107,7 +107,6 @@ mod particles3d;
 mod metaball2d;
 mod goo_gpu;
 mod demo_ninja;
-mod demo_birthday;
 mod lighting2d;
 mod dto;
 mod editor;

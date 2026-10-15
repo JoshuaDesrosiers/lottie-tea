@@ -176,6 +176,147 @@ pub fn import_sprite_grid(filename_hint: &str, bytes: &[u8], frame_width: u32, f
     Ok(frames)
 }
 
+/// Crops `rects` (`[x, y, width, height]` in pixels, clamped to the image)
+/// out of an image — the Sprite Editor's "Slice": each comes back as its
+/// own RGBA PNG with its size. Empty / off-image rects are skipped.
+pub fn crop_rects(bytes: &[u8], rects: &[[u32; 4]]) -> Result<Vec<(Vec<u8>, u32, u32)>, ImageImportError> {
+    let sheet = image::load_from_memory(bytes).map_err(ImageImportError::Decode)?.to_rgba8();
+    let (sw, sh) = sheet.dimensions();
+    let mut out = Vec::with_capacity(rects.len());
+    for r in rects {
+        let (x, y) = (r[0].min(sw), r[1].min(sh));
+        let (w, h) = (r[2].min(sw - x), r[3].min(sh - y));
+        if w == 0 || h == 0 {
+            continue;
+        }
+        let cropped = image::imageops::crop_imm(&sheet, x, y, w, h).to_image();
+        out.push((encode_png(&cropped)?, w, h));
+    }
+    Ok(out)
+}
+
+/// Unity's "Automatic" slice: every separate sprite on a sheet, found as a
+/// group of touching opaque pixels (alpha above `alpha_min`, 8-connected),
+/// returned as bounding boxes `[x, y, width, height]`. Boxes smaller than
+/// `min_size` on both sides (stray specks) are dropped, and boxes that
+/// overlap or sit within `merge_gap` pixels of each other are merged (a
+/// sprite whose parts don't quite touch — a floating eye, a sword tip).
+/// Ordered in reading order: top to bottom by row, then left to right.
+pub fn alpha_islands(bytes: &[u8], alpha_min: u8, min_size: u32, merge_gap: u32) -> Result<Vec<[u32; 4]>, ImageImportError> {
+    let sheet = image::load_from_memory(bytes).map_err(ImageImportError::Decode)?.to_rgba8();
+    let (w, h) = sheet.dimensions();
+    let (wu, hu) = (w as usize, h as usize);
+    let solid: Vec<bool> = sheet.pixels().map(|p| p.0[3] > alpha_min).collect();
+    let mut seen = vec![false; wu * hu];
+    let mut boxes: Vec<[u32; 4]> = Vec::new();
+    let mut stack = Vec::new();
+    for start in 0..wu * hu {
+        if !solid[start] || seen[start] {
+            continue;
+        }
+        let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0usize, 0usize);
+        seen[start] = true;
+        stack.push(start);
+        while let Some(i) = stack.pop() {
+            let (x, y) = (i % wu, i / wu);
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x);
+            y1 = y1.max(y);
+            for dy in -1i32..=1 {
+                for dx in -1i32..=1 {
+                    let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                    if nx < 0 || ny < 0 || nx >= w as i32 || ny >= h as i32 {
+                        continue;
+                    }
+                    let j = ny as usize * wu + nx as usize;
+                    if solid[j] && !seen[j] {
+                        seen[j] = true;
+                        stack.push(j);
+                    }
+                }
+            }
+        }
+        boxes.push([x0 as u32, y0 as u32, (x1 - x0 + 1) as u32, (y1 - y0 + 1) as u32]);
+    }
+    // Merge boxes that overlap or nearly touch, until nothing changes.
+    let gap = merge_gap as i64;
+    let near = |a: &[u32; 4], b: &[u32; 4]| {
+        let (ax0, ay0, ax1, ay1) = (a[0] as i64, a[1] as i64, (a[0] + a[2]) as i64, (a[1] + a[3]) as i64);
+        let (bx0, by0, bx1, by1) = (b[0] as i64, b[1] as i64, (b[0] + b[2]) as i64, (b[1] + b[3]) as i64);
+        ax0 <= bx1 + gap && bx0 <= ax1 + gap && ay0 <= by1 + gap && by0 <= ay1 + gap
+    };
+    let mut merged = true;
+    while merged {
+        merged = false;
+        'outer: for i in 0..boxes.len() {
+            for j in i + 1..boxes.len() {
+                if near(&boxes[i], &boxes[j]) {
+                    let (a, b) = (boxes[i], boxes[j]);
+                    let x0 = a[0].min(b[0]);
+                    let y0 = a[1].min(b[1]);
+                    let x1 = (a[0] + a[2]).max(b[0] + b[2]);
+                    let y1 = (a[1] + a[3]).max(b[1] + b[3]);
+                    boxes[i] = [x0, y0, x1 - x0, y1 - y0];
+                    boxes.swap_remove(j);
+                    merged = true;
+                    break 'outer;
+                }
+            }
+        }
+    }
+    boxes.retain(|b| b[2] >= min_size || b[3] >= min_size);
+    // Reading order: group into rows by vertical overlap, then left to right.
+    boxes.sort_by_key(|b| (b[1], b[0]));
+    let mut rows: Vec<Vec<[u32; 4]>> = Vec::new();
+    for b in boxes {
+        match rows.last_mut() {
+            Some(row) if row.iter().any(|r| b[1] < r[1] + r[3] && r[1] < b[1] + b[3]) => row.push(b),
+            _ => rows.push(vec![b]),
+        }
+    }
+    let mut out = Vec::new();
+    for mut row in rows {
+        row.sort_by_key(|b| b[0]);
+        out.extend(row);
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod slice_tests {
+    use super::*;
+
+    fn sheet_png() -> Vec<u8> {
+        // 20x10: two opaque squares (2..6, 2..6) and (12..18, 3..9), one speck at (10, 0).
+        let mut img = image::RgbaImage::new(20, 10);
+        for y in 2..6 {
+            for x in 2..6 {
+                img.put_pixel(x, y, image::Rgba([255, 0, 0, 255]));
+            }
+        }
+        for y in 3..9 {
+            for x in 12..18 {
+                img.put_pixel(x, y, image::Rgba([0, 255, 0, 255]));
+            }
+        }
+        img.put_pixel(10, 0, image::Rgba([0, 0, 255, 255]));
+        encode_png(&img).unwrap()
+    }
+
+    #[test]
+    fn finds_islands_in_reading_order_and_drops_specks() {
+        let boxes = alpha_islands(&sheet_png(), 0, 2, 0).unwrap();
+        assert_eq!(boxes, vec![[2, 2, 4, 4], [12, 3, 6, 6]]);
+    }
+
+    #[test]
+    fn crops_rects_to_their_size() {
+        let crops = crop_rects(&sheet_png(), &[[2, 2, 4, 4], [15, 5, 100, 100]]).unwrap();
+        assert_eq!(crops.iter().map(|c| (c.1, c.2)).collect::<Vec<_>>(), vec![(4, 4), (5, 5)]);
+    }
+}
+
 /// Reads just a PNG's `IHDR` chunk for its pixel dimensions, without
 /// decompressing any pixel data — the cheap alternative to `decode_to_rgba`
 /// for call sites that only need to know how big an asset is (the Resources

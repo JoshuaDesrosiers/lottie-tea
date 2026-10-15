@@ -1,3 +1,4 @@
+import { SpriteEditor } from './SpriteEditor'
 import { Slider } from './Slider'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -2633,6 +2634,8 @@ export function InspectorPanel({
   onSetMotionPathGuide: (guide: OpaqueId) => void
   onRemoveMotionPathTrack: () => void
 }) {
+  // Sprite Editor (slicing the selected image) — open / closed.
+  const [slicing, setSlicing] = useState(false)
   const canvasSection = artboard && (
     <div className="flex flex-col gap-2 border-b border-panel-border/60 pb-2">
       <span className="text-[11px] font-medium uppercase tracking-wide text-ink-dim">Canvas</span>
@@ -2684,6 +2687,17 @@ export function InspectorPanel({
       <div className="flex flex-col gap-2">
         {canvasSection}
         <AssetFields asset={selectedAsset} onSetProcessing={(processing) => onSetImageProcessing(selectedAsset.id, processing)} />
+        {editor && (
+          <button
+            type="button"
+            onClick={() => setSlicing(true)}
+            title="Slice this sheet into frames — by grid or automatically — like Unity's Sprite Editor"
+            className="rounded-md bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20 hover:text-accent"
+          >
+            Sprite Editor…
+          </button>
+        )}
+        {slicing && editor && <SpriteEditor editor={editor} asset={selectedAsset} onClose={() => setSlicing(false)} onDone={onDocumentChange} />}
       </div>
     )
   }
