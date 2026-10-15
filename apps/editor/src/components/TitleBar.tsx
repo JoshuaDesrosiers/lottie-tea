@@ -50,24 +50,29 @@ export function TitleBar({ theme, onToggleTheme }: { theme: Theme; onToggleTheme
         >
           {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
         </button>
-        <button
-          onClick={minimize}
-          className="flex h-7 w-9 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
-        >
-          <MinimizeIcon />
-        </button>
-        <button
-          onClick={toggleMaximize}
-          className="flex h-7 w-9 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
-        >
-          <MaximizeIcon />
-        </button>
-        <button
-          onClick={close}
-          className="flex h-7 w-9 items-center justify-center rounded-md text-ink-dim hover:bg-red-500 hover:text-white"
-        >
-          <CloseIcon />
-        </button>
+        {/* Window buttons only in the desktop app (a browser tab has its own). */}
+        {isTauri && (
+          <>
+            <button
+              onClick={minimize}
+              className="flex h-7 w-9 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
+            >
+              <MinimizeIcon />
+            </button>
+            <button
+              onClick={toggleMaximize}
+              className="flex h-7 w-9 items-center justify-center rounded-md text-ink-dim hover:bg-overlay/5 hover:text-ink"
+            >
+              <MaximizeIcon />
+            </button>
+            <button
+              onClick={close}
+              className="flex h-7 w-9 items-center justify-center rounded-md text-ink-dim hover:bg-red-500 hover:text-white"
+            >
+              <CloseIcon />
+            </button>
+          </>
+        )}
       </div>
     </div>
   )

@@ -7,22 +7,29 @@
  * (`ipc/wasmEditor.ts`), never here.
  */
 import { invoke } from '@tauri-apps/api/core'
+import * as web from './webFile'
+
+/** Inside the Tauri desktop app (else: a plain browser — `webFile.ts`). */
+export const isDesktop = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 /** Opens a native "Save As" dialog pre-filled with `suggestedName`. Returns
  * `null` if the user cancels. */
 export function pickSavePath(suggestedName: string): Promise<string | null> {
+  if (!isDesktop) return web.pickSavePath(suggestedName)
   return invoke('pick_save_path', { suggestedName })
 }
 
 /** Opens a native "Open" dialog filtered to `.tea`/`.teab`. Returns `null`
  * if the user cancels. */
 export function pickOpenPath(): Promise<string | null> {
+  if (!isDesktop) return web.pickOpenPath()
   return invoke('pick_open_path')
 }
 
 /** Opens a native "Open" dialog filtered to `.svg` — the Shapes panel's
  * "Import SVG" action. Returns `null` if the user cancels. */
 export function pickOpenSvgPath(): Promise<string | null> {
+  if (!isDesktop) return web.pickOpenSvgPath()
   return invoke('pick_open_svg_path')
 }
 
@@ -30,59 +37,71 @@ export function pickOpenSvgPath(): Promise<string | null> {
  * — the Shapes panel's "Import Image/GIF" action. Returns `null` if the user
  * cancels. */
 export function pickOpenImagePath(): Promise<string | null> {
+  if (!isDesktop) return web.pickOpenImagePath()
   return invoke('pick_open_image_path')
 }
 
 /** + menu → Import → Audio: a sound file. `null` = cancelled. */
 export function pickOpenAudioPath(): Promise<string | null> {
+  if (!isDesktop) return web.pickOpenAudioPath()
   return invoke('pick_open_audio_path')
 }
 
 /** + menu → Import → 3D Model: a `.glb` / `.gltf` / `.vrm` file. `null` = cancelled. */
 export function pickOpenModelPath(): Promise<string | null> {
+  if (!isDesktop) return web.pickOpenModelPath()
   return invoke('pick_open_model_path')
 }
 
 /** Opens a native "Save As" dialog filtered to `.gif` — the toolbar's
  * "Export GIF" action. Returns `null` if the user cancels. */
 export function pickSaveGifPath(suggestedName: string): Promise<string | null> {
+  if (!isDesktop) return web.pickSaveGifPath(suggestedName)
   return invoke('pick_save_gif_path', { suggestedName })
 }
 
 /** Opens a native "Save As" dialog filtered to `.html` — the toolbar's
  * "Export Game" action. Returns `null` if the user cancels. */
 export function pickSaveHtmlPath(suggestedName: string): Promise<string | null> {
+  if (!isDesktop) return web.pickSaveHtmlPath(suggestedName)
   return invoke('pick_save_html_path', { suggestedName })
 }
 
 /** "Save As" filtered to one file type (`extensions` without dots). */
 export function pickSaveFilePath(suggestedName: string, filterName: string, extensions: string[]): Promise<string | null> {
+  if (!isDesktop) return web.pickSaveFilePath(suggestedName, filterName, extensions)
   return invoke('pick_save_file_path', { suggestedName, filterName, extensions })
 }
 
 /** "Save As" for Export Game → Desktop app (`.exe` on Windows). */
 export function pickSaveExePath(suggestedName: string): Promise<string | null> {
+  if (!isDesktop) return web.pickSaveExePath(suggestedName)
   return invoke('pick_save_exe_path', { suggestedName })
 }
 
 /** Writes a desktop game: the prebuilt runner with `html` appended. */
 export function exportDesktopGame(path: string, html: string): Promise<void> {
+  if (!isDesktop) return web.exportDesktopGame(path, html)
   return invoke('export_desktop_game', { path, html })
 }
 
 export function writeTextFile(path: string, contents: string): Promise<void> {
+  if (!isDesktop) return web.writeTextFile(path, contents)
   return invoke('write_text_file', { path, contents })
 }
 
 export function writeBinaryFile(path: string, contents: Uint8Array): Promise<void> {
+  if (!isDesktop) return web.writeBinaryFile(path, contents)
   return invoke('write_binary_file', { path, contents: Array.from(contents) })
 }
 
 export function readTextFile(path: string): Promise<string> {
+  if (!isDesktop) return web.readTextFile(path)
   return invoke('read_text_file', { path })
 }
 
 export async function readBinaryFile(path: string): Promise<Uint8Array> {
+  if (!isDesktop) return web.readBinaryFile(path)
   const bytes = await invoke<number[]>('read_binary_file', { path })
   return new Uint8Array(bytes)
 }
@@ -91,6 +110,7 @@ export async function readBinaryFile(path: string): Promise<Uint8Array> {
 
 /** Native folder picker. `null` = cancelled. */
 export function pickProjectFolder(): Promise<string | null> {
+  if (!isDesktop) return web.pickProjectFolder()
   return invoke('pick_project_folder')
 }
 
@@ -104,38 +124,46 @@ export interface ProjectEntry {
 
 /** Every file under `root`, recursively (hidden entries skipped). */
 export function listProjectFiles(root: string): Promise<ProjectEntry[]> {
+  if (!isDesktop) return web.listProjectFiles(root)
   return invoke('list_project_files', { root })
 }
 
 export function ensureDir(path: string): Promise<void> {
+  if (!isDesktop) return web.ensureDir(path)
   return invoke('ensure_dir', { path })
 }
 
 export function removeFile(path: string): Promise<void> {
+  if (!isDesktop) return web.removeFile(path)
   return invoke('remove_file', { path })
 }
 
 export function pathExists(path: string): Promise<boolean> {
+  if (!isDesktop) return web.pathExists(path)
   return invoke('path_exists', { path })
 }
 
 /** Writes raw bytes (no JSON number array — fast for images). Creates parent folders. */
 export function writeFileRaw(path: string, bytes: Uint8Array): Promise<void> {
+  if (!isDesktop) return web.writeFileRaw(path, bytes)
   return invoke('write_file_raw', bytes, { headers: { 'x-path': encodeURIComponent(path) } })
 }
 
 /** Reads a file as raw bytes (no JSON number array). */
 export async function readFileRaw(path: string): Promise<Uint8Array> {
+  if (!isDesktop) return web.readFileRaw(path)
   const buffer = await invoke<ArrayBuffer>('read_file_raw', { path })
   return new Uint8Array(buffer)
 }
 
 /** Opens a folder in Explorer / Finder. */
 export function revealInExplorer(path: string): Promise<void> {
+  if (!isDesktop) return web.revealInExplorer(path)
   return invoke('reveal_in_explorer', { path })
 }
 
 /** `<app data>/recovery` — autosaves of folder-less documents. */
 export function recoveryDir(): Promise<string> {
+  if (!isDesktop) return web.recoveryDir()
   return invoke('recovery_dir')
 }

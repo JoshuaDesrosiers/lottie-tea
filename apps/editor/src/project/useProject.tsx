@@ -136,7 +136,6 @@ export function useProject({ editorRef, ready, playing, onReplaced, onChanged }:
   }, [])
 
   const clearRecovery = useCallback(async () => {
-    if (!isTauri) return
     try {
       await removeFile(joinPath(await recoveryDir(), RECOVERY_FILE))
     } catch {
@@ -239,7 +238,7 @@ export function useProject({ editorRef, ready, playing, onReplaced, onChanged }:
   // ---- Startup: reopen the last project, or offer recovery ----
   const startedRef = useRef(false)
   useEffect(() => {
-    if (!ready || startedRef.current || !isTauri) return
+    if (!ready || startedRef.current) return
     startedRef.current = true
     const editor = editorRef.current
     if (editor) markClean(editor)
@@ -297,7 +296,7 @@ export function useProject({ editorRef, ready, playing, onReplaced, onChanged }:
       const now = performance.now()
       if (sessionRef.current) {
         if (now - lastChangeAtRef.current > AUTOSAVE_DELAY_MS) void saveNow()
-      } else if (isTauri && now - lastRecoveryAtRef.current > RECOVERY_INTERVAL_MS) {
+      } else if (now - lastRecoveryAtRef.current > RECOVERY_INTERVAL_MS) {
         lastRecoveryAtRef.current = now
         void (async () => {
           try {
@@ -334,6 +333,27 @@ export function useProject({ editorRef, ready, playing, onReplaced, onChanged }:
 
   // ---- Closing the window ----
   const allowCloseRef = useRef(false)
+  // In a browser tab: finish the autosave / warn before the tab closes with
+  // unsaved work (browsers only allow their own generic prompt).
+  useEffect(() => {
+    if (isTauri) return
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      const editor = editorRef.current
+      if (!editor) return
+      let isDirty = false
+      try {
+        isDirty = documentRevision(editor) !== savedRevisionRef.current
+      } catch {
+        return
+      }
+      if (!isDirty) return
+      if (sessionRef.current) void saveNow()
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [editorRef, saveNow])
   useEffect(() => {
     if (!isTauri) return
     let unlisten: (() => void) | null = null
