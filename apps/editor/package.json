@@ -9,6 +9,7 @@
     "build": "tsc -b && npm run build:player && vite build",
     "build:player": "vite build --config vite.player.config.ts && vite build --config vite.embed.config.ts",
     "build:embed": "vite build --config vite.embed.config.ts",
+    "deploy:web": "vite build && firebase deploy --only hosting --project toastycreate",
     "build:runner": "cargo build -p an1mbyt3-runner --release",
     "preview": "vite preview",
     "tauri": "tauri"

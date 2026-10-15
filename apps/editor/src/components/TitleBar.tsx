@@ -39,7 +39,7 @@ export function TitleBar({ theme, onToggleTheme }: { theme: Theme; onToggleTheme
       style={{ height: TITLE_BAR_HEIGHT }}
     >
       <div data-tauri-drag-region className="flex h-full flex-1 items-center">
-        <span className="select-none text-xs font-medium tracking-wide text-ink-dim">an1mbyt3</span>
+        <span className="select-none text-xs font-medium tracking-wide text-ink-dim">toasty</span>
       </div>
 
       <div className="flex items-center gap-1">
