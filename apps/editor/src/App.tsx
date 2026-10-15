@@ -154,6 +154,7 @@ import {
   getStateMachineSummary,
   loadGeometryDashDemo,
   loadNinjaDemo,
+  loadBirthdayDemo,
   loadFpsDemo,
   loadStressDemo,
   loadRigDemo,
@@ -2518,6 +2519,21 @@ function App() {
       })
   }
 
+  /** Amyruth's Birthday — the town hunt for the secret letter. */
+  const handleLoadBirthdayDemo = () => {
+    const editor = editorRef.current
+    if (!editor) return
+    demoLoadingRef.current = true
+    void loadBirthdayDemo(editor)
+      .then((result) => {
+        switchToScene(result.newArtboard, result.document)
+        setMode('Playground')
+      })
+      .finally(() => {
+        demoLoadingRef.current = false
+      })
+  }
+
   /** Physics Playground demo — its own scene, straight into Playground. */
   const handleLoadPhysicsDemo = () => {
     const editor = editorRef.current
@@ -4691,6 +4707,7 @@ function App() {
         onLoadDemo={handleLoadDemo}
         onLoadGeometryDashDemo={handleLoadGeometryDashDemo}
         onLoadNinjaDemo={handleLoadNinjaDemo}
+        onLoadBirthdayDemo={handleLoadBirthdayDemo}
         onLoadFpsDemo={handleLoadFpsDemo}
             onLoadStressDemo={handleLoadStressDemo}
             onLoadRigDemo={handleLoadRigDemo}

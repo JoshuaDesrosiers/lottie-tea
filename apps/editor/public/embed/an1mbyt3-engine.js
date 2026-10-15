@@ -668,6 +668,9 @@ var g = class e {
 	load_3d_demo() {
 		return q.wasmeditor_load_3d_demo(this.__wbg_ptr);
 	}
+	load_birthday_demo() {
+		return q.wasmeditor_load_birthday_demo(this.__wbg_ptr);
+	}
 	load_boom_demo() {
 		return q.wasmeditor_load_boom_demo(this.__wbg_ptr);
 	}

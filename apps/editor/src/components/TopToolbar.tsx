@@ -87,6 +87,7 @@ function ShapesMenu({
   onLoadDemo,
   onLoadGeometryDashDemo,
   onLoadNinjaDemo,
+  onLoadBirthdayDemo,
   onLoadFpsDemo,
   onLoadStressDemo,
   onLoadRigDemo,
@@ -148,6 +149,8 @@ function ShapesMenu({
   onLoadGeometryDashDemo: () => void
   /** Top-down Ninja Adventure (two scenes, lighting, combat). */
   onLoadNinjaDemo: () => void
+  /** Amyruth's Birthday town hunt. */
+  onLoadBirthdayDemo: () => void
   /** Scratch-style "fake 3D" raycaster FPS. */
   onLoadFpsDemo: () => void
   onLoadStressDemo: () => void
@@ -265,6 +268,7 @@ function ShapesMenu({
       children: [
         { kind: 'item', label: 'Demo Scene', icon: <SparkleIcon />, onSelect: onLoadDemo },
         { kind: 'item', label: 'Geometry Dash', icon: <SparkleIcon />, onSelect: onLoadGeometryDashDemo },
+        { kind: 'item', label: "Amyruth's Birthday", icon: <SparkleIcon />, onSelect: onLoadBirthdayDemo },
         { kind: 'item', label: 'Ninja Adventure', icon: <SparkleIcon />, onSelect: onLoadNinjaDemo },
         { kind: 'item', label: 'Dungeon Royale', icon: <SparkleIcon />, onSelect: onLoadDungeonDemo },
         { kind: 'item', label: 'Crown Match (match-3)', icon: <SparkleIcon />, onSelect: onLoadMatch3Demo },
@@ -507,6 +511,7 @@ export function TopToolbar({
   onLoadDemo,
   onLoadGeometryDashDemo,
   onLoadNinjaDemo,
+  onLoadBirthdayDemo,
   onAddTilemap,
   onAddCamera,
   onAddNode3D,
@@ -567,6 +572,8 @@ export function TopToolbar({
   onLoadDemo: () => void
   onLoadGeometryDashDemo: () => void
   onLoadNinjaDemo: () => void
+  /** Amyruth's Birthday town hunt. */
+  onLoadBirthdayDemo: () => void
   onAddTilemap: () => void
   onAddCamera: () => void
   /** "3D" items — a Node3D mesh / camera / light / pivot. */
@@ -685,6 +692,7 @@ export function TopToolbar({
               onLoadDemo={onLoadDemo}
               onLoadGeometryDashDemo={onLoadGeometryDashDemo}
               onLoadNinjaDemo={onLoadNinjaDemo}
+              onLoadBirthdayDemo={onLoadBirthdayDemo}
               onAddTilemap={onAddTilemap}
               onAddCamera={onAddCamera}
               onAddNode3D={onAddNode3D}

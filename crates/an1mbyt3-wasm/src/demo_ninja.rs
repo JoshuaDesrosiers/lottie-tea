@@ -117,24 +117,24 @@ pub(crate) struct Tileset {
 }
 
 impl Tileset {
-    fn columns(&self) -> u32 {
+    pub(crate) fn columns(&self) -> u32 {
         self.width / TILE as u32
     }
 
     /// Flat tile index for `(col, row)` — `TilemapNode::tiles`' own
     /// `row * columns + col` convention.
-    fn index(&self, col: u32, row: u32) -> u32 {
+    pub(crate) fn index(&self, col: u32, row: u32) -> u32 {
         row * self.columns() + col
     }
 
-    fn empty_map(&self, map_w: u32, map_h: u32) -> TilemapNode {
+    pub(crate) fn empty_map(&self, map_w: u32, map_h: u32) -> TilemapNode {
         TilemapNode::empty(self.image, self.width, self.height, TILE as u32, TILE as u32, map_w, map_h, TILE)
     }
 
     /// A small tilemap holding exactly the `w`x`h` block of this tileset
     /// starting at `(col0, row0)` — how every multi-tile world object
     /// (tree, house) is built without cropping it into its own image.
-    fn block(&self, col0: u32, row0: u32, w: u32, h: u32) -> TilemapNode {
+    pub(crate) fn block(&self, col0: u32, row0: u32, w: u32, h: u32) -> TilemapNode {
         let mut map = self.empty_map(w, h);
         for row in 0..h {
             for col in 0..w {
@@ -520,7 +520,7 @@ fn add_game_state_machine(document: &mut Document, inverses: &mut Vec<Command>, 
 
 /// Cheap deterministic per-cell hash in `0..100` — scatters grass tufts
 /// without pulling in an RNG (and without the layout changing per load).
-fn cell_hash(x: u32, y: u32) -> u32 {
+pub(crate) fn cell_hash(x: u32, y: u32) -> u32 {
     let mut h = x.wrapping_mul(73_856_093) ^ y.wrapping_mul(19_349_663);
     h ^= h >> 13;
     h = h.wrapping_mul(0x5bd1_e995);

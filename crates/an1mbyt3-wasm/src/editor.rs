@@ -12658,6 +12658,18 @@ impl WasmEditor {
     /// can switch to it (`setActiveArtboard`) before entering Playground.
     /// Unlike every earlier demo it doesn't build into the current scene —
     /// it *adds* scenes, so the author's own work is left untouched.
+    /// The + menu's Demos → "Amyruth's Birthday" — a town treasure hunt for
+    /// a secret birthday letter (`demo_birthday`). Adds its own scene,
+    /// bakes its art, returns the scene id for the frontend to switch to.
+    pub async fn load_birthday_demo(&mut self) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_birthday::build_demo_birthday(&mut self.document);
+        migrate_document(&mut self.document);
+        for image_id in demo.images {
+            self.bake_and_cache_image(image_id).await;
+        }
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     pub async fn load_ninja_demo(&mut self) -> Result<JsValue, JsValue> {
         let demo = crate::demo_ninja::build_demo_ninja_adventure(&mut self.document);
         migrate_document(&mut self.document);
