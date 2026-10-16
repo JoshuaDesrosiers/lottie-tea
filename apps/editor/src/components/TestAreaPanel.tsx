@@ -19,7 +19,7 @@
  * are all adjustable, and **Show in Playground** keeps the panel up while
  * the scene plays.
  */
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import type { WasmEditor } from '../ipc/wasmEditor'
 import type { DocumentSummary, OpaqueId } from '../ipc/document'
 import type { LiteFile, LitePlayer } from '../lite/runtime'
@@ -105,8 +105,12 @@ function Hover({ children, style }: { children: (hover: boolean) => ReactNode; s
   )
 }
 
-export function TestAreaPanel({ editor, doc, artboardId }: { editor: WasmEditor | null; doc: DocumentSummary | null; artboardId: OpaqueId | null }) {
-  const [s, setS] = useState<Settings>(load)
+export function TestAreaPanel({ editor, doc, artboardId, variant = 'panel' }: { editor: WasmEditor | null; doc: DocumentSummary | null; artboardId: OpaqueId | null; variant?: 'panel' | 'stage' }) {
+  const stage = variant === 'stage'
+  const shared = useSyncExternalStore(testAreaStore.subscribe, testAreaStore.get)
+  const [own, setS] = useState<Settings>(load)
+  // The Playground stage renders with the panel's live settings.
+  const s: Settings = stage ? ((shared.settings as Settings | null) ?? own) : own
   const set = (patch: Partial<Settings>) =>
     setS((prev) => {
       const next = { ...prev, ...patch }
@@ -117,13 +121,14 @@ export function TestAreaPanel({ editor, doc, artboardId }: { editor: WasmEditor 
       }
       return next
     })
-  const [file, setFile] = useState<LiteFile | null>(null)
+  const [ownFile, setFile] = useState<LiteFile | null>(null)
+  const file = stage ? shared.file : ownFile
   const [error, setError] = useState<string | null>(null)
   const players = useMemo(() => new Set<LitePlayer>(), [])
   const [, bump] = useState(0)
 
   useEffect(() => {
-    if (!editor || !artboardId) return
+    if (stage || !editor || !artboardId) return
     const t = window.setTimeout(() => {
       try {
         const next = JSON.parse(editor.export_lite(artboardId)) as LiteFile
@@ -135,13 +140,19 @@ export function TestAreaPanel({ editor, doc, artboardId }: { editor: WasmEditor 
       }
     }, 250)
     return () => window.clearTimeout(t)
-  }, [editor, doc, artboardId])
+  }, [stage, editor, doc, artboardId])
+
+  useEffect(() => {
+    if (!stage) testAreaStore.set({ settings: own })
+  }, [stage, own])
 
   // The title bar slot and Playground visibility live outside the panel.
   useEffect(() => {
-    testAreaStore.set({ nav: { active: s.mock === 'nav', size: s.navSize }, showInPlayground: s.showInPlayground })
-  }, [s.mock, s.navSize, s.showInPlayground])
-  useEffect(() => () => testAreaStore.set({ nav: { active: false, size: s.navSize } }), [])
+    if (!stage) testAreaStore.set({ nav: { active: s.mock === 'nav', size: s.navSize }, showInPlayground: s.showInPlayground })
+  }, [stage, s.mock, s.navSize, s.showInPlayground])
+  useEffect(() => () => {
+    if (!stage) testAreaStore.set({ nav: { active: false, size: s.navSize } })
+  }, [])
 
   const inputs = (file?.stateMachine?.inputs ?? []).filter((i) => i.name !== 'hover')
   const first = () => players.values().next().value as LitePlayer | undefined
@@ -315,6 +326,52 @@ export function TestAreaPanel({ editor, doc, artboardId }: { editor: WasmEditor 
     )
   }
 
+  if (stage) {
+    const zoom = s.mock === 'phone' ? 1.25 : s.mock === 'nav' ? 1 : 1.8
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-auto p-6" style={{ background: c.page }}>
+        <div style={{ zoom, width: s.mock === 'sidebar' ? 420 : undefined }}>{mock}</div>
+        {inputs.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-3 rounded-lg border px-3 py-2 text-[12px]" style={{ borderColor: c.line, color: c.muted, background: c.surface }}>
+            {inputs.map((i) => {
+              const v = first()?.getInput?.(i.name)
+              if (i.kind === 'trigger')
+                return (
+                  <button key={i.name} onClick={() => fireAll(i.name)} className="rounded border px-2 py-0.5" style={{ borderColor: c.line, color: c.text }}>
+                    {i.name}
+                  </button>
+                )
+              if (i.kind === 'bool')
+                return (
+                  <label key={i.name} className="flex items-center gap-1">
+                    <input type="checkbox" checked={!!v} onChange={(e) => setAll(i.name, e.target.checked)} />
+                    {i.name}
+                  </label>
+                )
+              if (i.kind === 'enum')
+                return (
+                  <span key={i.name} className="flex items-center gap-1">
+                    {i.name}
+                    {enumValues(i.name).map((ev) => (
+                      <button key={ev} onClick={() => setAll(i.name, ev)} className="rounded px-1.5 py-0.5" style={{ background: v === ev ? c.soft : 'transparent', color: c.text }}>
+                        {ev}
+                      </button>
+                    ))}
+                  </span>
+                )
+              return (
+                <label key={i.name} className="flex items-center gap-1">
+                  {i.name}
+                  <input type="range" min={0} max={1} step={0.01} value={Number(v ?? 0)} onChange={(e) => setAll(i.name, Number(e.target.value))} />
+                </label>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const chip = (active: boolean) => `rounded px-2 py-0.5 text-[11px] ${active ? 'bg-overlay/15 text-ink' : 'text-ink-dim hover:text-ink'}`
   const numberRow = (label: string, value: number, min: number, max: number, onChange: (v: number) => void) => (
     <label className="flex items-center justify-between gap-2 text-[11px] text-ink-dim">
@@ -341,9 +398,9 @@ export function TestAreaPanel({ editor, doc, artboardId }: { editor: WasmEditor 
           Hi-fi
         </button>
         <div className="flex-1" />
-        <label className="flex items-center gap-1 text-[11px] text-ink-dim" title="Keep this panel visible while the scene plays">
+        <label className="flex items-center gap-1 text-[11px] text-ink-dim" title="Playground shows this mock, full size, instead of the normal play view">
           <input type="checkbox" checked={s.showInPlayground} onChange={(e) => set({ showInPlayground: e.target.checked })} />
-          In Playground
+          Use as Playground
         </label>
       </div>
 

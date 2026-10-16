@@ -11,11 +11,13 @@ export interface TestAreaState {
   file: LiteFile | null
   /** Show the animation in the editor's title bar, at this size (px). */
   nav: { active: boolean; size: number }
-  /** Keep the Test Area panel visible in Playground. */
+  /** Playground becomes the Test Area: the mock fills the stage. */
   showInPlayground: boolean
+  /** The panel's current settings (the Playground stage renders with them). */
+  settings: unknown
 }
 
-let state: TestAreaState = { file: null, nav: { active: false, size: 24 }, showInPlayground: false }
+let state: TestAreaState = { file: null, nav: { active: false, size: 24 }, showInPlayground: false, settings: null }
 const listeners = new Set<() => void>()
 
 export const testAreaStore = {

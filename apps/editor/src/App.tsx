@@ -4594,6 +4594,12 @@ ${list}${more}`)
         </select>
       </FloatingPanel>
       )}
+      {mode === 'Playground' && testArea.showInPlayground && panelVisible.testArea && testArea.file && (
+        // "Use as Playground": the Test Area mock replaces the play view.
+        <div className="pointer-events-auto absolute inset-0 z-20">
+          <TestAreaPanel variant="stage" editor={editorRef.current} doc={doc} artboardId={activeArtboard?.id ?? null} />
+        </div>
+      )}
       {drawPath && mode !== 'Playground' && (
         <DrawPathOverlay
           options={drawPath}
@@ -4969,7 +4975,7 @@ ${list}${more}`)
         </div>
       )}
 
-      {(mode !== 'Playground' || (testArea.showInPlayground && panelVisible.testArea)) && mode !== 'Paint' && mode !== 'Code' && (() => {
+      {mode !== 'Playground' && mode !== 'Paint' && mode !== 'Code' && (() => {
         const panelContent: Record<PanelKey, { title: string; content: React.ReactNode }> = {
           layers: {
             title: 'Layers',
@@ -5154,14 +5160,12 @@ ${list}${more}`)
 
         const groupedKeys: PanelKey[] = (['left', 'right'] as const).flatMap((region) => (dock.groups[region] ? groupMemberKeys(dock.groups[region]!) : []))
         // Resources lives in the bottom dock now (see `bottomDockTab`).
-        // In Playground only the Test Area shows (when asked), floating.
-        const playing = mode === 'Playground'
-        const soloKeys = playing ? (['testArea'] as const).filter((key) => panelVisible[key]) : (['layers', 'inspector', 'tilePalette', 'components', 'effects', 'testArea'] as const).filter((key) => !groupedKeys.includes(key) && panelVisible[key])
+        const soloKeys = (['layers', 'inspector', 'tilePalette', 'components', 'effects', 'testArea'] as const).filter((key) => !groupedKeys.includes(key) && panelVisible[key])
 
         return (
           <>
             {(['left', 'right'] as const).map((region) =>
-              dock.groups[region] && !playing ? (
+              dock.groups[region] ? (
                 <DockGroup
                   key={region}
                   group={dock.groups[region]!}
