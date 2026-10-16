@@ -1,0 +1,86 @@
+---
+title: 4. Pointer and click
+sidebar_position: 4
+description: Turn the invisible hit shape into a UI Button, toggle the liked input with an On Click action, and drive hover with Pointer Listeners, all without code.
+---
+
+# 4. Pointer and click
+
+**Goal:** the heart responds to the mouse by itself. Clicking toggles `liked`. Moving the pointer onto the heart sets `hover` to true, and leaving sets it back to false. No script is involved, so this works the same in the editor's Playground, in the full engine and in Toasty Lite.
+
+Try it on the shipped file: hover, click, click again.
+
+<Lite src="heart" ink="auto" label="Interactive like heart" style={{ width: 96, height: 96 }} />
+
+## The three components
+
+All three go on the `hit` node.
+
+| Component | Add Component section | Job |
+|---|---|---|
+| **UI Button** | **UI** | Hit-tests the pointer against the node's real shape. Nothing else can react to the pointer without it. |
+| **On Click (Events)** | **Events & Data** | Runs a list of actions when the button is clicked. |
+| **Pointer Listeners (hover / press)** | **Events & Data** | Runs action lists on **On Pointer Enter**, **On Pointer Exit**, **On Pointer Down** and **On Pointer Up**. |
+
+## Steps
+
+### 1. Make `hit` a button
+
+1. Select `hit` and click **Add Component → UI → UI Button**.
+2. A UI Button has its own hover and press looks, which tint and scale the node it sits on. `hit` is invisible, and its size must stay fixed, so neutralise them:
+
+| UI Button field | Value |
+|---|---|
+| **Transition** | Color Tint |
+| **Highlighted** | white |
+| **Pressed** | white |
+| **Hover scale** | `1` |
+| **Press scale** | `1` |
+
+White multiplies a colour by 1, which means "no change".
+
+### 2. Click toggles `liked`
+
+1. **Add Component → Events & Data → On Click (Events)**.
+2. Under **On Click ()**, click **+ Add action**.
+3. In the action dropdown, under **State machine**, choose **Toggle input (Bool)**.
+4. In the input picker, choose `liked`.
+
+### 3. Hover sets `hover`
+
+1. **Add Component → Events & Data → Pointer Listeners (hover / press)**.
+2. Under **On Pointer Enter**, click **+ Add action**, choose **Set input**, pick `hover` and type `true` in the value box.
+3. Under **On Pointer Exit**, click **+ Add action**, choose **Set input**, pick `hover` and type `false`.
+4. Leave **On Pointer Down** and **On Pointer Up** empty.
+
+<Shot id="course-heart-hit" caption="The Inspector for the hit node: UI Button with Highlighted and Pressed set to white and both scales 1; On Click () with one action, Toggle input (Bool) liked; Pointer Listeners with On Pointer Enter Set input hover true and On Pointer Exit Set input hover false." />
+
+### 4. Try it in Playground
+
+Switch to **Playground** in the mode switch. Hover the heart: it grows. Click: it pops. Click again: it settles back. Move away: it shrinks. Leave Playground to return to Design; every node goes back to how you designed it.
+
+## How it works
+
+- **Toggle input flips a Bool.** It reads the current value of `liked` and writes the opposite, like Rive's toggle listener. The state machine does the rest. Because the click only changes an input, the page can change the same input and the heart can't tell the difference, which is what lesson 6 relies on.
+- **Pointer Listeners are Rive-style listeners.** They don't animate anything themselves. They set inputs, and the Hover layer you built in lesson 3 reacts. This keeps "what happened" (the pointer entered) separate from "what it looks like" (scale 1.12 over 0.16 s).
+- **The hit-test uses the shape's real outline.** Toasty Lite tests the pointer against the `hit` circle's path, not its bounding box, so the corners of the 96 × 96 square are not clickable. While the pointer is over a UI Button, the canvas shows a pointer cursor.
+- **Why a separate hit shape.** If the UI Button sat on the heart outline, the clickable area would shrink to a 4.5-unit line, and it would change size while the heart scales. A fixed, invisible 84-unit circle is easier to hit and never moves.
+- **On Click runs on release.** A click counts when the pointer is pressed and released over the button, like a native button.
+
+| Action (in the dropdown) | What it does |
+|---|---|
+| **Toggle input (Bool)** | Flips a Bool input. |
+| **Set input** | Sets a Bool, Number or Enum input to a value (`true`, `3`, `Run`). |
+| **Fire trigger** | Fires a Trigger input. |
+| **Set property** | Sets a scene Property (`5`, `+1`, `-1`). |
+| **Call script function** | In the engine, calls a script handler. In Toasty Lite, sends the page a `toasty:event` with that name. |
+
+## Check your work
+
+- In Playground, hovering anywhere inside the circle around the heart grows it, and the cursor becomes a pointer. The corners of the scene do nothing.
+- Two quick clicks show the pop starting, then blending back, without a jump.
+- The `hit` node's own look never changes on hover or press.
+
+## Next
+
+[5. Theme colour and export](./05-ink-and-export.mdx): bind the outline colour to an `ink` property and export the file.

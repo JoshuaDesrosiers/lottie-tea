@@ -1,14 +1,14 @@
 ---
 title: Exporting
 sidebar_position: 13
-description: Every way to get your work out of Toasty — GIF, transparent GIF, transparent WebM and MP4 animations, a one-file web page, a desktop .exe, a website embed folder, and .teab files.
+description: Every way to get your work out of Toasty — GIF, transparent GIF, transparent WebM and MP4 animations, Toasty Lite JSON for websites, a one-file web page, a desktop .exe, a website embed folder, and .teab files.
 ---
 
 # Exporting
 
-The **Export** button in the top toolbar (next to Save) opens the Export menu. Its options fall into two groups: **Animation** exports render frames to an image or video file; **Game** exports package the whole interactive project.
+The **Export** button in the top toolbar (next to Save) opens the Export menu. Its options fall into two groups. **Animation** exports produce a file for one scene: rendered frames as an image or video, or interactive vector data for [Toasty Lite](../runtimes/lite.mdx). **Game** exports package the whole interactive project for the full engine.
 
-<Shot id="export-menu" caption="The Export menu open: Animation → GIF, GIF (transparent), WebM (transparent), MP4, then Game → Web page (.html), Desktop app (.exe), Website embed (React / JS), each with its hint text." />
+<Shot id="export-menu" caption="The Export menu open: Animation → GIF, GIF (transparent), WebM (transparent), MP4, Toasty Lite (.json), then Game → Web page (.html), Desktop app (.exe), Website embed (React / JS), each with its hint text." />
 
 | Export | Output | Interactive? | Transparent? | Web | Desktop |
 |---|---|---|---|---|---|
@@ -16,6 +16,7 @@ The **Export** button in the top toolbar (next to Save) opens the Export menu. I
 | **Animation → GIF (transparent)** | `.gif` | No | 1-bit (each pixel fully clear or fully solid) | Yes | Yes |
 | **Animation → WebM (transparent)** | `.webm` (VP9) | No | Yes, real alpha | Yes | Yes |
 | **Animation → MP4** | `.mp4` (H.264) | No | No | Yes | Yes |
+| **Animation → Toasty Lite (.json)** | `.json` | Yes | Yes (transparent by default) | Yes | Yes |
 | **Game → Web page (.html)** | one `.html` file | Yes | | Yes | Yes |
 | **Game → Desktop app (.exe)** | one `.exe` | Yes | | No | Yes |
 | **Game → Website embed (React / JS)** | a folder | Yes | | Yes | Yes |
@@ -55,6 +56,42 @@ WebM and MP4 export use your browser's or system's built-in video encoder. If it
 |---|---|
 | "No active animation to export — switch to Animate mode and pick (or create) one first." | The scene has no active animation. Open the Animate tab and pick or create one. |
 | "Canvas has no pixels yet — try again once the editor has finished laying out." | The editor hasn't finished starting; try again. |
+
+## Animation → Toasty Lite (.json)
+
+**Export → Animation → Toasty Lite (.json)** writes the open scene as a small JSON file for the [Toasty Lite](../runtimes/lite.mdx) runtime: a Canvas 2D player of about 25 KB for icons, buttons, toggles, loaders and illustrations on a website. It starts instantly, and any number can run on one page.
+
+<div style={{ display: 'flex', gap: 24, alignItems: 'center', margin: '16px 0' }}>
+  <Lite src="heart" ink="auto" label="Like" style={{ width: 56, height: 56 }} />
+  <Lite src="menu" ink="auto" label="Menu" style={{ width: 56, height: 56 }} />
+  <Lite src="theme" label="Theme" style={{ width: 56, height: 56 }} />
+  <Lite src="bell" ink="auto" label="Notifications" style={{ width: 56, height: 56 }} />
+  <Lite src="loader" label="Loading" style={{ width: 56, height: 56 }} />
+</div>
+
+1. Open the scene you want to export.
+2. **Export → Animation → Toasty Lite (.json)** and choose where to save. The suggested file name is the scene name in lower case with dashes, for example `like-button.json`.
+3. If the scene uses anything Lite can't play, an alert lists it: "Exported. Toasty Lite left out what needs the full engine:" followed by up to 12 items. The same list is saved in the file's `skipped` array.
+
+<Shot id="export-lite-alert" caption="The alert after a Toasty Lite export, listing a state program and a particle system that need the full engine." />
+
+Unlike the GIF and video exports, the file is interactive. It carries the scene's shapes, all its animations, its state machine (the first one, with every layer), On Click and Pointer Listeners actions, UI Button looks, and scene Properties with their bindings. Fonts used by text nodes are embedded.
+
+| Exported | Left out (needs the full engine) |
+|---|---|
+| Vector shapes, groups and text; fills, linear and radial gradients, strokes with caps, joins and dashes | Images, particles, tilemaps, 3D |
+| Stroke Style trim start, end and offset, and dash offset | Scripts and state programs |
+| Keyframed position, rotation, scale, fill colour, path morphs, trim, stroke width and colour, visibility, text size | Physics, audio, lighting and post effects |
+| State machine inputs, layers, conditions, crossfades, Once, Loop and PingPong | Motion paths, and any other component |
+
+Put the file on your site and play it with the `<toasty-lite>` element:
+
+```html
+<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+<toasty-lite src="/toasty/lite/like-button.json" ink="currentColor" style="width:40px;height:40px"></toasty-lite>
+```
+
+See [Toasty Lite](../runtimes/lite.mdx) for the element, JavaScript and React APIs, and [Authoring for Lite](../runtimes/authoring.mdx) for how to build a scene that exports cleanly. To ship a game instead, use one of the Game exports below.
 
 ## Game → Web page (.html)
 

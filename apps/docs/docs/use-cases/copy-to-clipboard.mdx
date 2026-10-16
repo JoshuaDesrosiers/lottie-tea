@@ -1,0 +1,258 @@
+---
+title: Copy to clipboard
+sidebar_position: 8
+description: Copy buttons for an API key field and code snippets using the Toasty Lite copy icon, which trims its two sheets out, draws a check and resets on its own. Includes a clipboard fallback.
+---
+
+# Copy to clipboard
+
+Copying gives the user nothing to look at: the text is already on screen, and the clipboard is invisible. The button has to confirm it. The `copy` component draws its two sheets out, draws a green check in, and returns to the copy icon by itself about 1.8 s later, so the page only has to fire one trigger. This page builds a developer settings screen with an API key field and two code snippets.
+
+<LiveHTML
+  url="app.northwind.app/developers/keys"
+  height={600}
+  caption="Copy the publishable key, the secret key (copied without revealing it), or either snippet. Copy again while the check is showing and it plays again."
+  html={`<section class="panel">
+  <header class="panel-head">
+    <h1>API keys</h1>
+    <p>Use these keys to call the Northwind API. Keep the secret key on your server.</p>
+  </header>
+
+  <div class="key">
+    <label for="pk">Publishable key</label>
+    <div class="field">
+      <input id="pk" class="mono" readonly value="nw_pub_7f3a9c2e81b44d0e9a6c">
+      <button class="copy" type="button" aria-label="Copy publishable key" data-copy="#pk">
+        <toasty-lite src="/toasty/lite/copy.json" ink="currentColor"></toasty-lite>
+        <span class="tip" aria-hidden="true">Copy</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="key">
+    <label for="sk">Secret key</label>
+    <div class="field">
+      <input id="sk" class="mono" readonly value="nw_live_••••••••••••••••4d0e">
+      <button class="copy" type="button" aria-label="Copy secret key" data-secret="nw_live_5b1e0f6c93a24e7f8d2b4d0e">
+        <toasty-lite src="/toasty/lite/copy.json" ink="currentColor"></toasty-lite>
+        <span class="tip" aria-hidden="true">Copy</span>
+      </button>
+    </div>
+    <p class="hint">Created Sep 2 by Maya Chen · Last used 3 minutes ago</p>
+  </div>
+
+  <h2>Quick start</h2>
+  <div class="snippet">
+    <div class="snippet-bar">
+      <span>Terminal</span>
+      <button class="copy" type="button" aria-label="Copy install command" data-copy="#install">
+        <toasty-lite src="/toasty/lite/copy.json" ink="currentColor"></toasty-lite>
+        <span class="tip" aria-hidden="true">Copy</span>
+      </button>
+    </div>
+    <pre><code id="install">npm install @northwind/sdk</code></pre>
+  </div>
+  <div class="snippet">
+    <div class="snippet-bar">
+      <span>stock.js</span>
+      <button class="copy" type="button" aria-label="Copy example code" data-copy="#usage">
+        <toasty-lite src="/toasty/lite/copy.json" ink="currentColor"></toasty-lite>
+        <span class="tip" aria-hidden="true">Copy</span>
+      </button>
+    </div>
+    <pre><code id="usage">import { Northwind } from '@northwind/sdk'
+
+const nw = new Northwind(process.env.NORTHWIND_SECRET_KEY)
+const stock = await nw.stock.list({ store: 'pier-street' })</code></pre>
+  </div>
+
+  <p class="visually-hidden" role="status" aria-live="polite" id="announcer"></p>
+</section>`}
+  css={`body { padding: 24px 16px; }
+.panel { max-width: 620px; margin: 0 auto; }
+.panel-head h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+.panel-head p { margin: 4px 0 20px; color: var(--muted); }
+.panel h2 { margin: 26px 0 10px; font-size: 15px; }
+
+.key { margin-bottom: 16px; }
+.key label { display: block; margin-bottom: 6px; font-size: 13.5px; font-weight: 500; }
+.field { display: flex; align-items: center; height: 44px; padding-left: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.field input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--ink); }
+.mono { font: 13.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.hint { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+
+.copy { position: relative; display: grid; place-items: center; flex: none; width: 40px; height: 40px; margin-right: 2px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.copy:hover, .copy:focus-visible { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.copy toasty-lite { width: 34px; height: 34px; pointer-events: none; }
+
+/* Tooltip: shows on hover and focus, and reads "Copied" after a copy. */
+.tip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translate(-50%, 4px); padding: 4px 8px; border-radius: 6px; background: var(--ink); color: var(--page); font-size: 12px; font-weight: 500; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .12s ease, transform .12s ease; }
+.copy:hover .tip, .copy:focus-visible .tip, .copy.is-copied .tip { opacity: 1; transform: translate(-50%, 0); }
+
+.snippet { margin-bottom: 12px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.snippet-bar { display: flex; align-items: center; justify-content: space-between; height: 40px; padding-left: 12px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 3%, var(--surface)); color: var(--muted); font-size: 12.5px; }
+.snippet pre { margin: 0; padding: 12px 14px; overflow-x: auto; }
+.snippet code { font: 13px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }`}
+  js={`const announcer = document.querySelector('#announcer')
+
+// Clipboard API first. Some embedded pages block it, so fall back to the
+// older selection-based copy, which still works in most of them.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {}
+  const area = document.createElement('textarea')
+  area.value = text
+  area.setAttribute('readonly', '')
+  area.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
+  document.body.append(area)
+  area.select()
+  let ok = false
+  try { ok = document.execCommand('copy') } catch {}
+  area.remove()
+  return ok
+}
+
+for (const button of document.querySelectorAll('.copy')) {
+  const icon = button.querySelector('toasty-lite')
+  const tip = button.querySelector('.tip')
+  const what = button.getAttribute('aria-label').replace('Copy ', '')
+  let timer = 0
+
+  button.addEventListener('click', async () => {
+    const source = button.dataset.copy && document.querySelector(button.dataset.copy)
+    const text = button.dataset.secret || (source.value ?? source.textContent)
+    const ok = await copyText(text)
+
+    clearTimeout(timer)
+    if (ok) {
+      icon.player?.fire('copy')            // sheets out, check in, back by itself
+      tip.textContent = 'Copied'
+      announcer.textContent = what.charAt(0).toUpperCase() + what.slice(1) + ' copied'
+    } else {
+      tip.textContent = 'Press Ctrl+C to copy'
+      if (source && source.select) source.select()
+    }
+    button.classList.add('is-copied')
+    timer = setTimeout(() => {           // matches the icon's ~1.8 s
+      button.classList.remove('is-copied')
+      tip.textContent = 'Copy'
+    }, 1800)
+  })
+
+  button.addEventListener('pointerenter', () => icon.player?.setInput('hover', true))
+  button.addEventListener('pointerleave', () => icon.player?.setInput('hover', false))
+}`}
+  react={`import { useRef, useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function CopyButton({ text, label, ink = '#6b6b76' }) {
+  const icon = useRef(null)
+  const [copied, setCopied] = useState(false)
+  const [hover, setHover] = useState(false)
+  const timer = useRef(0)
+
+  async function copy() {
+    await navigator.clipboard.writeText(text)
+    icon.current?.fire('copy')
+    setCopied(true)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => setCopied(false), 1800)
+  }
+
+  return (
+    <button
+      type="button"
+      className={copied ? 'copy is-copied' : 'copy'}
+      aria-label={'Copy ' + label}
+      onClick={copy}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <ToastyLite
+        src="/toasty/lite/copy.json"
+        inputs={{ hover }}
+        ink={ink}
+        onReady={(player) => (icon.current = player)}
+        style={{ width: 34, height: 34, pointerEvents: 'none' }}
+      />
+      <span className="tip" aria-hidden="true">{copied ? 'Copied' : 'Copy'}</span>
+      <span className="visually-hidden" role="status">{copied ? label + ' copied' : ''}</span>
+    </button>
+  )
+}`}
+/>
+
+## How it works
+
+### One trigger, no cleanup
+
+```js
+icon.player?.fire('copy')
+```
+
+`copy` is a Trigger. Firing it moves the base layer from `Idle` to `Copied`, a 1.9 s animation that does the whole round trip:
+
+1. The back and front sheets trim out (0 to 0.22 s).
+2. A green check draws on (0.2 to 0.45 s).
+3. The check trims away from its start (1.2 to 1.45 s).
+4. The sheets draw back in (1.4 to 1.8 s).
+
+So the page never has to reset the icon. Firing again while it's still playing jumps to `Copied again`, which uses the same animation from the beginning, so every copy is confirmed even when the user clicks twice quickly. The tooltip timer uses the same 1.8 s so the text and the drawing finish together.
+
+### Copy first, animate after
+
+The handler awaits the copy and fires the trigger only if it succeeded. An animation that says "copied" when nothing was copied is worse than none. When the copy fails, the tooltip tells the user how to copy by hand and the field's text is selected for them.
+
+`navigator.clipboard.writeText` needs a secure context and, inside an `<iframe>`, permission from the parent page: `<iframe allow="clipboard-write">`. The live frame on this page has it, so the example uses the Clipboard API. Keep the fallback for embeds you don't control: a hidden `<textarea>` with `document.execCommand('copy')` is deprecated but still covers most of those cases.
+
+### Copying what isn't shown
+
+The secret key's field shows a masked value. Its button copies the real value from `data-secret`, so the key can be copied without revealing it on screen. In a real app, fetch the secret on click from an authenticated endpoint rather than putting it in the HTML.
+
+### Accessibility
+
+- Each icon sits in a `<button>` with a specific `aria-label`: "Copy publishable key", "Copy install command". Several buttons that all say "Copy" are hard to tell apart in a screen reader's list of controls.
+- The tooltip is `aria-hidden`, because it repeats the label. The confirmation goes to a `role="status"` live region instead ("Publishable key copied").
+- The canvas has `pointer-events: none`. The `copy` file's own click also fires `copy` and sends a `copy` event, which you'd use if the icon stood alone.
+
+## React
+
+The React tab captures the player with `onReady` and calls `fire('copy')` after the copy succeeds. Here it is in these docs:
+
+```jsx live
+function CopyField() {
+  const icon = React.useRef(null)
+  const [copied, setCopied] = React.useState(false)
+  const value = 'nw_pub_7f3a9c2e81b44d0e9a6c'
+  async function copy() {
+    try { await navigator.clipboard.writeText(value) } catch { return }
+    icon.current?.fire('copy')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1800)
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, maxWidth: 420, height: 44, paddingLeft: 12, border: '1px solid var(--t-line)', borderRadius: 10 }}>
+      <code style={{ flex: 1, border: 0, background: 'none', padding: 0 }}>{value}</code>
+      <span aria-live="polite" style={{ fontSize: 13, color: 'var(--t-muted)' }}>{copied ? 'Copied' : ''}</span>
+      <button type="button" aria-label="Copy publishable key" onClick={copy} style={{ display: 'grid', placeItems: 'center', width: 40, height: 40, padding: 0, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}>
+        <Lite ref={icon} src="copy" ink="auto" style={{ width: 34, height: 34, pointerEvents: 'none' }} />
+      </button>
+    </div>
+  )
+}
+```
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Copy button** opens this exact `copy` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/copy.json` with your file. The page code on this page works unchanged.
+- **Colours.** The sheets follow `ink`. In the example the buttons use the muted text colour, and `ink="currentColor"` picks it up. The element reads the colour when it loads and again when the page theme changes, not on every hover; to recolour on hover, call `icon.player.set('ink', '#18181b')` from your hover handler. The check is a fixed green.
+- **Share links.** The same button works for "Copy link" on a share sheet. Copy `location.href` or a short URL from your API.
+- **Timing.** The round trip is baked into the `Copied` animation. For a longer confirmation, move the last two groups of keys later in the editor and update the 1800 ms timer to match.
+- **Your own icon.** Keep a Trigger named `copy` and two states that alternate on it (`Copied` and `Copied again`) so repeated clicks replay. Export with **Export → Animation → Toasty Lite (.json)**. See [Authoring for Lite](../runtimes/authoring.mdx).
+
+Related: [Download progress](./download-progress.mdx) · [Form status](./form-status.mdx)

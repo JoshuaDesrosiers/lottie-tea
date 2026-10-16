@@ -8,11 +8,52 @@ description: Decide which animation plays when — states, inputs, transitions w
 
 A **state machine** is the brain of an animated object. It holds a set of **states** (Idle, Walk, Jump, Happy, Sad…), each playing an animation, and **transitions** between them that fire when **inputs** change: "go from Idle to Hover when `hovered` is true", "go to Jump when the `jump` trigger fires".
 
-It's the same model Rive and Unity's Animator use, and it's how every interactive Toasty widget and game decides what to show. A page that [embeds](../embedding/overview.mdx) your game talks to it through these same inputs.
+The model is the same one Rive and Unity's Animator use, and it is how every interactive Toasty file decides what to show. A web page that plays your file, through [Toasty Lite](../runtimes/lite.mdx) or the [engine embed](../embedding/overview.mdx), talks to the machine through the same inputs.
 
-Here's one running. The blob has a **Number** input `mood` (−1 to 1) that picks between three states, and a **Trigger** `jump`. Click it:
+The three icons below are Toasty Lite files, each driven by one state machine. The buttons underneath set their inputs from React, exactly as a page would. Clicking an icon works too: the heart and the menu flip their own Bool input with a **Toggle Input** action.
 
-<ToastyDemo game="/games/mood-blob.teab" height={340} caption="mood-blob.teab: states Sad, Neutral and Happy chosen by the mood number; jump is a trigger. Clicking sends a poke event to the page." />
+```jsx live
+function InputsPanel() {
+  const [liked, setLiked] = React.useState(false)
+  const [open, setOpen] = React.useState(false)
+  const [status, setStatus] = React.useState('idle')
+  const cell = { display: 'grid', justifyItems: 'center', gap: 8 }
+  const row = { display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 24 }}>
+      <div style={cell}>
+        <Lite src="heart" ink="auto" label="Like" inputs={{ liked }} style={{ width: 72, height: 72 }}
+          onStateChange={(e) => { if (e.layer === null) setLiked(e.state === 'Liked') }} />
+        <code>liked: {String(liked)}</code>
+        <button onClick={() => setLiked(!liked)}>Toggle liked</button>
+      </div>
+      <div style={cell}>
+        <Lite src="menu" ink="auto" label="Menu" inputs={{ open }} style={{ width: 72, height: 72 }}
+          onStateChange={(e) => { if (e.layer === null) setOpen(e.state === 'Open') }} />
+        <code>open: {String(open)}</code>
+        <button onClick={() => setOpen(!open)}>Toggle open</button>
+      </div>
+      <div style={cell}>
+        <Lite src="status" ink="auto" label="Status" inputs={{ status }} style={{ width: 72, height: 72 }} />
+        <code>status: {status}</code>
+        <div style={row}>
+          {['idle', 'loading', 'success', 'error'].map((s) => (
+            <button key={s} onClick={() => setStatus(s)} disabled={s === status}>{s}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+| File | Input | States (base layer) |
+|---|---|---|
+| `heart` | `liked` (Bool) | `Unliked`, `Liked` |
+| `menu` | `open` (Bool) | `Closed`, `Open` |
+| `status` | `status` (Enum: `idle`, `loading`, `success`, `error`) | `Idle`, `Loading` (loops), `Success`, `Error` |
+
+The heart and the menu also have a second layer, `Hover`, driven by a `hover` Bool that [Pointer Listeners](../components/pointer-listeners.mdx) set on enter and exit.
 
 ## Opening the editor
 
@@ -100,14 +141,16 @@ New transitions start as a **Trigger** with an empty input name: fill in the inp
 - A trigger is a one-frame pulse: it counts as fired for one update only, then resets by itself. If no transition out of the active state uses it at that moment, it is simply missed.
 
 :::tip Two-way switches
-For an on/off pair like Day/Night, add *two* transitions: Day → Night when **Boolean is** `isNight` = checked, and Night → Day when **Boolean is** `isNight` = unchecked.
+For an on/off pair such as Light and Dark, add two transitions: Light → Dark when **Boolean is** `dark` = checked, and Dark → Light when **Boolean is** `dark` = unchecked.
 :::
 
-<ToastyDemo game="/games/day-night.teab" height={300} caption="day-night.teab: exactly that pair of transitions on one Bool input, isNight." />
+The `theme` Lite file is exactly that pair: `Light` → `Dark` when `dark` is true, `Dark` → `Light` when it is false, and a click on the icon runs **Toggle Input** `dark`.
+
+<Lite src="theme" label="Theme switch" style={{ width: 72, height: 72 }} />
 
 ### Ranges with numbers
 
-To pick a state from a number range (like the blob's mood), chain conditions: Neutral → Happy when **Number >** 0.33, Neutral → Sad when **Number &lt;** −0.33, Happy → Neutral when **Number &lt;** 0.33, Sad → Neutral when **Number >** −0.33.
+To pick a state from a number range, such as a `mood` input from −1 to 1, chain conditions: Neutral → Happy when **Number >** 0.33, Neutral → Sad when **Number &lt;** −0.33, Happy → Neutral when **Number &lt;** 0.33, Sad → Neutral when **Number >** −0.33.
 
 ## Blend states
 
@@ -157,8 +200,9 @@ Programs only run in **Playground** and exported games, or in the State Machine 
 | From | How |
 |---|---|
 | A script | `ctx.setInput('speed', 3)`, `ctx.setInput('isNight', true)`, `ctx.fireTrigger('jump')`. Transitions react on the next frame. Inside a program, `ctx.state` is the state it's running in and `ctx.layer` its layer (`null` for Base). See [State machine control](../scripting/state-machine-control.mdx). |
-| A button, no code | An **On Click** action: **Fire trigger** or **Set input**. See [Properties and bindings](./properties-and-bindings.mdx#on-click-events). |
-| A web page | `player.setInput(name, value)`, `player.fire(name)`, or React `inputs={{ … }}`. The page hears state changes through `player.on('state', …)`. See [Data binding](../embedding/data-binding.mdx) and [Listening](../embedding/listening.mdx). |
+| A button, no code | An **On Click** action: **Fire trigger**, **Set input**, or **Toggle input (Bool)**, which flips a Bool input (Rive's toggle listener). See [Properties and bindings](./properties-and-bindings.mdx#on-click-events). |
+| The pointer, no code | [Pointer Listeners](../components/pointer-listeners.mdx): actions on pointer enter, exit, down and up. The usual setup is **Set input** `hover` = `true` on enter and `false` on exit. |
+| A web page | `player.setInput(name, value)`, `player.fire(name)`, or React `inputs={{ … }}`. The page hears state changes through `player.on('state', …)`. See [Toasty Lite](../runtimes/lite.mdx) for UI animation, or [Data binding](../embedding/data-binding.mdx) and [Listening](../embedding/listening.mdx) for the engine embed. |
 | The editor | The input controls in the left column, while previewing. |
 
 ```js
@@ -185,4 +229,6 @@ if (ctx.keysDown.has('space')) ctx.fireTrigger('jump')
 - [Animation timeline](./animation-timeline.mdx)
 - [Properties and bindings](./properties-and-bindings.mdx)
 - [State machine control (scripting)](../scripting/state-machine-control.mdx)
+- [Pointer Listeners](../components/pointer-listeners.mdx)
+- [Toasty Lite runtime](../runtimes/lite.mdx)
 - [Embedding: data binding](../embedding/data-binding.mdx)

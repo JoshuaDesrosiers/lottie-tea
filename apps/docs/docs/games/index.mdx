@@ -1,0 +1,54 @@
+---
+title: Toasty for games
+sidebar_position: 1
+description: What the full Toasty engine adds over Toasty Lite, and two small original games you can play, read line by line, and embed in your own site.
+---
+
+# Toasty for games
+
+Toasty has two web runtimes. [Toasty Lite](../runtimes/lite.mdx) is a small Canvas 2D player for UI animation: icons, toggles, loaders and illustrations, as many as you like on one page. The **full engine** is the runtime you build games with. It is the same engine the editor runs in Playground, compiled to WebAssembly and drawn with WebGPU (or WebGL2 where WebGPU is missing).
+
+If you are deciding between the two, read [Lite or engine?](../runtimes/lite-vs-engine.mdx) first.
+
+## What the engine adds
+
+Everything Lite plays, the engine plays too. On top of that, a game gets:
+
+| Capability | Where it is documented |
+|---|---|
+| **Scripts.** A Code program on a state machine state runs every frame and can read input, move nodes, keep state and talk to the page. | [How scripts run](../scripting/how-scripts-run.mdx) |
+| **Keyboard, mouse and touch input**: held keys, the pointer in world units, taps and swipes. | [Input](../scripting/input.mdx) |
+| **Persistent state**: `ctx.globals` for a play session, `ctx.storage` for saves and best scores. | [Scenes and globals](../scripting/scenes-and-globals.mdx), [Storage API](../scripting/storage-api.mdx) |
+| **Sound**: imported audio and synthesized tones. | [Audio API](../scripting/audio-api.mdx) |
+| **Physics, particles, images and sprite sheets, lighting, post effects and 3D.** | [Components](../components/overview.mdx) |
+| **Several scenes** with switching from code or from the page. | [Scenes](../editor/scenes.mdx) |
+
+The cost is size. The engine is about 25 MB uncompressed (much less served with gzip or Brotli), and **one engine runs per page**. Use it for the game on the page, and use Lite for the buttons and icons around it.
+
+## Two example games
+
+Both games below were made for these docs. Each is one scene with one Code program, built from plain shapes and text, so you can read the whole thing in a few minutes and reuse it as a template. Click a game to start it; starting one stops the other.
+
+### Toast Catch
+
+Move the plate with the mouse or the arrow keys to catch falling toast. Burnt slices cost a life, and so does a good slice you let fall. Three lives. Click or press Space to start.
+
+<ToastyDemo game="/games/toast-catch.teab" height={360} caption="toast-catch.teab: 640 × 360, Properties score and lives, events score and gameover" />
+
+It teaches the frame loop, input from mouse and keys, an object pool, collision by distance, scene Properties, synthesized sound, and events sent to the page. [Read Toast Catch](./toast-catch.mdx).
+
+### Hop
+
+A one-button runner. Press Space, the up arrow, or tap to jump the hurdles. The run speeds up the longer you last, and your best distance is saved in the browser.
+
+<ToastyDemo game="/games/hop.teab" height={240} caption="hop.teab: 640 × 240, Property score, event gameover with the best score" />
+
+It teaches velocity and gravity by hand, edge-triggered input, spawning by distance, a saved best score with `ctx.storage`, and a game-over event. [Read Hop](./hop.mdx).
+
+## How these pages are organised
+
+1. **Play it** at the top of the page.
+2. **The script**, quoted in full, then explained section by section.
+3. **Embed it** in a real page: a live, editable React example that reads the game's events and sends it data.
+
+When you are ready to make your own, [Build your own](./build-your-own.mdx) gives you a minimal skeleton and a checklist. The page-side API is covered in [Engine embed](../embedding/overview.mdx).

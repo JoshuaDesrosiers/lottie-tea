@@ -462,44 +462,46 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 	cur = /* @__PURE__ */ new Map();
 	draw() {
 		let e = this.ctx, { w: t, h: n, dpr: r } = this.size, i = this.file, a = this.pose();
-		this.cur = a, i.nodes.forEach((e, t) => {
+		this.cur = a;
+		let o = new Set(a.keys()), s = (e) => !o.has(e);
+		i.nodes.forEach((e, t) => {
 			for (let n of e.bindings ?? []) {
 				let r = this.props.get(n.property);
 				if (r !== void 0) {
 					if (n.target === "text") this.nodes[t].text = n.format ? n.format.replace("{}", E(r)) : E(r);
-					else if (n.target === "visible") a.set(`${t}:visible`, [+!!r]);
-					else if ((n.target === "fill" || n.target === "strokeColor") && Array.isArray(r)) a.set(`${t}:${n.target}`, r);
+					else if (n.target === "visible") s(`${t}:visible`) && a.set(`${t}:visible`, [+!!r]);
+					else if ((n.target === "fill" || n.target === "strokeColor") && Array.isArray(r)) s(`${t}:${n.target}`) && a.set(`${t}:${n.target}`, r);
 					else {
-						let i = Number(r) * n.scale + n.offset, o = a.get(`${t}:translation`) ?? [e.x, e.y], s = a.get(`${t}:scale`) ?? [e.scaleX, e.scaleY];
-						n.target === "x" ? a.set(`${t}:translation`, [i, o[1]]) : n.target === "y" ? a.set(`${t}:translation`, [o[0], i]) : n.target === "rotation" ? a.set(`${t}:rotation`, [i * Math.PI / 180]) : n.target === "scale" ? a.set(`${t}:scale`, [i, i]) : n.target === "scaleX" ? a.set(`${t}:scale`, [i, s[1]]) : n.target === "scaleY" ? a.set(`${t}:scale`, [s[0], i]) : a.set(`${t}:${n.target}`, [i]);
+						let i = Number(r) * n.scale + n.offset, o = a.get(`${t}:translation`) ?? [e.x, e.y], c = a.get(`${t}:scale`) ?? [e.scaleX, e.scaleY];
+						n.target === "x" ? a.set(`${t}:translation`, [i, o[1]]) : n.target === "y" ? a.set(`${t}:translation`, [o[0], i]) : n.target === "rotation" ? a.set(`${t}:rotation`, [i * Math.PI / 180]) : n.target === "scale" ? a.set(`${t}:scale`, [i, i]) : n.target === "scaleX" ? a.set(`${t}:scale`, [i, c[1]]) : n.target === "scaleY" ? a.set(`${t}:scale`, [c[0], i]) : s(`${t}:${n.target}`) && a.set(`${t}:${n.target}`, [i]);
 					}
 				}
 			}
 		}), e.setTransform(1, 0, 0, 1, 0, 0), e.clearRect(0, 0, this.canvas.width, this.canvas.height);
-		let o = this.options.fit === "cover" ? Math.max : Math.min, s = i.view.zoom || 1, c = o(t / (i.width / s), n / (i.height / s)) * s * r, l = new DOMMatrix().translate(t * r / 2, n * r / 2).scale(c, -c).translate(-i.view.x, -i.view.y);
+		let c = this.options.fit === "cover" ? Math.max : Math.min, l = i.view.zoom || 1, u = c(t / (i.width / l), n / (i.height / l)) * l * r, m = new DOMMatrix().translate(t * r / 2, n * r / 2).scale(u, -u).translate(-i.view.x, -i.view.y);
 		this.options.background && i.background && (e.fillStyle = b(i.background), e.fillRect(0, 0, this.canvas.width, this.canvas.height));
-		let u = [], m = [];
+		let g = [], _ = [];
 		i.nodes.forEach((e, t) => {
-			let n = a.get(`${t}:translation`) ?? [e.x, e.y], r = a.get(`${t}:rotation`)?.[0] ?? e.rotation, o = a.get(`${t}:scale`) ?? [e.scaleX, e.scaleY], s = a.get(`${t}:anchor`) ?? [e.anchorX, e.anchorY], c = this.nodes[t].lookScale, d = new DOMMatrix().translate(n[0], n[1]).rotate(r * 180 / Math.PI).scale(o[0] * c, o[1] * c).translate(-s[0], -s[1]);
-			u[t] = (e.parent == null ? l : u[e.parent]).multiply(d);
-			let f = e.parent != null && i.nodes[e.parent].button?.tintChildren ? m[e.parent] : [
+			let n = a.get(`${t}:translation`) ?? [e.x, e.y], r = a.get(`${t}:rotation`)?.[0] ?? e.rotation, o = a.get(`${t}:scale`) ?? [e.scaleX, e.scaleY], s = a.get(`${t}:anchor`) ?? [e.anchorX, e.anchorY], c = this.nodes[t].lookScale, l = new DOMMatrix().translate(n[0], n[1]).rotate(r * 180 / Math.PI).scale(o[0] * c, o[1] * c).translate(-s[0], -s[1]);
+			g[t] = (e.parent == null ? m : g[e.parent]).multiply(l);
+			let u = e.parent != null && i.nodes[e.parent].button?.tintChildren ? _[e.parent] : [
 				1,
 				1,
 				1,
 				1
-			], p = e.button ? this.nodes[t].lookTint : [
+			], d = e.button ? this.nodes[t].lookTint : [
 				1,
 				1,
 				1,
 				1
 			];
-			m[t] = p.map((e, t) => e * f[t]);
-		}), this.worlds = u;
-		let g = [], _ = (t) => {
+			_[t] = d.map((e, t) => e * u[t]);
+		}), this.worlds = g;
+		let v = [], y = (t) => {
 			let n = i.nodes[t], r = this.nodes[t];
 			if (!this.isShown(t)) return;
-			e.setTransform(u[t]);
-			let o = m[t];
+			e.setTransform(g[t]);
+			let o = _[t];
 			if (n.kind === "shape" && r.template) {
 				let i = a.get(`${t}:path`);
 				if (i) {
@@ -522,27 +524,27 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 						n.dash && n.dash.dash > 0 && (e.setLineDash([n.dash.dash, n.dash.gap]), e.lineDashOffset = -(a.get(`${t}:dashOffset`)?.[0] ?? n.dash.offset)), e.stroke(l), e.setLineDash([]);
 					}
 				}
-				n.clip && (e.save(), e.clip(s), g.push(t));
+				n.clip && (e.save(), e.clip(s), v.push(t));
 			} else if (n.kind === "text" && n.text) {
 				let i = a.get(`${t}:textSize`)?.[0] ?? n.text.size, s = a.get(`${t}:fill`) ?? n.text.color;
 				e.scale(1, -1), e.font = `${i}px "${n.text.font}", system-ui, sans-serif`, e.textAlign = "center", e.textBaseline = "middle", e.fillStyle = b(x(s, o)), e.fillText(r.text ?? n.text.content, 0, 0);
-			} else n.clip && g.push(-1);
-		}, v = i.nodes.map(() => 0);
+			} else n.clip && v.push(-1);
+		}, C = i.nodes.map(() => 0);
 		for (let e = i.nodes.length - 1; e >= 0; e--) {
 			let t = e;
 			for (let n = e + 1; n < i.nodes.length && this.isDescendant(n, e); n++) t = n;
-			v[e] = t;
+			C[e] = t;
 		}
-		let y = [];
+		let w = [];
 		for (let t = 0; t < i.nodes.length; t++) {
-			for (; y.length && t > y[y.length - 1].end;) y.pop(), e.restore();
-			let n = g.length;
-			_(t), g.length > n && (g[g.length - 1] === -1 ? g.pop() : y.push({
+			for (; w.length && t > w[w.length - 1].end;) w.pop(), e.restore();
+			let n = v.length;
+			y(t), v.length > n && (v[v.length - 1] === -1 ? v.pop() : w.push({
 				owner: t,
-				end: v[t]
+				end: C[t]
 			}));
 		}
-		for (; y.length;) y.pop(), e.restore();
+		for (; w.length;) w.pop(), e.restore();
 	}
 	isDescendant(e, t) {
 		for (let n = this.file.nodes[e].parent; n != null; n = this.file.nodes[n].parent) if (n === t) return !0;

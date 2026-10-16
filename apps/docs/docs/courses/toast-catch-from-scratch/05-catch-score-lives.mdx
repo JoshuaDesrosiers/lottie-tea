@@ -1,0 +1,171 @@
+---
+title: 5. Catch, score and game over
+sidebar_position: 5
+description: Detect catches with a simple box test, update the score and lives Properties, play synthesized sounds, tell the page with ctx.emit, and end the game when the lives run out.
+---
+
+# 5. Catch, score and game over
+
+**Goal:** the finished game. A slice that touches the plate is caught: good toast scores a point with a rising blip, burnt toast costs a life with a low buzz. Good toast that falls past the plate also costs a life. At zero lives the game ends, shows your score, and waits for a click to retry. The page hears about every point and the final score.
+
+## Steps
+
+In the fall loop from lesson 4, replace the line `if (t.y < -200) t.live = false` with the catch test below. Then add the game-over check after the loop.
+
+```js title="Toast Catch, step 4 of 4: catching and losing"
+    const caught = t.y < -80 && t.y > -112 && Math.abs(t.x - g.plateX) < 56
+    if (caught) {
+      t.live = false
+      if (t.burnt) {
+        ctx.props.lives -= 1
+        ctx.playTone({ freq: 180, to: 90, duration: 0.25, type: 'sawtooth', volume: 0.2 })
+      } else {
+        ctx.props.score += 1
+        ctx.playTone({ freq: 660 + ctx.props.score * 8, duration: 0.08, type: 'triangle', volume: 0.25 })
+        ctx.emit('score', { score: ctx.props.score })
+      }
+    } else if (t.y < -200) {
+      t.live = false
+      if (!t.burnt) ctx.props.lives -= 1
+    }
+```
+
+```js
+  if (ctx.props.lives <= 0) {
+    g.mode = 'over'
+    say('message', 'GAME OVER - ' + ctx.props.score + ' TOAST - CLICK TO RETRY')
+    ctx.emit('gameover', { score: ctx.props.score })
+  }
+```
+
+## The complete program
+
+This is the program in the shipped `toast-catch.teab`, line for line. The three comment lines at the top document the game's contract with the page.
+
+```js title="Toast Catch (complete)"
+// Toast Catch — one Code program, runs every frame.
+// Page data in:  ctx.data.speed (optional, 1 = normal)
+// Events out:    ctx.emit('score', { score }), ctx.emit('gameover', { score })
+const POOL = 6
+const g = ctx.globals.catch || (ctx.globals.catch = {
+  mode: 'ready',            // 'ready' | 'play' | 'over'
+  toasts: [],               // { x, y, vy, burnt, live }
+  spawnIn: 0,
+  plateX: 0,
+  text: {},
+})
+const dt = ctx.deltaSeconds
+const get = (id) => getCompByID(id)
+const say = (id, text) => { if (g.text[id] !== text) { g.text[id] = text; get(id).textContent = text } }
+
+function start() {
+  g.mode = 'play'
+  g.toasts = []
+  g.spawnIn = 0.4
+  ctx.props.score = 0
+  ctx.props.lives = 3
+  for (let i = 0; i < POOL; i++) get('toast' + i).visible = false
+  say('message', '')
+}
+
+if (g.mode !== 'play') {
+  if (ctx.tap || ctx.keysDown.has('space')) start()
+} else {
+  // Plate: follow the mouse, or the arrow keys.
+  const keys = (ctx.keysDown.has('right') ? 1 : 0) - (ctx.keysDown.has('left') ? 1 : 0)
+  if (keys) g.plateX += keys * 420 * dt
+  else g.plateX += (ctx.mouseX - g.plateX) * Math.min(1, dt * 14)
+  g.plateX = Math.max(-270, Math.min(270, g.plateX))
+  get('plate').x = g.plateX
+
+  // Spawn a slice now and then — faster as the score climbs.
+  const speed = (Number(ctx.data.speed) || 1) * (1 + ctx.props.score / 40)
+  g.spawnIn -= dt
+  if (g.spawnIn <= 0 && g.toasts.filter((t) => t.live).length < POOL) {
+    g.spawnIn = 0.9 / speed + Math.random() * 0.4
+    const free = g.toasts.find((t) => !t.live) || (g.toasts.push({}), g.toasts[g.toasts.length - 1])
+    Object.assign(free, { x: -260 + Math.random() * 520, y: 210, vy: 0, burnt: Math.random() < 0.25, live: true, spin: (Math.random() - 0.5) * 200 })
+  }
+
+  // Fall, catch, miss.
+  g.toasts.forEach((t, i) => {
+    const node = get('toast' + i)
+    if (!t.live) { node.visible = false; return }
+    t.vy -= 520 * speed * dt
+    t.y += t.vy * dt
+    const caught = t.y < -80 && t.y > -112 && Math.abs(t.x - g.plateX) < 56
+    if (caught) {
+      t.live = false
+      if (t.burnt) {
+        ctx.props.lives -= 1
+        ctx.playTone({ freq: 180, to: 90, duration: 0.25, type: 'sawtooth', volume: 0.2 })
+      } else {
+        ctx.props.score += 1
+        ctx.playTone({ freq: 660 + ctx.props.score * 8, duration: 0.08, type: 'triangle', volume: 0.25 })
+        ctx.emit('score', { score: ctx.props.score })
+      }
+    } else if (t.y < -200) {
+      t.live = false
+      if (!t.burnt) ctx.props.lives -= 1
+    }
+    node.visible = t.live
+    node.x = t.x
+    node.y = t.y
+    node.rotation += t.spin * dt
+    node.fillColor = t.burnt ? [0.22, 0.15, 0.11, 1] : [0.97, 0.76, 0.38, 1]
+  })
+
+  if (ctx.props.lives <= 0) {
+    g.mode = 'over'
+    say('message', 'GAME OVER - ' + ctx.props.score + ' TOAST - CLICK TO RETRY')
+    ctx.emit('gameover', { score: ctx.props.score })
+  }
+}
+
+say('scoreText', String(ctx.props.score))
+for (let i = 0; i < 3; i++) get('life' + i).visible = i < ctx.props.lives
+```
+
+<ToastyDemo game="/games/toast-catch.teab" height={360} caption="Your game should now play exactly like this one." />
+
+## How it works
+
+### The catch test
+
+```text
+y  -80  ─────────────  top of the catch band
+         [  plate  ]    the plate sits at y -100, 96 wide
+y -112  ─────────────  bottom of the catch band
+        |<-- 56 -->|<-- 56 -->|   from the plate's centre
+```
+
+A slice is caught when its centre is inside a band from y −80 to −112 around the plate, and within 56 units of the plate's centre horizontally (the plate's half-width of 48, plus a little forgiveness for the slice's own width). The band is thicker than one frame's fall at normal speeds, so a fast slice can't skip over it. It's a box test on numbers the program already has, which is cheaper and more predictable than physics for a game like this.
+
+### Score, lives and the page
+
+- **`ctx.props.score += 1`** writes the scene Property. The last lines of the program show it on screen, and an embedding page receives a `prop` event with the new value.
+- **`ctx.emit('score', { score })`** sends a named event to the page as well. Events are the game's deliberate messages ("a point was scored"); `prop` events report every change of value. Lesson 6 uses both.
+- **Losing a life** happens two ways: catching burnt toast, or letting good toast fall below y −200. Missing a burnt slice is free; dodging it is the point.
+- **Game over** switches the mode to `'over'`, so the play branch stops running, and the ready branch waits for the next click. `start()` resets everything for the retry.
+
+### Sound
+
+`ctx.playTone` synthesizes a short sound, so the game needs no audio files.
+
+| Sound | Settings | Feel |
+|---|---|---|
+| Catch | `freq: 660 + score * 8`, 0.08 s, triangle | A soft blip that climbs in pitch as the score grows |
+| Burnt | `freq: 180, to: 90`, 0.25 s, sawtooth | A low buzz that slides down |
+
+See the [Audio API](../../scripting/audio-api.mdx) for every option.
+
+## Check your work
+
+- Catching good toast adds one point and plays a blip that gets higher with each point.
+- Catching burnt toast removes a life dot; letting good toast fall does too.
+- At zero lives the message reads `GAME OVER - 12 TOAST - CLICK TO RETRY` (with your score), and a click starts a fresh game with three lives.
+- Compare with **+ → Templates → Game: Toast Catch**: the program is identical.
+
+## Next
+
+[6. Put it on a page](./06-embed-on-a-page.mdx): export the game and build a React score panel around it.

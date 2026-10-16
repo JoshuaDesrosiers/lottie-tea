@@ -1,0 +1,92 @@
+---
+title: 1. The page and the mascot
+sidebar_position: 1
+description: Start a product landing page with a header, a hero and the Toasty mascot as an interactive logo, using shared CSS tokens so the page works in light and dark mode.
+---
+
+# 1. The page and the mascot
+
+In this course you build the landing page for **Crumb**, a meal-planning app, one section per lesson. By the end it uses five Toasty Lite components together, each doing one job:
+
+| Component | Where | Job |
+|---|---|---|
+| `toasty` | Header logo | A mascot that blinks, hops on hover and squashes on click |
+| `theme` | Header | Switches the page between light and dark |
+| `arrow` | Hero buttons | Slides forward when its link is hovered or focused |
+| `status` | Signup form | Shows loading, success and error on the submit button |
+| `bell` | Header | Rings and shows an unread badge for notifications |
+
+All five load from one runtime, share one animation loop, and pause when they scroll out of view. You don't build the components here; you use the shipped files. The [animated like button](../animated-like-button/01-draw-the-heart.mdx) and [icon system](../icon-system/01-design-rules.mdx) courses show how files like these are made, and **+ → Templates** in the editor has every one of them (for example **Lite: Toasty mascot**) if you want to open and restyle one.
+
+**Goal of this lesson:** the header and hero, with the mascot as the logo.
+
+## Steps
+
+1. Put the runtime and the component files in your static folder:
+
+```text
+public/toasty/an1mbyt3-lite.js
+public/toasty/an1mbyt3-runtime.js
+public/toasty/lite/toasty.json
+public/toasty/lite/theme.json
+public/toasty/lite/arrow.json
+public/toasty/lite/status.json
+public/toasty/lite/bell.json
+```
+
+2. Load the runtime once, in the page's `<head>`:
+
+```html
+<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+```
+
+3. Build the header and hero. The live frame below loads the runtime for you, so its HTML starts at `<header>`.
+
+<LiveHTML
+  url="crumb.kitchen"
+  height={300}
+  html={`<header class="site-header">
+  <a class="brand" href="#" aria-label="Crumb home">
+    <toasty-lite class="mascot" src="/toasty/lite/toasty.json"></toasty-lite>
+    <span>Crumb</span>
+  </a>
+  <nav class="links" aria-label="Main">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#signup">Waitlist</a>
+  </nav>
+</header>
+<main>
+  <section class="hero">
+    <h1>Plan a week of dinners in ten minutes.</h1>
+    <p>Crumb turns what is already in your fridge into five evenings you will actually cook, and one shopping list.</p>
+  </section>
+</main>`}
+  css={`.site-header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 24px; padding: 8px 16px 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.brand { display: flex; align-items: center; gap: 4px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+.mascot { width: 44px; height: 44px; }
+.links { display: flex; gap: 20px; }
+.links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+.links a:hover { color: var(--ink); }
+.hero { max-width: 680px; margin: 0 auto; padding: 48px 20px 28px; text-align: center; }
+.hero h1 { margin: 0 0 14px; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; letter-spacing: -0.03em; }
+.hero p { max-width: 500px; margin: 0 auto; color: var(--muted); font-size: 17px; }
+@media (max-width: 560px) { .links { display: none; } }`}
+  caption="The header and hero. Hover and click the mascot."
+/>
+
+## How it works
+
+- **The mascot needs no code.** The `toasty` file handles its own pointer: Pointer Listeners set its `hover` input, so it hops and blushes, and its On Click fires the `boop` trigger, which squashes it. While idle it blinks and breathes on a loop. It has no `ink` property; its colours are its own.
+- **Size it with CSS.** Every Lite component draws its 96 × 96 scene into whatever box you give it. `width: 44px; height: 44px` on the element is all it takes. It tracks the device pixel ratio, so it stays sharp on high-density screens.
+- **Design tokens.** The frame provides `--ink`, `--muted`, `--line`, `--surface`, `--page` and `--accent`, with dark values under `:root[data-theme="dark"]`. Everything on the page uses them, which is what makes the theme switch in the next lesson a one-line change.
+- **The canvas is decorative.** The link carries `aria-label="Crumb home"`, so a screen reader announces the link, not the animation.
+
+## Check your work
+
+- The mascot blinks every few seconds, hops when you hover it, and squashes when you click it.
+- Below 560 px wide, the nav links hide and the header still fits.
+
+## Next
+
+[2. A theme switch](./02-theme-switch.mdx): wire the `theme` icon to the page theme.

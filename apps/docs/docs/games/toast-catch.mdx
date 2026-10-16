@@ -1,0 +1,477 @@
+---
+title: Toast Catch
+sidebar_position: 2
+description: A catch-the-falling-objects game in one Code program. Play it, read the full script section by section, then embed it with a live high-score panel and a difficulty setting.
+---
+
+# Toast Catch
+
+Toast Catch is a complete game in about 90 lines of JavaScript. Move a plate to catch falling toast, avoid the burnt slices, and keep your three lives as long as you can. It is small on purpose: every idea in it (a frame loop, input, a pool of reusable objects, collision, scoring, sound and events to the page) is one you will use in almost any game.
+
+## Play it
+
+<ToastyDemo game="/games/toast-catch.teab" height={360} caption="Click or press Space to start. Mouse or ← → moves the plate." />
+
+The rules, as the script implements them:
+
+- A good slice that lands on the plate scores a point.
+- A burnt slice that lands on the plate costs a life.
+- A good slice that falls past the plate costs a life. Burnt slices that fall past are harmless.
+- Slices fall faster and spawn more often as your score climbs.
+- At zero lives the round ends. Click or press Space to play again.
+
+## The scene
+
+The scene is called "Toast Catch" and is 640 × 360. Its origin is in the centre and y points up, so the top edge is y = 180 and the bottom edge is y = −180.
+
+| Node id | What it is |
+|---|---|
+| `counter`, `counterEdge` | The kitchen counter along the bottom, plain rectangles. |
+| `toast0` … `toast5` | Six toast slices, rounded rectangles with a crust stroke. They start off-screen at y = 400. |
+| `plate` | A white rounded rectangle at y = −100. |
+| `scoreText` | The score, top centre. |
+| `life0`, `life1`, `life2` | Three red dots, top left. |
+| `message` | "CLICK TO PLAY", later the game-over line. |
+| `hint` | The one-line instructions on the counter. |
+
+The scene has two **Properties**, both Number: `score` (default `0`) and `lives` (default `3`). A state machine called "Game" has one state, `Play`, and the whole game is that state's Code program. There are no state machine inputs.
+
+## The full script
+
+This is the exact program in `toast-catch.teab`.
+
+<Shot id="toast-catch-code" caption="The Game state machine's Play state open on its Code tab, with the Toast Catch script" />
+
+```js title="Game › Play (Code)"
+// Toast Catch — one Code program, runs every frame.
+// Page data in:  ctx.data.speed (optional, 1 = normal)
+// Events out:    ctx.emit('score', { score }), ctx.emit('gameover', { score })
+const POOL = 6
+const g = ctx.globals.catch || (ctx.globals.catch = {
+  mode: 'ready',            // 'ready' | 'play' | 'over'
+  toasts: [],               // { x, y, vy, burnt, live }
+  spawnIn: 0,
+  plateX: 0,
+  text: {},
+})
+const dt = ctx.deltaSeconds
+const get = (id) => getCompByID(id)
+const say = (id, text) => { if (g.text[id] !== text) { g.text[id] = text; get(id).textContent = text } }
+
+function start() {
+  g.mode = 'play'
+  g.toasts = []
+  g.spawnIn = 0.4
+  ctx.props.score = 0
+  ctx.props.lives = 3
+  for (let i = 0; i < POOL; i++) get('toast' + i).visible = false
+  say('message', '')
+}
+
+if (g.mode !== 'play') {
+  if (ctx.tap || ctx.keysDown.has('space')) start()
+} else {
+  // Plate: follow the mouse, or the arrow keys.
+  const keys = (ctx.keysDown.has('right') ? 1 : 0) - (ctx.keysDown.has('left') ? 1 : 0)
+  if (keys) g.plateX += keys * 420 * dt
+  else g.plateX += (ctx.mouseX - g.plateX) * Math.min(1, dt * 14)
+  g.plateX = Math.max(-270, Math.min(270, g.plateX))
+  get('plate').x = g.plateX
+
+  // Spawn a slice now and then — faster as the score climbs.
+  const speed = (Number(ctx.data.speed) || 1) * (1 + ctx.props.score / 40)
+  g.spawnIn -= dt
+  if (g.spawnIn <= 0 && g.toasts.filter((t) => t.live).length < POOL) {
+    g.spawnIn = 0.9 / speed + Math.random() * 0.4
+    const free = g.toasts.find((t) => !t.live) || (g.toasts.push({}), g.toasts[g.toasts.length - 1])
+    Object.assign(free, { x: -260 + Math.random() * 520, y: 210, vy: 0, burnt: Math.random() < 0.25, live: true, spin: (Math.random() - 0.5) * 200 })
+  }
+
+  // Fall, catch, miss.
+  g.toasts.forEach((t, i) => {
+    const node = get('toast' + i)
+    if (!t.live) { node.visible = false; return }
+    t.vy -= 520 * speed * dt
+    t.y += t.vy * dt
+    const caught = t.y < -80 && t.y > -112 && Math.abs(t.x - g.plateX) < 56
+    if (caught) {
+      t.live = false
+      if (t.burnt) {
+        ctx.props.lives -= 1
+        ctx.playTone({ freq: 180, to: 90, duration: 0.25, type: 'sawtooth', volume: 0.2 })
+      } else {
+        ctx.props.score += 1
+        ctx.playTone({ freq: 660 + ctx.props.score * 8, duration: 0.08, type: 'triangle', volume: 0.25 })
+        ctx.emit('score', { score: ctx.props.score })
+      }
+    } else if (t.y < -200) {
+      t.live = false
+      if (!t.burnt) ctx.props.lives -= 1
+    }
+    node.visible = t.live
+    node.x = t.x
+    node.y = t.y
+    node.rotation += t.spin * dt
+    node.fillColor = t.burnt ? [0.22, 0.15, 0.11, 1] : [0.97, 0.76, 0.38, 1]
+  })
+
+  if (ctx.props.lives <= 0) {
+    g.mode = 'over'
+    say('message', 'GAME OVER - ' + ctx.props.score + ' TOAST - CLICK TO RETRY')
+    ctx.emit('gameover', { score: ctx.props.score })
+  }
+}
+
+say('scoreText', String(ctx.props.score))
+for (let i = 0; i < 3; i++) get('life' + i).visible = i < ctx.props.lives
+```
+
+The rest of this page walks through it from top to bottom.
+
+## The frame loop
+
+There is no `update()` function and no `requestAnimationFrame`. A Code program **is** the body of a function that Toasty calls once per frame, top to bottom, for as long as its state is active. Everything you see in the script runs about 60 times a second.
+
+Two lines set up every frame:
+
+```js
+const dt = ctx.deltaSeconds
+const get = (id) => getCompByID(id)
+```
+
+- `ctx.deltaSeconds` is the time since the last frame, in seconds. Every movement in the game is multiplied by `dt`, so the game runs at the same speed at 30, 60 or 144 frames per second. A plate moving at `420 * dt` covers 420 units per second, whatever the frame rate.
+- `getCompByID(id)` returns a **ref** to the node with that id: an object whose `x`, `y`, `rotation`, `visible`, `fillColor` and `textContent` you can read and assign. Refs are cached for the frame, so calling it often is cheap. See [Nodes and refs](../scripting/nodes-and-refs.mdx).
+
+The `say` helper only writes text when it changed:
+
+```js
+const say = (id, text) => { if (g.text[id] !== text) { g.text[id] = text; get(id).textContent = text } }
+```
+
+Setting `textContent` re-lays out the text, which is more work than moving a node. The score is written every frame, but it only changes when you catch something, so remembering the last value in `g.text` skips almost all of those writes.
+
+## State that survives between frames: `ctx.globals`
+
+Local variables (`const`, `let`) start fresh every frame. Anything the game must remember, such as where each slice is, goes in `ctx.globals`, an object that lives for the whole play session:
+
+```js
+const g = ctx.globals.catch || (ctx.globals.catch = {
+  mode: 'ready',
+  toasts: [],
+  spawnIn: 0,
+  plateX: 0,
+  text: {},
+})
+```
+
+The first frame finds `ctx.globals.catch` empty and creates it. Every later frame gets the same object back. Naming it (`catch`) keeps it apart from anything else in `ctx.globals`, which every program and scene in the game shares.
+
+`g.mode` is a tiny state machine in plain JavaScript: `'ready'` before the first round, `'play'` during a round, `'over'` after it. The script branches on it:
+
+```js
+if (g.mode !== 'play') {
+  if (ctx.tap || ctx.keysDown.has('space')) start()
+} else {
+  // ...the game
+}
+```
+
+For a game this size, a mode string is simpler than extra state machine states. For more structure, give each mode its own state and switch with [`ctx.setInput`](../scripting/state-machine-control.mdx). Scripts reset `ctx.globals` every time you press Play in the editor, and every time the page creates a new player.
+
+## Starting a round
+
+```js
+function start() {
+  g.mode = 'play'
+  g.toasts = []
+  g.spawnIn = 0.4
+  ctx.props.score = 0
+  ctx.props.lives = 3
+  for (let i = 0; i < POOL; i++) get('toast' + i).visible = false
+  say('message', '')
+}
+```
+
+`start` resets everything a round depends on: the pool, the spawn timer, the two Properties, and the visible slices. It is the same function for the first round and for every retry, which is why the game needs no separate "reset" code.
+
+## Input from mouse and keys
+
+Two inputs start the game:
+
+- `ctx.tap` is `true` for one frame after a quick click or finger tap.
+- `ctx.keysDown` is a `Set` of the keys held **right now**, with names like `'space'`, `'left'`, `'right'` and `'up'`.
+
+The plate then follows whichever input you are using:
+
+```js
+const keys = (ctx.keysDown.has('right') ? 1 : 0) - (ctx.keysDown.has('left') ? 1 : 0)
+if (keys) g.plateX += keys * 420 * dt
+else g.plateX += (ctx.mouseX - g.plateX) * Math.min(1, dt * 14)
+g.plateX = Math.max(-270, Math.min(270, g.plateX))
+get('plate').x = g.plateX
+```
+
+- `keys` is `1`, `-1` or `0`. While an arrow is held, the plate moves at a fixed 420 units per second.
+- Otherwise it eases toward `ctx.mouseX`, the pointer's x position in scene units (not pixels), so it lines up with the plate whatever size the embed is. Moving a fraction of the remaining distance each frame (`dt * 14`, capped at 1) gives a smooth follow that never overshoots.
+- The clamp keeps the plate inside the 640-wide scene.
+
+`ctx.mouseX` also follows touches, so the same line handles phones. See [Input](../scripting/input.mdx) for every key name.
+
+:::note Held, not pressed
+`ctx.keysDown.has('space')` is true for as long as Space is held. That is fine here, because a round lasts much longer than a key press. When a press must count once (a jump), compare with the previous frame. [Hop](./hop.mdx#jumping-on-a-fresh-press) shows how.
+:::
+
+## The object pool
+
+Creating and deleting nodes every time a slice appears is wasteful. Instead the scene has six slices built in (`toast0` to `toast5`), and the script reuses them. `POOL` is that number.
+
+The logical slices live in `g.toasts`, one plain object per slot. Slot `i` in the array always drives node `toast` + `i`:
+
+```js
+const speed = (Number(ctx.data.speed) || 1) * (1 + ctx.props.score / 40)
+g.spawnIn -= dt
+if (g.spawnIn <= 0 && g.toasts.filter((t) => t.live).length < POOL) {
+  g.spawnIn = 0.9 / speed + Math.random() * 0.4
+  const free = g.toasts.find((t) => !t.live) || (g.toasts.push({}), g.toasts[g.toasts.length - 1])
+  Object.assign(free, { x: -260 + Math.random() * 520, y: 210, vy: 0, burnt: Math.random() < 0.25, live: true, spin: (Math.random() - 0.5) * 200 })
+}
+```
+
+- `g.spawnIn` is a countdown in seconds. When it reaches zero, and fewer than six slices are falling, a new slice spawns and the countdown restarts. The gap shrinks as `speed` grows.
+- `free` is the first dead slot, or a new slot pushed onto the array. The array never grows past `POOL`, because a spawn only happens while a slot is free.
+- `Object.assign` reuses the slot's object: a random x across the scene, just above the top edge (y = 210), not moving yet, a 25% chance of being burnt, and a random spin.
+
+`speed` combines two things: the page's difficulty (`ctx.data.speed`, covered below) and the score. At 40 points everything is twice as fast as at 0.
+
+## Falling, catching, missing
+
+Each frame, every slot moves its node:
+
+```js
+g.toasts.forEach((t, i) => {
+  const node = get('toast' + i)
+  if (!t.live) { node.visible = false; return }
+  t.vy -= 520 * speed * dt
+  t.y += t.vy * dt
+  // ...catch or miss
+  node.visible = t.live
+  node.x = t.x
+  node.y = t.y
+  node.rotation += t.spin * dt
+  node.fillColor = t.burnt ? [0.22, 0.15, 0.11, 1] : [0.97, 0.76, 0.38, 1]
+})
+```
+
+Falling is two lines of physics: gravity changes the velocity (`vy`), and the velocity changes the position. Because y points up, gravity is negative. The node then copies the slot: position, a little rotation, and a fill colour. `fillColor` is `[r, g, b, a]` with channels from 0 to 1; the same node is golden one round and burnt the next.
+
+### Collision by distance
+
+The plate is a flat rectangle, so a full shape-overlap test is unnecessary. Two comparisons do the job:
+
+```js
+const caught = t.y < -80 && t.y > -112 && Math.abs(t.x - g.plateX) < 56
+```
+
+- **Vertically**, the slice's centre is inside a band just above the plate (the plate sits at y = −100).
+- **Horizontally**, the slice's centre is within 56 units of the plate's centre. The plate is 96 wide and a slice is 38 wide, so 56 is a little more than half of both together (67 would be exact edge contact; 56 asks for a fair catch).
+
+Checking distance along each axis is the cheapest collision test there is, and for a handful of objects it is all you need. For many objects, or for shapes that rotate and bounce, use [2D physics](../components/physics-2d.mdx) instead.
+
+### Scoring with Properties
+
+```js
+if (caught) {
+  t.live = false
+  if (t.burnt) {
+    ctx.props.lives -= 1
+    ctx.playTone({ freq: 180, to: 90, duration: 0.25, type: 'sawtooth', volume: 0.2 })
+  } else {
+    ctx.props.score += 1
+    ctx.playTone({ freq: 660 + ctx.props.score * 8, duration: 0.08, type: 'triangle', volume: 0.25 })
+    ctx.emit('score', { score: ctx.props.score })
+  }
+} else if (t.y < -200) {
+  t.live = false
+  if (!t.burnt) ctx.props.lives -= 1
+}
+```
+
+`score` and `lives` are **scene Properties**, read and written through `ctx.props`. They could have been fields on `g`, but Properties give you three things for free:
+
+1. **Bindings.** Any text, colour or visibility in the scene can be bound to a Property in the Inspector, with no code. See [Properties and bindings](../editor/properties-and-bindings.mdx).
+2. **The page can watch them.** When the game changes a Property, an embedding page receives a `prop` event with the new value. The example at the end of this page uses this to show lives in the page's own HTML.
+3. **Resets.** Properties return to their defaults on every Play and scene switch.
+
+A slice that falls below y = −200 (past the bottom edge) is retired; only a good one costs a life.
+
+### Sound with `ctx.playTone`
+
+`ctx.playTone` synthesizes a short sound with no audio file. A catch plays a quick triangle blip whose pitch climbs 8 Hz per point, so a long streak audibly rises. A burnt catch plays a falling sawtooth (`freq: 180, to: 90`). Browsers only allow sound after the first click or key press, which the "click to play" start provides. See the [Audio API](../scripting/audio-api.mdx#ctxplaytone) for every option.
+
+## Talking to the page: `ctx.emit`
+
+Two lines make the game useful on a website:
+
+```js
+ctx.emit('score', { score: ctx.props.score })      // on every good catch
+ctx.emit('gameover', { score: ctx.props.score })   // once, when lives reach 0
+```
+
+`ctx.emit(name, payload)` sends an event to the page that embeds the game. The page receives `{ name, payload }` through `player.on('event', …)`, React's `onEvent`, or the `an1:event` DOM event. In the editor nothing is listening, so each emit is written to the Console instead, which lets you test the events before you build the page. See [Events and messages](../scripting/events-and-messages.mdx).
+
+The game-over block runs once per round, because it sets `g.mode = 'over'` and the next frame takes the other branch:
+
+```js
+if (ctx.props.lives <= 0) {
+  g.mode = 'over'
+  say('message', 'GAME OVER - ' + ctx.props.score + ' TOAST - CLICK TO RETRY')
+  ctx.emit('gameover', { score: ctx.props.score })
+}
+```
+
+## The HUD
+
+The last two lines run every frame, in every mode:
+
+```js
+say('scoreText', String(ctx.props.score))
+for (let i = 0; i < 3; i++) get('life' + i).visible = i < ctx.props.lives
+```
+
+The score text and the three life dots are always in step with the Properties, whichever branch ran. (Binding `scoreText` to the `score` Property in the Inspector would replace the first line with no code at all.)
+
+## Data from the page: `ctx.data.speed`
+
+`ctx.data` holds whatever the embedding page sent with `player.set(name, value)` or React's `data` prop. Toast Catch reads one key:
+
+```js
+const speed = (Number(ctx.data.speed) || 1) * (1 + ctx.props.score / 40)
+```
+
+In the editor `ctx.data` is an empty object, so `ctx.data.speed` is `undefined`, `Number(undefined)` is `NaN`, and `|| 1` falls back to normal speed. Always give data a default like this, so the game works on its own. The value is read every frame, so a change from the page takes effect immediately, even in the middle of a round.
+
+## Embed it on a page
+
+Here is Toast Catch on a page the way you would ship it: a difficulty select that sends `speed`, a lives readout in the page's own HTML, and a high-score panel built from the game's events. It is live and editable; click the game to load it.
+
+```jsx live
+function ToastCatchPage() {
+  const levels = { Relaxed: 0.7, Normal: 1, Hectic: 1.5 }
+  const [level, setLevel] = React.useState('Normal')
+  const [score, setScore] = React.useState(0)
+  const [lives, setLives] = React.useState(3)
+  const [caught, setCaught] = React.useState(0)
+  const [runs, setRuns] = React.useState([])
+  const best = runs.reduce((top, run) => Math.max(top, run.score), 0)
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label>
+          Difficulty{' '}
+          <select value={level} onChange={(e) => setLevel(e.target.value)}>
+            {Object.keys(levels).map((name) => <option key={name}>{name}</option>)}
+          </select>
+        </label>
+        <span>Score <b>{score}</b></span>
+        <span>Lives <b>{'●'.repeat(Math.max(0, lives))}</b></span>
+        <span>Toast caught this visit <b>{caught}</b></span>
+      </div>
+
+      <ToastyPlayer
+        game="/games/toast-catch.teab"
+        data={{ speed: levels[level] }}
+        style={{ height: 360 }}
+        label="Play Toast Catch"
+        onPropChange={(e) => {
+          if (e.name === 'score') setScore(e.value)
+          if (e.name === 'lives') setLives(e.value)
+        }}
+        onEvent={(e) => {
+          if (e.name === 'score') setCaught((n) => n + 1)
+          if (e.name === 'gameover') {
+            const run = { score: e.payload.score, level, at: new Date().toLocaleTimeString() }
+            setRuns((list) => [...list, run].sort((a, b) => b.score - a.score).slice(0, 5))
+          }
+        }}
+      />
+
+      <section style={{ border: '1px solid var(--ifm-color-emphasis-300)', borderRadius: 8, padding: 12 }}>
+        <strong>High scores</strong> {best > 0 && <small>(best {best})</small>}
+        {runs.length === 0 ? (
+          <p style={{ margin: '8px 0 0' }}>Finish a round to post a score.</p>
+        ) : (
+          <ol style={{ margin: '8px 0 0' }}>
+            {runs.map((run, i) => (
+              <li key={i}>{run.score} toast · {run.level} · {run.at}</li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </div>
+  )
+}
+```
+
+What each part uses:
+
+| Page feature | Game side | Page side |
+|---|---|---|
+| Difficulty | `ctx.data.speed`, read every frame | `data={{ speed }}`; only changed keys are sent, so changing the select sends one value |
+| Score and lives readout | `ctx.props.score`, `ctx.props.lives` | `onPropChange` receives each new value the game writes, including the reset to `0` and `3` at the start of a round |
+| "Toast caught" counter | `ctx.emit('score', …)` | `onEvent`, name `score` |
+| High-score table | `ctx.emit('gameover', { score })` | `onEvent`, name `gameover` |
+
+In your own app, replace `ToastyPlayer` with `An1Player` from the export's `an1mbyt3-react.js` and point `game` at your copy of the file. The props are the same. The same page without React:
+
+```html
+<label>Difficulty
+  <select id="difficulty">
+    <option value="0.7">Relaxed</option>
+    <option value="1" selected>Normal</option>
+    <option value="1.5">Hectic</option>
+  </select>
+</label>
+<p>Score <b id="score">0</b> · Best <b id="best">0</b></p>
+<div id="game" style="height: 360px"></div>
+
+<script type="module">
+  import { createPlayer } from '/an1mbyt3/an1mbyt3-embed.js'
+
+  const select = document.getElementById('difficulty')
+  const player = await createPlayer(document.getElementById('game'), {
+    game: '/an1mbyt3/game.teab',
+    data: { speed: Number(select.value) },
+  })
+  select.addEventListener('change', () => player.set('speed', Number(select.value)))
+
+  let best = 0
+  player.on('prop', ({ name, value }) => {
+    if (name === 'score') document.getElementById('score').textContent = value
+  })
+  player.on('event', ({ name, payload }) => {
+    if (name !== 'gameover') return
+    best = Math.max(best, payload.score)
+    document.getElementById('best').textContent = best
+  })
+</script>
+```
+
+:::caution Read score and lives; don't own them
+`score` and `lives` belong to the game. The page can still nudge one (`player.set('lives', 5)` writes it once, and the game carries on from there), but it is written again whenever the page sends that key, and every sent value is re-applied after a scene switch. Keep regular page data to keys the game only reads, like `speed`, and read `score` and `lives` from `prop` events.
+:::
+
+## Ideas to try
+
+Each of these is a few lines in the script:
+
+- **Power-ups.** Add a third kind of slice (a golden one) with `kind` instead of `burnt`, worth three points.
+- **A combo.** Keep `g.streak`, reset it on a miss, and emit it with the score so the page can show "x5".
+- **A page-started round.** Register a function the page can call: `ctx.on('start', () => { g.wantStart = true })`, then check `g.wantStart` next to `ctx.tap` in the ready branch. The page calls `player.call('start')`.
+- **A saved best score.** See how [Hop](./hop.mdx) does it with `ctx.storage`.
+
+## Next
+
+- [Hop](./hop.mdx): jumping physics, edge-triggered input and saved scores.
+- [Build your own](./build-your-own.mdx): a skeleton script and a checklist.
+- [Engine embed](../embedding/overview.mdx): every option, method and event on the page side.

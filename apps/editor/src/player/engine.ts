@@ -186,7 +186,8 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
         console.error(`an1mbyt3: an on('${type}') listener threw`, err)
       }
     }
-    container.dispatchEvent(new CustomEvent(`an1:${type}`, { detail: event, bubbles: true }))
+    // `ready` doesn't bubble: `<an1-player>` fires its own once `.player` is set.
+    container.dispatchEvent(new CustomEvent(`an1:${type}`, { detail: event, bubbles: type !== 'ready' }))
   }
 
   // ---- engine + game ----
@@ -247,15 +248,22 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   /** Props last seen (to report the game's own changes). */
   const seenProps = new Map<string, unknown>()
   let dataDirty = false
-  const pushData = () => {
+  /** Keys the page sent since the last push. Only these are written on a
+   * normal frame, so a value the game changed itself (a score, lives) isn't
+   * overwritten when the page sends some *other* key; after a scene switch
+   * (`all`) every page value is applied again. */
+  const pendingKeys = new Set<string>()
+  const pushData = (all = false) => {
     if (!sceneId) return
     sceneProps.ensureScene(sceneId)
     for (const [name, value] of hostData) {
+      if (!all && !pendingKeys.has(name)) continue
       if (sceneProps.has(name) && !sameValue(sceneProps.get(name), value)) {
         sceneProps.set(name, value)
       }
       if (sceneProps.has(name)) seenProps.set(name, sceneProps.get(name))
     }
+    pendingKeys.clear()
     dataDirty = false
   }
   for (const [name, value] of Object.entries(options.data ?? {})) {
@@ -276,7 +284,7 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     sceneProps.ensureScene(id)
     seenProps.clear()
     for (const name of sceneProps.names()) seenProps.set(name, sceneProps.get(name))
-    pushData()
+    pushData(true)
     if (sceneName !== null) dispatch('scene', { scene: sceneName, previous })
   }
   const start = doc.artboards.find((a) => a.name === options.scene) ?? doc.artboards[0]
@@ -509,6 +517,7 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     set(name, value) {
       hostData.set(name, value)
       embedBridge.setData(name, value)
+      pendingKeys.add(name)
       dataDirty = true
     },
     setData(values) {

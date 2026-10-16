@@ -1,0 +1,198 @@
+---
+title: 4. The copy icon
+sidebar_position: 4
+description: Build the copy icon, which plays a confirmation on a Trigger and returns to rest on its own, using two alternating states so every click restarts it, and wire it to a code snippet.
+---
+
+# 4. The copy icon
+
+**Goal:** a copy icon that confirms each click. The two sheets draw themselves away, a green check draws on, and after about 1.8 seconds everything returns by itself. Clicking again at any moment starts the confirmation over.
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0 24px' }}>
+  <Lite src="copy" ink="auto" label="Copy icon" style={{ width: 80, height: 80 }} />
+</div>
+
+Click it a few times, slowly and then quickly.
+
+## Trigger or Bool?
+
+The menu and theme icons show a **fact** that stays true until something changes it: the menu is open, the theme is dark. They use a Bool. "Copied" is an **event**: it happened once, and the feedback should play once and go away. That is a **Trigger**. A trigger is a one-frame pulse; nothing has to reset it.
+
+## Steps
+
+### 1. Draw the parts
+
+New scene `Copy`, 96 × 96, from your template (with `ink` and the square `hit`). Import one sheet, centred:
+
+```svg title="sheet.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -48 96 96" width="96" height="96">
+  <path id="front" fill="none" stroke="#1C1C21" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"
+    d="M0 -14 L8 -14 C11.31 -14 14 -11.31 14 -8 L14 8 C14 11.31 11.31 14 8 14 L-8 14 C-11.31 14 -14 11.31 -14 8 L-14 -8 C-14 -11.31 -11.31 -14 -8 -14 Z"/>
+</svg>
+```
+
+A 28 × 28 rounded square, corner radius 6, starting at the top centre and running clockwise. Add a **Stroke Style** with **Dash** `0`, and bind `ink` → **Stroke colour**.
+
+1. Set `front` to Position (6, -6).
+2. Copy and paste it, rename the copy `back`, set Position (-6, 6), and move it below `front` in Layers.
+3. Import the check:
+
+```svg title="check.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -48 96 96" width="96" height="96">
+  <path id="check" d="M-14 0 L-4 10 L15 -10" fill="none" stroke="#21A16B" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+```
+
+4. Give `check` a **Stroke Style**, **Dash** `0`, **Trim end** `0`. Don't bind it to `ink`: green means "done" in every theme.
+5. Keep `hit` on top.
+
+### 2. Animations
+
+| Animation | Dur | Role |
+|---|---|---|
+| **Animation 1** | 0.3 s | Idle: `back` and `front` Trim end 1, `check` Trim end 0 |
+| **Animation 2** | 1.9 s | Copied |
+| **Animation 3** | 0.2 s | Hover off: `front` Position (6, -6) |
+| **Animation 4** | 0.2 s | Hover on: `front` Position (8, -8) |
+
+**Copied:**
+
+| Node and value | Keys (time → value, curve into the key) |
+|---|---|
+| `back` Trim end | 0 s → 1, 0.18 s → 0 (In), 1.45 s → 0, 1.8 s → 1 (Out) |
+| `front` Trim end | 0 s → 1, 0.22 s → 0 (In), 1.4 s → 0, 1.75 s → 1 (Out) |
+| `check` Trim end | 0 s → 0, 0.2 s → 0, 0.45 s → 1 (Out) |
+| `check` Trim start | 0 s → 0, 1.2 s → 0, 1.45 s → 1 (In) |
+
+Read it as four beats: the sheets erase (0 to 0.22 s), the check draws on (0.2 to 0.45 s), the check erases from its start (1.2 to 1.45 s), and the sheets draw back (1.4 to 1.8 s).
+
+### 3. The state machine
+
+Inputs: `copy` (**Trigger**) and `hover` (**Bool**).
+
+| State | Animation | Loop | Transition |
+|---|---|---|---|
+| Idle (initial) | Animation 1 | Once | → Copied on **Trigger** `copy`, crossfade 0 |
+| Copied | Animation 2 | Once | → Copied again on **Trigger** `copy`, crossfade 0 |
+| Copied again | Animation 2 | Once | → Copied on **Trigger** `copy`, crossfade 0 |
+
+Add the third state with **+ Add State** and give it the same animation as the second. The editor names them State 1 to State 3.
+
+Add a `Hover` layer masked to `front`: Rest ⇄ Over on `hover`, **Crossfade (s)** `0.15` in and `0.2` out.
+
+### 4. Click
+
+Select `hit`. In **On Click ()**, add two actions:
+
+1. **Fire trigger** → `copy`.
+2. **Call script function**, function name `copy`. In Toasty Lite this sends the page a `toasty:event` named `copy`.
+
+Export as `copy.json`.
+
+## Use it: copy buttons on code snippets
+
+This page owns the click. The button copies the text, and only fires the `copy` trigger once the clipboard write succeeded, so the icon never confirms something that did not happen.
+
+<LiveHTML
+  url="docs.northwind.app/cli/install"
+  height={330}
+  html={`<main class="doc">
+  <h2>Install the Northwind CLI</h2>
+  <p>Install the package, then sign in once per machine.</p>
+  <div class="snippet">
+    <code>npm install --global @northwind/cli</code>
+    <button class="copy" type="button" aria-label="Copy command">
+      <toasty-lite src="/toasty/lite/copy.json" ink="currentColor"></toasty-lite>
+    </button>
+  </div>
+  <div class="snippet">
+    <code>northwind login --team acme-studio</code>
+    <button class="copy" type="button" aria-label="Copy command">
+      <toasty-lite src="/toasty/lite/copy.json" ink="currentColor"></toasty-lite>
+    </button>
+  </div>
+  <p class="status" role="status" aria-live="polite"></p>
+</main>`}
+  css={`.doc { max-width: 560px; margin: 0 auto; padding: 24px 20px; }
+.doc h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -0.01em; }
+.doc p { color: var(--muted); margin: 0 0 16px; }
+.snippet { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; padding: 6px 6px 6px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.snippet code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-x: auto; white-space: nowrap; }
+.copy { flex: none; width: 36px; height: 36px; padding: 2px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.copy:hover { color: var(--ink); background: var(--page); }
+.copy:focus-visible { outline: 2px solid var(--accent); }
+.copy toasty-lite { width: 32px; height: 32px; pointer-events: none; }
+.status { min-height: 1.5em; font-size: 13px; }`}
+  js={`const status = document.querySelector('.status')
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    // Fallback where the Clipboard API is not allowed (for example in some iframes).
+    const area = document.createElement('textarea')
+    area.value = text
+    area.setAttribute('readonly', '')
+    area.style.position = 'fixed'
+    area.style.opacity = '0'
+    document.body.appendChild(area)
+    area.select()
+    const ok = document.execCommand('copy')
+    area.remove()
+    return ok
+  }
+}
+
+for (const button of document.querySelectorAll('.copy')) {
+  const icon = button.querySelector('toasty-lite')
+  const text = button.parentElement.querySelector('code').textContent
+
+  button.addEventListener('click', async () => {
+    if (!(await copyText(text))) {
+      status.textContent = 'Copy failed. Select the command and press Ctrl+C.'
+      return
+    }
+    if (icon.player) icon.player.fire('copy')
+    status.textContent = 'Copied to clipboard.'
+  })
+  button.addEventListener('pointerenter', () => icon.setAttribute('inputs', '{"hover":true}'))
+  button.addEventListener('pointerleave', () => icon.setAttribute('inputs', '{"hover":false}'))
+}`}
+  react={`import { useRef } from 'react'
+import { ToastyLite, type LitePlayer } from './toasty/an1mbyt3-lite-react.js'
+
+export function CopyButton({ text, ink = '#6b6b76' }: { text: string; ink?: string }) {
+  const icon = useRef<LitePlayer | null>(null)
+
+  async function copy() {
+    await navigator.clipboard.writeText(text)
+    icon.current?.fire('copy')
+  }
+
+  return (
+    <button type="button" className="copy" aria-label="Copy command" onClick={copy}>
+      <ToastyLite ref={icon} src="/toasty/lite/copy.json" ink={ink} style={{ width: 32, height: 32, pointerEvents: 'none' }} />
+    </button>
+  )
+}`}
+  caption="Two independent copy buttons. Each icon is its own player; the status line announces the result to screen readers."
+/>
+
+## How it works
+
+- **The animation returns by itself.** The Copied animation ends on exactly the Idle pose: both sheets fully drawn, and the check with Trim start and Trim end both at 1, which draws nothing. A state with **Once** holds its last frame, so there is nothing to transition back to. No timer, no second input.
+- **Why two states that play the same animation.** A trigger has to cause a real change of state for the animation to start over. Alternating between Copied and Copied again means every click is a fresh entry into a state, so the confirmation restarts from its first frame, and the page receives a `toasty:state` event each time. Toasty Lite only reports a state event when the new state differs from the previous one.
+- **The first transition leaves Idle forever.** After the first copy, the machine only ever alternates between the two Copied states. That is fine, because both end in the rest pose.
+- **Fire the trigger after the work succeeds.** Triggers are fire-and-forget. If the page fires `copy` before the clipboard write finishes and the write fails, the icon would have confirmed something that did not happen.
+- **The `copy` event is for icons that click themselves.** If you leave the icon clickable (no `pointer-events: none`), listen for `toasty:event` with `detail.name === 'copy'` and do the copy there. In that setup the icon has already played its feedback when your handler runs.
+
+## Check your work
+
+- Clicking once plays the full confirmation and ends looking exactly like the start.
+- Clicking three times quickly restarts the confirmation each time instead of ignoring clicks.
+- In the live example, both buttons work independently, and the status line reads "Copied to clipboard."
+
+## Next
+
+[5. Theme them all with ink](./05-theming-with-ink.mdx).

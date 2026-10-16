@@ -1,0 +1,339 @@
+---
+title: Notifications
+sidebar_position: 6
+description: An app header notification bell built with the Toasty Lite bell. It rings for new activity, shows an unread badge, opens a dropdown list and supports mark-all-read.
+---
+
+# Notifications
+
+A notification bell has two kinds of news to deliver: there is something unread (a steady badge) and something just arrived (a brief ring). The `bell` component keeps those apart. A Bool input, `unread`, shows or hides the red dot on its own layer, and a Trigger, `ring`, swings the bell without touching the badge. This page builds the full pattern: an app header, a dropdown list, read and unread items, and mark-all-read.
+
+<LiveHTML
+  url="app.northwind.app/dashboard"
+  height={540}
+  caption="A new notification arrives a few seconds after the page loads. Open the bell, click an item to mark it read, or mark them all. Send test notification adds another."
+  html={`<header class="topbar">
+  <span class="brand"><span class="mark" aria-hidden="true"></span>Northwind</span>
+
+  <div class="search" aria-hidden="true">Search orders, products, suppliers</div>
+
+  <div class="notif">
+    <button class="bell-btn" type="button" aria-expanded="false" aria-controls="notif-panel">
+      <toasty-lite src="/toasty/lite/bell.json" ink="currentColor"></toasty-lite>
+      <span class="visually-hidden bell-label">Notifications</span>
+    </button>
+
+    <section id="notif-panel" class="panel" aria-label="Notifications" hidden>
+      <header class="panel-head">
+        <h2>Notifications</h2>
+        <button class="mark-all" type="button">Mark all as read</button>
+      </header>
+      <ul class="list"></ul>
+      <p class="empty" hidden>You're all caught up.</p>
+      <footer class="panel-foot"><a href="#">View all activity</a></footer>
+    </section>
+  </div>
+
+  <span class="avatar" aria-hidden="true">MC</span>
+</header>
+
+<main class="content">
+  <h1>Good morning, Maya</h1>
+  <p class="sub">Three stores, 41 open orders, 2 low-stock alerts.</p>
+  <button class="ghost test" type="button">Send test notification</button>
+</main>
+
+<p class="visually-hidden" role="status" aria-live="polite" id="announcer"></p>`}
+  css={`.topbar { position: relative; display: flex; align-items: center; gap: 16px; height: 60px; padding: 0 16px 0 20px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; }
+.mark { width: 20px; height: 20px; border-radius: 6px; background: linear-gradient(135deg, #f59e0b, var(--accent)); }
+.search { flex: 1; max-width: 340px; height: 36px; padding: 0 12px; line-height: 36px; border: 1px solid var(--line); border-radius: 9px; background: var(--page); color: var(--muted); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.notif { position: relative; margin-left: auto; }
+.bell-btn { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--ink); cursor: pointer; }
+.bell-btn:hover, .bell-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.bell-btn:focus-visible, .mark-all:focus-visible, .item button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bell-btn toasty-lite { width: 38px; height: 38px; pointer-events: none; }
+.avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #e8590c); color: #fff; font-size: 12px; font-weight: 600; }
+
+.panel {
+  position: absolute; top: calc(100% + 8px); right: -6px; z-index: 20; width: min(380px, calc(100vw - 24px));
+  border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+  box-shadow: 0 24px 48px -24px rgb(0 0 0 / .45), 0 2px 6px rgb(0 0 0 / .06);
+  overflow: hidden; transform-origin: top right; animation: pop .16s ease-out;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px 16px; border-bottom: 1px solid var(--line); }
+.panel-head h2 { margin: 0; font-size: 15px; }
+.mark-all { border: 0; background: none; color: var(--accent); font-size: 13px; font-weight: 500; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.mark-all:disabled { color: var(--muted); cursor: default; }
+.list { list-style: none; margin: 0; padding: 4px; max-height: 280px; overflow: auto; }
+.item button { display: grid; grid-template-columns: 34px 1fr 8px; gap: 10px; align-items: start; width: 100%; padding: 10px 10px 10px 8px; border: 0; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; }
+.item button:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.item .who { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 600; }
+.item .text { font-size: 13.5px; line-height: 1.4; color: var(--muted); }
+.item .text b { color: var(--ink); font-weight: 600; }
+.item .time { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+.item .dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: transparent; }
+.item.unread .dot { background: var(--accent); }
+.item.unread .text { color: var(--ink); }
+.empty { margin: 0; padding: 28px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+.panel-foot { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 13px; }
+.panel-foot a { color: var(--muted); text-decoration: none; }
+.panel-foot a:hover { color: var(--ink); }
+
+.content { padding: 32px 24px; }
+.content h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: -.02em; }
+.sub { margin: 0 0 20px; color: var(--muted); }
+.ghost { height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); cursor: pointer; font-size: 13.5px; }
+.ghost:hover { border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 560px) { .search { display: none; } }`}
+  js={`const bellButton = document.querySelector('.bell-btn')
+const bell = bellButton.querySelector('toasty-lite')
+const bellLabel = bellButton.querySelector('.bell-label')
+const panel = document.querySelector('#notif-panel')
+const list = panel.querySelector('.list')
+const empty = panel.querySelector('.empty')
+const markAll = panel.querySelector('.mark-all')
+const announcer = document.querySelector('#announcer')
+
+const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981', '#f97316', '#e11d48']
+let nextId = 1
+const make = (who, action, subject, time, unread = true) => ({ id: nextId++, who, action, subject, time, unread })
+
+let items = [
+  make('Priya Raman', 'commented on', 'Q3 restock plan', '4m'),
+  make('Diego Alvarez', 'assigned you', 'Supplier audit: Harbor Foods', '1h'),
+  make('Northwind', 'Low stock:', 'Oat milk 1 L at Pier Street', '3h', false),
+  make('Sam Okafor', 'approved', 'PO-2291', 'Yesterday', false),
+]
+
+function initials(name) {
+  return name.split(' ').map((p) => p[0]).join('').slice(0, 2)
+}
+
+function render() {
+  list.replaceChildren(...items.map((n) => {
+    const li = document.createElement('li')
+    li.className = 'item' + (n.unread ? ' unread' : '')
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    const who = document.createElement('span')
+    who.className = 'who'
+    who.textContent = initials(n.who)
+    who.style.background = COLORS[n.who.length % COLORS.length]
+    const text = document.createElement('span')
+    text.className = 'text'
+    const subject = document.createElement('b')
+    subject.textContent = n.subject
+    const time = document.createElement('span')
+    time.className = 'time'
+    time.textContent = n.time + (n.unread ? ' · Unread' : '')
+    text.append(n.who + ' ' + n.action + ' ', subject, time)
+    const dot = document.createElement('span')
+    dot.className = 'dot'
+    btn.append(who, text, dot)
+    btn.dataset.id = String(n.id)
+    btn.addEventListener('click', () => {
+      n.unread = false
+      render()
+      list.querySelector('[data-id="' + n.id + '"]').focus() // keep keyboard focus in place
+    })
+    li.append(btn)
+    return li
+  }))
+
+  const unread = items.filter((n) => n.unread).length
+  empty.hidden = items.length > 0
+  markAll.disabled = unread === 0
+  bellLabel.textContent = unread ? 'Notifications, ' + unread + ' unread' : 'Notifications'
+  bell.player?.setInput('unread', unread > 0)
+}
+
+function setOpen(open) {
+  panel.hidden = !open
+  bellButton.setAttribute('aria-expanded', String(open))
+  if (open) bell.player?.fire('ring')
+}
+
+bellButton.addEventListener('click', () => setOpen(panel.hidden))
+markAll.addEventListener('click', () => {
+  for (const n of items) n.unread = false
+  render()
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !panel.hidden) { setOpen(false); bellButton.focus() }
+})
+// composedPath() still lists the item even after render() has replaced it.
+const notif = document.querySelector('.notif')
+document.addEventListener('click', (e) => {
+  if (!panel.hidden && !e.composedPath().includes(notif)) setOpen(false)
+})
+bellButton.addEventListener('pointerenter', () => bell.player?.setInput('hover', true))
+bellButton.addEventListener('pointerleave', () => bell.player?.setInput('hover', false))
+bell.addEventListener('toasty:ready', render)
+
+// New activity: add it, ring the bell, and announce it.
+function receive(n) {
+  items = [n, ...items]
+  render()
+  bell.player?.fire('ring')
+  announcer.textContent = 'New notification: ' + n.who + ' ' + n.action + ' ' + n.subject
+}
+
+const samples = [
+  ['Lena Fischer', 'mentioned you in', 'Weekend staffing'],
+  ['Northwind', 'Delivery arrived:', 'PO-2304 at Harbor Street'],
+  ['Marcus Lee', 'shared', 'October sales report'],
+]
+let s = 0
+document.querySelector('.test').addEventListener('click', () => {
+  const [who, action, subject] = samples[s++ % samples.length]
+  receive(make(who, action, subject, 'now'))
+})
+setTimeout(() => receive(make('Aiko Tanaka', 'replied to', 'Pier Street fridge repair', 'now')), 3500)
+
+render()`}
+  react={`import { useEffect, useRef, useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function NotificationBell({ items, onRead, onReadAll, ink = '#18181b' }) {
+  const [open, setOpen] = useState(false)
+  const [hover, setHover] = useState(false)
+  const bell = useRef(null)
+  const unread = items.filter((n) => n.unread).length
+
+  // Ring whenever the unread count goes up.
+  const lastUnread = useRef(unread)
+  useEffect(() => {
+    if (unread > lastUnread.current) bell.current?.fire('ring')
+    lastUnread.current = unread
+  }, [unread])
+
+  function toggle() {
+    if (!open) bell.current?.fire('ring')
+    setOpen(!open)
+  }
+
+  return (
+    <div className="notif">
+      <button
+        type="button"
+        className="bell-btn"
+        aria-expanded={open}
+        aria-controls="notif-panel"
+        onClick={toggle}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+      >
+        <ToastyLite
+          src="/toasty/lite/bell.json"
+          inputs={{ unread: unread > 0, hover }}
+          ink={ink}
+          onReady={(player) => (bell.current = player)}
+          style={{ width: 38, height: 38, pointerEvents: 'none' }}
+        />
+        <span className="visually-hidden">{unread ? 'Notifications, ' + unread + ' unread' : 'Notifications'}</span>
+      </button>
+
+      {open && (
+        <section id="notif-panel" className="panel" aria-label="Notifications">
+          <header className="panel-head">
+            <h2>Notifications</h2>
+            <button className="mark-all" type="button" disabled={!unread} onClick={onReadAll}>Mark all as read</button>
+          </header>
+          <ul className="list">
+            {items.map((n) => (
+              <li key={n.id} className={n.unread ? 'item unread' : 'item'}>
+                <button type="button" onClick={() => onRead(n.id)}>
+                  <span className="text">{n.who} {n.action} <b>{n.subject}</b></span>
+                  <span className="dot" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  )
+}`}
+/>
+
+## How it works
+
+### Two inputs for two kinds of news
+
+| Input | Kind | Layer | What it does |
+|---|---|---|---|
+| `unread` | Bool | `Badge`: `Read`, `Unread` | Pops the red dot in (`true`) or shrinks it away (`false`). It stays as long as the value does. |
+| `ring` | Trigger | Base: `Still`, `Ringing`, `Ringing again` | Swings the bell with a decaying rotation while the clapper knocks side to side. Each fire restarts the swing. |
+| `hover` | Bool | `Hover`: `Rest`, `Over` | Tilts the bell by 10 degrees. |
+
+Because the badge lives on its own layer, ringing never hides it and hiding it never interrupts a ring. `Ringing` and `Ringing again` point at the same animation; alternating between two states is what lets a second `ring` restart the swing while the first is still playing.
+
+### Deriving `unread` from the data
+
+```js
+const unread = items.filter((n) => n.unread).length
+bell.player?.setInput('unread', unread > 0)
+```
+
+`render()` recalculates everything from the `items` array: the list, the button's accessible name ("Notifications, 2 unread"), whether Mark all as read is enabled, and the badge. Marking one item read, marking all, or receiving a new one all end in `render()`, so the badge is never out of date.
+
+The ring is different. It's an event, not a state, so it's fired at the moments something happens: when a notification arrives and when the panel opens.
+
+### The button and the panel
+
+The `bell` file has its own On Click actions: it sends an `open` event and fires `ring`. Here the button decides when to open, so the canvas has `pointer-events: none` and the page fires `ring` itself. Without that, a click on the bell would ring it twice.
+
+The button uses `aria-expanded` and `aria-controls` to say it shows and hides the panel. The panel is a labelled region with ordinary buttons inside, so Tab moves through the items. Escape closes it and returns focus to the bell; a click outside closes it too. New arrivals are announced through a visually hidden `aria-live` region, because the badge alone says nothing to a screen reader.
+
+### Listening instead of driving
+
+If you place the bell without a button around it and let it handle its own clicks, listen for its event:
+
+```js
+bell.addEventListener('toasty:event', (e) => {
+  if (e.detail.name === 'open') openPanel()
+})
+```
+
+`open` comes from the file's On Click action **Call script function** `open`, which Lite turns into a `toasty:event`.
+
+## React
+
+The React tab keeps the list in props and captures the player with `onReady` so it can call `fire('ring')`. A Trigger is an action, not a value, so it doesn't belong in `inputs`. In these docs:
+
+```jsx live
+function BellDemo() {
+  const bell = React.useRef(null)
+  const [unread, setUnread] = React.useState(2)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <button
+        type="button"
+        aria-label={unread ? 'Notifications, ' + unread + ' unread' : 'Notifications'}
+        onClick={() => setUnread(0)}
+        style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, padding: 0, border: '1px solid var(--t-line)', borderRadius: 10, background: 'transparent', color: 'inherit', cursor: 'pointer' }}
+      >
+        <Lite ref={bell} src="bell" ink="auto" inputs={{ unread: unread > 0 }} style={{ width: 40, height: 40, pointerEvents: 'none' }} />
+      </button>
+      <button type="button" className="button button--secondary button--sm" onClick={() => { setUnread(unread + 1); bell.current?.fire('ring') }}>
+        New notification
+      </button>
+      <span>{unread} unread</span>
+    </div>
+  )
+}
+```
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Notification bell** opens this exact `bell` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/bell.json` with your file. The page code on this page works unchanged.
+- **Counts instead of a dot.** The badge is a dot so it reads at any size. For a number, keep the dot animation and put a small `<span>` with the count over the button's corner in HTML. The animation keeps doing the motion, and HTML does the text.
+- **Quieter rings.** Fire `ring` only for notifications that matter (mentions, assignments), not for every update. The badge is enough for the rest.
+- **Colour.** The outline, knob and clapper follow `ink`. The red of the badge is a fill in the file.
+- **Your own icon.** An envelope or a chat bubble works the same way: a base layer with a `ring` Trigger and two states that alternate, plus a `Badge` layer on an `unread` Bool. Build it in the editor and export with **Export → Animation → Toasty Lite (.json)**. See [Authoring for Lite](../runtimes/authoring.mdx).
+
+Related: [Like button](./like-button.mdx) · [Events](../runtimes/javascript.mdx)

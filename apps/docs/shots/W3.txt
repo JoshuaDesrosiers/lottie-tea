@@ -1,0 +1,1 @@
+toast-catch-code | Toast Catch demo scene open (File > open toast-catch.teab or the docs games), bottom dock on State Machine tab: machine "Game" with single state "Play" (Programmable State on) opened on its Code tab showing the top of the Toast Catch script in Monaco; canvas shows the plate, counter and CLICK TO PLAY text.

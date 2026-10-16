@@ -1,0 +1,188 @@
+---
+title: 6. Ship it in a real page
+sidebar_position: 6
+description: Put the exported heart inside an accessible like button with aria-pressed, keep the like count and the server in sync, theme it with currentColor, and port it to React.
+---
+
+# 6. Ship it in a real page
+
+**Goal:** the heart inside a real `<button>` on a social post. The button owns the state, so it works with the mouse, the keyboard and screen readers. The heart only shows that state, and its line colour follows the button's text colour.
+
+## The files
+
+Copy these next to your site's other static files:
+
+```text
+public/
+  toasty/
+    an1mbyt3-lite.js        the <toasty-lite> element and createLite()
+    an1mbyt3-runtime.js     imported by an1mbyt3-lite.js; keep it in the same folder
+    lite/
+      heart.json            your export from lesson 5
+```
+
+[Toasty Lite](../../runtimes/lite.mdx) explains where the two runtime files come from. The examples below load the shipped `heart.json`; yours behaves the same.
+
+## The like button
+
+<LiveHTML
+  url="northwind.social/maya/posts/2381"
+  height={300}
+  html={`<article class="post">
+  <header class="post-head">
+    <span class="avatar" aria-hidden="true">MC</span>
+    <div>
+      <strong>Maya Chen</strong>
+      <span class="meta">Product designer at Northwind · 2h</span>
+    </div>
+  </header>
+  <p>Finally finished the reading corner. The Linea Desk Lamp was the last piece, and it was worth the wait.</p>
+  <footer class="post-actions">
+    <button class="like" type="button" aria-pressed="false" aria-label="Like this post">
+      <toasty-lite src="/toasty/lite/heart.json" ink="currentColor" inputs='{"liked":false}'></toasty-lite>
+      <span class="count">128</span>
+    </button>
+    <span class="hint">Click it, or press Tab and then Space</span>
+  </footer>
+</article>`}
+  css={`body { display: grid; place-items: center; padding: 24px; }
+.post { width: min(440px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+.post-head { display: flex; gap: 12px; align-items: center; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: #fde68a; color: #78350f; font-weight: 600; font-size: 14px; }
+.meta { display: block; color: var(--muted); font-size: 13px; }
+.post p { margin: 14px 0 16px; }
+.post-actions { display: flex; align-items: center; gap: 12px; }
+.like { display: inline-flex; align-items: center; gap: 2px; padding: 2px 12px 2px 2px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
+.like:hover { color: var(--ink); }
+.like[aria-pressed="true"] { color: #e11d48; }
+.like:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.like toasty-lite { width: 32px; height: 32px; pointer-events: none; }
+.count { font-variant-numeric: tabular-nums; font-weight: 500; }
+.hint { color: var(--muted); font-size: 12px; }`}
+  js={`const button = document.querySelector('.like')
+const heart = button.querySelector('toasty-lite')
+const count = button.querySelector('.count')
+
+let liked = false
+let hover = false
+let total = 128
+
+function render() {
+  button.setAttribute('aria-pressed', String(liked))
+  count.textContent = total.toLocaleString()
+  // Both inputs in one attribute. Setting an input to the value it
+  // already has changes nothing, so this is safe to call any time.
+  heart.setAttribute('inputs', JSON.stringify({ liked: liked, hover: hover }))
+}
+
+// Replace with your API call. Resolve to keep the change, reject to undo it.
+function saveLike(value) {
+  return new Promise((resolve) => setTimeout(resolve, 300))
+}
+
+button.addEventListener('click', () => {
+  liked = !liked
+  total += liked ? 1 : -1
+  render()
+  saveLike(liked).catch(() => {
+    liked = !liked
+    total += liked ? 1 : -1
+    render()
+  })
+})
+
+button.addEventListener('pointerenter', () => { hover = true; render() })
+button.addEventListener('pointerleave', () => { hover = false; render() })`}
+  react={`import { useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+type LikeButtonProps = {
+  postId: string
+  initialLiked: boolean
+  initialCount: number
+  /** Line colour while not liked: any CSS colour. */
+  ink?: string
+}
+
+export function LikeButton({ postId, initialLiked, initialCount, ink = '#6b6b76' }: LikeButtonProps) {
+  const [liked, setLiked] = useState(initialLiked)
+  const [count, setCount] = useState(initialCount)
+  const [hover, setHover] = useState(false)
+
+  async function toggle() {
+    const next = !liked
+    setLiked(next)
+    setCount((c) => c + (next ? 1 : -1))
+    try {
+      const res = await fetch('/api/posts/' + postId + '/like', { method: next ? 'PUT' : 'DELETE' })
+      if (!res.ok) throw new Error('Like failed: ' + res.status)
+    } catch {
+      setLiked(!next)
+      setCount((c) => c + (next ? -1 : 1))
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="like"
+      aria-pressed={liked}
+      aria-label="Like this post"
+      onClick={toggle}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <ToastyLite
+        src="/toasty/lite/heart.json"
+        inputs={{ liked, hover }}
+        ink={liked ? '#e11d48' : ink}
+        style={{ width: 32, height: 32, pointerEvents: 'none' }}
+      />
+      <span className="count">{count.toLocaleString()}</span>
+    </button>
+  )
+}`}
+  caption="The page owns liked and hover. The heart has pointer-events: none, so every click, tap and key press goes to the button."
+/>
+
+## How it works
+
+- **The button owns the value; the heart displays it.** In lesson 4 you gave the heart its own click behaviour. Here, `pointer-events: none` on `<toasty-lite>` switches that off, so the button receives every click, including keyboard activation with Space and Enter, which never reaches a canvas. The page sets `liked` and the state machine plays the right animation. The page code never needs to know the state names.
+- **`aria-pressed` is the accessible state.** A screen reader announces "Like this post, toggle button, pressed". The canvas inside is decorative, so the button's label and `aria-pressed` carry the meaning.
+- **`inputs` is live.** Changing the attribute after the heart has loaded sends the new values straight to the running state machine. Changing it before the heart has loaded is also fine, because the element reads the attribute when it starts. That is how a post that was already liked opens in the liked state: render it with `inputs='{"liked":true}'`.
+- **Hover comes from the button, too.** `pointerenter` and `pointerleave` on the whole button set the `hover` input, so the heart grows when the pointer is anywhere over the pill, not only over the heart.
+- **`ink="currentColor"` follows the button's text colour.** The outline is muted at rest, darkens with the button's `:hover` colour in CSS, and turns red with `aria-pressed="true"`. The element re-reads `currentColor` when `<html>` changes its class, `data-theme` or `style`, and when the system colour scheme changes.
+- **Optimistic updates.** The count changes immediately and rolls back if the save fails. The animation needs no special handling; setting `liked` back to false crossfades the heart to rest.
+- **React.** `<ToastyLite>` diffs its props, so changing `inputs`, `data` or `ink` updates the running heart without a reload. Its `ink` prop takes any CSS colour string and sets the `ink` Property. See [React](../../runtimes/react.mdx).
+
+### When the heart should toggle itself
+
+If the heart sits on its own, without a surrounding button, you can keep its built-in click and listen for what happened. The shipped file names its base states `Unliked` and `Liked`:
+
+```html
+<toasty-lite id="like" src="/toasty/lite/heart.json" ink="currentColor" style="width:40px;height:40px"></toasty-lite>
+<script type="module">
+  const heart = document.getElementById('like')
+  heart.addEventListener('toasty:state', (e) => {
+    // The Hover layer reports too; the base layer is null.
+    if (e.detail.layer !== null) return
+    const liked = e.detail.state === 'Liked'
+    console.log(liked ? 'liked' : 'unliked')
+  })
+</script>
+```
+
+If you exported your own file in lesson 5, use your state names here (for example `State 2`), or use the button pattern above, which does not depend on them.
+
+## Check your work
+
+- Clicking the pill anywhere toggles the heart and the count; the burst plays only when liking.
+- Tab to the button and press Space: the same thing happens, and a focus ring is visible.
+- Switch the docs between light and dark mode: the resting outline keeps matching the button's text.
+- Reload the frame and click quickly several times: the count and the heart always agree.
+
+## Where to go next
+
+- [Like button use case](../../use-cases/like-button.mdx): more layouts for the same file, including a feed with many hearts.
+- [Animated icon system](../icon-system/01-design-rules.mdx): apply the same techniques to a whole set of icons.
+- [Toasty Lite element reference](../../runtimes/html.mdx): every attribute and event.

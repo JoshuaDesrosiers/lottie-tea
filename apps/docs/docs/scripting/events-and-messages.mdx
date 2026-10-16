@@ -62,16 +62,22 @@ ctx.emit(name: string, payload?: unknown): void
 
 Sends an event to the page: it reaches `player.on('event', ...)` listeners and React's `<An1Player onEvent>`.
 
+From [Toast Catch](../games/toast-catch.mdx): one event per caught slice, and one when the last life is gone.
+
 ```js
-if (heart.clicked) {
-  ctx.props.liked = !ctx.props.liked
-  ctx.props.count += ctx.props.liked ? 1 : -1
-  ctx.emit('like', { liked: ctx.props.liked, count: ctx.props.count })
+// A slice landed on the plate.
+ctx.props.score += 1
+ctx.emit('score', { score: ctx.props.score })
+
+// Out of lives.
+if (ctx.props.lives <= 0) {
+  g.mode = 'over'
+  ctx.emit('gameover', { score: ctx.props.score })
 }
 ```
 
 **Notes**
-- In the editor nothing listens: each emit shows in the Console as `ctx.emit("like", {...}) — reaches the page when this game is embedded`, so you can test before embedding.
+- In the editor nothing listens: each emit shows in the Console as `ctx.emit("score", {...}) — reaches the page when this game is embedded`, so you can test before embedding.
 - Emit on **changes** (a click, a goal reached), not every frame.
 - A listener that throws on the page is caught and logged; it won't break the game.
 
@@ -88,12 +94,15 @@ A node with a **UI Button** and an **On Click** (UI Events) component runs a lis
 | Set component field | Any Inspector field of a component |
 | Call method | `ParticleSystem.emit`, `ParticleSystem3D.burst`, `AudioSource.play`/`stop`, `Tree2D.shake`/`regrow`, `Cloth2D.reset`, `Rigidbody2D.impulse` (`"x, y"`), `UiToggle.toggle` |
 | Fire trigger / Set input | State machine inputs |
+| Toggle input (Bool) | Flips a Bool state machine input |
 | Load scene | Switch scene after the frame |
 | Play sound | By sound name |
 | Set property | `"+1"` / `"-2.5"` add to a Number, `"!"` flips a Bool, anything else is the new value (JSON if it parses) |
 | Call function | A function registered with `ctx.on` (or a page event when embedded) |
 
 A failing action (missing node, unknown property) is reported in the Console and skipped; the rest still run. See [UI components](../components/ui-components.mdx).
+
+The same actions can run on hover and press with [Pointer Listeners](../components/pointer-listeners.mdx): On Pointer Enter, On Pointer Exit, On Pointer Down and On Pointer Up.
 
 ## Messages between scripts
 

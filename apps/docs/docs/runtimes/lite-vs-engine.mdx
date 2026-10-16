@@ -1,0 +1,80 @@
+---
+title: Lite or engine?
+sidebar_position: 7
+description: Compare Toasty Lite and the full Toasty engine embed, and decide which runtime fits what you are building.
+---
+
+# Lite or engine?
+
+Everything you make in Toasty can reach the web through one of two runtimes. They share the editor, the state machine model and most of the page API, but they are built for different jobs.
+
+<div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', margin: '1.5rem 0' }}>
+  <Lite src="heart" ink="auto" label="Like" style={{ width: 56, height: 56 }} />
+  <Lite src="download" ink="auto" inputs={{ state: 'downloading' }} data={{ progress: 0.45 }} label="Downloading" style={{ width: 56, height: 56 }} />
+  <Lite src="toasty" label="Toasty" style={{ width: 56, height: 56 }} />
+  <span style={{ color: 'var(--t-muted)', fontSize: '0.9rem' }}>Toasty Lite: three players, about 25 KB of runtime between them.</span>
+</div>
+
+<ToastyDemo game="/games/hop.teab" height={240} caption="The full engine: Hop, a one-button runner with scripts and saved high scores. Press Space, the up arrow, or tap to jump." />
+
+## Comparison
+
+| | Toasty Lite | Engine embed |
+|---|---|---|
+| Built for | UI animation: icons, buttons, toggles, loaders, illustrations | Games and rich interactive scenes |
+| Runtime size | About 25 KB of JavaScript | About 25 MB, mostly the WebAssembly engine |
+| Start-up | Instant | Downloads and compiles the engine first |
+| Graphics | Canvas 2D | WebGPU, or WebGL2 where WebGPU is unavailable |
+| Players per page | As many as you like, sharing one frame loop | One at a time |
+| File | `.json` from **Export → Animation → Toasty Lite (.json)**, one scene | `.teab` from **Export → Game → Website embed**, the whole project |
+| Scenes | One per file | Every scene in the project, switchable from the page |
+| Drawing | Vector shapes, gradients, strokes, trim paths, dashes, text, clipping | All of Lite, plus images, sprites, tilemaps, lights, shadows, particles, effects, post effects and 3D |
+| Animation | Keyframes, path morphs, state machines with layers and crossfades | All of Lite, plus motion paths, blend states, layer masks, rigs and physics-driven motion |
+| Logic | On Click and Pointer Listeners actions, property bindings | All of Lite, plus scripts (Code programs) with input, physics, audio, storage and networking |
+| Audio | No | Yes |
+| Keyboard input | No; wrap animations in your own controls | Yes, with focus or page-wide capture |
+| Page API | `<toasty-lite>`, `createLite`, `<ToastyLite>` | `<an1-player>`, `createPlayer`, `<An1Player>` |
+| Talks to the page through | Inputs, properties and events | Inputs, data and properties, events, scene changes and script function calls |
+
+## Choose Toasty Lite when
+
+- the animation is part of your interface: an icon, a control, a status indicator, an empty state, a hero illustration;
+- you need several on one page, or the same icon repeated in a list;
+- it must appear instantly, without a loading state of its own;
+- the art is vector and the behaviour fits a state machine.
+
+## Choose the engine when
+
+- you are making a game, or anything with a game loop: scores, collisions, levels;
+- you need code: scripts that read input, run physics or keep state between scenes;
+- you use images, particles, lights, audio, post effects or 3D;
+- the scene takes keyboard input or switches between several scenes.
+
+## Questions to decide
+
+| Question | If yes |
+|---|---|
+| Does it need a script? | Engine |
+| Does it use images, particles, audio or 3D? | Engine |
+| Will there be more than one on the page? | Lite |
+| Is it part of a button, link, form or navigation? | Lite |
+| Must it be visible in the first paint, with no loading state? | Lite |
+| Is it the main content of the page, like a game or an interactive story? | Engine |
+
+If the export to Lite reports skipped items you can't live without, the scene belongs in the engine.
+
+## Using both
+
+The runtimes are independent, so one page can use both: a game in the engine, with the site's navigation, like buttons and loaders in Lite. A common pattern is a Lite `loader` shown while the engine downloads, removed when the engine player is ready.
+
+## Moving between them
+
+A Lite scene is a normal Toasty scene, so it also runs in the engine unchanged: the ten components on this site behave the same in the editor's Playground as on a web page. Going the other way, export any scene to Lite and check the `skipped` list for what it would lose.
+
+The page APIs are close on purpose. Both have `setInput`, `fire`, `set`, `setData`, `get`, `play`, `pause` and `destroy`, and both report `state`, `prop` and `event`. Code that drives a state machine moves between them with little change.
+
+## Related
+
+- [Toasty Lite](./lite.mdx)
+- [Embedding on the web](../embedding/overview.mdx)
+- [Toasty for games](../games/index.mdx)

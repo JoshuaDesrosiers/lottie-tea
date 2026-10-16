@@ -1,8 +1,8 @@
 {
-  "label": "Embedding on the web",
-  "position": 5,
+  "label": "Engine embed",
+  "position": 2,
   "link": {
     "type": "generated-index",
-    "description": "Put a Toasty scene or game inside your own website and drive it from your code: React, Next.js, plain JavaScript, Vue, Svelte or a single HTML tag. Send it data, flip its switches, and hear back when it changes state or sends you an event."
+    "description": "Run the full Toasty engine inside your own website for games: React, Next.js, plain JavaScript, Vue, Svelte or a single HTML tag. Send the game data, hear its events, and build the page around it. For UI animation (icons, buttons, toggles), use Toasty Lite instead."
   }
 }

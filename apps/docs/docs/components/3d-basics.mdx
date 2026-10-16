@@ -150,7 +150,7 @@ Materials on an imported model are **shared by every copy** of that model. To ma
 - Each override row picks a toon material that this object wears in that slot instead, or **Model's own**.
 - **×** removes the override.
 
-Only this object changes; other copies keep the model's materials. (The Fatal Clash demo gives Shadow Popi a bronze skin this way.)
+Only this object changes; other copies keep the model's materials.
 
 ## Cameras
 
@@ -261,14 +261,8 @@ s.position3 = { x: p.x, y: 1.15 + Math.abs(Math.sin(t * 3)) * 0.6, z: p.z }
 
 The full list is in [Scripting: 3D](../scripting/3d-api.mdx).
 
-## Demos
+## Built-in examples
 
-| Demo (+ → Demos) | Shows |
-|---|---|
-| **3D Showroom** | Every primitive on a lit stage, a sun and two orbiting coloured point lights, a scripted orbit camera, 2D text over 3D. |
-| **Physics 3D Lab** | Rigidbody 3D, colliders, triggers and raycasts. |
-| **Reyna's Leer** | 3D particles in fluid mode and a shader-graph eye material. |
-| **Voxel Craft** | A streamed block world. |
-| **Shatterline (glass)** | Breakable glass. |
-| **Fatal Clash (3D fighting)** | VRM avatars, poses, ragdolls, sun shadows, material overrides. |
-| **Sunset Tactics (5v5)** | A first-person 3D shooter with imported models. |
+The **+ → Demos** menu includes 3D scenes you can open and inspect, for example **3D Showroom** (every primitive on a lit stage with an orbit camera) and **Physics 3D Lab** (rigidbodies, colliders, triggers and raycasts). See [Demos](../editor/demos.mdx).
+
+3D requires the full engine; [Toasty Lite](../runtimes/lite.mdx) plays 2D vector scenes only.

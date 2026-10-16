@@ -18,8 +18,14 @@ if (ctx.keysDown.has('left'))  player.x -= speed * ctx.deltaSeconds
 
 That is the whole model. The rest of this section is reference.
 
+:::note Scripts need the full engine
+Scripts run in Playground, exported games and the [engine embed](../embedding/overview.mdx). [Toasty Lite](../runtimes/lite.mdx) does not run scripts; a Lite export lists any state program it left out. For UI animation, drive the state machine with [On Click](../editor/properties-and-bindings.mdx#on-click-events) and [Pointer Listeners](../components/pointer-listeners.mdx) instead, and let the page set inputs.
+
+For complete scripted games to read, see [Toast Catch](../games/toast-catch.mdx) and [Hop](../games/hop.mdx).
+:::
+
 :::info This section is syntax-first
-Pages here are written as a reference: a signature, a parameter table, what it returns, a short example and the gotchas. For guided, build-a-game-from-scratch walkthroughs see the [courses](../courses/index.mdx). For what each component does in the editor (Rigidbody 2D, UI Button, Audio Source, ...) see [Components](../components/overview.mdx).
+Pages here are written as a reference: a signature, a parameter table, what it returns, a short example and the gotchas. For guided walkthroughs that build a game from scratch, see the [courses](../courses/index.mdx). For what each component does in the editor (Rigidbody 2D, UI Button, Audio Source, ...) see [Components](../components/overview.mdx).
 :::
 
 ## Three ways to program a state

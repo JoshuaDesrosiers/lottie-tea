@@ -1,0 +1,263 @@
+---
+title: Toasty Lite
+sidebar_position: 1
+description: Toasty Lite is a 25 KB Canvas 2D runtime for interactive UI animation. Put animated icons, buttons, toggles and loaders on any web page, as many as you like.
+---
+
+# Toasty Lite
+
+Toasty Lite is the small web runtime for interactive UI animation. It plays a JSON file exported from the Toasty editor and draws it with the browser's Canvas 2D: vector shapes, strokes with trim paths, path morphs, keyframes and a state machine that reacts to hover, clicks and your page's data.
+
+It is built for the parts of a website that should feel alive without becoming a project of their own: a like button, a menu icon, a theme switch, a submit button that shows its result, a download that reports progress.
+
+| | |
+|---|---|
+| Size | About 25 KB of JavaScript before compression, no dependencies |
+| Start-up | Instant: no WebAssembly, no WebGL context |
+| Per page | As many players as you like, sharing one frame loop |
+| Plays | A `.json` file from **Export → Animation → Toasty Lite (.json)** |
+| Use it from | The `<toasty-lite>` element, JavaScript (`createLite`) or React (`<ToastyLite>`) |
+
+## Lite or the engine?
+
+Toasty ships two web runtimes. Use **Toasty Lite** for interface animation: icons, buttons, toggles, loaders and illustrations, where many small pieces share a page and each must load instantly. Use the **engine embed** for games and rich scenes that need scripts, physics, particles, images, audio or 3D. The engine is about 25 MB and runs one player per page.
+
+If your animation is made of vector shapes and is driven by a state machine, it belongs in Lite. To start from one of the ten components below, open **+ → Templates** in the editor and pick a **Lite:** template; it is added as its own scene, ready to restyle and export. See [Authoring for Lite](./authoring.mdx#start-from-a-template). The full comparison is in [Lite or engine?](./lite-vs-engine.mdx).
+
+## Quick start
+
+### 1. Add the runtime to your site
+
+Copy these files into a folder your site serves. The examples on this site use `/toasty/`. This documentation site serves its own copies at `https://toastycreate.web.app/docs/toasty/`, for example `https://toastycreate.web.app/docs/toasty/an1mbyt3-lite.js`; download them from there rather than linking to them, so your site doesn't depend on ours.
+
+| File | What it is |
+|---|---|
+| `an1mbyt3-lite.js` | The `<toasty-lite>` element and `createLite()`. Load this one. |
+| `an1mbyt3-runtime.js` | The player. `an1mbyt3-lite.js` imports it from the same folder, so ship both. |
+| `an1mbyt3-lite-react.js` | Optional. The `<ToastyLite>` React component. It also imports `an1mbyt3-runtime.js`. |
+| `heart.json` | Your exported animation. The examples keep these in `/toasty/lite/`. |
+
+### 2. Load the script and place the element
+
+```html
+<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<toasty-lite src="/toasty/lite/heart.json" ink="currentColor" style="width:40px;height:40px"></toasty-lite>
+```
+
+The element registers itself when the script loads. Give it a size: the animation scales to fit the box. `ink="currentColor"` paints the lines in the surrounding text colour, so the icon matches your light and dark themes.
+
+### 3. Connect it to your page
+
+The heart has a Bool input called `liked`. Put it inside a real button, let the button own the state, and pass that state to the animation:
+
+<LiveHTML
+  url="linea.shop/lamps/desk"
+  height={420}
+  caption="Click Save, or Tab to it and press Space. The button owns the saved state; the heart only shows it."
+  html={`<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<article class="product">
+  <div class="photo" role="img" aria-label="Linea Desk Lamp in matte sand"></div>
+  <div class="body">
+    <div>
+      <h1>Linea Desk Lamp</h1>
+      <p class="meta">Matte sand · Dimmable LED</p>
+      <p class="price">$148</p>
+    </div>
+    <button class="save" type="button" aria-pressed="false">
+      <toasty-lite src="/toasty/lite/heart.json" ink="currentColor"></toasty-lite>
+      <span class="label">Save</span>
+    </button>
+  </div>
+</article>`}
+  css={`body { display: grid; place-items: center; padding: 24px 16px; }
+
+.product {
+  width: min(100%, 360px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.photo {
+  aspect-ratio: 4 / 3;
+  background:
+    radial-gradient(ellipse 30% 9% at 50% 86%, rgb(0 0 0 / .14), transparent),
+    radial-gradient(circle at 58% 34%, #fff4d6 0 7%, transparent 26%),
+    linear-gradient(160deg, #efe6d8, #d9cbb5);
+}
+.body { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 16px; }
+h1 { margin: 0; font-size: 17px; font-weight: 600; }
+.meta { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.price { margin: 8px 0 0; font-weight: 600; }
+
+.save {
+  display: inline-flex; align-items: center; gap: 2px; height: 40px; padding: 0 14px 0 6px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); cursor: pointer;
+}
+.save:hover { background: color-mix(in srgb, var(--ink) 5%, var(--surface)); }
+.save:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.save toasty-lite { width: 36px; height: 36px; pointer-events: none; }
+.label { font-size: 14px; font-weight: 500; }`}
+  js={`const button = document.querySelector('.save')
+const heart = button.querySelector('toasty-lite')
+const label = button.querySelector('.label')
+
+// Pass hover and focus through to the heart's hover input.
+const hover = (on) => heart.player?.setInput('hover', on)
+button.addEventListener('pointerenter', () => hover(true))
+button.addEventListener('pointerleave', () => hover(false))
+button.addEventListener('focus', () => hover(true))
+button.addEventListener('blur', () => hover(false))
+
+button.addEventListener('click', () => {
+  const saved = button.getAttribute('aria-pressed') !== 'true'
+  button.setAttribute('aria-pressed', String(saved))
+  label.textContent = saved ? 'Saved' : 'Save'
+  heart.player?.setInput('liked', saved)
+})`}
+  react={`import { useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function SaveButton() {
+  const [saved, setSaved] = useState(false)
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      className="save"
+      aria-pressed={saved}
+      onClick={() => setSaved(!saved)}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <ToastyLite src="/toasty/lite/heart.json" inputs={{ liked: saved, hover }} style={{ width: 36, height: 36, pointerEvents: 'none' }} />
+      <span>{saved ? 'Saved' : 'Save'}</span>
+    </button>
+  )
+}`}
+/>
+
+That is the whole integration. The button gives you keyboard support, focus and a screen reader label; Toasty Lite gives you the motion. The element's `.player` is the runtime API once the file has loaded, and `setInput` changes a state machine input on the running animation.
+
+## The ten components
+
+These ten files are used throughout this documentation. Each is a 96 × 96 scene with a transparent background and no scripts: everything you see is shapes, trim paths, keyframes and a state machine. All of them except `theme` and `toasty` have an `ink` colour property, and all of them except `loader` and `status` react to hover.
+
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, margin: '1.5rem 0' }}>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="heart" ink="auto" label="Like" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>heart</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Click to like. Click again to unlike.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="menu" ink="auto" label="Menu" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>menu</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Click to open and close.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="theme" label="Theme switch" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>theme</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Click to morph the sun into a moon.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="status" ink="auto" inputs={{ status: 'loading' }} label="Loading" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>status</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Shown loading. Driven by your form.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="bell" ink="auto" inputs={{ unread: true }} label="Notifications" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>bell</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Click to ring it.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="download" ink="auto" inputs={{ state: 'downloading' }} data={{ progress: 0.6 }} label="Downloading, 60 percent" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>download</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Shown at 60 percent. Hover it.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="copy" ink="auto" label="Copy" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>copy</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Click to copy.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="arrow" ink="auto" label="Arrow" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>arrow</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Hover it.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="loader" ink="auto" label="Loading" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>loader</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Loops on its own.</div>
+  </div>
+  <div style={{ border: '1px solid var(--t-line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+    <Lite src="toasty" label="Toasty" style={{ width: 72, height: 72, margin: '0 auto' }} />
+    <div><code>toasty</code></div>
+    <div style={{ color: 'var(--t-muted)', fontSize: '0.85rem' }}>Hover to make it hop. Click to boop.</div>
+  </div>
+</div>
+
+| File | Inputs | Properties | States | Built for |
+|---|---|---|---|---|
+| `heart` | `liked` Bool, `hover` Bool | `ink` | `Unliked`, `Liked`; layer `Hover`: `Rest`, `Over` | [Like button](../use-cases/like-button.mdx) |
+| `menu` | `open` Bool, `hover` Bool | `ink` | `Closed`, `Open`; layer `Hover` | [Mobile menu](../use-cases/mobile-menu.mdx) |
+| `theme` | `dark` Bool, `hover` Bool | none | `Light`, `Dark`; layer `Hover` | [Theme switch](../use-cases/theme-switch.mdx) |
+| `status` | `status` Enum: `idle`, `loading`, `success`, `error` | `ink` | `Idle`, `Loading`, `Success`, `Error` | [Form status](../use-cases/form-status.mdx) |
+| `bell` | `ring` Trigger, `unread` Bool, `hover` Bool | `ink` | `Still`, `Ringing`, `Ringing again`; layers `Badge` and `Hover` | [Notifications](../use-cases/notifications.mdx) |
+| `download` | `state` Enum: `idle`, `downloading`, `done`; `hover` Bool | `ink`, `progress` (0 to 1) | `Idle`, `Downloading`, `Done`; layer `Hover` | [Download progress](../use-cases/download-progress.mdx) |
+| `copy` | `copy` Trigger, `hover` Bool | `ink` | `Idle`, `Copied`, `Copied again` | [Copy to clipboard](../use-cases/copy-to-clipboard.mdx) |
+| `arrow` | `hover` Bool | `ink` | `Rest`, `Over` | [Call to action](../use-cases/call-to-action.mdx) |
+| `loader` | none | `ink` (the faint track) | `Spin` | [Loading states](../use-cases/loading-states.mdx) |
+| `toasty` | `hover` Bool, `boop` Trigger | none | `Idle`, `Boop`, `Boop again`; layers `Face` and `Hop` | [Mascot](../use-cases/mascot.mdx) |
+
+## How the page talks to an animation
+
+Every Lite file exposes three things to your page, all designed in the editor:
+
+- **Inputs** belong to the state machine: Bool, Number, Enum and Trigger values that decide which state plays. Set them with `player.setInput(name, value)`, `player.fire(trigger)`, the `inputs` attribute or the React `inputs` prop.
+- **Properties** are the scene's named values, bound to colours, text, positions or trim. Set them with `player.set(name, value)`, the `data` attribute or the React `data` prop. `ink` is a property.
+- **Events** come back out. The player reports every state change (`toasty:state`), every property change (`toasty:prop`), and every **Call script function** action that runs on a click or hover (`toasty:event`).
+
+## Performance and accessibility
+
+### Performance
+
+You can put dozens of Lite players on one page. The runtime is designed for it:
+
+- **One frame loop.** All players on the page share a single `requestAnimationFrame` loop.
+- **Repaint on change only.** A player redraws only while an animation is moving, a crossfade or hover look is easing, or after you set an input or property. An idle icon costs no drawing work.
+- **Off-screen pause.** Each player watches its box with an `IntersectionObserver`. While the box is off-screen, the player skips its frames entirely, so its state machine time stands still until it scrolls back into view.
+- **Sharp at any size.** The canvas tracks the box size with a `ResizeObserver` and renders at the device pixel ratio, capped at 3.
+- **Cached files.** Files are fetched once per URL and shared, so ten hearts on a page download `heart.json` once.
+- **Small files.** The ten components above are between 2 and 14 KB of JSON each before compression.
+
+### Accessibility
+
+A `<toasty-lite>` element is a `<canvas>`. Assistive technology cannot see what it draws, it cannot take keyboard focus, and its click actions only respond to a pointer. Treat it as an image inside a real control:
+
+- **Put interactive animations inside a real `<button>`** (or link). Give the button an accessible name, either visible text or `aria-label`, and state such as `aria-pressed` or `aria-expanded`.
+- **Let the button own the state.** Handle `click` on the button and pass the result to the animation with `setInput`. Add `pointer-events: none` to the `<toasty-lite>` so its own click actions don't run a second time.
+- **Mirror hover with focus.** If the animation has a `hover` input, set it on `pointerenter` / `focus` and clear it on `pointerleave` / `blur`, so keyboard users see the same feedback.
+- **Hide purely decorative animations** from assistive technology with `aria-hidden="true"` on the element or its wrapper. For status icons, put the status in text (a visually hidden live region, for example) rather than relying on the animation.
+- **Respect reduced motion.** Check `matchMedia('(prefers-reduced-motion: reduce)')`. For decorative loops such as `loader` or `toasty`, add the `paused` attribute or show a static alternative. A paused player also stops changing state, so leave interactive icons playing.
+
+```html
+<button type="button" class="icon-button" aria-label="Open menu" aria-expanded="false">
+  <toasty-lite src="/toasty/lite/menu.json" ink="currentColor" style="width:32px;height:32px;pointer-events:none"></toasty-lite>
+</button>
+```
+
+In React, the `<Lite>` component used on this site takes a `label` prop that sets `role="img"` and `aria-label` on its box, and marks it `aria-hidden` when there is no label. Your own `<ToastyLite>` does not add ARIA attributes; wrap it the same way.
+
+## Next steps
+
+| Read | To learn |
+|---|---|
+| [The toasty-lite element](./html.mdx) | Every attribute and event of the HTML element |
+| [JavaScript](./javascript.mdx) | `createLite`, the player API, events and cleanup |
+| [React](./react.mdx) | `<ToastyLite>` props, controlled and uncontrolled patterns |
+| [Theming](./theming.mdx) | The `ink` property and matching your site's colours |
+| [Authoring for Lite](./authoring.mdx) | Building a Lite-ready animation in the editor |
+| [File format](./format.mdx) | The JSON format, key by key |
+| [Use cases](../use-cases/index.mdx) | Each component in a realistic page |

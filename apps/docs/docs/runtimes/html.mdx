@@ -1,0 +1,228 @@
+---
+title: The toasty-lite element
+sidebar_position: 2
+description: Reference for the toasty-lite custom element. Every attribute, the player property and the five bubbling events, with live examples.
+---
+
+# The `<toasty-lite>` element
+
+`<toasty-lite>` plays a Toasty Lite file with one tag. It works in any HTML page, CMS template or framework, with no build step.
+
+```html
+<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<toasty-lite src="/toasty/lite/heart.json" ink="currentColor" style="width:40px;height:40px"></toasty-lite>
+```
+
+Loading `an1mbyt3-lite.js` defines the element. Tags already in the page start as soon as the script runs, and tags you add later start when they are inserted. `an1mbyt3-lite.js` imports `an1mbyt3-runtime.js` from the same folder, so ship both files together.
+
+## Size and fit
+
+The element is `display: inline-block` unless you set another display. It draws into a canvas that fills the element's box, so **give the element a width and a height**, in CSS or inline. Without a size it collapses.
+
+The scene keeps its aspect ratio. `fit` decides what happens when the box has a different shape:
+
+| `fit` | Result |
+|---|---|
+| `contain` (default) | The whole scene is visible, centred, with empty space on the short sides. |
+| `cover` | The scene fills the box and the overflow is cropped. |
+
+All ten components are square, so a square box shows them exactly as designed.
+
+## Attributes
+
+| Attribute | Value | Default | When it changes |
+|---|---|---|---|
+| `src` | URL of a Toasty Lite `.json` file. Required. | | The animation reloads from the new file. |
+| `fit` | `contain` or `cover` | `contain` | The animation reloads. |
+| `background` | Boolean attribute. Paints the scene's background colour (the camera's background) behind the art. | Transparent | The animation reloads. |
+| `paused` | Boolean attribute. Starts the animation paused. | Playing | Removing it plays; adding it pauses. |
+| `data` | JSON object of scene property values, for example `{"progress": 0.4}` | The file's defaults | Each property in the new object is set on the running animation. |
+| `inputs` | JSON object of state machine input values, for example `{"liked": true}` | `false`, `0` or empty | Each input in the new object is set on the running animation. |
+| `ink` | A CSS colour, or `currentColor` | The file's `ink` default | The `ink` property is set again. See [Theming](./theming.mdx). |
+
+Notes on the values:
+
+- `data` and `inputs` must be valid JSON, so quote keys and strings with double quotes and wrap the attribute in single quotes: `inputs='{"status": "loading"}'`. Invalid JSON logs a warning and is ignored.
+- Colour properties in `data` accept a `"#rrggbb"` string or an array `[r, g, b, a]` with values from 0 to 1.
+- A Trigger input in `inputs` fires when its value is `true`. Setting the attribute to the same string again does nothing, so fire triggers from JavaScript with `player.fire()` instead.
+- `paused` stops time: animations hold their current frame and the state machine stops changing state until you play again.
+- With `ink="currentColor"`, the element re-reads its text colour whenever the `class`, `data-theme` or `style` attribute of `<html>` changes, and when the system light or dark preference changes.
+
+### Setting state from attributes
+
+Attributes are the simplest way to drive an animation from server-rendered HTML or a template. This app header renders the bell with `inputs='{"unread": false}'`, then updates the attribute when a message arrives:
+
+<LiveHTML
+  url="app.northwind.io/inbox"
+  height={340}
+  caption="Click Simulate a new message, then open the notifications. The page changes the inputs attribute; the bell's badge layer follows."
+  html={`<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<header class="bar">
+  <strong class="brand">Northwind</strong>
+  <nav><a href="#" aria-current="page">Inbox</a><a href="#">Projects</a><a href="#">Reports</a></nav>
+  <button class="bell" type="button" aria-label="Notifications">
+    <toasty-lite src="/toasty/lite/bell.json" ink="currentColor" inputs='{"unread": false}'></toasty-lite>
+  </button>
+</header>
+
+<main>
+  <h1>Inbox</h1>
+  <p class="muted">You're all caught up.</p>
+  <button class="primary" id="simulate" type="button">Simulate a new message</button>
+</main>`}
+  css={`.bar {
+  display: flex; align-items: center; gap: 24px; height: 56px; padding: 0 12px 0 20px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 700; letter-spacing: -.01em; }
+nav { display: flex; gap: 16px; flex: 1; font-size: 14px; }
+nav a { color: var(--muted); text-decoration: none; }
+nav a[aria-current] { color: var(--ink); font-weight: 500; }
+.bell {
+  display: grid; place-items: center; width: 40px; height: 40px; padding: 0;
+  border: 0; border-radius: 10px; background: transparent; cursor: pointer;
+}
+.bell:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.bell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bell toasty-lite { width: 36px; height: 36px; pointer-events: none; }
+main { padding: 28px 20px; }
+h1 { margin: 0 0 4px; font-size: 22px; }
+.muted { margin: 0 0 20px; color: var(--muted); }
+.primary {
+  height: 38px; padding: 0 16px; border: 0; border-radius: 10px;
+  background: var(--accent); color: #fff; font-weight: 500; cursor: pointer;
+}`}
+  js={`const button = document.querySelector('.bell')
+const bell = button.querySelector('toasty-lite')
+const status = document.querySelector('.muted')
+
+document.querySelector('#simulate').addEventListener('click', () => {
+  bell.setAttribute('inputs', JSON.stringify({ unread: true }))
+  bell.player?.fire('ring')
+  button.setAttribute('aria-label', 'Notifications, 1 unread')
+  status.textContent = 'Priya Shah commented on Q3 launch plan.'
+})
+
+button.addEventListener('click', () => {
+  bell.setAttribute('inputs', JSON.stringify({ unread: false }))
+  button.setAttribute('aria-label', 'Notifications')
+})
+
+// Hover feedback for mouse and keyboard users alike.
+const hover = (on) => bell.player?.setInput('hover', on)
+button.addEventListener('pointerenter', () => hover(true))
+button.addEventListener('pointerleave', () => hover(false))
+button.addEventListener('focus', () => hover(true))
+button.addEventListener('blur', () => hover(false))`}
+/>
+
+## The `player` property
+
+Once the file has loaded, the element's `player` property is the full player API: `setInput`, `fire`, `set`, `get`, `state`, `on`, `play`, `pause` and the rest. It is `null` before then, and it is replaced by a new player when `src`, `fit` or `background` changes. See [JavaScript](./javascript.mdx#the-player) for every member.
+
+If your script may run before the file has loaded, wait for `toasty:ready`:
+
+```js
+function whenReady(el) {
+  if (el.player) return Promise.resolve(el.player)
+  return new Promise((resolve) => {
+    el.addEventListener('toasty:ready', (e) => resolve(e.detail.player), { once: true })
+  })
+}
+
+const status = document.querySelector('#submit-status')
+const player = await whenReady(status)
+player.setInput('status', 'loading')
+```
+
+## Events
+
+The element and its player dispatch DOM events. All of them bubble, so you can listen on the element, on a container, or once on `document`.
+
+| Event | `detail` | When |
+|---|---|---|
+| `toasty:ready` | `{ player }` | The file loaded and the player is ready. Fires again after a reload. |
+| `toasty:state` | `{ layer, state, previous }` | A state machine layer entered a state. `layer` is `null` for the base layer. |
+| `toasty:prop` | `{ name, value }` | A scene property changed, from a click action, from `player.set`, from the `data` attribute or from `ink`. |
+| `toasty:event` | `{ name, payload }` | A **Call script function** action ran in an On Click or Pointer Listeners list. `name` is the function name; `payload` is its argument, parsed as JSON when possible, or `undefined` when empty. |
+| `toasty:error` | `{ error }` | The file could not be loaded: a network error, a non-OK response, or a file that isn't Toasty Lite. |
+
+Things to know:
+
+- `toasty:ready` and `toasty:error` are dispatched on the `<toasty-lite>` element itself. The other three are dispatched on the element's inner box and bubble up through it, so use `event.target.closest('toasty-lite')` when you need the element.
+- When a player starts, each layer announces its initial state with `previous: null`. These events arrive **before** `toasty:ready`, so listen on the element before it loads if you need them, or read `player.state()` after ready.
+- Colour values in `toasty:prop` are arrays `[r, g, b, a]` from 0 to 1.
+
+This page logs every event from three bare icons. Hover and click them, or use the buttons:
+
+<LiveHTML
+  url="localhost:5173/events"
+  height={420}
+  caption="Every toasty:* event bubbles to document. Note the initial state events with previous: null, and the prop events from the ink attribute."
+  html={`<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<div class="icons">
+  <toasty-lite id="heart" src="/toasty/lite/heart.json" ink="currentColor"></toasty-lite>
+  <toasty-lite id="bell" src="/toasty/lite/bell.json" ink="currentColor"></toasty-lite>
+  <toasty-lite id="copy" src="/toasty/lite/copy.json" ink="currentColor"></toasty-lite>
+</div>
+<div class="tools">
+  <button type="button" id="ring">player.fire('ring')</button>
+  <button type="button" id="blue">player.set('ink', '#2563eb')</button>
+  <button type="button" id="clear">Clear log</button>
+</div>
+<pre id="log" aria-live="polite"></pre>`}
+  css={`body { padding: 16px; }
+.icons { display: flex; gap: 12px; }
+.icons toasty-lite { width: 64px; height: 64px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.tools button {
+  height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer;
+}
+#log {
+  height: 220px; margin: 0; padding: 10px 12px; overflow: auto;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap;
+}`}
+  js={`const log = document.querySelector('#log')
+const write = (line) => { log.textContent = line + '\\n' + log.textContent }
+
+const types = ['toasty:ready', 'toasty:state', 'toasty:prop', 'toasty:event', 'toasty:error']
+for (const type of types) {
+  document.addEventListener(type, (e) => {
+    const el = e.target.closest('toasty-lite')
+    let detail = ''
+    if (type === 'toasty:error') detail = String(e.detail.error)
+    else if (type !== 'toasty:ready') detail = JSON.stringify(e.detail)
+    write(type.padEnd(13) + ' #' + (el ? el.id : '?') + ' ' + detail)
+  })
+}
+
+document.querySelector('#ring').addEventListener('click', () => {
+  document.querySelector('#bell').player?.fire('ring')
+})
+document.querySelector('#blue').addEventListener('click', () => {
+  document.querySelector('#heart').player?.set('ink', '#2563eb')
+})
+document.querySelector('#clear').addEventListener('click', () => { log.textContent = '' })`}
+/>
+
+The bare icons here take clicks themselves, which is fine for a log. On a real page, wrap interactive icons in a `<button>` as described in [Performance and accessibility](./lite.mdx#performance-and-accessibility).
+
+## Reloading and removing
+
+- Changing `src`, `fit` or `background` destroys the current player and loads a new one. A `toasty:ready` follows, and `player` points to the new player.
+- Removing the element from the document destroys its player, disconnects its observers and stops following the theme. Re-inserting it loads the file again (from cache, if the URL was already fetched).
+
+## Styling
+
+The element contains a plain `<div>` that holds the `<canvas>`. Style the element itself: size, margin, border radius, `pointer-events`, `opacity`. The runtime sets `cursor: pointer` on the canvas while the pointer is over a UI Button shape, and clears it elsewhere.
+
+## Related
+
+- [JavaScript](./javascript.mdx): the player API behind `element.player`
+- [Theming](./theming.mdx): `ink` and `currentColor` in depth
+- [Use cases](../use-cases/index.mdx): the element in realistic pages

@@ -1,0 +1,123 @@
+---
+title: 2. Animate the like
+sidebar_position: 2
+description: Keyframe the Unliked rest pose and the Liked pop in the Timeline, using Rec, + Property for trim fields and the curve editor for easing.
+---
+
+# 2. Animate the like
+
+**Goal:** two animations. **Unliked** is a short rest pose. **Liked** is the 0.7-second pop: the fill bounces in, the outline thins away, the ring expands, and the eight rays shoot out and retract.
+
+<Lite src="heart" ink="auto" inputs={{ liked: true }} label="The Liked animation" style={{ width: 96, height: 96 }} />
+
+## Before you start
+
+Open the **Animate** tab of the bottom dock (or press **2**). The Timeline header has, from left to right: the animation dropdown, **Delete animation**, **Rec**, **+ Property**, and the **Dur** field.
+
+Animations can't be renamed in the Timeline yet; the editor numbers them. In this course:
+
+| Editor name | Role | Duration |
+|---|---|---|
+| **Animation 1** | Unliked | 0.3 s |
+| **Animation 2** | Liked | 0.7 s |
+| **Animation 3** | Hover off (lesson 3) | 0.2 s |
+| **Animation 4** | Hover on (lesson 3) | 0.2 s |
+
+A new scene may already contain **Animation 1**. If it does not, create it with **New Animation** at the bottom of the dropdown.
+
+## The easing presets
+
+The shipped components use four cubic-bezier curves. You will type these into the curve editor.
+
+| Name | x1, y1, x2, y2 | Feel |
+|---|---|---|
+| Out | 0.22, 1, 0.36, 1 | Fast start, long soft landing |
+| InOut | 0.65, 0, 0.35, 1 | Smooth start and stop |
+| Back | 0.34, 1.56, 0.64, 1 | Overshoots, then settles |
+| In | 0.55, 0, 1, 0.45 | Slow start, fast exit |
+
+To ease a segment, **double-click the keyframe at the end of that segment**. The **Curve** popover opens; type **x1**, **y1**, **x2** and **y2**. Every keyframe starts **Linear**, so you only need to touch the eased segments.
+
+## Steps
+
+### 1. Unliked: the rest pose
+
+1. Select **Animation 1** and set **Dur** to `0.3`.
+2. Make sure the playhead is at 0 and turn on **Rec**.
+3. Key these values at 0 s. With Rec on, editing a value in the Inspector keys it at the playhead.
+
+| Node | Value | Key at 0 s |
+|---|---|---|
+| `fill` | **Scale %** | 0 |
+| `outline` | Stroke **Width** | 4.5 |
+| `ring` | Stroke **Width** | 0 |
+| `ray0` … `ray7` | Stroke Style **Trim end** | 0 |
+| `ray0` … `ray7` | Stroke Style **Trim start** | 0 |
+
+Two kinds of value need a different move:
+
+- **Scale, Position and Rotation** have their own Timeline rows, and Rec does not key them. Pose the node in the Inspector, then press the **+** at the end of the **Scale** row ("Add Scale keyframe"). Once a key exists, editing the value while the playhead sits exactly on that key updates it.
+- **A value that already equals the number you want** won't change, so Rec won't key it. Use **+ Property**: select the node, click **+ Property**, type `trim` or `width` in the search box, and pick the field. That adds the row with a keyframe of the current value at the playhead.
+
+### 2. Liked: the pop
+
+1. Choose **New Animation** in the dropdown (it becomes **Animation 2**) and set **Dur** to `0.7`.
+2. Keep **Rec** on. For each row below, move the playhead to each time and set the value in the Inspector; stroke widths and trim values key themselves. For **Scale %**, set the value and press **+** on the **Scale** row. Zoom the Timeline with its **Zoom in** button for precise times, and hover a diamond to read its exact time.
+
+**The fill pops, overshoots and settles.**
+
+| `fill` Scale % | 0 s | 0.2 s | 0.32 s | 0.44 s |
+|---|---|---|---|---|
+| Value | 0 | 122 | 94 | 100 |
+| Curve into this key | | Out | InOut | InOut |
+
+**The outline thins away as the fill covers it.**
+
+| `outline` stroke Width | 0 s | 0.15 s |
+|---|---|---|
+| Value | 4.5 | 0 |
+| Curve into this key | | Out |
+
+**The ring expands while its stroke thins to nothing.**
+
+| `ring` | 0 s | 0.45 s | Curve into 0.45 s |
+|---|---|---|---|
+| Scale % | 50 | 150 | Out |
+| Stroke Width | 10 | 0 | Out |
+
+**Each ray draws out, then its tail chases it.** Do this for all eight rays, `ray0` to `ray7`. Trim end grows the ray outward; Trim start follows a little later, so the ray detaches from the heart and disappears at the outer end.
+
+| Ray Stroke Style | 0 s | 0.1 s | 0.22 s | 0.3 s | 0.5 s |
+|---|---|---|---|---|---|
+| **Trim end** | 0 | 0 | | 1 (curve Out) | |
+| **Trim start** | 0 | | 0 | | 1 (curve Out) |
+
+So each ray has two rows. Trim end has keys at 0, 0.1 and 0.3; Trim start has keys at 0, 0.22 and 0.5. The eased segment is the last one in each row.
+
+3. Turn **Rec** off.
+
+<Shot id="course-heart-timeline" caption="The Animate tab on Animation 2 (Dur 0.7) with ray0 selected: Trim end and Trim start field rows with keys at 0, 0.1, 0.3 and 0, 0.22, 0.5, and the Curve popover open on the 0.3 s key showing 0.22, 1, 0.36, 1." />
+
+### 3. Preview it
+
+Press **Play/Pause** in the Timeline. Set the preview loop mode to **Once** to see it the way the page will.
+
+The Timeline preview is only a preview. What the exported file plays is decided by the state machine you build in the next lesson.
+
+## How it works
+
+- **Two animations, not one reversed.** Unliking does not play the pop backwards. Instead, the state machine crossfades from wherever Liked is back to the Unliked rest pose in 0.18 s. That is shorter and calmer than a reverse pop, which is what a user expects when they take a like back.
+- **The rest pose is a one-frame animation.** Unliked has a single key per value at 0 s. Holding one pose for 0.3 s is enough for the state machine to settle into it.
+- **Keys at 0 s that equal the rest pose matter.** The Liked rows start at the Unliked values (fill 0, outline 4.5, rays 0). Without them, the first frame of the pop would jump.
+- **The easing is stored on the keyframe where a segment starts.** The editor lets you edit it from the keyframe where the segment ends, because that is how you think about it: "ease into 1.22". In the shipped source, the same curve is written as "0 s, Out".
+- **Trim start following Trim end** is the classic burst. The 0.12 s lag between them (0.1 → 0.22 for the start of movement) is what reads as a spark rather than a line.
+
+## Check your work
+
+- Scrubbing Animation 2 shows the fill growing past full size around 0.2 s, dipping slightly, then settling at 0.44 s.
+- Around 0.3 s, all eight rays are fully drawn; by 0.5 s they are gone.
+- Scrubbing Animation 1 shows only the outline: no fill, no ring, no rays.
+
+## Next
+
+[3. Build the state machine](./03-state-machine.mdx): switch between Unliked and Liked with a Bool input, and add a hover layer.

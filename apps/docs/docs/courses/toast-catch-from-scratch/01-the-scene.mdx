@@ -1,0 +1,127 @@
+---
+title: 1. Build the scene
+sidebar_position: 1
+description: Lay out the Toast Catch scene from plain shapes and text, give every node the id the script will use, and add the score and lives Properties.
+---
+
+# 1. Build the scene
+
+In this course you build **Toast Catch**, a small arcade game, in the full Toasty engine. Move a plate with the mouse or the arrow keys to catch falling toast. Burnt slices cost a life, and so does good toast you let fall. You have three lives. Click or press Space to start.
+
+<ToastyDemo game="/games/toast-catch.teab" height={360} caption="The finished game. Click to load it, then click again to play." />
+
+The whole game is one scene and one Code program of about 80 lines. Everything you see is a plain shape or a text node; the program moves them.
+
+**Goal of this lesson:** the scene, fully laid out and named, with two Properties. No code yet.
+
+:::tip Compare with the finished version
+Choose **+ → Templates → Game: Toast Catch** at any point. It adds the finished game to your project as its own scene, with the same ids, Properties and program as this course builds.
+:::
+
+## Why the full engine
+
+Toasty Lite has no scripts, so a game needs the engine. The engine is larger (about 25 MB uncompressed) and runs once per page. See [Lite or engine?](../../runtimes/lite-vs-engine.mdx).
+
+## The layout
+
+The scene is 640 × 360 with the origin in the middle and y pointing up, so the visible area runs from x −320 to 320 and from y −180 to 180.
+
+| Id | What | Position | Look |
+|---|---|---|---|
+| `counter` | 700 × 70 rectangle, the kitchen counter | (0, −150) | Fill `#DBCCB8` |
+| `counterEdge` | 700 × 6 rectangle along its top | (0, −114) | Fill `#C7B59E` |
+| `toast0` … `toast5` | 38 × 40 rounded rectangle, corner radius 10 | (0, 400), off-screen | Fill `#F7C261`, stroke `#BD6B1F`, width 5 |
+| `plate` | 96 × 14 rounded rectangle, corner radius 7 | (0, −100) | Fill white, stroke `#CCC7C2`, width 3 |
+| `scoreText` | Text `0`, size 28 | (0, 140) | `#261F1A` |
+| `life0`, `life1`, `life2` | 14 × 14 circles | (−290, 150), (−268, 150), (−246, 150) | Fill `#ED4D59` |
+| `message` | Text `CLICK TO PLAY`, size 22 | (0, 30) | `#261F1A` |
+| `hint` | Text `MOUSE OR ARROW KEYS TO MOVE - CATCH THE TOAST, DODGE THE BURNT ONES`, size 11 | (0, −150) | `#73665C` |
+
+The shipped game uses the **Russo One** font for its text and a warm off-white background, `#FAF2E6`.
+
+## Steps
+
+### 1. The scene and background
+
+1. **Scene picker → New Scene**, name it `Toast Catch`, **Create**.
+2. With nothing selected, set **Size** to `640` × `360`.
+3. Select **Main Camera** in Layers and set its **Background** to `#FAF2E6`.
+
+### 2. The shapes
+
+Every shape that the program moves must have its path centred on its own origin, because the program sets the node's position. Save this SVG, which draws one of each shape at the origin, and import it with **+ → Import → SVG…**:
+
+```svg title="toast-catch-shapes.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-350 -50 700 100" width="700" height="100">
+  <rect id="counter" x="-350" y="-35" width="700" height="70" fill="#DBCCB8"/>
+  <rect id="counterEdge" x="-350" y="-3" width="700" height="6" fill="#C7B59E"/>
+  <path id="toast0" fill="#F7C261" stroke="#BD6B1F" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"
+    d="M-9 -20 L9 -20 C14.52 -20 19 -15.52 19 -10 L19 10 C19 15.52 14.52 20 9 20 L-9 20 C-14.52 20 -19 15.52 -19 10 L-19 -10 C-19 -15.52 -14.52 -20 -9 -20 Z"/>
+  <path id="plate" fill="#FFFFFF" stroke="#CCC7C2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
+    d="M-41 -7 L41 -7 C44.87 -7 48 -3.87 48 0 C48 3.87 44.87 7 41 7 L-41 7 C-44.87 7 -48 3.87 -48 0 C-48 -3.87 -44.87 -7 -41 -7 Z"/>
+  <circle id="life0" r="7" fill="#ED4D59"/>
+</svg>
+```
+
+Everything lands stacked at the centre. Now:
+
+1. Select `toast0` and press **Ctrl+C**, then **Ctrl+V** five times. Name the copies `toast1` to `toast5`.
+2. Copy `life0` twice and name the copies `life1` and `life2`.
+3. Set each node's **Position** from the table above.
+
+### 3. The text
+
+Add three text nodes with **+ → 2D Object → Text**: `scoreText`, `message` and `hint`. Set the text, **Size** and fill colour from the table, and pick **Russo One** (or any bold display font) with **Font**.
+
+### 4. Ids
+
+The program finds nodes by id with `getCompByID('plate')`. Select each node and type its id into the **Id** field in the Inspector. The importer names nodes after their SVG `id`, but the **Id** field is what scripts use, so set it explicitly for all fifteen nodes:
+
+```text
+counter  counterEdge  toast0  toast1  toast2  toast3  toast4  toast5  plate
+scoreText  life0  life1  life2  message  hint
+```
+
+(Only `toast0`…`toast5`, `plate`, `scoreText`, `life0`…`life2` and `message` are used by the program. `counter`, `counterEdge` and `hint` are ids for tidiness.)
+
+### 5. Draw order
+
+The plate must draw in front of the counter, and the toast in front of the counter too. In Layers (frontmost first) a good order is:
+
+```text
+hint
+message
+life2  life1  life0
+scoreText
+plate
+toast5 … toast0
+counterEdge
+counter
+Main Camera
+```
+
+### 6. Properties
+
+With nothing selected, under **Properties**:
+
+1. **+ Number**, rename it `score`, starting value `0`.
+2. **+ Number**, rename it `lives`, starting value `3`.
+
+<Shot id="course-toast-scene" caption="The Toast Catch scene in Design mode at 640 by 360: counter along the bottom, plate above it, six toast nodes stacked off-screen above the frame, three red life dots top-left, score text top-centre and CLICK TO PLAY in the middle; Inspector with nothing selected showing Properties score (Number, 0) and lives (Number, 3)." />
+
+## How it works
+
+- **A fixed pool of nodes.** There are exactly six toast nodes, created once. The program never creates or deletes nodes while the game runs; it shows, hides and moves these six. That is the object pool you build in lesson 4.
+- **Off-screen parking.** The toasts start at y 400, above the 180 top edge, so they are invisible until the program places them.
+- **Properties are the game's public state.** `score` and `lives` are scene Properties, not just script variables. Pages embedding the game get a `prop` event whenever the game changes them. Lesson 6 uses that for a live score panel.
+- **The hint shares the counter's position** on purpose: it is printed on the counter.
+
+## Check your work
+
+- The canvas shows the counter, the plate, three red dots, the score `0` and `CLICK TO PLAY`.
+- Clicking each of `toast0` to `toast5` shows Position (0, 400) and the right **Id**.
+- With nothing selected, the Inspector lists `score` and `lives`.
+
+## Next
+
+[2. The game loop](./02-the-game-loop.mdx): add the Code program and the game's state.

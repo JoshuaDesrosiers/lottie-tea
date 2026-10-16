@@ -24,7 +24,7 @@ Open the browser's developer tools first. The player logs everything it ignores 
 
 ## A second game replaced the first
 
-Only one player runs per page. Creating a new one (another `<An1Player>`, another `createPlayer`, another `<an1-player>`) destroys the previous one. Show one at a time, or combine the widgets into one scene (see [Recipes](./recipes.mdx#several-widgets-one-player)).
+Only one engine player runs per page. Creating a new one (another `<An1Player>`, another `createPlayer`, another `<an1-player>`) destroys the previous one. Show one game at a time (see [Recipes](./recipes.mdx#several-games-one-page)). If the other thing on the page is an animated icon, button or loader, make it with [Toasty Lite](../runtimes/lite.mdx), which runs any number per page alongside the engine.
 
 ## The page's data doesn't show up in the game
 
@@ -34,7 +34,7 @@ Only one player runs per page. Creating a new one (another `<An1Player>`, anothe
 - **Colours turn white.** Only `'#rrggbb'` (or `'rrggbb'`) and `[r, g, b]` / `[r, g, b, a]` arrays (0 to 1) are understood. `'#fff'`, `'red'` and `rgb(...)` become white.
 - **React: mutated in place.** `data` and `inputs` are compared shallowly. `data.user.name = 'Ada'` on the same object isn't seen; pass new values.
 - **Sending the same value again does nothing.** Data are values, not pulses. For "do it now", use a trigger (`fire`) or a function (`call`).
-- **The game overwrote it.** If the game changes the Property afterwards, the game's value wins until you send a *different* value. Use `onPropChange` to keep your state in sync (see [Listening](./listening.mdx#property-changes)).
+- **The game overwrote it.** If the game changes the Property after you sent a value, the game's value stands until you send that key again (or the scene switches, which re-applies all your values). Don't make the page and the game own the same Property; read game-owned ones with `onPropChange` (see [Sending data in](./data-binding.mdx#properties-the-game-writes)).
 
 ## Inputs, triggers and functions do nothing
 
@@ -56,8 +56,7 @@ The console tells you:
 
 - **Starting values aren't events.** The first scene and the starting state are not reported as changes. Read `player.scene` and `player.state` in `onReady` (or right after `await createPlayer`).
 - **`on('ready')` never fires.** `ready` is sent before `createPlayer` resolves. Use the resolved player, `onReady`, or the element's `an1:ready`.
-- **`<an1-player>`: `an1:state` never arrives.** Only `an1:ready` and `an1:error` are dispatched on the element. Use `el.player.on('state', …)` after `an1:ready` (see [Custom element](./custom-element.mdx#events)).
-- **DOM `an1:*` events on a parent.** They don't bubble. Listen on `player.container` itself.
+- **`an1:ready` on a parent element never fires.** The player's `an1:ready` doesn't bubble: listen on the container itself (added before `createPlayer`), use the resolved player, or use the `<an1-player>` element's own `an1:ready`.
 - **`prop` doesn't fire for my own `set`.** That's by design: only changes made by the game are reported.
 - **No `event` from a button.** An On Click "Call script function" only reaches the page if *no* script registered a function with that name. If a script handles it, the script runs instead (it can `ctx.emit` to tell the page).
 

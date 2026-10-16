@@ -1,0 +1,209 @@
+---
+title: 2. The menu icon
+sidebar_position: 2
+description: Build the menu icon, three bars that rotate into a close icon while the middle bar trims away to its centre, and wire it to an accessible mobile navigation.
+---
+
+# 2. The menu icon
+
+**Goal:** three bars that fold into a close icon when `open` is true. The top and bottom bars slide to the middle and rotate to ±45°; the middle bar collapses into its own centre with a trim path. Then you wire it to a mobile navigation with `aria-expanded`.
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0 24px' }}>
+  <Lite src="menu" ink="auto" label="Menu icon, closed" style={{ width: 80, height: 80 }} />
+  <Lite src="menu" ink="auto" inputs={{ open: true }} label="Menu icon, open" style={{ width: 80, height: 80 }} />
+</div>
+
+## Steps
+
+### 1. Draw one bar, then copy it
+
+Each bar must be its own node whose **Position** places it, because the animation moves and rotates each bar around its own centre. So import a single centred bar and copy it, rather than importing three bars at once (the SVG importer bakes positions into the path, and the bars would then rotate around the scene centre).
+
+Start from your template scene (lesson 1), name the scene `Menu`, then import:
+
+```svg title="bar.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -48 96 96" width="96" height="96">
+  <path id="top" d="M-20 0 L20 0" fill="none" stroke="#1C1C21" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+```
+
+1. Select `top`, add a **Stroke Style (dash, trim path)** and set **Dash** to `0`.
+2. Press **Ctrl+C**, then **Ctrl+V** twice. Rename the copies `middle` and `bottom` (the Stroke Style is copied with them).
+3. Set **Position**: `top` at Y `13`, `middle` at Y `0`, `bottom` at Y `-13`. X stays `0` for all three.
+4. Select the three bars and press **Ctrl+G**. Rename the group `bars`.
+5. Make sure `hit` is still the top row in Layers.
+6. Select each bar, add **Property Binding**, and bind `ink` → **Stroke colour**.
+
+### 2. Two animations
+
+| Animation | Dur | Role |
+|---|---|---|
+| **Animation 1** | 0.3 s | Closed (rest pose) |
+| **Animation 2** | 0.5 s | Open |
+| **Animation 3** | 0.2 s | Hover off |
+| **Animation 4** | 0.2 s | Hover on |
+
+**Closed** (all keys at 0 s):
+
+| Node | Value at 0 s |
+|---|---|
+| `top` | Position (0, 13), Rotation 0 |
+| `bottom` | Position (0, -13), Rotation 0 |
+| `middle` | Trim start 0, Trim end 1 |
+
+**Open:**
+
+| Node and value | 0 s | 0.16 s | 0.2 s | 0.42 s |
+|---|---|---|---|---|
+| `top` Position | (0, 13) | | (0, 0), curve InOut | |
+| `top` Rotation | 0 | 0 | | 45, curve Back |
+| `bottom` Position | (0, -13) | | (0, 0), curve InOut | |
+| `bottom` Rotation | 0 | 0 | | -45, curve Back |
+| `middle` Trim start | 0 | | 0.5, curve Out | |
+| `middle` Trim end | 1 | | 0.5, curve Out | |
+
+Position and Rotation use their own Timeline rows: pose in the Inspector, then press **+** on the row. The trim values key themselves with **Rec** on.
+
+**Hover off / Hover on:** `bars` **Scale %** `100` and `108`, one key each at 0 s.
+
+### 3. The state machine
+
+1. **New State Machine** `Machine`. Declare `open` (**Bool**) and `hover` (**Bool**).
+2. Base: State 1 = Animation 1 (Closed), **Once**. **+ Add State**: Animation 2 (Open), **Once**.
+3. Closed → Open: **Boolean is** `open`, **Required value** ticked, **Crossfade (s)** `0`.
+4. Open → Closed: **Boolean is** `open`, unticked, **Crossfade (s)** `0.28`.
+5. **+ Layer** `Hover`, mask `bars`. Rest (Animation 3) → Over (Animation 4) on `hover` true, **Crossfade (s)** `0.16`; back on false, `0.2`.
+
+### 4. Click toggles `open`
+
+Select `hit`. In **On Click ()**, **+ Add action** → **Toggle input (Bool)** → `open`. Check the Pointer Listeners point at `hover`. Export with **Export → Animation → Toasty Lite (.json)** as `menu.json`.
+
+## Use it: a mobile navigation
+
+The page owns `open`, exactly like the like button: the icon has `pointer-events: none` and the `<button>` handles clicks, keyboard and `aria-expanded`. Escape and a click on a link close the menu.
+
+<LiveHTML
+  url="northwind.app"
+  height={360}
+  html={`<header class="bar">
+  <a class="brand" href="#">Northwind</a>
+  <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Menu">
+    <toasty-lite src="/toasty/lite/menu.json" ink="currentColor"></toasty-lite>
+  </button>
+</header>
+<nav id="site-nav" class="nav" hidden>
+  <a href="#features">Features</a>
+  <a href="#pricing">Pricing</a>
+  <a href="#customers">Customers</a>
+  <a href="#changelog">Changelog</a>
+  <a class="nav-cta" href="#signup">Start free trial</a>
+</nav>
+<main class="hero">
+  <h1>Plan the week your team will actually follow.</h1>
+  <p>Northwind turns scattered tasks into one calm weekly plan.</p>
+</main>`}
+  css={`.bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 8px 20px; border-bottom: 1px solid var(--line); background: var(--surface); position: relative; z-index: 2; }
+.brand { font-weight: 700; color: var(--ink); text-decoration: none; letter-spacing: -0.01em; }
+.menu-button { width: 44px; height: 44px; padding: 2px; border: 0; border-radius: 10px; background: transparent; color: var(--ink); cursor: pointer; }
+.menu-button:focus-visible { outline: 2px solid var(--accent); }
+.menu-button toasty-lite { width: 40px; height: 40px; pointer-events: none; }
+.nav { position: absolute; inset: 61px 0 auto 0; display: grid; gap: 4px; padding: 12px 16px 20px; background: var(--surface); border-bottom: 1px solid var(--line); z-index: 1; }
+.nav[hidden] { display: none; }
+.nav a { padding: 10px 8px; color: var(--ink); text-decoration: none; font-size: 17px; border-radius: 8px; }
+.nav a:hover { background: var(--page); }
+.nav .nav-cta { margin-top: 8px; text-align: center; background: var(--accent); color: #fff; font-weight: 600; }
+.hero { padding: 40px 20px; }
+.hero h1 { font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 12px; }
+.hero p { color: var(--muted); margin: 0; }`}
+  js={`const button = document.querySelector('.menu-button')
+const icon = button.querySelector('toasty-lite')
+const nav = document.getElementById('site-nav')
+
+let open = false
+let hover = false
+
+function render() {
+  button.setAttribute('aria-expanded', String(open))
+  button.setAttribute('aria-label', open ? 'Close menu' : 'Menu')
+  nav.hidden = !open
+  icon.setAttribute('inputs', JSON.stringify({ open: open, hover: hover }))
+}
+
+function setOpen(value) {
+  open = value
+  render()
+  if (open) nav.querySelector('a').focus()
+}
+
+button.addEventListener('click', () => setOpen(!open))
+button.addEventListener('pointerenter', () => { hover = true; render() })
+button.addEventListener('pointerleave', () => { hover = false; render() })
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && open) { setOpen(false); button.focus() }
+})
+nav.addEventListener('click', (e) => {
+  if (e.target.closest('a')) setOpen(false)
+})`}
+  react={`import { useEffect, useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+const links = [
+  { href: '#features', label: 'Features' },
+  { href: '#pricing', label: 'Pricing' },
+  { href: '#customers', label: 'Customers' },
+  { href: '#changelog', label: 'Changelog' },
+]
+
+export function MobileNav({ ink = '#18181b' }: { ink?: string }) {
+  const [open, setOpen] = useState(false)
+  const [hover, setHover] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  return (
+    <>
+      <button
+        type="button"
+        className="menu-button"
+        aria-expanded={open}
+        aria-controls="site-nav"
+        aria-label={open ? 'Close menu' : 'Menu'}
+        onClick={() => setOpen(!open)}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+      >
+        <ToastyLite src="/toasty/lite/menu.json" inputs={{ open, hover }} ink={ink} style={{ width: 40, height: 40, pointerEvents: 'none' }} />
+      </button>
+      <nav id="site-nav" className="nav" hidden={!open}>
+        {links.map((l) => (
+          <a key={l.href} href={l.href} onClick={() => setOpen(false)}>{l.label}</a>
+        ))}
+      </nav>
+    </>
+  )
+}`}
+  caption="A mobile header. The icon follows the open state; the button carries aria-expanded and the label."
+/>
+
+## How it works
+
+- **Each bar rotates around its own centre** because its path is centred on the node origin and its Position puts it in place. Moving the top bar from Y 13 to Y 0 and rotating it 45° leaves it crossing the centre of the icon.
+- **The rotation waits for the slide.** Rotation keys hold 0 until 0.16 s, so the bars first meet in the middle (0 to 0.2 s), then turn (0.16 to 0.42 s). The overlap of 0.04 s keeps it fluid. The Back curve overshoots past 45° and settles, which reads as a snap.
+- **Trimming to the centre.** Moving Trim start from 0 to 0.5 and Trim end from 1 to 0.5 at the same time shrinks the middle bar from both ends into its midpoint. A trim path can collapse a line in any direction this way: toward the start (end → 0), toward the end (start → 1), or toward a point.
+- **Closing is a crossfade, not a rewind.** Open → Closed blends to the rest pose over 0.28 s. The bars straighten and spread in one gesture.
+
+## Check your work
+
+- In the State Machine tab, ticking `open` draws a clean ✕ with both diagonals crossing at the centre.
+- Unticking `open` mid-animation blends back without a jump.
+- In the live example, Tab to the menu button, press Enter, then Escape: the menu opens, focus moves to the first link, and Escape closes it and returns focus.
+
+## Next
+
+[3. The theme icon](./03-theme-morph.mdx): trim paths that retract, and a sun that morphs into a moon.

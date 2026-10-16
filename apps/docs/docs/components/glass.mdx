@@ -6,9 +6,9 @@ description: The Glass mesh shape - pre-fractured panes that shatter, crack and 
 
 # Breakable glass
 
-**Glass** is a mesh shape for panes that really break. Each pane is pre-cut into Voronoi pieces. When something hits it, the pieces near the hit shatter into flying shards, the pieces around them crack, and anything left hanging off nothing falls. It's the engine behind the **Shatterline (glass)** demo (**+ → Demos**), a Smash Hit-style run through corridors of glass.
+**Glass** is a mesh shape for panes that break. Each pane is pre-cut into Voronoi pieces. When something hits it, the pieces near the hit shatter into flying shards, the pieces around them crack, and anything left hanging off nothing falls.
 
-<Shot id="glass-shatterline" caption="Shatterline in Playground: a tinted glass pane with glowing edges mid-shatter, shards flying, a hole where the ball went through" />
+<Shot id="glass-shatter" caption="A tinted glass pane with glowing edges mid-shatter in Playground: shards flying, a hole where the ball went through" />
 
 ## Making a pane
 
@@ -58,7 +58,7 @@ Breaking is runtime state: which pieces are gone and the flying shards exist onl
 
 Points and velocities take `{ x, y, z }` or `[x, y, z]`. A raycast hit has `x`, `y`, `z`, so you can pass the hit itself as the point.
 
-A ball flying through a level, from Shatterline (simplified):
+A thrown ball that breaks the glass in its path:
 
 ```js
 // Each frame, look ahead along the ball's motion for standing glass.
@@ -87,6 +87,6 @@ Any [shader-graph material](./shader-graph.mdx) can dress a pane, and glass mesh
 | `uv.x` | 1 on the pane's edges and the sides of pieces, 0 on the faces. Use it for glowing edges. |
 | `uv.y` | How cracked a face is (0 = clear). Use it to frost cracked areas. |
 
-Shatterline uses this for murky, tinted panes whose edges glow.
+A tinted pane with glowing edges uses `uv.x` for the glow and `uv.y` to frost the cracks.
 
 See also: [3D basics](./3d-basics.mdx), [Scripting: 3D](../scripting/3d-api.mdx).

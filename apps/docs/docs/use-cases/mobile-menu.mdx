@@ -1,0 +1,240 @@
+---
+title: Mobile menu
+sidebar_position: 3
+description: A responsive site header whose navigation collapses into a Toasty Lite menu button that morphs into a close icon and opens a slide-down nav, with aria-expanded, Escape to close and focus return.
+---
+
+# Mobile menu
+
+On narrow screens the navigation folds into a single button. The icon carries the meaning of that button: three bars say "there is more", the cross says "this closes it". This page uses the `menu` component in a real site header. Below the breakpoint the links collapse, the button appears, and opening it slides the navigation down under the header.
+
+<LiveHTML
+  url="northwind.app"
+  height={460}
+  caption="The frame is narrower than the 900 px breakpoint, so the header is in its compact layout. Open the menu, then press Escape or choose a link to close it."
+  html={`<header class="site-header">
+  <div class="bar">
+    <a class="brand" href="#">
+      <span class="mark" aria-hidden="true"></span>
+      Northwind
+    </a>
+
+    <nav class="nav" id="site-nav" aria-label="Main">
+      <a href="#product">Product</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#customers">Customers</a>
+      <a href="#docs">Docs</a>
+      <a class="nav-cta" href="#trial">Start free trial</a>
+    </nav>
+
+    <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav">
+      <toasty-lite src="/toasty/lite/menu.json" ink="currentColor"></toasty-lite>
+      <span class="visually-hidden">Menu</span>
+    </button>
+  </div>
+</header>
+
+<main class="hero">
+  <p class="eyebrow">Inventory for small teams</p>
+  <h1>Know what is on every shelf, in every store.</h1>
+  <p class="lede">Northwind keeps stock, orders and suppliers in one place, and tells you before you run out.</p>
+</main>`}
+  css={`.site-header {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.bar { position: relative; display: flex; align-items: center; gap: 24px; height: 60px; padding: 0 20px; }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; color: var(--ink); text-decoration: none; }
+.mark { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, #f59e0b, var(--accent)); }
+
+.nav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.nav a { padding: 8px 12px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; }
+.nav a:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.nav .nav-cta { margin-left: 8px; color: #fff; background: var(--accent); }
+.nav .nav-cta:hover { color: #fff; background: color-mix(in srgb, var(--accent) 88%, #000); }
+
+.menu-button { display: none; }
+.menu-button toasty-lite { width: 40px; height: 40px; pointer-events: none; }
+
+/* Compact layout */
+@media (max-width: 900px) {
+  .menu-button {
+    display: grid; place-items: center; margin-left: auto; width: 44px; height: 44px; padding: 0;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); cursor: pointer;
+  }
+  .menu-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .nav {
+    position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 2px; padding: 10px 12px 16px;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+    box-shadow: 0 16px 32px -24px rgb(0 0 0 / .45);
+    transform: translateY(-8px); opacity: 0; visibility: hidden;
+    transition: transform .22s ease, opacity .18s ease, visibility 0s linear .22s;
+  }
+  .nav.is-open { transform: none; opacity: 1; visibility: visible; transition: transform .22s ease, opacity .18s ease; }
+  .nav a { padding: 12px; font-size: 16px; color: var(--ink); }
+  .nav .nav-cta { margin: 8px 0 0; text-align: center; }
+}
+
+.hero { max-width: 640px; padding: 56px 24px; }
+.eyebrow { margin: 0 0 8px; color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+.hero h1 { margin: 0 0 12px; font-size: clamp(26px, 5vw, 38px); line-height: 1.15; letter-spacing: -.02em; }
+.lede { margin: 0; color: var(--muted); font-size: 16px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) { .nav { transition: none; } }`}
+  js={`const button = document.querySelector('.menu-button')
+const icon = button.querySelector('toasty-lite')
+const nav = document.querySelector('#site-nav')
+
+let open = false
+
+function setOpen(next, { returnFocus = false } = {}) {
+  open = next
+  button.setAttribute('aria-expanded', String(open))
+  nav.classList.toggle('is-open', open)
+  icon.player?.setInput('open', open)
+  if (!open && returnFocus) button.focus()
+}
+
+icon.addEventListener('toasty:ready', () => icon.player.setInput('open', open))
+button.addEventListener('click', () => setOpen(!open))
+
+// Close on Escape, on a link click, and when clicking outside the header.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && open) setOpen(false, { returnFocus: true })
+})
+nav.addEventListener('click', (e) => {
+  if (e.target.closest('a')) setOpen(false)
+})
+document.addEventListener('click', (e) => {
+  if (open && !e.target.closest('.site-header')) setOpen(false)
+})
+
+// Forward hover so the bars lift a little, as they do on their own.
+button.addEventListener('pointerenter', () => icon.player?.setInput('hover', true))
+button.addEventListener('pointerleave', () => icon.player?.setInput('hover', false))
+
+// If the window grows past the breakpoint, reset the menu.
+matchMedia('(min-width: 901px)').addEventListener('change', (e) => {
+  if (e.matches) setOpen(false)
+})`}
+  react={`import { useEffect, useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function SiteHeader({ ink = '#18181b' }) {
+  const [open, setOpen] = useState(false)
+  const [hover, setHover] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+
+  return (
+    <header className="site-header">
+      <div className="bar">
+        <a className="brand" href="/"><span className="mark" aria-hidden="true" />Northwind</a>
+
+        <nav id="site-nav" aria-label="Main" className={open ? 'nav is-open' : 'nav'} onClick={(e) => e.target.closest('a') && setOpen(false)}>
+          <a href="/product">Product</a>
+          <a href="/pricing">Pricing</a>
+          <a href="/customers">Customers</a>
+          <a href="/docs">Docs</a>
+          <a className="nav-cta" href="/trial">Start free trial</a>
+        </nav>
+
+        <button
+          type="button"
+          className="menu-button"
+          aria-expanded={open}
+          aria-controls="site-nav"
+          onClick={() => setOpen(!open)}
+          onPointerEnter={() => setHover(true)}
+          onPointerLeave={() => setHover(false)}
+        >
+          <ToastyLite src="/toasty/lite/menu.json" inputs={{ open, hover }} ink={ink} style={{ width: 40, height: 40, pointerEvents: 'none' }} />
+          <span className="visually-hidden">Menu</span>
+        </button>
+      </div>
+    </header>
+  )
+}`}
+/>
+
+## How it works
+
+### One button, one source of truth
+
+```html
+<button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav">
+  <toasty-lite src="/toasty/lite/menu.json" ink="currentColor"></toasty-lite>
+  <span class="visually-hidden">Menu</span>
+</button>
+```
+
+The `open` variable in the script is the only state. `setOpen()` writes it to three places at once:
+
+| Where | What changes |
+|---|---|
+| `aria-expanded` on the button | Screen readers announce "Menu, collapsed" or "expanded" |
+| `.is-open` on the nav | The CSS slides the panel down and makes it visible |
+| The `open` input | The animation plays `Closed` → `Open`: the top and bottom bars rotate into a cross and the middle bar trims to its centre |
+
+Because the page sets `open` explicitly every time, the icon can never disagree with the panel. That's also why the canvas has `pointer-events: none`: the `menu` file toggles `open` on its own when clicked, and you don't want two things toggling the same value. See [Like button](./like-button.mdx#why-the-canvas-has-pointer-events-none) for the details.
+
+The label stays "Menu" in both states. The button's role doesn't change when it opens, only its expanded state, and `aria-expanded` already says that.
+
+### The nav is the same element at every width
+
+There's only one `<nav>`. Above 900 px it's an inline row of links. Below, the media query positions it under the header and hides it with `visibility: hidden`, which also removes the links from the tab order while the menu is closed. No duplicate markup for mobile.
+
+### Closing
+
+The menu closes on Escape (and returns focus to the button, so keyboard users aren't stranded), on a link click, on a click outside the header, and when the window grows past the breakpoint. Each path calls `setOpen(false)`, so the icon animates back to the bars every time. The return trip crossfades over 0.28 s.
+
+### Inputs used
+
+| Name | Kind | Notes |
+|---|---|---|
+| `open` | Bool input | `Closed` / `Open` on the base layer |
+| `hover` | Bool input | The `Hover` layer scales the bars to 1.08 |
+| `ink` | Color Property | Bound to all three bars |
+
+## React
+
+The React tab is the same header. `inputs={{ open, hover }}` is diffed on each render, so the animation receives `open` exactly when the state changes. In these docs you can try the button on its own with `<Lite>`:
+
+```jsx live
+function MenuButton() {
+  const [open, setOpen] = React.useState(false)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, padding: 0, border: '1px solid var(--t-line)', borderRadius: 10, background: 'transparent', color: 'inherit', cursor: 'pointer' }}
+      >
+        <Lite src="menu" ink="auto" inputs={{ open }} style={{ width: 40, height: 40, pointerEvents: 'none' }} />
+        <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Menu</span>
+      </button>
+      <span>{open ? 'Menu open' : 'Menu closed'}</span>
+    </div>
+  )
+}
+```
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Menu ↔ close** opens this exact `menu` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/menu.json` with your file. The page code on this page works unchanged.
+- **Colour and weight.** The bars follow `ink`, so they take the button's `color`. Bar thickness is part of the file; change the stroke width in the editor and re-export.
+- **Breakpoint.** Change `900px` in the CSS and `901px` in the `matchMedia` call together.
+- **A drawer instead of a dropdown.** Keep the script and change only the CSS: position the nav `fixed` on the right edge and slide it with `transform: translateX(100%)`.
+- **Your own icon.** The `menu` file is three strokes in a group with a `Closed` and an `Open` animation and a state machine on an `open` Bool. Build the same in the editor (a "kebab" that rotates, or a plus that turns into a minus), keep the input name, and export with **Export → Animation → Toasty Lite (.json)**. The page code doesn't change. See [Authoring for Lite](../runtimes/authoring.mdx).
+
+Related: [Theme switch](./theme-switch.mdx) · [The toasty-lite element](../runtimes/html.mdx)

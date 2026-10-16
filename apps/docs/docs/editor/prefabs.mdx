@@ -62,7 +62,7 @@ In **Resources** → `Assets/Prefabs`, right-click a prefab for:
 
 ## Spawning from scripts
 
-`ctx.spawn(name, x, y, parent?)` creates a live instance while the game runs and returns a ref to its root (or `null` if no prefab has that name). This is the Liquid Lab demo's click-to-drop code:
+`ctx.spawn(name, x, y, parent?)` creates a live instance while the game runs and returns a ref to its root (or `null` if no prefab has that name). This click-to-drop script spawns a `Crate` or a `Stone` prefab where you click:
 
 ```js
 // Click near the top to drop a crate (Shift: a stone).

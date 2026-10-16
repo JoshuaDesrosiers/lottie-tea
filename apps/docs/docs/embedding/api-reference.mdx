@@ -6,6 +6,8 @@ description: Every option, method, property, event, React prop and custom elemen
 
 # API reference
 
+This page covers the full-engine embed. For the Toasty Lite runtime (`createLite`, `<toasty-lite>`, `<ToastyLite>`), see [Lite JavaScript API](../runtimes/javascript.mdx).
+
 The embed API lives in three files from [the export](./export-for-web.mdx):
 
 | Module | Exports |
@@ -148,14 +150,14 @@ type PlayerEventType = keyof PlayerEvents
 
 | Type | Payload | Fires when |
 |---|---|---|
-| `ready` | `{ scenes, scene }` | once, just before `createPlayer` resolves (so only DOM listeners added beforehand hear it) |
+| `ready` | `{ scenes, scene }` | once, just before `createPlayer` resolves (so only an `an1:ready` listener added to the container beforehand hears it; this one DOM event does not bubble) |
 | `scene` | `{ scene, previous }` | the scene switched, by the page or the game; also once for the start scene, before `createPlayer` resolves |
 | `state` | `{ layer, state, previous }` | a state machine layer entered a new state; `layer` is `null` for the base layer |
 | `prop` | `{ name, value }` | the game changed a scene Property; checked once per frame; your own `set` is not echoed |
 | `event` | `{ name, payload }` | a script called `ctx.emit(name, payload)`, or an On Click "Call script function" named a function no script registered (payload: the action's argument, JSON-parsed when possible) |
 | `error` | `{ error }` | a frame threw; the frame is skipped and the game continues (first 3 errors, then every 600th) |
 
-Every event is also dispatched as a DOM `CustomEvent` named `an1:<type>` (`an1:state`, `an1:event`, …) on `player.container`, with the payload as `detail`. These DOM events don't bubble.
+Every event is also dispatched as a DOM `CustomEvent` named `an1:<type>` (`an1:state`, `an1:event`, …) on `player.container`, with the payload as `detail`. These DOM events bubble, so listeners on any ancestor hear them, except `an1:ready`, which is dispatched on the container only.
 
 ## defineAn1PlayerElement
 
@@ -182,8 +184,10 @@ Registers the custom element. Does nothing if `tag` is already defined. See [The
 | Name | Type | Description |
 |---|---|---|
 | `element.player` | `An1Player` or `null` | The player once ready; `null` while loading and after removal. |
-| `an1:ready` | `CustomEvent<{ scenes: string[]; scene: string }>` | Dispatched on the element (bubbles) when the game is running. |
+| `an1:ready` | `CustomEvent<{ scenes: string[]; scene: string }>` | Dispatched on the element (bubbles) once `element.player` is set. |
 | `an1:error` | `CustomEvent<{ error: unknown }>` | Dispatched on the element (bubbles) when loading failed. |
+| `an1:event`, `an1:prop`, `an1:state`, `an1:scene`, `an1:error` | `CustomEvent<PlayerEvents[type]>` | Dispatched by the player on the element's inner box (`element.player.container`); they bubble through the element. (`an1:error` here means a frame threw while running.) |
+
 
 The element sets `display: block` on itself if no `display` style is set, destroys its player when removed from the page, and reloads when re-inserted.
 

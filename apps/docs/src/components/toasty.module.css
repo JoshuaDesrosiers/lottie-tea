@@ -4,8 +4,8 @@
   width: 100%;
   border-radius: 14px;
   overflow: hidden;
-  background: #121019;
-  border: 1px solid var(--toasty-line);
+  background: #111113;
+  border: 1px solid var(--t-line);
   isolation: isolate;
 }
 .box {
@@ -48,36 +48,37 @@
   gap: 10px;
   border: 0;
   cursor: pointer;
-  color: #f4efe6;
+  color: #ededee;
   background:
-    radial-gradient(circle at 30% 20%, rgb(245 166 35 / 0.22), transparent 55%),
-    radial-gradient(circle at 75% 80%, rgb(124 92 255 / 0.22), transparent 55%),
-    #15121c;
+    radial-gradient(circle at 50% 120%, rgb(251 146 60 / 0.18), transparent 60%),
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 24px),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 24px),
+    #111113;
   font-family: var(--ifm-font-family-base);
 }
 .poster:focus-visible { outline: 3px solid var(--ifm-color-primary); outline-offset: -3px; }
 .play {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: var(--toasty-butter);
-  box-shadow: 0 8px 28px rgb(245 166 35 / 0.35);
+  background: #fafaf9;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
   position: relative;
   transition: transform 0.15s;
 }
 .play::after {
   content: '';
   position: absolute;
-  left: 23px;
-  top: 18px;
-  border-left: 17px solid #1b1408;
-  border-top: 11px solid transparent;
-  border-bottom: 11px solid transparent;
+  left: 21px;
+  top: 16px;
+  border-left: 15px solid #111113;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
 }
 .poster:hover .play { transform: scale(1.07); }
-.posterLabel { font-weight: 700; font-size: 1rem; }
+.posterLabel { font-weight: 600; font-size: 0.95rem; }
 .posterHint { font-size: 0.75rem; opacity: 0.6; font-family: var(--ifm-font-family-monospace); }
 .figure { margin: 1.5rem 0; }
-.caption { margin-top: 0.5rem; font-size: 0.85rem; color: var(--ifm-color-emphasis-700); }
-.shot { width: 100%; border-radius: 12px; border: 1px solid var(--toasty-line); display: block; }
+.caption { margin-top: 0.5rem; font-size: 0.85rem; color: var(--t-muted); }
+.shot { width: 100%; border-radius: 12px; border: 1px solid var(--t-line); display: block; }
 @media (prefers-reduced-motion: reduce) { .play { transition: none; } }

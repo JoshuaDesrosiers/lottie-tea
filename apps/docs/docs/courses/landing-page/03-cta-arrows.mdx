@@ -1,0 +1,112 @@
+---
+title: 3. Arrow calls to action
+sidebar_position: 3
+description: Add primary and secondary call-to-action links whose arrow icons slide forward on hover and keyboard focus, themed with currentColor.
+---
+
+# 3. Arrow calls to action
+
+**Goal:** two calls to action under the hero text. Each ends with the `arrow` icon, which slides forward and redraws its shaft when the link is hovered or focused, not only when the pointer is over the arrow itself.
+
+## Steps
+
+1. Add the two links with an arrow in each. `ink="currentColor"` makes the arrow white on the filled button and ink-coloured on the outlined one.
+2. Connect each link to its arrow with the `hoverInput` helper from lesson 2.
+
+<LiveHTML
+  url="crumb.kitchen"
+  height={360}
+  html={`<header class="site-header">
+  <a class="brand" href="#" aria-label="Crumb home">
+    <toasty-lite class="mascot" src="/toasty/lite/toasty.json"></toasty-lite>
+    <span>Crumb</span>
+  </a>
+  <nav class="links" aria-label="Main">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#signup">Waitlist</a>
+  </nav>
+  <div class="actions">
+    <button class="icon-button theme" type="button" aria-label="Dark mode" aria-pressed="false">
+      <toasty-lite src="/toasty/lite/theme.json"></toasty-lite>
+    </button>
+  </div>
+</header>
+<main>
+  <section class="hero">
+    <h1>Plan a week of dinners in ten minutes.</h1>
+    <p>Crumb turns what is already in your fridge into five evenings you will actually cook, and one shopping list.</p>
+    <div class="ctas">
+      <a class="cta primary" href="#signup">Start planning free <toasty-lite src="/toasty/lite/arrow.json" ink="currentColor"></toasty-lite></a>
+      <a class="cta secondary" href="#features">See how it works <toasty-lite src="/toasty/lite/arrow.json" ink="currentColor"></toasty-lite></a>
+    </div>
+  </section>
+</main>`}
+  css={`.site-header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 24px; padding: 8px 16px 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.brand { display: flex; align-items: center; gap: 4px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+.mascot { width: 44px; height: 44px; }
+.links { display: flex; gap: 20px; }
+.links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+.links a:hover { color: var(--ink); }
+.hero { max-width: 680px; margin: 0 auto; padding: 48px 20px 28px; text-align: center; }
+.hero h1 { margin: 0 0 14px; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; letter-spacing: -0.03em; }
+.hero p { max-width: 500px; margin: 0 auto; color: var(--muted); font-size: 17px; }
+@media (max-width: 560px) { .links { display: none; } }
+.actions { margin-left: auto; display: flex; gap: 2px; }
+.icon-button { width: 44px; height: 44px; padding: 2px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer; }
+.icon-button:hover { background: var(--page); }
+.icon-button:focus-visible { outline: 2px solid var(--accent); }
+.icon-button toasty-lite { width: 40px; height: 40px; pointer-events: none; }
+.ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 28px; }
+.cta { display: inline-flex; align-items: center; gap: 2px; padding: 10px 10px 10px 18px; border-radius: 999px; font-weight: 600; text-decoration: none; }
+.cta toasty-lite { width: 26px; height: 26px; pointer-events: none; }
+.cta.primary { background: var(--accent); color: #fff; }
+.cta.secondary { color: var(--ink); border: 1px solid var(--line); }
+.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }`}
+  js={`// Pointer and keyboard focus both count as hover for an icon.
+function hoverInput(el, icon) {
+  const set = (value) => { if (icon.player) icon.player.setInput('hover', value) }
+  el.addEventListener('pointerenter', () => set(true))
+  el.addEventListener('pointerleave', () => set(false))
+  el.addEventListener('focus', () => set(true))
+  el.addEventListener('blur', () => set(false))
+}
+
+// Theme switch: the page owns the theme, the icon shows it.
+const root = document.documentElement
+const themeButton = document.querySelector('.theme')
+const themeIcon = themeButton.querySelector('toasty-lite')
+let dark = root.dataset.theme === 'dark'
+
+function applyTheme() {
+  root.dataset.theme = dark ? 'dark' : 'light'
+  themeButton.setAttribute('aria-pressed', String(dark))
+  themeIcon.setAttribute('inputs', JSON.stringify({ dark: dark }))
+}
+themeButton.addEventListener('click', () => { dark = !dark; applyTheme() })
+hoverInput(themeButton, themeIcon)
+applyTheme()
+
+// Arrows follow their link's hover and focus.
+for (const cta of document.querySelectorAll('.cta')) {
+  hoverInput(cta, cta.querySelector('toasty-lite'))
+}`}
+  caption="Both arrows are the same file, coloured by currentColor."
+/>
+
+## How it works
+
+- **The link is the hover target.** `arrow` has its own Pointer Listeners, but here the icon has `pointer-events: none`, and the link sets `hover`. The whole pill reacts, which is what users expect from a button.
+- **Focus counts as hover.** Keyboard users see the same motion when they Tab onto a link, because `hoverInput` also listens for `focus` and `blur`.
+- **One file, two looks.** Both arrows are the same `arrow.json`. `currentColor` resolves to white inside `.cta.primary` and to `--ink` inside `.cta.secondary`, and the secondary one follows the theme switch automatically.
+- **The animation.** On hover the arrow group moves 10 units forward while the shaft's Trim start jumps to 0.6 and eases back to 0, so the line seems to be drawn from behind as it moves. Leaving crossfades back over 0.25 s.
+
+## Check your work
+
+- Hovering anywhere on either pill moves its arrow; the other arrow stays still.
+- Tabbing through the page moves each arrow in turn.
+- In dark mode, the secondary arrow turns light with the text.
+
+## Next
+
+[4. A signup form](./04-signup-form.mdx): a submit button with a status icon.

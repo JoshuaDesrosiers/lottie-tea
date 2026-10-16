@@ -1,0 +1,281 @@
+---
+title: Theme switch
+sidebar_position: 4
+description: A light and dark switch on a real settings page. The Toasty Lite theme icon morphs from sun to moon while the page switches theme, and ink-bound icons follow automatically.
+---
+
+# Theme switch
+
+A theme switch is a control whose result is visible everywhere at once, so the icon should land at the same moment as the page. This page builds an Appearance settings screen with two controls bound to the same value: a compact icon button in the app header and an accessible switch in the settings list. Both use the `theme` component, and both change the real theme of the page they're on.
+
+<LiveHTML
+  url="app.northwind.app/settings/appearance"
+  height={560}
+  caption="Use either control. The page, both theme icons and the bell in the header all change together."
+  html={`<div class="app">
+  <header class="topbar">
+    <span class="brand"><span class="mark" aria-hidden="true"></span>Northwind</span>
+    <div class="top-actions">
+      <button class="icon-btn bell-btn" type="button" aria-label="Notifications">
+        <toasty-lite class="bell" src="/toasty/lite/bell.json" ink="currentColor"></toasty-lite>
+      </button>
+      <button class="icon-btn theme-btn" type="button" aria-label="Dark mode" aria-pressed="false">
+        <toasty-lite class="theme-icon" src="/toasty/lite/theme.json"></toasty-lite>
+      </button>
+      <span class="avatar" aria-hidden="true">MC</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="side" aria-label="Settings">
+      <a href="#">Profile</a>
+      <a href="#">Notifications</a>
+      <a href="#" aria-current="page">Appearance</a>
+      <a href="#">Billing</a>
+      <a href="#">Team</a>
+    </nav>
+
+    <section class="panel">
+      <h1>Appearance</h1>
+      <p class="sub">Choose how Northwind looks on this device.</p>
+
+      <div class="row">
+        <div>
+          <strong id="dark-label">Dark mode</strong>
+          <p>Easier on the eyes in low light.</p>
+        </div>
+        <button class="switch" type="button" role="switch" aria-checked="false" aria-labelledby="dark-label">
+          <span class="thumb"><toasty-lite class="theme-icon" src="/toasty/lite/theme.json"></toasty-lite></span>
+        </button>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="match-system"><strong>Match system</strong></label>
+          <p>Follow your operating system's setting.</p>
+        </div>
+        <input id="match-system" class="check" type="checkbox">
+      </div>
+
+      <div class="preview" aria-hidden="true">
+        <div class="kpi"><span>Orders today</span><b>128</b><em>+12%</em></div>
+        <div class="bars"><i style="--h:40%"></i><i style="--h:62%"></i><i style="--h:48%"></i><i style="--h:80%"></i><i style="--h:70%"></i><i style="--h:92%"></i><i style="--h:76%"></i></div>
+      </div>
+    </section>
+  </div>
+</div>`}
+  css={`body, .topbar, .panel, .row, .switch, .preview, .side a { transition: background-color .3s ease, color .3s ease, border-color .3s ease; }
+
+.topbar { display: flex; align-items: center; height: 56px; padding: 0 16px 0 20px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; }
+.mark { width: 20px; height: 20px; border-radius: 6px; background: linear-gradient(135deg, #f59e0b, var(--accent)); }
+.top-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.icon-btn { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--ink); cursor: pointer; }
+.icon-btn:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.icon-btn toasty-lite { width: 34px; height: 34px; pointer-events: none; }
+.avatar { display: grid; place-items: center; width: 30px; height: 30px; margin-left: 6px; border-radius: 50%; background: linear-gradient(135deg, #f59e0b, #e8590c); color: #fff; font-size: 12px; font-weight: 600; }
+
+.layout { display: grid; grid-template-columns: 180px 1fr; gap: 24px; max-width: 860px; padding: 28px 20px; }
+.side { display: flex; flex-direction: column; gap: 2px; }
+.side a { padding: 7px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; }
+.side a[aria-current="page"] { color: var(--ink); background: color-mix(in srgb, var(--ink) 6%, transparent); font-weight: 500; }
+
+.panel h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+.sub { margin: 4px 0 18px; color: var(--muted); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid var(--line); background: var(--surface); }
+.row + .row { border-top: 0; }
+.row:first-of-type { border-radius: 12px 12px 0 0; }
+.row:last-of-type { border-radius: 0 0 12px 12px; }
+.row p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+
+/* The switch: the theme icon rides in the thumb. */
+.switch { position: relative; flex: none; width: 64px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--ink) 8%, var(--surface)); cursor: pointer; }
+.switch[aria-checked="true"] { background: #312e81; border-color: #3730a3; }
+.switch:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.thumb { position: absolute; top: 3px; left: 3px; width: 28px; height: 28px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgb(0 0 0 / .25); transition: transform .3s cubic-bezier(.3, .7, .2, 1); }
+.switch[aria-checked="true"] .thumb { transform: translateX(28px); background: #1e1b4b; }
+.thumb toasty-lite { width: 28px; height: 28px; pointer-events: none; }
+
+.check { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.preview { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.kpi { display: flex; flex-direction: column; }
+.kpi span { color: var(--muted); font-size: 13px; }
+.kpi b { font-size: 28px; letter-spacing: -.02em; }
+.kpi em { color: #16a34a; font-style: normal; font-size: 13px; font-weight: 500; }
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 64px; }
+.bars i { width: 12px; height: var(--h); border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--accent) 75%, var(--surface)); }
+
+@media (max-width: 640px) { .layout { grid-template-columns: 1fr; } .side { flex-direction: row; overflow-x: auto; } }`}
+  js={`const root = document.documentElement
+const themeButton = document.querySelector('.theme-btn')
+const themeSwitch = document.querySelector('.switch')
+const matchSystem = document.querySelector('#match-system')
+const icons = document.querySelectorAll('.theme-icon')
+const system = matchMedia('(prefers-color-scheme: dark)')
+
+let dark = root.dataset.theme === 'dark'
+
+function apply() {
+  root.dataset.theme = dark ? 'dark' : 'light'
+  themeButton.setAttribute('aria-pressed', String(dark))
+  themeSwitch.setAttribute('aria-checked', String(dark))
+  for (const icon of icons) icon.player?.setInput('dark', dark)
+}
+
+// Pick up the current value as each icon finishes loading.
+for (const icon of icons) icon.addEventListener('toasty:ready', apply)
+
+function choose(next) {
+  matchSystem.checked = false
+  dark = next
+  apply()
+}
+themeButton.addEventListener('click', () => choose(!dark))
+themeSwitch.addEventListener('click', () => choose(!dark))
+
+matchSystem.addEventListener('change', () => {
+  if (matchSystem.checked) { dark = system.matches; apply() }
+})
+system.addEventListener('change', (e) => {
+  if (matchSystem.checked) { dark = e.matches; apply() }
+})
+
+// Hover: each button grows its own icon's rays.
+for (const button of [themeButton, themeSwitch]) {
+  const icon = button.querySelector('.theme-icon')
+  button.addEventListener('pointerenter', () => icon.player?.setInput('hover', true))
+  button.addEventListener('pointerleave', () => icon.player?.setInput('hover', false))
+}
+
+// The bell in the header is here to show ink following the theme.
+const bell = document.querySelector('.bell')
+document.querySelector('.bell-btn').addEventListener('click', () => bell.player?.fire('ring'))`}
+  react={`import { useEffect, useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+function readTheme() {
+  try {
+    const saved = localStorage.getItem('theme')
+    if (saved === 'light' || saved === 'dark') return saved === 'dark'
+  } catch {}
+  return matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+export function useDarkMode() {
+  const [dark, setDark] = useState(readTheme)
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+    try { localStorage.setItem('theme', dark ? 'dark' : 'light') } catch {}
+  }, [dark])
+  return [dark, setDark]
+}
+
+export function DarkModeSwitch() {
+  const [dark, setDark] = useDarkMode()
+  const [hover, setHover] = useState(false)
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={dark}
+      aria-label="Dark mode"
+      className="switch"
+      onClick={() => setDark(!dark)}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <span className="thumb">
+        <ToastyLite src="/toasty/lite/theme.json" inputs={{ dark, hover }} style={{ width: 28, height: 28, pointerEvents: 'none' }} />
+      </span>
+    </button>
+  )
+}`}
+/>
+
+## How it works
+
+### The page's theme is one attribute
+
+The example styles everything with CSS variables that change under `:root[data-theme="dark"]`. Switching the theme is one line:
+
+```js
+root.dataset.theme = dark ? 'dark' : 'light'
+```
+
+`apply()` writes the same `dark` value to every place that shows it: the attribute on `<html>`, `aria-pressed` on the header button, `aria-checked` on the switch, and the `dark` input of each theme icon. The icons, the switch and the page can't drift apart, because nothing changes them except `apply()`.
+
+### The theme icon
+
+`dark` is a Bool input. Setting it to `true` plays `Light` → `Dark`: the rays trim away as the ray group turns, the body morphs from a sun to a crescent moon (a path morph), and two sparkles pop in. Setting it back to `false` crossfades to `Light` over 0.3 s.
+
+The `theme` file has no `ink` Property. Its sun is amber and its moon is a pale lavender, so it reads on both backgrounds, and in this example the moon only ever appears once the page is already dark.
+
+### Icons that follow the theme on their own
+
+The bell in the header has `ink="currentColor"`. It isn't in `apply()` at all. The `<toasty-lite>` element watches `class`, `data-theme` and `style` on `<html>`, as well as `prefers-color-scheme`, and re-reads its colour whenever one changes. Any line icon on your site that uses `ink="currentColor"` follows a theme switch with no extra code. See [Theming](../runtimes/theming.mdx).
+
+### Accessibility
+
+- The settings control is a `<button role="switch">` with `aria-checked`, labelled by the visible "Dark mode" text. Screen readers announce it as "Dark mode, switch, on".
+- The header control is a toggle button with `aria-label="Dark mode"` and `aria-pressed`. Use one pattern or the other for a given control, not both.
+- Both canvases have `pointer-events: none`. The buttons take the clicks and forward hover with `setInput('hover', …)`, which is what the file's own Pointer Listeners would have done.
+
+### Saving the choice without a flash
+
+The live example doesn't save anything, so it always starts in the docs' current theme. On your site, save the choice and apply it before the first paint with a small blocking script in `<head>`:
+
+```html
+<head>
+  <meta name="color-scheme" content="light dark">
+  <script>
+    try {
+      const saved = localStorage.getItem('theme')
+      const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+    } catch {}
+  </script>
+</head>
+```
+
+Then add `localStorage.setItem('theme', dark ? 'dark' : 'light')` (inside a `try`) to `apply()`, and pass the starting value to the icons in HTML so they match the page as soon as they load:
+
+```html
+<toasty-lite src="/toasty/lite/theme.json" inputs='{"dark": true}'></toasty-lite>
+```
+
+The state machine always begins in its initial state, `Light`. With `dark` already `true`, it moves to `Dark` on the first frame, so a dark-mode visitor sees the 0.7 s sun-to-moon transition once as the icon appears.
+
+## React
+
+The React tab shows a `useDarkMode()` hook and a switch. The theme icon receives `inputs={{ dark, hover }}`. Here is the switch running in these docs. It changes only its own icon, not the docs theme:
+
+```jsx live
+function DarkModeSwitch() {
+  const [dark, setDark] = React.useState(false)
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={dark}
+      aria-label="Dark mode"
+      onClick={() => setDark(!dark)}
+      style={{ position: 'relative', width: 64, height: 36, padding: 0, border: '1px solid var(--t-line)', borderRadius: 999, background: dark ? '#312e81' : 'var(--t-subtle)', cursor: 'pointer', transition: 'background-color .3s' }}
+    >
+      <span style={{ position: 'absolute', top: 3, left: 3, width: 28, height: 28, borderRadius: '50%', background: dark ? '#1e1b4b' : '#fff', boxShadow: '0 1px 3px rgb(0 0 0 / .25)', transform: dark ? 'translateX(28px)' : 'none', transition: 'transform .3s cubic-bezier(.3,.7,.2,1)' }}>
+        <Lite src="theme" inputs={{ dark }} style={{ width: 28, height: 28, pointerEvents: 'none' }} />
+      </span>
+    </button>
+  )
+}
+```
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Light / dark switch** opens this exact `theme` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/theme.json` with your file. The page code on this page works unchanged.
+- **Sizes.** The icon scales with its element. In a 28 px thumb the rays still read; below about 20 px, drop the rays in your own version.
+- **Colours.** The sun, moon and sparkle colours are fill colours in the file. Change them in the editor, or add a Color Property with a Fill colour binding so the page can set them.
+- **Three-way choice.** For Light / Dark / System, use a radio group. Keep one `theme` icon showing the resolved value: `setInput('dark', resolvedIsDark)`.
+- **Your own icon.** The file is a `body` shape with a path morph between two shapes, a `rays` group whose strokes trim away, and a state machine on a `dark` Bool. Rebuild it in the editor with your own shapes, keep the input name, and export with **Export → Animation → Toasty Lite (.json)**. See [Authoring for Lite](../runtimes/authoring.mdx).
+
+Related: [Theming](../runtimes/theming.mdx) · [Mobile menu](./mobile-menu.mdx)

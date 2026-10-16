@@ -16,20 +16,24 @@ If you'd rather write HTML than JavaScript (a CMS page, a static site, a framewo
 
 <an1-player
   game="/an1mbyt3/game.teab"
-  data='{"isNight": false}'
-  style="height: 240px">
+  data='{"speed": 1}'
+  style="height: 360px">
 </an1-player>
 ```
 
-This is what that tag shows for the day/night toggle:
+With Toast Catch as `game.teab`, that tag shows this:
 
-<ToastyDemo game="/games/day-night.teab" height={240} caption="day-night.teab: click the scene to toggle" />
+<ToastyDemo game="/games/toast-catch.teab" height={360} data={{ speed: 1 }} caption="toast-catch.teab with data speed 1. Click to play." />
+
+:::tip Animated icons and buttons
+This element runs the full engine, one per page. For UI animation, the [Toasty Lite](../runtimes/html.mdx) element `<toasty-lite>` is about 25 KB and you can use as many as you like.
+:::
 
 ## Registering
 
 `defineAn1PlayerElement(tag?)` registers the element. Call it once, before or after the tags appear in the page; tags already in the page start as soon as it is registered.
 
-- The default tag name is `an1-player`. Pass another name to use your own, for example `defineAn1PlayerElement('hero-animation')` (custom element names must contain a dash).
+- The default tag name is `an1-player`. Pass another name to use your own, for example `defineAn1PlayerElement('arcade-game')` (custom element names must contain a dash).
 - Calling it again with a name that's already registered does nothing, so it's safe to call from several scripts.
 
 ## Attributes
@@ -39,7 +43,7 @@ This is what that tag shows for the day/night toggle:
 | `game` | URL of the `.teab`. **Required**; nothing loads without it. | reloads the player |
 | `wasm` | URL of the engine. Default: `an1mbyt3_wasm_bg.wasm` next to `game`. | reloads |
 | `scene` | Scene name to show. Default: the first scene. | switches scene (live) |
-| `data` | A JSON object of data, e.g. `'{"count": 3, "label": "Hi"}'`. | sends every key in it (live) |
+| `data` | A JSON object of data, for example `'{"speed": 1.5}'`. | sends every key in it (live) |
 | `paused` | Boolean attribute: present means paused. | pauses / plays (live) |
 | `fit` | `contain` (default) or `cover`. | reloads |
 | `keyboard` | `focus` (default), `window` or `none`. | reloads |
@@ -47,7 +51,7 @@ This is what that tag shows for the day/night toggle:
 What each value means is the same as the [`createPlayer` options](./api-reference.mdx#createplayer-options). Two options aren't available as attributes: `background` (style the element instead, for example `style="background:#000"`) and `stats`.
 
 :::caution `data` must be valid JSON
-Use double quotes inside and single quotes around the attribute: `data='{"name": "Ada"}'`. If it doesn't parse, the console shows ``<an1-player>: `data` must be JSON`` and the data is ignored.
+Use double quotes inside and single quotes around the attribute: `data='{"speed": 1.5}'`. If it doesn't parse, the console shows ``<an1-player>: `data` must be JSON`` and the data is ignored.
 :::
 
 ### Sizing
@@ -55,7 +59,7 @@ Use double quotes inside and single quotes around the attribute: `data='{"name":
 The element makes itself `display: block` unless you set a `display` yourself, and the game fills it (letterboxed). **Give it a height**, inline or from your stylesheet:
 
 ```css
-an1-player { display: block; height: 320px; border-radius: 12px; overflow: hidden; }
+an1-player { display: block; height: 360px; border-radius: 12px; overflow: hidden; }
 ```
 
 ## Changing attributes from code
@@ -65,10 +69,10 @@ Set attributes and the running game follows:
 ```js
 const el = document.querySelector('an1-player')
 
-el.setAttribute('data', JSON.stringify({ isNight: true }))  // live
-el.setAttribute('scene', 'House')                          // live
-el.toggleAttribute('paused', true)                         // live
-el.setAttribute('game', '/an1mbyt3/other.teab')            // reloads
+el.setAttribute('data', JSON.stringify({ speed: 1.5 }))  // live
+el.setAttribute('scene', 'Level 2')                      // live
+el.toggleAttribute('paused', true)                       // live
+el.setAttribute('game', '/an1mbyt3/hop.teab')            // reloads
 ```
 
 When `data` changes, every key in the new JSON is sent (keys that kept their value change nothing in the game, so that's cheap). Removing the `data` or `scene` attribute doesn't undo anything; set new values instead.
@@ -84,44 +88,57 @@ After the game is ready, `element.player` is the same player object `createPlaye
 ```js
 const el = document.querySelector('an1-player')
 el.addEventListener('an1:ready', () => {
-  el.player.fire('ring')
-  el.player.setInput('isNight', true)
+  console.log('lives at start:', el.player.get('lives'))
+  el.player.set('speed', 1.2)
 })
 ```
 
 ## Events
 
-The element dispatches two events on itself, and they bubble:
+Every event from the player reaches the element as a DOM event, and they all **bubble**, so you can listen on the element itself or on any ancestor. `an1:ready` fires once, after `el.player` is set.
 
 | Event | `detail` | When |
 |---|---|---|
 | `an1:ready` | `{ scenes, scene }` | the game is loaded and running; `el.player` is set |
-| `an1:error` | `{ error }` | the game failed to load |
+| `an1:event` | `{ name, payload }` | the game called `ctx.emit(name, payload)` (or an unhandled On Click "Call script function") |
+| `an1:prop` | `{ name, value }` | the game changed one of its scene Properties |
+| `an1:state` | `{ layer, state, previous }` | a state machine layer entered a state |
+| `an1:scene` | `{ scene, previous }` | the scene switched |
+| `an1:error` | `{ error }` | the game failed to load, or a frame threw while running |
 
-For everything else (`state`, `event`, `prop`, `scene`, and errors while running), subscribe through `el.player.on(...)` once it's ready:
+The player dispatches `an1:event`, `an1:prop`, `an1:state`, `an1:scene` and running errors on the element's inner box (the `div` the element creates to hold the canvas), and they bubble up through the element. The element itself dispatches `an1:ready` once `el.player` is set, and `an1:error` when loading fails.
+
+An `an1:scene` listener on the element also hears the start scene, which `player.on('scene')` subscribed after `an1:ready` does not.
+
+A complete page with a live score and a best-score line, no framework:
 
 ```html
-<an1-player id="bell" game="/an1mbyt3/game.teab" data='{"unread": 3}' style="height: 200px"></an1-player>
-<span id="badge"></span>
+<section class="game-card">
+  <an1-player id="toast" game="/an1mbyt3/game.teab" data='{"speed": 1}' style="height: 360px"></an1-player>
+  <p>Score <b id="score">0</b> · Lives <b id="lives">3</b> · Best <b id="best">0</b></p>
+</section>
 
 <script type="module">
   import { defineAn1PlayerElement } from '/an1mbyt3/an1mbyt3-embed.js'
   defineAn1PlayerElement()
 
-  const bell = document.getElementById('bell')
-  bell.addEventListener('an1:ready', () => {
-    bell.player.on('event', ({ name, payload }) => {
-      if (name === 'open') document.getElementById('badge').textContent = `opened with ${payload.unread} unread`
-    })
-    bell.player.on('state', ({ state }) => console.log('bell is', state))
+  const card = document.querySelector('.game-card')
+  let best = 0
+
+  card.addEventListener('an1:prop', (e) => {
+    const { name, value } = e.detail
+    if (name === 'score' || name === 'lives') document.getElementById(name).textContent = value
   })
-  bell.addEventListener('an1:error', (e) => console.error('bell failed', e.detail.error))
+  card.addEventListener('an1:event', (e) => {
+    if (e.detail.name !== 'gameover') return
+    best = Math.max(best, e.detail.payload.score)
+    document.getElementById('best').textContent = best
+  })
+  card.addEventListener('an1:error', (e) => console.error('game failed', e.detail.error))
 </script>
 ```
 
-:::info About the `an1:state`, `an1:event`, … DOM events
-The player also dispatches `an1:state`, `an1:scene`, `an1:prop`, `an1:event` and `an1:error` as DOM events, but on the element's **inner box** (the `div` the element creates to hold the canvas), and they don't bubble. So `el.addEventListener('an1:state', …)` on the `<an1-player>` itself won't hear them. Either use `el.player.on(...)` as above, or listen on the inner box: `el.player.container.addEventListener('an1:state', …)`.
-:::
+You can also subscribe through `el.player.on(...)` after `an1:ready`, which gives you the payload directly instead of in `detail`.
 
 ## Lifecycle
 
@@ -139,11 +156,11 @@ The element works anywhere HTML does.
 <script>
   import { defineAn1PlayerElement } from './an1mbyt3/an1mbyt3-embed.js'
   defineAn1PlayerElement()
-  let night = $state(false)
+  let speed = $state(1)
 </script>
 
-<an1-player game="/an1mbyt3/game.teab" data={JSON.stringify({ isNight: night })} style="height: 220px"></an1-player>
-<label><input type="checkbox" bind:checked={night}> Night</label>
+<an1-player game="/an1mbyt3/game.teab" data={JSON.stringify({ speed })} style="height: 360px"></an1-player>
+<label>Speed <input type="range" min="0.5" max="2" step="0.1" bind:value={speed}></label>
 ```
 
 **Vue** needs to be told that `an1-player` isn't a Vue component, in `vite.config`:
@@ -153,7 +170,7 @@ vue({ template: { compilerOptions: { isCustomElement: (tag) => tag === 'an1-play
 ```
 
 ```vue
-<an1-player game="/an1mbyt3/game.teab" :data="JSON.stringify({ isNight })" style="height: 220px" />
+<an1-player game="/an1mbyt3/game.teab" :data="JSON.stringify({ speed })" style="height: 360px" />
 ```
 
 **WordPress, Webflow, Squarespace and other CMSs:** upload the three `.js` files, `game.teab` and the `.wasm` to one folder on your host (or media library, if it allows `.wasm` and `.teab` files), then add a custom HTML block with the `<script type="module">` and the tag, using the uploaded URLs.

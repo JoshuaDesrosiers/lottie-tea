@@ -6,12 +6,12 @@ description: A plain-language overview of ToastyCreate, the 2D/3D animation and 
 
 # What is Toasty?
 
-**ToastyCreate** ("Toasty" for short) is an editor for making **animated, interactive things**: animated graphics, UI widgets, web embeds, and full 2D and 3D games. You draw or import art, animate it on a timeline, wire it up with state machines and scripts, press **Playground** to try it, and export the result.
+**ToastyCreate** ("Toasty") is an editor for interactive animation and games. You use it to make animated icons and UI for websites, illustrations, and full 2D and 3D games. You draw or import art, animate it on a timeline, wire it up with state machines and scripts, press **Playground** to try it, and export the result.
 
 It runs in your browser at [toastycreate.web.app](https://toastycreate.web.app), and as a desktop app with a few extra powers (see [Web and desktop](./web-and-desktop.mdx)).
 
 :::note Toasty vs. an1mbyt3
-The engine underneath Toasty is called **an1mbyt3**. You will see that name in file names and code: the game file format is `.teab`, the embed library is `an1mbyt3-embed.js`, the React component is `An1Player`. Those identifiers are real and you should type them exactly as written. Everywhere else, these docs say "Toasty".
+The engine underneath Toasty is called **an1mbyt3**. You will see that name in file names and code: the game file format is `.teab`, the Lite runtime is `an1mbyt3-lite.js`, the engine embed library is `an1mbyt3-embed.js`, and its React component is `An1Player`. Type those identifiers exactly as written. Everywhere else, these docs say "Toasty".
 :::
 
 ## What you can make
@@ -21,13 +21,13 @@ The engine underneath Toasty is called **an1mbyt3**. You will see that name in f
 | Animate a logo, an icon or a character | Vector shapes, images, bones and IK, a keyframe [timeline](../editor/animation-timeline.mdx) with easing curves, and export to GIF, WebM (with transparency) or MP4 |
 | Draw your own art | [Paint mode](../editor/paint-mode.mdx): vector and bitmap tools, frames and layers, onion skin |
 | Use a sprite sheet | Import it, then cut it into frames with the [Sprite Editor](../editor/sprite-editor.mdx) |
-| Make an interactive widget for a website | [State machines](../editor/state-machines.mdx), [scene properties](../editor/properties-and-bindings.mdx), and the [website embed](../embedding/overview.mdx) for plain JS or React |
-| Build a game | Scenes, cameras, 2D and 3D physics, particles, lighting, audio, UI, [JavaScript scripting](../scripting/overview.mdx), [prefabs](../editor/prefabs.mdx), even LAN multiplayer |
-| Ship it | One-file web page, a desktop `.exe`, or a drop-in folder for your web project ([Exporting](../editor/exporting.mdx)) |
+| Put animated icons, buttons and toggles on a website | [State machines](../editor/state-machines.mdx), [Pointer Listeners](../components/pointer-listeners.mdx), [scene properties](../editor/properties-and-bindings.mdx), and the [Toasty Lite](../runtimes/lite.mdx) runtime for HTML, JavaScript or React |
+| Build a game | Scenes, cameras, 2D and 3D physics, particles, lighting, audio, UI, [JavaScript scripting](../scripting/overview.mdx), [prefabs](../editor/prefabs.mdx) and LAN multiplayer, embedded in a page with the [engine embed](../embedding/overview.mdx) |
+| Ship it | Toasty Lite JSON for websites, a one-file web page, a desktop `.exe`, or a drop-in folder for your web project ([Exporting](../editor/exporting.mdx)) |
 
 ## The big ideas
 
-A handful of concepts carry through the whole editor. Once these click, everything else is detail.
+A few concepts carry through the whole editor.
 
 ### Scenes
 
@@ -49,16 +49,39 @@ When you need logic, a state can run **code**: plain JavaScript with a `ctx` obj
 
 **Scene properties** are named, typed values (`score`, `isNight`, `label`) that the whole scene shares. Buttons set them, scripts read them, bindings show them, and a web page embedding your game can write them. See [Properties and bindings](../editor/properties-and-bindings.mdx).
 
-## See it running
+## Two ways to play your work
 
-Here is a tiny Toasty widget embedded in this page: a day/night toggle driven by a state machine. Click it.
+Toasty has two web runtimes. Choose by what you made.
 
-<ToastyDemo game="/games/day-night.teab" height={320} caption="day-night.teab: one Bool input, two states (Day and Night), and an event sent to the page on every click." />
+| | Toasty Lite | Engine embed |
+|---|---|---|
+| For | UI animation: icons, buttons, toggles, loaders, illustrations | Games and anything that needs scripts, physics, particles, images, 3D or audio |
+| Size | About 25 KB | About 25 MB (WebAssembly, WebGPU or WebGL2) |
+| Per page | Any number | One |
+| File | `.json` from **Export → Animation → Toasty Lite (.json)** | `.teab` from **Export → Game → Website embed** |
+| Docs | [Toasty Lite](../runtimes/lite.mdx) | [Embedding](../embedding/overview.mdx) |
+
+These icons are Toasty Lite files. Each is one scene with a state machine; hover and click them.
+
+<div style={{ display: 'flex', gap: 28, alignItems: 'center', flexWrap: 'wrap', margin: '16px 0' }}>
+  <Lite src="heart" ink="auto" label="Like" style={{ width: 64, height: 64 }} />
+  <Lite src="menu" ink="auto" label="Menu" style={{ width: 64, height: 64 }} />
+  <Lite src="theme" label="Theme" style={{ width: 64, height: 64 }} />
+  <Lite src="bell" ink="auto" label="Notifications" style={{ width: 64, height: 64 }} />
+  <Lite src="copy" ink="auto" label="Copy" style={{ width: 64, height: 64 }} />
+  <Lite src="toasty" label="Toasty" style={{ width: 64, height: 64 }} />
+</div>
+
+This is a game running in the full engine. Click to start, then move the plate with the mouse or the arrow keys to catch the toast. Burnt slices cost a life.
+
+<ToastyDemo game="/games/toast-catch.teab" height={360} caption="Toast Catch: scene properties score and lives, a speed value from the page, and score and gameover events sent back to it." />
+
+See [Lite or engine](../runtimes/lite-vs-engine.mdx) for the full comparison.
 
 ## Where to go next
 
 1. [Web and desktop](./web-and-desktop.mdx): which version to use.
-2. [Your first project](./first-project.mdx): a 15-minute walkthrough from blank canvas to exported game.
+2. [Your first project](./first-project.mdx): a short walkthrough from a blank canvas to an export.
 3. [Interface tour](./interface-tour.mdx): what every panel and button is.
 4. [Projects and saving](./projects-and-saving.mdx): how your work is stored and how not to lose it.
 5. [Keyboard shortcuts](./keyboard-shortcuts.mdx).

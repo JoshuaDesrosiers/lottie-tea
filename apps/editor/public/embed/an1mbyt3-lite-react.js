@@ -41,6 +41,19 @@ function s(s) {
 			p.current = s.inputs ? { ...s.inputs } : void 0;
 		}
 	}, [l, s.inputs]), t(() => {
+		if (!l || !s.ink || !c.current) return;
+		let e = document.createElement("span");
+		e.style.color = s.ink, c.current.appendChild(e);
+		let t = getComputedStyle(e).color.match(/rgba?\(([^)]+)\)/);
+		if (e.remove(), !t) return;
+		let [n, r, i, a] = t[1].split(/[ ,/]+/).filter(Boolean).map(Number);
+		l.set("ink", [
+			n / 255,
+			r / 255,
+			i / 255,
+			Number.isFinite(a) ? a : 1
+		]);
+	}, [l, s.ink]), t(() => {
 		l && (s.paused ? l.pause() : l.play());
 	}, [l, s.paused]), /* @__PURE__ */ a("div", {
 		ref: c,

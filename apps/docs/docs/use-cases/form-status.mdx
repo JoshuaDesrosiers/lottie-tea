@@ -1,0 +1,277 @@
+---
+title: Form status
+sidebar_position: 5
+description: A newsletter signup form whose submit button shows loading, success and error with the Toasty Lite status icon, driven by one Enum input, with aria-live messages and a simulated server.
+---
+
+# Form status
+
+A submit button has three jobs after it's pressed: show that the request is in flight, confirm that it worked, and say clearly when it didn't. The `status` component covers all three with one Enum input. This page wires it into a newsletter signup. The server is simulated with a timer and rejects malformed addresses, so you can see both outcomes.
+
+<LiveHTML
+  url="northwind.app/dispatch"
+  height={440}
+  caption="Subscribe with any address to see success. Try maya@northwind (no domain ending) to see the error. Use Reload in the address bar to start over."
+  html={`<section class="card">
+  <p class="kicker">The Northwind Dispatch</p>
+  <h1>Product notes, every other Thursday.</h1>
+  <p class="lede">What we shipped, what we learned, and one long read. No tracking pixels.</p>
+
+  <form class="signup" novalidate>
+    <label for="email" class="visually-hidden">Email address</label>
+    <div class="field">
+      <input id="email" name="email" type="email" autocomplete="email"
+        placeholder="you@company.com" required aria-describedby="email-msg">
+      <button class="submit" type="submit" data-status="idle">
+        <toasty-lite src="/toasty/lite/status.json" ink="currentColor"></toasty-lite>
+        <span class="label">Subscribe</span>
+      </button>
+    </div>
+    <p id="email-msg" class="msg" role="status" aria-live="polite"></p>
+  </form>
+
+  <p class="fine">Joined by 2,400 readers. Unsubscribe in one click.</p>
+</section>`}
+  css={`body { display: grid; place-items: center; min-height: 100%; padding: 24px 16px; }
+
+.card {
+  width: min(100%, 520px);
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 16px 40px -28px rgb(0 0 0 / .35);
+}
+.kicker { margin: 0 0 10px; color: var(--accent); font-size: 13px; font-weight: 600; }
+.card h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; letter-spacing: -.02em; }
+.lede { margin: 0 0 22px; color: var(--muted); }
+
+.field { display: flex; gap: 8px; }
+.field input {
+  flex: 1; min-width: 0; height: 44px; padding: 0 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--page); color: var(--ink); font: inherit;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.field input[aria-invalid="true"] { border-color: #e11d48; box-shadow: 0 0 0 3px rgb(225 29 72 / .15); }
+
+.submit {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-width: 132px; height: 44px; padding: 0 18px;
+  border: 0; border-radius: 10px; background: var(--ink); color: var(--page);
+  font-weight: 600; cursor: pointer; transition: opacity .15s ease;
+}
+.submit:hover { opacity: .9; }
+.submit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.submit[data-status="loading"] { cursor: progress; }
+.submit[data-status="success"] { cursor: default; }
+
+/* The icon slot collapses while idle, then opens for the other states. */
+.submit toasty-lite { width: 26px; height: 26px; margin: 0 -2px 0 -6px; pointer-events: none; transition: width .2s ease, margin .2s ease; }
+.submit[data-status="idle"] toasty-lite { width: 0; margin: 0; }
+
+.msg { min-height: 1.4em; margin: 10px 2px 0; font-size: 13.5px; color: var(--muted); }
+.msg[data-tone="success"] { color: #15803d; }
+.msg[data-tone="error"] { color: #e11d48; }
+:root[data-theme="dark"] .msg[data-tone="success"] { color: #4ade80; }
+:root[data-theme="dark"] .msg[data-tone="error"] { color: #fb7185; }
+.fine { margin: 18px 0 0; color: var(--muted); font-size: 12.5px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 480px) { .field { flex-direction: column; } }`}
+  js={`const form = document.querySelector('.signup')
+const input = form.querySelector('#email')
+const button = form.querySelector('.submit')
+const label = button.querySelector('.label')
+const icon = button.querySelector('toasty-lite')
+const msg = form.querySelector('#email-msg')
+
+// A stand-in for your API so this example runs anywhere. It answers after
+// 1.2 s and rejects addresses without a domain ending, as a server would.
+// Delete it and the code below talks to your real endpoint.
+const fetch = (url, init) => new Promise((resolve) => {
+  const { email } = JSON.parse(init.body)
+  const valid = /^[^@ ]+@[^@ ]+[.][a-z]{2,}$/i.test(email)
+  const body = valid ? {} : { error: "That address doesn't look complete. Check the part after the @." }
+  setTimeout(() => resolve({ ok: valid, status: valid ? 201 : 422, json: async () => body }), 1200)
+})
+
+const LABELS = { idle: 'Subscribe', loading: 'Subscribing', success: 'Subscribed', error: 'Try again' }
+let status = 'idle'
+
+function setStatus(next, message = '') {
+  status = next
+  button.dataset.status = status
+  label.textContent = LABELS[status]
+  icon.player?.setInput('status', status)
+  form.setAttribute('aria-busy', String(status === 'loading'))
+  input.setAttribute('aria-invalid', String(status === 'error'))
+  msg.dataset.tone = status
+  msg.textContent = message
+}
+
+icon.addEventListener('toasty:ready', () => icon.player.setInput('status', status))
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  if (status === 'loading' || status === 'success') return
+  setStatus('loading', 'Subscribing...')
+  try {
+    const res = await fetch('/api/newsletter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: input.value.trim() }),
+    })
+    if (res.ok) {
+      setStatus('success', "You're on the list. Check your inbox to confirm.")
+      input.readOnly = true
+    } else {
+      const { error } = await res.json()
+      setStatus('error', error || 'Something went wrong. Please try again.')
+      input.focus()
+    }
+  } catch {
+    setStatus('error', 'Could not reach the server. Check your connection and try again.')
+  }
+})
+
+// Editing the address after an error clears it.
+input.addEventListener('input', () => {
+  if (status === 'error') setStatus('idle')
+})`}
+  react={`import { useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+const LABELS = { idle: 'Subscribe', loading: 'Subscribing', success: 'Subscribed', error: 'Try again' }
+
+export function SignupForm({ ink = '#ffffff' }) {
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState('idle')
+  const [message, setMessage] = useState('')
+
+  async function submit(e) {
+    e.preventDefault()
+    if (status === 'loading' || status === 'success') return
+    setStatus('loading')
+    setMessage('Subscribing...')
+    try {
+      const res = await fetch('/api/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      if (res.ok) {
+        setStatus('success')
+        setMessage("You're on the list. Check your inbox to confirm.")
+      } else {
+        const { error } = await res.json()
+        setStatus('error')
+        setMessage(error || 'Something went wrong. Please try again.')
+      }
+    } catch {
+      setStatus('error')
+      setMessage('Could not reach the server. Check your connection and try again.')
+    }
+  }
+
+  return (
+    <form className="signup" noValidate onSubmit={submit} aria-busy={status === 'loading'}>
+      <label htmlFor="email" className="visually-hidden">Email address</label>
+      <div className="field">
+        <input
+          id="email" type="email" autoComplete="email" placeholder="you@company.com" required
+          value={email} readOnly={status === 'success'} aria-invalid={status === 'error'} aria-describedby="email-msg"
+          onChange={(e) => { setEmail(e.target.value); if (status === 'error') { setStatus('idle'); setMessage('') } }}
+        />
+        <button className="submit" type="submit" data-status={status}>
+          <ToastyLite src="/toasty/lite/status.json" inputs={{ status }} ink={ink} style={{ width: status === 'idle' ? 0 : 26, height: 26, pointerEvents: 'none', transition: 'width .2s' }} />
+          <span className="label">{LABELS[status]}</span>
+        </button>
+      </div>
+      <p id="email-msg" className="msg" data-tone={status} role="status" aria-live="polite">{message}</p>
+    </form>
+  )
+}`}
+/>
+
+## How it works
+
+### One Enum input, four states
+
+`status` is an Enum input with the values `idle`, `loading`, `success` and `error`. Every state has a transition to every other state, so you can set any value at any time and the icon goes straight there:
+
+| Value | State | What it draws |
+|---|---|---|
+| `idle` | `Idle` | Nothing. The ring is trimmed to zero length. |
+| `loading` | `Loading` (loops) | A short arc that spins once a second. |
+| `success` | `Success` | The arc closes into a ring, a green disc pops, a white check draws on. |
+| `error` | `Error` | The arc closes, a red disc pops, a white cross draws on, then the icon shakes. |
+
+The ring is bound to `ink`, so with `ink="currentColor"` the idle and loading spinner takes the button's text colour. In `Success` and `Error` the animation keys the ring's colour itself (a keyframed value takes precedence over a binding in Lite), so it turns green or red as it closes, then hands over to the green or red disc with its white mark. Those read on any button.
+
+Returning to `idle` crossfades over 0.25 s. Every other change is immediate, which is what you want when a fast server answers before the spinner has turned once.
+
+### The button never changes its role
+
+```html
+<button class="submit" type="submit" data-status="idle">
+  <toasty-lite src="/toasty/lite/status.json" ink="currentColor"></toasty-lite>
+  <span class="label">Subscribe</span>
+</button>
+```
+
+It's a submit button the whole time, so Enter in the field submits, and the browser handles focus. `setStatus()` changes four things together:
+
+- `data-status` on the button, which the CSS uses to open the icon slot (it's `0` wide while idle) and set the cursor.
+- The visible label: Subscribe, Subscribing, Subscribed, Try again.
+- The `status` input on the icon.
+- `aria-busy` on the form and `aria-invalid` on the field.
+
+The message under the field is a `role="status"` live region, and the field points to it with `aria-describedby`. Screen reader users hear "Subscribing...", then the result, without moving focus. On an error, focus goes back to the field so the user can fix it straight away.
+
+The button isn't `disabled` while loading. Disabling it would drop keyboard focus on the floor. The submit handler ignores extra submits instead.
+
+### The simulated server
+
+The `fetch` defined at the top of the script shadows the browser's for this module only. It waits 1.2 s and returns `422` with an error message when the address has no domain ending. Delete those lines and the handler sends the same request to your endpoint. The handler only relies on `res.ok` and an `{ error }` JSON body.
+
+## React
+
+The React tab is the same form with state in `useState`. `inputs={{ status }}` sends the new value whenever `status` changes. Here is the button on its own in these docs. Each press alternates between a success and an error:
+
+```jsx live
+function SubmitButton() {
+  const [status, setStatus] = React.useState('idle')
+  const [count, setCount] = React.useState(0)
+  const labels = { idle: 'Save changes', loading: 'Saving', success: 'Saved', error: 'Try again' }
+  function save() {
+    if (status === 'loading') return
+    setStatus('loading')
+    setTimeout(() => {
+      setStatus(count % 2 === 0 ? 'success' : 'error')
+      setCount(count + 1)
+      setTimeout(() => setStatus('idle'), 1800)
+    }, 1200)
+  }
+  return (
+    <button
+      type="button"
+      onClick={save}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 44, padding: '0 18px', border: 0, borderRadius: 10, background: 'var(--t-ink)', color: 'var(--t-bg)', font: 'inherit', fontWeight: 600, cursor: 'pointer' }}
+    >
+      <Lite src="status" ink="auto" inputs={{ status }} style={{ width: status === 'idle' ? 0 : 26, height: 26, transition: 'width .2s', pointerEvents: 'none' }} />
+      {labels[status]}
+    </button>
+  )
+}
+```
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Form status** opens this exact `status` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/status.json` with your file. The page code on this page works unchanged.
+- **Other forms.** Any async action fits: Save, Send invite, Pay, Upload. Keep the four values and change the labels.
+- **Inline validation.** Put a second `status` icon at the end of a field and set it to `success` or `error` on blur. With no button around it, give the element `role="img"` and an `aria-label` that matches the message, or `aria-hidden="true"` if the text already says it.
+- **Colours.** The idle and loading ring follows `ink`. To change the green and red, edit the `disc` fill keys and the ring's stroke colour keys in the `Success` and `Error` animations, then re-export.
+- **Your own icon.** Keep an Enum input named `status` with the same four values and the page code works unchanged. See [Authoring for Lite](../runtimes/authoring.mdx).
+
+Related: [Loading states](./loading-states.mdx) · [JavaScript API](../runtimes/javascript.mdx)

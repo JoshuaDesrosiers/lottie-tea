@@ -1,0 +1,147 @@
+---
+title: 1. Draw the heart
+sidebar_position: 1
+description: Set up a 96 by 96 scene and draw the like heart as line art, a fill copy, eight burst rays, a ring and an invisible hit shape, ready for trim-path animation.
+---
+
+# 1. Draw the heart
+
+In this course you build the like heart that ships with Toasty Lite, part by part, and finish with it running inside a real button on a web page. This is what you are making. Hover it, then click it.
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0 24px' }}>
+  <Lite src="heart" ink="auto" label="Like heart, unliked" style={{ width: 96, height: 96 }} />
+  <Lite src="heart" ink="auto" inputs={{ liked: true }} label="Like heart, liked" style={{ width: 96, height: 96 }} />
+</div>
+
+**Goal of this lesson:** a scene that contains every shape the heart needs, named and layered correctly, with trim paths ready to animate. Nothing moves yet.
+
+:::tip Compare with the finished version
+Choose **+ → Templates → Lite: Like heart** at any point. It adds the finished heart to your project as its own scene, so you can switch to it in the Scene picker and compare nodes, keyframes and the state machine with yours. Its states carry the names used in this course (`Unliked`, `Liked`, `Rest`, `Over`).
+:::
+
+## The parts
+
+Every piece of the heart is a separate shape, because each one animates differently.
+
+| Node | What it is | Why it is separate |
+|---|---|---|
+| `burst` | A group of eight short lines, `ray0` to `ray7` | Each ray draws on and off with a trim path when you like the post. |
+| `ring` | A circle stroke | It expands and thins out behind the heart. |
+| `heartGroup` | A group holding `outline` and `fill` | The hover animation scales this group, so both parts grow together. |
+| `outline` | The heart as a 4.5-unit ink line | This is the "unliked" look. Its line colour will follow the page theme. |
+| `fill` | A slightly larger red heart | It pops in when liked and covers the outline. |
+| `hit` | An invisible 84-unit circle on top | It detects the pointer. It never moves, so the clickable area stays stable while the heart animates. |
+
+## Steps
+
+### 1. Create a 96 × 96 scene
+
+1. Open the **Scene picker** in the top toolbar and choose **New Scene**. Name it `Heart` and click **Create**.
+2. Click empty canvas so nothing is selected. In the Inspector, set **Size** to **W** `96` and **H** `96`.
+
+Every Toasty Lite component in these docs uses a 96 × 96 scene with the origin in the middle. A small, square scene keeps stroke widths meaningful: a 4.5-unit stroke in a 96-unit scene stays proportionally the same at 24 px and at 96 px on the page.
+
+The scene name becomes the default file name when you export, so `Heart` exports as `heart.json`.
+
+### 2. Import the line art
+
+The quickest way to get exact geometry is an SVG. Save the file below as `heart.svg`, then choose **+ → Import → SVG…** and pick it.
+
+```svg title="heart.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -48 96 96" width="96" height="96">
+  <!-- Eight rays, inner end first, so a trim path grows them outward. -->
+  <g id="burst" fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path id="ray0" d="M27.72 -11.48 L38.80 -16.07" stroke="#F23B5E"/>
+    <path id="ray1" d="M11.48 -27.72 L16.07 -38.80" stroke="#F5A624"/>
+    <path id="ray2" d="M-11.48 -27.72 L-16.07 -38.80" stroke="#F23B5E"/>
+    <path id="ray3" d="M-27.72 -11.48 L-38.80 -16.07" stroke="#F5A624"/>
+    <path id="ray4" d="M-27.72 11.48 L-38.80 16.07" stroke="#F23B5E"/>
+    <path id="ray5" d="M-11.48 27.72 L-16.07 38.80" stroke="#F5A624"/>
+    <path id="ray6" d="M11.48 27.72 L16.07 38.80" stroke="#F23B5E"/>
+    <path id="ray7" d="M27.72 11.48 L38.80 16.07" stroke="#F5A624"/>
+  </g>
+  <!-- A radius-26 circle that starts at the top and runs clockwise. -->
+  <path id="ring" fill="none" stroke="#F23B5E" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"
+    d="M0 -26 C14.36 -26 26 -14.36 26 0 C26 14.36 14.36 26 0 26 C-14.36 26 -26 14.36 -26 0 C-26 -14.36 -14.36 -26 0 -26 Z"/>
+  <g id="heartGroup">
+    <path id="outline" fill="none" stroke="#1C1C21" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"
+      d="M0 22 C-10 14.5 -25 4.5 -25 -7 C-25 -17 -20 -22 -12.5 -22 C-6 -22 -1.5 -18 0 -13 C1.5 -18 6 -22 12.5 -22 C20 -22 25 -17 25 -7 C25 4.5 10 14.5 0 22 Z"/>
+    <path id="fill" fill="#F23B5E"
+      d="M0 23.32 C-10.6 15.37 -26.5 4.77 -26.5 -7.42 C-26.5 -18.02 -21.2 -23.32 -13.25 -23.32 C-6.36 -23.32 -1.59 -19.08 0 -13.78 C1.59 -19.08 6.36 -23.32 13.25 -23.32 C21.2 -23.32 26.5 -18.02 26.5 -7.42 C26.5 4.77 10.6 15.37 0 23.32 Z"/>
+  </g>
+  <circle id="hit" r="42" fill="#000000" fill-opacity="0"/>
+</svg>
+```
+
+The importer keeps the `<g>` groups as real groups, names every node after its `id`, flips the y axis and centres the whole file on the scene origin. Because the `viewBox` is already centred on 0, every part lands exactly where it should.
+
+:::note Drawing it yourself
+Design mode has no free-hand Pen tool; the Pen lives in [Paint mode](../../editor/paint-mode.mdx). To draw the heart by hand in Design mode, add **+ → 2D Object → Ellipse**, click **Edit Points**, then drag points and handles into a heart (Alt breaks a smooth handle, a click on the outline adds a point). See [Shapes and paths](../../editor/shapes-and-paths.mdx#editing-points). The SVG above is the exact geometry of the shipped file, so use it if you want your result to match ours.
+:::
+
+### 3. Check the stroke settings
+
+Select `outline` and look at the **Shape** section in the Inspector:
+
+| Setting | Value |
+|---|---|
+| **Stroke** | ticked |
+| **Color** | `#1C1C21` (it will be replaced by the `ink` property in lesson 5) |
+| **Width** | `4.5` |
+| **Cap** | **Round** |
+| **Join** | **Round** |
+| Fill | transparent |
+
+The rays should show **Width** `4` and the ring **Width** `10`. Round caps matter here: when a trim path shortens a line, a round cap keeps the visible end soft instead of chopping it flat.
+
+### 4. Add a Stroke Style to every line
+
+A trim path is a setting of the **Stroke Style (dash, trim path)** component. Add one to each line that will draw on or off.
+
+1. Select `outline`.
+2. Click **Add Component** at the bottom of the Inspector and choose **Effects 2D → Stroke Style (dash, trim path)**.
+3. Set **Dash (px, 0 = solid)** to `0`. A new Stroke Style starts dashed (Dash 12, Gap 8), and you want a solid line.
+4. Leave **Trim start** at `0`, **Trim end** at `1` and **Trim offset** at `0`.
+
+Repeat for `ring` and for each of `ray0` to `ray7`. On the eight rays, also set **Trim end** to `0`, so the rays start hidden.
+
+| Node | Dash | Trim start | Trim end | Trim offset |
+|---|---|---|---|---|
+| `outline` | 0 | 0 | 1 | 0 |
+| `ring` | 0 | 0 | 1 | 0 |
+| `ray0` … `ray7` | 0 | 0 | 0 | 0 |
+
+### 5. Check the draw order
+
+In the **Layers** panel, rows are listed frontmost first. The order from top to bottom should be:
+
+```text
+hit
+heartGroup
+  fill
+  outline
+ring
+burst
+  ray0 … ray7
+```
+
+If `hit` is not at the top, drag it there. It must be in front of everything so it receives the pointer.
+
+<Shot id="course-heart-layers" caption="The Heart scene after the SVG import: the Layers panel in the order hit, heartGroup (fill, outline), ring, burst (ray0 to ray7), with outline selected and its Stroke Style component showing Dash 0, Trim start 0, Trim end 1." />
+
+## How it works
+
+- **A trim path draws part of a stroke.** Trim start and Trim end are fractions of the path's length, from 0 to 1. A ray with start 0 and end 0 shows nothing; end 1 shows the whole ray; start 0.5 and end 1 shows the outer half. Animating them makes a line draw on, slide along, or retract.
+- **Path direction decides which way it draws.** Each ray's path starts at the inner end (radius 30) and ends at the outer end (radius 42), so increasing Trim end grows the ray outward from the heart. The ring is written as an explicit path that starts at the top and runs clockwise for the same reason. An SVG `<circle>` would also import, but you would not control where it starts.
+- **The outline and the fill are separate shapes** so the "unliked" look can be a theme-coloured line, and the "liked" look can be a solid red heart that pops over it. The fill is drawn 6% larger (scale 0.53 against 0.5 in the source geometry) so it fully covers the outline's stroke.
+- **The hit shape is invisible but real.** Its fill has zero alpha, so it draws nothing, but it still has a path for pointer hit-testing in lesson 4.
+
+## Check your work
+
+- The canvas shows a dark heart outline and a red heart on top of it, a red ring behind, and no visible rays.
+- Selecting `ray3` shows a Stroke Style with **Trim end** `0`. Dragging Trim end to `1` makes an amber ray grow outward from the heart; set it back to `0`.
+- `hit` is the top row in Layers. If it shows as a grey disc, set its fill alpha to 0.
+
+## Next
+
+[2. Animate the like](./02-animate-the-like.mdx): keyframe the pop, the burst and the ring in the Timeline.

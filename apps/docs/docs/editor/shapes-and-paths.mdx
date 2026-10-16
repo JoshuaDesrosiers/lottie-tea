@@ -6,7 +6,7 @@ description: Create vector shapes, edit their points, and style them with solid 
 
 # Shapes and paths
 
-**Shapes** are Toasty's vector objects: resolution-independent outlines with a fill and an optional stroke. They're the building blocks of UI, icons, characters and most of the built-in demos (Crown Match is drawn entirely with shapes).
+**Shapes** are Toasty's vector objects: resolution-independent outlines with a fill and an optional stroke. They are the building blocks of UI, icons, illustrations and characters, and the only node type (with groups and text) that [Toasty Lite](../runtimes/lite.mdx) draws.
 
 ## Creating shapes
 
@@ -54,7 +54,29 @@ Tick **Stroke** to give the outline a line. New strokes start 2 units wide, blac
 | **Cap** | **Butt**, **Square**, **Round**: how open line ends look |
 | **Join** | **Miter**, **Round**, **Bevel**: how corners look |
 
-For dashed lines and "trim path" draw-on effects, add the **Stroke Style (dash, trim path)** component. See [Effects 2D](../components/effects-2d.mdx).
+For dashed lines and trim paths, add the **Stroke Style (dash, trim path)** component. See [Effects 2D](../components/effects-2d.mdx#stroke-style).
+
+### Trim paths
+
+A trim path shows only part of a stroke. **Trim start** and **Trim end** (0 to 1, as a share of the path's length) set the visible window, and **Trim offset** slides that window round a closed path. Keyframe them and a line draws itself on, retracts, or chases its own tail. Strokes with **Round** caps look best, because the trimmed ends are visible.
+
+The loader below is one circle with two strokes: a faint track, and an amber arc whose trim start and end chase each other while the arc turns. The menu icon trims its middle bar to its centre as the outer bars rotate into a cross. Click it.
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0' }}>
+  <Lite src="loader" label="Loading" style={{ width: 72, height: 72 }} />
+  <Lite src="menu" ink="auto" label="Menu" style={{ width: 72, height: 72 }} />
+</div>
+
+The loader's single looping animation, as keyframes on the arc:
+
+| Track | 0 s | 0.7 s | 1.4 s |
+|---|---|---|---|
+| Trim end | 0.05 | 0.75 | 0.75 |
+| Trim start | 0 | 0 | 0.7 |
+| Trim offset | 0 | | 0.3 |
+| Rotation | 0° | | −360° |
+
+Trim paths export to Toasty Lite, so line-art icons built this way run on a website at a few kilobytes each. See [Loading states](../use-cases/loading-states.mdx) for the loader in a real page.
 
 ### Path
 
@@ -75,7 +97,7 @@ In point-edit mode, the shape's anchors and curve handles appear on the canvas.
 | Finish | **Escape**, or click **Done** |
 
 :::tip Animate the outline
-Shapes can morph: the path itself can be animated from a script (`ref.path`), and many demos use this for blobs and liquids. See [Nodes and refs](../scripting/nodes-and-refs.mdx).
+Shapes can morph. An animation can keyframe the path itself (a path morph), which Toasty Lite also plays: the `theme` icon morphs a sun into a crescent moon. A script can also replace the path at runtime with `ref.path`; see [Nodes and refs](../scripting/nodes-and-refs.mdx).
 :::
 
 ## Other shape settings

@@ -11,9 +11,7 @@ Toasty has two kinds of liquid, and they combine:
 - **Goo** is a *look*. Shapes, text, sprites and particles melt into one smooth blob, growing necks between each other as they get close, like drops of mercury or a lava lamp. **Goo 2D**, **Anti Goo 2D**, **Goo Gloss**, **Goo Material & Glow** and **Particle Fluid 2D** are goo components.
 - **Liquid 2D** is *physics*. Thousands of tiny particles pour, splash, settle in containers made of colliders, and make light bodies float. It looks like water out of the box, and you can draw it as goo too.
 
-Try the Liquid Lab demo: water in a tank with floating crates and a sinking stone, and a honey faucet draining through a funnel. Click to drop a crate, Shift-click for a stone.
-
-<ToastyDemo game="/games/liquid-lab.teab" height={360} caption="Liquid Lab: Liquid 2D water and honey, Rigidbody 2D crates that float or sink. Click to drop a crate, Shift-click for a stone." />
+Both are full-engine features. They run in Playground, exported games and the [engine embed](../embedding/overview.mdx), not in [Toasty Lite](../runtimes/lite.mdx).
 
 ## When goo runs
 
@@ -25,7 +23,7 @@ Put **Goo 2D** on any node: a shape, a text, an image, a Particle System, a Liqu
 
 The group is drawn once, with its **first member's** look (first in the Layers order): that member's fill, rim, gloss, Goo Material and Antialias settings apply to the whole group. The liquid draws at the group's front-most member's place in the draw order.
 
-<Shot id="goo-2d-inspector" caption="Goo Shapes demo: the GOO text selected, its Goo 2D card with Group, Fill (gradient), Rim and Reach, and the liquid around it on the canvas" />
+<Shot id="goo-2d-inspector" caption="A GOO text selected, its Goo 2D card with Group, Fill (gradient), Rim and Reach, and the liquid around it on the canvas" />
 
 | Field | Meaning | Range | Default |
 |---|---|---|---|
@@ -45,7 +43,7 @@ A shape's fill **alpha** sets how strongly it pulls. A half-transparent member m
 
 ### Moving goo from a script
 
-Goo needs no special API: move, scale or animate the members and the liquid follows. This is the script from the **Goo Shapes** demo, which orbits two balls round a text so they melt into the letters as they pass:
+Goo needs no special API: move, scale or animate the members and the liquid follows. This script orbits two balls round a text so they melt into the letters as they pass:
 
 ```js
 const t = ctx.time
@@ -137,14 +135,14 @@ Place the node where the liquid should start. In Design it shows its starting bo
 | Stream X / Y | The faucet's stream velocity, px/s (shown when Faucet is on). | any | (0, -120) |
 | Max | Hard cap on particles, a performance guard. | 10 to 4000 | 900 |
 
-The demo's two liquids are a good starting point:
+Two starting points, a water tank and a honey faucet:
 
 | Liquid | Volume | Spacing | Viscosity | Stiffness | Density | Drag | Faucet | Stream | Max |
 |---|---|---|---|---|---|---|---|---|---|
 | Water tank | 170 x 64 | 6 | 0.08 | 1 | 2.5 | 2 | 0 | | 1100 |
 | Honey faucet | 0 x 0 | 6 | 0.75 | 0.8 | 3 | 5 | 70 | (0, -60) | 520 |
 
-Liquids interact through physics, so the script side is about the bodies. The Liquid Lab's whole script spawns crate and stone prefabs where you click:
+Liquids interact through physics, so the script side is about the bodies. This script spawns crate and stone prefabs where you click, to float or sink in the liquid:
 
 ```js
 // Click to drop a crate (Shift: a stone) into the liquids.

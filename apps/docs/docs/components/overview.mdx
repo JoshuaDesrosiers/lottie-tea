@@ -6,7 +6,7 @@ description: What components are, how to add, enable, disable and remove them, a
 
 # Components overview
 
-A **component** is a piece of behaviour you attach to a node. A plain shape just sits there; give it a **Rigidbody 2D** and a **Box Collider 2D** and it falls and lands; add a **Light 2D** and it glows; add a **Particle System** and it sprays sparks. If you have used Unity, this is the same idea as its "Add Component" button, and most components even share Unity's names.
+A **component** is a piece of behaviour you attach to a node. A plain shape just sits there; give it a **Rigidbody 2D** and a **Box Collider 2D** and it falls and lands; add a **Light 2D** and it glows; add a **Particle System** and it sprays sparks. If you have used Unity, this is the same idea as its Add Component button, and most components share Unity's names.
 
 Components never change what a node *is*. A shape stays a shape, a text stays a text. Components stack on top, in a list, and any node can carry any number of them.
 
@@ -44,7 +44,7 @@ Click **Add Component**. The menu is grouped into sections:
 | Animation | Flipbook, VRM Poses (states), Humanoid Animator (mocap) |
 | UI | UI Anchor, UI Stack, UI Button, UI Toggle, UI Slider, UI Scrollbar, UI Scroll View, HTML UI |
 | Layout | UI Layout, UI Layout Item, UI Show When |
-| Events & Data | On Click (Events), Property Binding |
+| Events & Data | On Click (Events), Pointer Listeners (hover / press), Property Binding |
 | Shading | Material (Shader Graph) |
 | Scripts | Every script in the project, plus **+ New Script…** |
 
@@ -172,6 +172,7 @@ The table lists every component in the engine, in the order they were added to i
 | Clip Fade | `ClipFade2D` | Soft, partly visible clipping. | [Effects 2D](./effects-2d.mdx#clipping-and-masks) |
 | Anti Goo 2D | `AntiGoo2D` | Carves into a goo group instead of joining it. | [Goo and liquid](./goo-and-liquid.mdx#anti-goo-2d) |
 | Goo Gloss | `GooGloss2D` | Places and shapes a goo group's shine. | [Goo and liquid](./goo-and-liquid.mdx#goo-gloss) |
+| Pointer Listeners (hover / press) | `UiListeners` | Actions that run when the pointer enters, leaves, presses or releases the node, no code needed. | [Pointer Listeners](./pointer-listeners.mdx) |
 
 Post effects are not components: they belong to the whole scene and live in the Effects panel. See [Post effects](./post-effects.mdx).
 

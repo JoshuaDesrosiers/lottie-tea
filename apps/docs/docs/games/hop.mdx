@@ -1,0 +1,299 @@
+---
+title: Hop
+sidebar_position: 3
+description: A one-button runner in one Code program. Play it, read the script for hand-written jump physics, edge-triggered input, spawning by distance and a saved best score, then embed it with a scoreboard.
+---
+
+# Hop
+
+Hop is an endless runner with one control. A small block runs along the ground, hurdles slide in from the right, and you jump them. The run speeds up the longer you last, and your best distance is saved in the browser. The whole game is one Code program of about 60 lines.
+
+## Play it
+
+<ToastyDemo game="/games/hop.teab" height={240} caption="Space, ↑ or tap to hop. Hit a hurdle and the run ends." />
+
+## The scene
+
+The scene is called "Hop" and is 640 × 240. The origin is in the centre and y points up.
+
+| Node id | What it is |
+|---|---|
+| `ground` | A thin dark line at y = −70. |
+| `hurdle0` … `hurdle3` | Four blue hurdles, 18 × 36, parked off-screen at x = 800. |
+| `hopper` | The orange 30 × 30 player block at x = −200, resting on the ground. |
+| `scoreText` | The distance score, top right. |
+| `bestText` | "BEST n" under the score, empty until you have a best. |
+| `message` | "SPACE OR TAP TO HOP", later "OUCH - SPACE OR TAP TO GO AGAIN". |
+
+The scene has one **Property**, `score` (Number, default `0`). Like [Toast Catch](./toast-catch.mdx), it has a state machine "Game" with a single state `Play` whose Code program is the whole game.
+
+## The full script
+
+```js title="Game › Play (Code)"
+// Hop — a one-button runner. Space / tap jumps.
+// Events out: ctx.emit('gameover', { score, best })
+const N = 4
+const GROUND = -53, GRAVITY = -1900, JUMP = 640
+const g = ctx.globals.hop || (ctx.globals.hop = { mode: 'ready', y: GROUND, vy: 0, dist: 0, speed: 260, hurdles: [], next: 0, text: {}, best: Number(ctx.storage.get('hop.best')) || 0 })
+const dt = ctx.deltaSeconds
+const get = (id) => getCompByID(id)
+const say = (id, text) => { if (g.text[id] !== text) { g.text[id] = text; get(id).textContent = text } }
+const jumpPressed = ctx.tap || ctx.keysDown.has('space') || ctx.keysDown.has('up')
+
+if (g.mode !== 'play') {
+  if (jumpPressed && !g.held) {
+    Object.assign(g, { mode: 'play', y: GROUND, vy: 0, dist: 0, speed: 260, hurdles: [], next: 300 })
+    say('message', '')
+  }
+} else {
+  // Jump only from the ground; gravity pulls back down.
+  const grounded = g.y <= GROUND
+  if (jumpPressed && grounded && !g.held) { g.vy = JUMP; ctx.playTone({ freq: 520, to: 780, duration: 0.09, type: 'square', volume: 0.12 }) }
+  g.vy += GRAVITY * dt
+  g.y = Math.max(GROUND, g.y + g.vy * dt)
+  if (g.y === GROUND && g.vy < 0) g.vy = 0
+
+  // World scrolls left; hurdles spawn by distance.
+  g.speed += 6 * dt
+  g.dist += g.speed * dt
+  g.next -= g.speed * dt
+  if (g.next <= 0 && g.hurdles.length < N) { g.hurdles.push({ x: 360 }); g.next = 220 + Math.random() * 260 }
+  for (const h of g.hurdles) h.x -= g.speed * dt
+  g.hurdles = g.hurdles.filter((h) => h.x > -360)
+
+  // Hit test: the hopper (30×30 at x = -200) against each 18×36 hurdle.
+  if (g.hurdles.some((h) => Math.abs(h.x + 200) < 22 && g.y - GROUND < 34)) {
+    g.mode = 'over'
+    const score = Math.floor(g.dist / 40)
+    if (score > g.best) { g.best = score; ctx.storage.set('hop.best', score) }
+    say('message', 'OUCH - SPACE OR TAP TO GO AGAIN')
+    ctx.playTone({ freq: 220, to: 70, duration: 0.3, type: 'sawtooth', volume: 0.18 })
+    ctx.emit('gameover', { score, best: g.best })
+  }
+}
+g.held = jumpPressed
+
+const hopper = get('hopper')
+hopper.y = g.y
+hopper.rotation = g.y > GROUND ? (hopper.rotation - 360 * dt) : 0
+for (let i = 0; i < N; i++) {
+  const h = g.hurdles[i], node = get('hurdle' + i)
+  node.visible = !!h
+  if (h) node.x = h.x
+}
+ctx.props.score = Math.floor(g.dist / 40)
+say('scoreText', String(ctx.props.score))
+say('bestText', g.best ? 'BEST ' + g.best : '')
+```
+
+The structure is the same as Toast Catch: constants, a state object in `ctx.globals`, a `mode` branch, and a drawing section at the end that runs in every mode. If the frame loop, `ctx.globals` or `getCompByID` are new to you, read the [Toast Catch walkthrough](./toast-catch.mdx#the-frame-loop) first.
+
+## Tuning constants
+
+```js
+const N = 4
+const GROUND = -53, GRAVITY = -1900, JUMP = 640
+```
+
+Every number that shapes the feel of the jump is named at the top, so you can tune it without hunting through the code.
+
+- `N` is the number of hurdle nodes in the scene, the size of the pool.
+- `GROUND` is the hopper's y position when it stands on the ground line.
+- `GRAVITY` is in units per second per second. It is negative because y points up.
+- `JUMP` is the upward speed a jump starts with.
+
+From these you can work out the jump: it rises `JUMP² / (2 × |GRAVITY|)`, about 108 units, and stays in the air `2 × JUMP / |GRAVITY|`, about 0.67 seconds. Raise `JUMP` for a higher jump; make `GRAVITY` more negative for a snappier, shorter one.
+
+## Velocity and gravity
+
+```js
+const grounded = g.y <= GROUND
+if (jumpPressed && grounded && !g.held) { g.vy = JUMP; ctx.playTone(...) }
+g.vy += GRAVITY * dt
+g.y = Math.max(GROUND, g.y + g.vy * dt)
+if (g.y === GROUND && g.vy < 0) g.vy = 0
+```
+
+This is the whole physics engine, and it is the same pattern every platformer uses:
+
+1. A jump sets the vertical velocity `g.vy` to `JUMP`. It is only allowed while grounded, so there is no double jump.
+2. Every frame, gravity changes the velocity (`vy += GRAVITY * dt`).
+3. The velocity changes the position (`y += vy * dt`).
+4. The ground is a floor: `Math.max` stops the hopper at `GROUND`, and landing zeroes the velocity so it does not keep building up while standing.
+
+Multiplying by `dt` (`ctx.deltaSeconds`) makes the jump the same height at any frame rate. For anything with collisions against many shapes, slopes or stacking, use the [2D physics](../components/physics-2d.mdx) components rather than writing it by hand.
+
+## Jumping on a fresh press
+
+`ctx.keysDown` reports keys that are **held**. If the script jumped whenever Space was down, holding Space would bounce the hopper forever, and the key press that ended a run would instantly start the next one.
+
+Hop fixes both with one field, `g.held`:
+
+```js
+const jumpPressed = ctx.tap || ctx.keysDown.has('space') || ctx.keysDown.has('up')
+// ...everything else uses: jumpPressed && !g.held
+g.held = jumpPressed
+```
+
+`g.held` is what `jumpPressed` was **last frame**. `jumpPressed && !g.held` is true only on the first frame of a press, which is called edge detection. A jump (or a restart) needs you to release and press again. `ctx.tap` is already a one-frame event, so a tap always counts as fresh.
+
+The assignment `g.held = jumpPressed` sits outside the `mode` branch on purpose: it must run every frame, whatever the mode, or the comparison would use a stale value.
+
+### A variation: buffering the press
+
+Players often press jump a moment before they land. With plain edge detection that press is lost. An input **buffer** remembers a fresh press for a short time and jumps as soon as it is allowed. This is not in `hop.teab`; it is how you would add it inside the `play` branch:
+
+```js
+// Remember a fresh press for 0.1 s.
+if (jumpPressed && !g.held) g.buffer = 0.1
+else g.buffer = Math.max(0, (g.buffer || 0) - dt)
+
+if (g.buffer > 0 && grounded) {
+  g.buffer = 0
+  g.vy = JUMP
+}
+```
+
+## Spawning by distance
+
+Toast Catch spawns on a timer. A runner spawns by **distance**, so the gaps between hurdles stay fair as the run speeds up:
+
+```js
+g.speed += 6 * dt
+g.dist += g.speed * dt
+g.next -= g.speed * dt
+if (g.next <= 0 && g.hurdles.length < N) { g.hurdles.push({ x: 360 }); g.next = 220 + Math.random() * 260 }
+for (const h of g.hurdles) h.x -= g.speed * dt
+g.hurdles = g.hurdles.filter((h) => h.x > -360)
+```
+
+- The hopper never moves sideways. The world moves left at `g.speed`, which starts at 260 units per second and grows by 6 every second.
+- `g.dist` is how far you have run. The score is `Math.floor(g.dist / 40)`.
+- `g.next` counts down the distance to the next hurdle. When it runs out, a hurdle appears just past the right edge (x = 360) and the next gap is drawn between 220 and 480 units.
+- Hurdles that leave the left edge are dropped with `filter`.
+
+The four hurdle nodes are a pool, like the toast in Toast Catch. Node `hurdle` + `i` shows array entry `i`, and nodes with no entry are hidden:
+
+```js
+for (let i = 0; i < N; i++) {
+  const h = g.hurdles[i], node = get('hurdle' + i)
+  node.visible = !!h
+  if (h) node.x = h.x
+}
+```
+
+## The hit test
+
+```js
+if (g.hurdles.some((h) => Math.abs(h.x + 200) < 22 && g.y - GROUND < 34)) {
+```
+
+Two axis checks again:
+
+- **Horizontally**, the hurdle's centre is within 22 units of the hopper's centre (x = −200). Exact edge contact would be 24 (half of 30 plus half of 18).
+- **Vertically**, the hopper is less than 34 units above the ground. Exact contact would be 36, the hurdle's height.
+
+Both thresholds are slightly smaller than exact contact. A near miss counts as a clear jump, which feels fair to the player; tight hitboxes are a common trick in action games.
+
+## Saving the best score: `ctx.storage`
+
+```js
+best: Number(ctx.storage.get('hop.best')) || 0
+// ...on a crash:
+if (score > g.best) { g.best = score; ctx.storage.set('hop.best', score) }
+```
+
+`ctx.storage` is the game's save data. It survives reloading the page, leaving Playground and closing the editor. `get` returns `null` when nothing is saved yet (or storage is blocked, as in some private windows), so `Number(null) || 0` starts the best at 0. The best is read once, when `ctx.globals.hop` is created, and written only when it improves.
+
+In a browser, `ctx.storage` is backed by `localStorage` with the prefix `an1mbyt3.save.`, and values are stored as JSON. So the page around the game can read the same best score directly, without loading the engine:
+
+```js
+const best = Number(JSON.parse(localStorage.getItem('an1mbyt3.save.hop.best') ?? '0')) || 0
+```
+
+Give storage keys a game-specific name (`hop.best`, not `best`): every game and the editor on the same site share the same storage. See the [Storage API](../scripting/storage-api.mdx).
+
+## The game-over event
+
+```js
+ctx.emit('gameover', { score, best: g.best })
+```
+
+One event per run carries everything a page needs: the run's score and the best, already updated. The page receives it as `{ name: 'gameover', payload: { score, best } }`.
+
+The score is also written to the `score` Property every frame (`ctx.props.score = Math.floor(g.dist / 40)`). Properties are only reported to the page when their value changes, so the page receives a `prop` event each time the score ticks up, about every 40 units of distance, not every frame.
+
+## Embed it on a page
+
+A scoreboard next to the game: the saved best is read from storage before the engine loads, the live score comes from `prop` events, and finished runs come from `gameover`.
+
+```jsx live
+function HopScoreboard() {
+  const readSaved = () => {
+    try { return Number(JSON.parse(localStorage.getItem('an1mbyt3.save.hop.best') ?? '0')) || 0 } catch { return 0 }
+  }
+  const [best, setBest] = React.useState(readSaved)
+  const [score, setScore] = React.useState(0)
+  const [runs, setRuns] = React.useState([])
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <ToastyPlayer
+        game="/games/hop.teab"
+        style={{ height: 240 }}
+        label="Play Hop"
+        onPropChange={(e) => e.name === 'score' && setScore(e.value)}
+        onEvent={(e) => {
+          if (e.name !== 'gameover') return
+          setBest(e.payload.best)
+          setRuns((list) => [{ score: e.payload.score, newBest: e.payload.score === e.payload.best }, ...list].slice(0, 5))
+        }}
+      />
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+        <span>Distance <b>{score}</b></span>
+        <span>Best in this browser <b>{best}</b></span>
+      </div>
+      {runs.length > 0 && (
+        <ul style={{ margin: 0 }}>
+          {runs.map((run, i) => (
+            <li key={i}>{run.score}{run.newBest ? ' (new best)' : ''}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+```
+
+The same with plain JavaScript and the `<an1-player>` element. The element's `an1:*` events bubble, so one listener on a parent hears them:
+
+```html
+<section id="hop-card">
+  <an1-player game="/an1mbyt3/game.teab" style="height: 240px"></an1-player>
+  <p>Best <b id="best">0</b></p>
+</section>
+
+<script type="module">
+  import { defineAn1PlayerElement } from '/an1mbyt3/an1mbyt3-embed.js'
+  defineAn1PlayerElement()
+
+  const bestEl = document.getElementById('best')
+  bestEl.textContent = Number(JSON.parse(localStorage.getItem('an1mbyt3.save.hop.best') ?? '0')) || 0
+
+  document.getElementById('hop-card').addEventListener('an1:event', (e) => {
+    if (e.detail.name === 'gameover') bestEl.textContent = e.detail.payload.best
+  })
+</script>
+```
+
+## Ideas to try
+
+- **Ducking.** Add a low obstacle and a second key (`'down'`) that halves the hopper's height.
+- **Coyote time.** Allow a jump for 0.08 seconds after leaving the ground, the mirror image of the buffer above.
+- **Difficulty from the page.** Read `ctx.data.speed` as Toast Catch does and multiply the starting `speed` by it.
+- **A leaderboard.** Send `gameover` to your server from the page and show the top scores next to the game.
+
+## Next
+
+- [Build your own](./build-your-own.mdx): a skeleton script and a checklist.
+- [Listening to the game](../embedding/listening.mdx): every event the page can receive.

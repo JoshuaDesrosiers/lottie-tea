@@ -1,0 +1,107 @@
+---
+title: Use cases
+sidebar_position: 1
+description: Ten Toasty Lite components placed in real product UI (a like button, a mobile menu, a theme switch, form states, notifications, downloads, copy buttons, calls to action, loaders and a mascot), each with copy-paste HTML, CSS, JavaScript and React.
+---
+
+import Link from '@docusaurus/Link'
+import { useRef } from 'react'
+import { Lite } from '@site/src/components/Lite'
+
+export function UseCase({ to, src, title, children, enter, leave, inputs, data }) {
+  const player = useRef(null)
+  const apply = (values) => {
+    if (!values || !player.current) return
+    for (const [name, value] of Object.entries(values)) player.current.setInput(name, value)
+  }
+  return (
+    <Link
+      to={to}
+      className="uc-card"
+      onMouseEnter={() => apply(enter)}
+      onMouseLeave={() => apply(leave)}
+      onFocus={() => apply(enter)}
+      onBlur={() => apply(leave)}
+    >
+      <span className="uc-stage">
+        <Lite ref={player} src={src} ink="auto" inputs={inputs} data={data} style={{ width: 88, height: 88, pointerEvents: 'none' }} />
+      </span>
+      <span className="uc-title">{title}</span>
+      <span className="uc-text">{children}</span>
+    </Link>
+  )
+}
+
+<style>{`
+  .uc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin: 1.5rem 0 2.5rem; }
+  .uc-card { display: flex; flex-direction: column; gap: 6px; padding: 16px 16px 18px; border: 1px solid var(--t-line); border-radius: 12px; background: var(--t-surface); color: var(--t-ink); text-decoration: none; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
+  .uc-card:hover, .uc-card:focus-visible { border-color: var(--t-line-strong); color: var(--t-ink); text-decoration: none; transform: translateY(-2px); box-shadow: 0 8px 24px -16px rgb(0 0 0 / .35); }
+  .uc-stage { display: grid; place-items: center; height: 128px; margin-bottom: 8px; border-radius: 8px; background: var(--t-subtle); border: 1px solid var(--t-line); }
+  .uc-title { font-weight: 600; font-size: 15px; }
+  .uc-text { color: var(--t-muted); font-size: 13.5px; line-height: 1.5; }
+`}</style>
+
+# Use cases
+
+Each page in this section takes one Toasty Lite component and puts it where it belongs: inside a real button, in a real header, next to a real form field. The examples run live in a browser frame, and every tab underneath (HTML, CSS, JavaScript, React) is the complete source. Copy it into your site and it works the same way.
+
+Hover a card to preview the animation.
+
+<div className="uc-grid">
+  <UseCase to="/use-cases/like-button" src="heart" title="Like button" enter={{ liked: true }} leave={{ liked: false }}>
+    A social post with a heart that pops, a live count and optimistic saving.
+  </UseCase>
+  <UseCase to="/use-cases/mobile-menu" src="menu" title="Mobile menu" enter={{ open: true }} leave={{ open: false }}>
+    A site header that collapses into a menu button and a slide-down nav.
+  </UseCase>
+  <UseCase to="/use-cases/theme-switch" src="theme" title="Theme switch" enter={{ dark: true }} leave={{ dark: false }}>
+    A settings page where the sun turns into a moon and the page follows.
+  </UseCase>
+  <UseCase to="/use-cases/form-status" src="status" title="Form status" inputs={{ status: 'loading' }} enter={{ status: 'success' }} leave={{ status: 'loading' }}>
+    A signup form whose submit button shows loading, success and error.
+  </UseCase>
+  <UseCase to="/use-cases/notifications" src="bell" title="Notifications" inputs={{ unread: true }} enter={{ ring: true, hover: true }} leave={{ hover: false }}>
+    An app header bell with an unread badge, a dropdown and mark-all-read.
+  </UseCase>
+  <UseCase to="/use-cases/download-progress" src="download" title="Download progress" data={{ progress: 0.62 }} enter={{ state: 'downloading' }} leave={{ state: 'idle' }}>
+    A file list where each row's button streams its own progress ring.
+  </UseCase>
+  <UseCase to="/use-cases/copy-to-clipboard" src="copy" title="Copy to clipboard" enter={{ copy: true, hover: true }} leave={{ hover: false }}>
+    An API key field and a code snippet, each with a copy button.
+  </UseCase>
+  <UseCase to="/use-cases/call-to-action" src="arrow" title="Call to action" enter={{ hover: true }} leave={{ hover: false }}>
+    A pricing card whose arrow is driven by the link's own hover.
+  </UseCase>
+  <UseCase to="/use-cases/loading-states" src="loader" title="Loading states" >
+    Loaders inside buttons, list skeletons and a page-load overlay.
+  </UseCase>
+  <UseCase to="/use-cases/mascot" src="toasty" title="Mascot" enter={{ hover: true }} leave={{ hover: false }}>
+    A brand character on an empty inbox and a 404 page.
+  </UseCase>
+</div>
+
+## What every example has in common
+
+The examples share a small set of patterns. Once you have seen them on one page, the rest read quickly.
+
+- **The page owns the control.** The animation sits inside a real `<button>` or `<a>`, so keyboard focus, `aria-pressed`, `aria-expanded` and form submission all work with no extra code. The canvas is decoration.
+- **`pointer-events: none` on the animation.** When the page drives the animation, the canvas must not also react to clicks on its own, or the two would fight over the same input. The page forwards hover with `setInput('hover', …)` instead. The [like button](./like-button.mdx) explains this in detail.
+- **`ink="currentColor"`.** Every component except `theme` and `toasty` has an `ink` Property bound to its line colour. With `ink="currentColor"` the lines take the text colour of their button and follow your light and dark themes. See [Theming](../runtimes/theming.mdx).
+- **`element.player`.** Once the `toasty:ready` event has fired, the element's `.player` is the full JavaScript API: `setInput`, `fire`, `set`, `state` and `on`. See [JavaScript API](../runtimes/javascript.mdx).
+
+## Which component goes where
+
+| File | Inputs | Typical home |
+|---|---|---|
+| `heart` | `liked` Bool, `hover` Bool | Like, favourite and save buttons |
+| `menu` | `open` Bool, `hover` Bool | Mobile navigation toggles, drawers |
+| `theme` | `dark` Bool, `hover` Bool | Light and dark switches |
+| `status` | `status` Enum: `idle`, `loading`, `success`, `error` | Submit buttons, inline validation |
+| `bell` | `ring` Trigger, `unread` Bool, `hover` Bool | Notification centres, inbox badges |
+| `download` | `state` Enum: `idle`, `downloading`, `done`; `hover` Bool; `progress` Property | File lists, export buttons |
+| `copy` | `copy` Trigger, `hover` Bool | API keys, code snippets, share links |
+| `arrow` | `hover` Bool | Calls to action, "Read more" links |
+| `loader` | none | Buttons, lists and pages that are waiting |
+| `toasty` | `hover` Bool, `boop` Trigger | Empty states, error pages, onboarding |
+
+All ten files are 96 by 96 with a transparent background and no scripts, so they run in [Toasty Lite](../runtimes/lite.mdx). To build your own component in the same style, see [Authoring for Lite](../runtimes/authoring.mdx).

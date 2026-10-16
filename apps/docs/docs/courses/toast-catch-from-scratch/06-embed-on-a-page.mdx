@@ -1,0 +1,183 @@
+---
+title: 6. Put it on a page
+sidebar_position: 6
+description: Export Toast Catch as a website embed, run it on a plain HTML page, pass a speed setting in, and build a React score panel from its prop and event messages.
+---
+
+# 6. Put it on a page
+
+**Goal:** the game running inside a web page, with the page around it reacting to the game: a live score, the lives left, a best score that survives the round, and a difficulty setting the page passes in.
+
+## Export
+
+1. Make **Toast Catch** the active scene.
+2. **Export → Game → Website embed (React / JS)** and pick a folder. Toasty creates `Toast-Catch-embed/`.
+3. Copy `src/an1mbyt3/` into your app's source and `public/an1mbyt3/` into your static files. See [Exporting for the web](../../embedding/export-for-web.mdx) for each framework.
+
+The game's contract with the page is the three comment lines at the top of its program:
+
+| Direction | Name | Value |
+|---|---|---|
+| Page → game | `speed` (data) | A multiplier, 1 = normal |
+| Game → page | `score` event | `{ score }` after each catch |
+| Game → page | `gameover` event | `{ score }` when the last life is lost |
+| Game → page | `prop` events | `score` and `lives` whenever they change |
+
+## Try the speed setting
+
+`data` is live: the page can change it while the game runs. This embed plays the same file as lesson 5 with `speed` set to 1.5.
+
+<ToastyDemo game="/games/toast-catch.teab" height={300} data={{ speed: 1.5 }} caption="data={{ speed: 1.5 }}: everything falls half as fast again, and slices arrive more often." />
+
+## A score panel, live
+
+The panel below is a React component around the game. It listens to `onPropChange` for the score and lives, and to `onEvent` for the end of a round, and it passes a difficulty setting in through `data`.
+
+```jsx live
+function ToastCatchPanel() {
+  const [score, setScore] = React.useState(0)
+  const [lives, setLives] = React.useState(3)
+  const [best, setBest] = React.useState(0)
+  const [rounds, setRounds] = React.useState(0)
+  const [speed, setSpeed] = React.useState(1)
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <ToastyPlayer
+        game="/games/toast-catch.teab"
+        data={{ speed }}
+        style={{ height: 300 }}
+        onPropChange={(e) => {
+          if (e.name === 'score') setScore(e.value)
+          if (e.name === 'lives') setLives(e.value)
+        }}
+        onEvent={(e) => {
+          if (e.name === 'gameover') {
+            setRounds((n) => n + 1)
+            setBest((b) => Math.max(b, e.payload.score))
+          }
+        }}
+      />
+      <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center', fontVariantNumeric: 'tabular-nums' }}>
+        <span>Score <strong>{score}</strong></span>
+        <span>Lives <strong>{'●'.repeat(Math.max(0, lives))}</strong></span>
+        <span>Best <strong>{best}</strong></span>
+        <span>Rounds <strong>{rounds}</strong></span>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          Speed
+          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+            <option value={0.75}>Relaxed</option>
+            <option value={1}>Normal</option>
+            <option value={1.5}>Fast</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  )
+}
+```
+
+Only one engine runs per page. Starting this game stops the other embeds on this page.
+
+## Plain HTML
+
+```html title="index.html"
+<div class="game-card">
+  <div id="game" style="aspect-ratio: 16 / 9; width: 100%"></div>
+  <p class="scoreline">Score <strong id="score">0</strong> · Lives <strong id="lives">3</strong> · Best <strong id="best">0</strong></p>
+</div>
+
+<script type="module">
+  import { createPlayer } from '/src/an1mbyt3/an1mbyt3-embed.js'
+
+  const best = Number(localStorage.getItem('toast-catch.best')) || 0
+  document.getElementById('best').textContent = best
+
+  const player = await createPlayer(document.getElementById('game'), {
+    game: '/an1mbyt3/game.teab',
+    data: { speed: 1 },
+  })
+
+  player.on('prop', ({ name, value }) => {
+    if (name === 'score') document.getElementById('score').textContent = value
+    if (name === 'lives') document.getElementById('lives').textContent = value
+  })
+
+  player.on('event', ({ name, payload }) => {
+    if (name !== 'gameover') return
+    const previous = Number(localStorage.getItem('toast-catch.best')) || 0
+    if (payload.score > previous) {
+      localStorage.setItem('toast-catch.best', payload.score)
+      document.getElementById('best').textContent = payload.score
+    }
+  })
+</script>
+```
+
+## React
+
+```tsx title="ToastCatch.tsx"
+import { useState } from 'react'
+import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
+
+export function ToastCatch() {
+  const [score, setScore] = useState(0)
+  const [lives, setLives] = useState(3)
+  const [best, setBest] = useState(() => Number(localStorage.getItem('toast-catch.best')) || 0)
+  const [speed, setSpeed] = useState(1)
+
+  return (
+    <section className="game-card">
+      <An1Player
+        game="/an1mbyt3/game.teab"
+        data={{ speed }}
+        style={{ width: '100%', aspectRatio: '16 / 9' }}
+        onPropChange={(e) => {
+          if (e.name === 'score') setScore(Number(e.value))
+          if (e.name === 'lives') setLives(Number(e.value))
+        }}
+        onEvent={(e) => {
+          if (e.name !== 'gameover') return
+          const final = (e.payload as { score: number }).score
+          setBest((b) => {
+            const next = Math.max(b, final)
+            localStorage.setItem('toast-catch.best', String(next))
+            return next
+          })
+        }}
+      />
+      <p className="scoreline">
+        Score <strong>{score}</strong> · Lives <strong>{lives}</strong> · Best <strong>{best}</strong>
+      </p>
+      <label>
+        Speed{' '}
+        <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+          <option value={0.75}>Relaxed</option>
+          <option value={1}>Normal</option>
+          <option value={1.5}>Fast</option>
+        </select>
+      </label>
+    </section>
+  )
+}
+```
+
+## How it works
+
+- **`prop` for state, events for moments.** The score line follows `prop` events because they report every change, including the reset to 0 when a new round starts, which no `score` event announces. The best score uses `gameover`, because that is the one moment a round's score is final.
+- **Your own writes are not echoed.** Setting `data` from the page doesn't produce `prop` events; only changes made by the game do.
+- **The game keeps its own best-score logic out.** Toast Catch doesn't store a best score itself; the page does, with `localStorage`. A game can also save with `ctx.storage`, as [Hop](../../games/hop.mdx) does.
+- **`data` is live.** Changing `speed` in the middle of a round takes effect on the next frame, because the program reads `ctx.data.speed` every frame.
+- **One engine per page.** The engine is about 25 MB uncompressed and runs once per page. Put the game in one place, and use Toasty Lite for the buttons and icons around it.
+
+## Check your work
+
+- The score line counts up as you catch, and drops back to 0 when you retry.
+- After a game over, **Best** keeps the higher of the old and new scores, and survives a page reload in the HTML version.
+- Switching to **Fast** mid-round makes the slices fall faster immediately.
+
+## Where to go next
+
+- [Toast Catch](../../games/toast-catch.mdx): the game's reference page.
+- [Build your own game](../../games/build-your-own.mdx): turn this template into something new.
+- [Listening to the game](../../embedding/listening.mdx) and [React](../../embedding/react.mdx) for the full embed API.

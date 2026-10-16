@@ -1,16 +1,16 @@
 ---
 title: Multiplayer (LAN)
 sidebar_position: 40
-description: How Toasty's port-based multiplayer works - the an1mbyt3-net relay server, hosting from the desktop app or the standalone server, joining by address, and the LAN Party demo.
+description: How Toasty's port-based multiplayer works - the an1mbyt3-net relay server, hosting from the desktop app or the standalone server, joining by address, and a worked host-authoritative example.
 ---
 
 # Multiplayer (LAN)
 
-Toasty games can be multiplayer: one machine **hosts** a game on a port, and other players **join** by typing its address, like a classic LAN party. This page covers how it's set up and what runs where. The script API (`ctx.net.host`, `join`, `send`, `messages`, `players`...) is documented in [Scripting: network](../scripting/network-api.mdx).
+Toasty games can be multiplayer: one machine **hosts** a game on a port, and other players **join** by typing its address, as on a local network. This page covers how it's set up and what runs where. The script API (`ctx.net.host`, `join`, `send`, `messages`, `players`...) is documented in [Scripting: network](../scripting/network-api.mdx).
 
-Load **+ → Demos → LAN Party (multiplayer)** to try it: a lobby, toon blobs you move with WASD, and coins only one player can grab.
+The editor's **+ → Demos** menu includes a LAN example you can host and join to try it.
 
-<Shot id="multiplayer-lan-lobby" caption="The LAN Party demo's HTML lobby while hosting: name field, port, Host and Join buttons, and the addresses friends should type" />
+<Shot id="multiplayer-lan-lobby" caption="An HTML lobby while hosting: name field, port, Host and Join buttons, and the addresses friends should type" />
 
 ## How it works
 
@@ -39,7 +39,7 @@ There are two ways to run the relay server.
 
 In the **desktop** editor, a script calls `ctx.net.host({ port, name })`. That starts the relay inside the app on that port (default **7777**), replacing one already running, and joins it. While hosting, `ctx.net.hosting` holds the port and the addresses other players should type: this machine's LAN address and `127.0.0.1` for players on the same machine.
 
-`ctx.net.canHost` is `true` only in the desktop app. In a browser (the web editor or an exported HTML game) `host()` fails with the error "Hosting needs the desktop app (or run an1mbyt3-server) — this copy can only join", and `ctx.net.status` becomes `'error'`. The LAN Party lobby disables its Host button in that case.
+`ctx.net.canHost` is `true` only in the desktop app. In a browser (the web editor or an exported HTML game) `host()` fails with the error "Hosting needs the desktop app (or run an1mbyt3-server) — this copy can only join", and `ctx.net.status` becomes `'error'`. A lobby should disable its Host button in that case.
 
 ### The standalone server
 
@@ -100,9 +100,9 @@ You never need this from a script (`ctx.net` handles it), but it's useful if you
 
 A new connection has 5 seconds to send its `hello`.
 
-## The LAN Party demo
+## Example: a host-authoritative coin game
 
-**LAN Party** shows a complete host-authoritative game in one script:
+A complete host-authoritative game fits in one script:
 
 - **Lobby**: an interactive [HTML UI](./html-ui.mdx) element with your name, a port and Host, or an address and Join. It remembers your entries with `ctx.storage`.
 - **Movement**: each player sends its own position 20 times a second (`{ k: 's', x, y }`); others are drawn smoothly interpolated.

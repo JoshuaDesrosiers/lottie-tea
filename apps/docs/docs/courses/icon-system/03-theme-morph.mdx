@@ -1,0 +1,151 @@
+---
+title: 3. The theme icon
+sidebar_position: 3
+description: Build the light and dark theme icon, with sun rays that retract along trim paths, sparkles that pop in, and a sun body that morphs into a crescent moon, and learn the same-structure rule for path morphs.
+---
+
+# 3. The theme icon
+
+**Goal:** a sun that turns into a moon when `dark` is true. The eight rays retract into the body while the ray group turns a quarter turn, the body changes colour, tilts and morphs into a crescent, and two sparkles pop in.
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0 24px' }}>
+  <Lite src="theme" label="Theme icon, light" style={{ width: 80, height: 80 }} />
+  <Lite src="theme" inputs={{ dark: true }} label="Theme icon, dark" style={{ width: 80, height: 80 }} />
+</div>
+
+This icon has no `ink` property. Its colours are the meaning: amber for the sun, pale violet for the moon. It reads correctly on light and dark backgrounds alike.
+
+## Path morphs and the same-structure rule
+
+A **path morph** animates the shape of a path itself: each keyframe holds a whole path, and between keys every point moves in a straight line from its old position to its new one.
+
+That only works when the two paths can be matched point for point. The rule is:
+
+> Every keyframe of a morph, and the shape's own path, must have **the same command structure**: the same number of commands, of the same kinds, in the same order.
+
+The sun body and the moon body follow it. Both are one move, four cubic curves, and a close:
+
+```text
+Sun   M0 -15  C8.28 -15 15 -8.28 15 0    C15 8.28 8.28 15 0 15    C-8.28 15 -15 8.28 -15 0   C-15 -8.28 -8.28 -15 0 -15  Z
+Moon  M0 -17  C-3.31 -17 -6 -9.39 -6 0   C-6 9.39 -3.31 17 0 17   C-9.39 17 -17 9.39 -17 0   C-17 -9.39 -9.39 -17 0 -17  Z
+      move    curve 1 (right, top)       curve 2 (right, bottom)  curve 3 (left, bottom)     curve 4 (left, top)        close
+```
+
+Both come from one formula with two numbers: a radius `r` and how far the right half bulges, `a`. With `a = r` it is a full circle (the sun, `r = 15`). With a negative `a` the right half curves inward and carves a crescent (the moon, `r = 17`, `a = -6`). Every in-between value is also a valid shape, which is why the morph looks smooth.
+
+| What breaks the rule | What you see |
+|---|---|
+| A different number of commands (a circle with 4 curves morphing to a star with 10 lines) | The engine holds the first shape, then snaps to the second at the end. Toasty Lite applies the second key's numbers to the first shape's commands, which draws a broken shape. |
+| The same count but a different kind at one position (a line where the other has a curve) | That one command holds while the others move. |
+| The same structure but a different starting point | It morphs, but twists, because each point travels to the "wrong" partner. |
+
+To design a pair that morphs well, draw both shapes from the same template: start at the same point, go the same direction, and use curves everywhere (a straight segment is just a curve with its handles on the line).
+
+:::note Authoring morphs in the editor
+The Timeline in the current editor has rows for Position, Rotation, Scale, Fill, Motion Path and any **+ Property** field, but no row for a shape's path, so you can't key a path morph by hand yet. Edit Points changes the shape itself, not a keyframe. Both runtimes play morphs, and the shipped `theme.json` contains one. For the morph itself, start from the finished component: choose **+ → Templates → Lite: Light / dark switch**, which adds it to your project as its own scene with the sun-to-moon morph already keyed. You can restyle and retime everything else in it, and the steps below explain every part. If you build the icon from scratch instead, use the technique in [Without a morph](#without-a-morph) for the body.
+:::
+
+## Steps
+
+### 1. Draw the parts
+
+New scene `Theme`, 96 × 96, from your template (no `ink` property this time; delete it if you copied it). Import:
+
+```svg title="theme.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -48 96 96" width="96" height="96">
+  <g id="rays" fill="none" stroke="#F5A624" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path id="ray0" d="M24 0 L32 0"/>
+    <path id="ray1" d="M16.97 -16.97 L22.63 -22.63"/>
+    <path id="ray2" d="M0 -24 L0 -32"/>
+    <path id="ray3" d="M-16.97 -16.97 L-22.63 -22.63"/>
+    <path id="ray4" d="M-24 0 L-32 0"/>
+    <path id="ray5" d="M-16.97 16.97 L-22.63 22.63"/>
+    <path id="ray6" d="M0 24 L0 32"/>
+    <path id="ray7" d="M16.97 16.97 L22.63 22.63"/>
+  </g>
+  <path id="body" fill="#F5A624"
+    d="M0 -15 C8.28 -15 15 -8.28 15 0 C15 8.28 8.28 15 0 15 C-8.28 15 -15 8.28 -15 0 C-15 -8.28 -8.28 -15 0 -15 Z"/>
+  <circle id="hit" r="42" fill="#000000" fill-opacity="0"/>
+</svg>
+```
+
+Each ray starts at the inner end (radius 24) and ends at the outer end (radius 32). Add a **Stroke Style** with **Dash** `0` to each ray.
+
+The two sparkles need to scale around their own centres, so import them one at a time, centred, and position them afterwards:
+
+```svg title="sparkle.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -48 96 96" width="96" height="96">
+  <path id="sparkle1" fill="#DBD9F2"
+    d="M0 -7 C0.59 -1.96 1.96 -0.59 7 0 C1.96 0.59 0.59 1.96 0 7 C-0.59 1.96 -1.96 0.59 -7 0 C-1.96 -0.59 -0.59 -1.96 0 -7 Z"/>
+</svg>
+```
+
+Set `sparkle1` to Position (20, 16). Then import the smaller one the same way and set it to Position (28, -2):
+
+```svg title="sparkle-small.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -48 96 96" width="96" height="96">
+  <path id="sparkle2" fill="#DBD9F2"
+    d="M0 -4.5 C0.38 -1.26 1.26 -0.38 4.5 0 C1.26 0.38 0.38 1.26 0 4.5 C-0.38 1.26 -1.26 0.38 -4.5 0 C-1.26 -0.38 -0.38 -1.26 0 -4.5 Z"/>
+</svg>
+```
+
+Keep `hit` on top.
+
+### 2. Animations
+
+| Animation | Dur | Role |
+|---|---|---|
+| **Animation 1** | 0.4 s | Light |
+| **Animation 2** | 0.7 s | Dark |
+| **Animation 3** / **4** | 0.2 s each | Hover off / Hover on: `rays` Scale % 100 and 110 |
+
+**Light** (all keys at 0 s): `body` Fill amber, Rotation 0; `rays` Rotation 0; `sparkle1` and `sparkle2` Scale 0; every ray Trim start 0.
+
+**Dark:**
+
+| Node and value | 0 s | 0.25 s | 0.3 s | 0.4 s | 0.45 s | 0.55 s | 0.65 s |
+|---|---|---|---|---|---|---|---|
+| each ray, Trim start | 0 | 1, curve In | | | | | |
+| `rays` Rotation | 0 | | 90, curve In | | | | |
+| `body` Fill | `#F5A624` | | | `#DBD9F2`, curve InOut | | | |
+| `body` Rotation | 0 | | | | -30, curve InOut | | |
+| `sparkle1` Scale | 0 | | 0 | | | 1, curve Back | |
+| `sparkle2` Scale | 0 | | | 0 | | | 1, curve Back |
+
+Scale 0 and 1 are **Scale %** 0 and 100 in the Inspector. The shipped file also keys the `body` path from the sun to the moon between 0 and 0.4 s, curve InOut.
+
+### 3. State machine and click
+
+- Inputs: `dark` (**Bool**), `hover` (**Bool**).
+- Light → Dark on `dark` true, **Crossfade (s)** `0`. Dark → Light on `dark` false, **Crossfade (s)** `0.3`. Both **Once**.
+- Layer `Hover`, mask `rays`, Rest ⇄ Over on `hover` with `0.16` and `0.2`.
+- `hit`: **On Click ()** → **Toggle input (Bool)** → `dark`.
+
+Export as `theme.json`.
+
+## Without a morph
+
+To get a moon today without a path morph, draw the crescent as a second shape and cross-fade the two bodies with scale:
+
+1. Import the moon path from the table above as a shape named `moon`, fill `#DBD9F2`, and set its **Scale %** to 0 in Design.
+2. In **Dark**, key `body` **Scale %** 100 → 0 between 0 and 0.3 s (curve In), and `moon` 0 → 100 between 0.2 and 0.5 s (curve Back).
+3. In **Light**, key `body` at 100 and `moon` at 0.
+
+It reads well at icon sizes, and every key is something the Timeline supports.
+
+## How it works
+
+- **Retracting rays.** Each ray's Trim start moves from 0 to 1, so the visible part shrinks toward the outer end and disappears. Combined with the group's quarter turn, the rays seem to be pulled in by the rotation.
+- **Staggered sparkles.** The sparkles hold scale 0 until 0.3 s and 0.4 s, then pop with a Back curve. The stagger makes two separate events out of what would otherwise be one.
+- **The morph does the heavy lifting.** Fill colour and rotation carry most of the change; the morph only has to move the right half of the circle inward. A short morph distance looks best.
+- **No ink.** The icon is legible on both themes because amber and the pale moon colour both have enough contrast against white and against near-black.
+
+## Check your work
+
+- Ticking `dark` in the State Machine tab retracts all eight rays by 0.25 s and turns the group 90°.
+- Both sparkles end at full size at the right of the body, `sparkle1` higher and larger.
+- In Playground, a click switches the icon and a second click switches it back, with the rays drawing back out.
+
+## Next
+
+[4. The copy icon](./04-copy-feedback.mdx): feedback that plays on a trigger and returns by itself.

@@ -17,13 +17,15 @@ Beyond the plain [UI Button](./ui-components.mdx#ui-button), Toasty has four int
 
 Like buttons, they're components you add to ordinary shapes. The pointer handling runs in Playground and in exported games. In Design mode the controls just show their authored state.
 
-Try them all in the UI & Sound Lab demo (volume slider, mute checkbox, a three-way radio group, and a scrolling list of notes with a linked scrollbar):
+The examples on this page come from a settings panel with a volume slider, a mute checkbox, a three-way radio group for a waveform, and a scrolling list with a linked scrollbar. Build it from **+ → UI**: each control item arrives with its children already named.
 
-<ToastyDemo game="/games/ui-sound-lab.teab" height={360} caption="UI & Sound Lab: drag the volume slider, tick Mute, pick a waveform, scroll the notes" />
+:::note
+UI controls run in the full engine. [Toasty Lite](../runtimes/lite.mdx) plays UI Buttons, On Click and [Pointer Listeners](./pointer-listeners.mdx), but not toggles, sliders, scrollbars or scroll views; build those as HTML on a website.
+:::
 
 ## Children by name
 
-Controls are made of several shapes: a slider has a track, a coloured fill and a draggable knob. Toasty doesn't need you to wire these up in the Inspector. Each control looks for **direct children with specific names**, the same convention Unity's default UI uses:
+Controls are made of several shapes: a slider has a track, a coloured fill and a draggable knob. You don't wire these up in the Inspector. Each control looks for **direct children with specific names**, the same convention Unity's default UI uses:
 
 | Control (on the parent) | Child name | What the control does with it |
 |---|---|---|
@@ -99,7 +101,7 @@ The hit area is the box **and** any visible child, so clicking a toggle's text l
 | `ref.changed` | `true` on frames where it flipped, by a click or by a script. |
 | `ref.clicked`, `ref.hovered`, `ref.pressed` | Same as a button. |
 
-A radio group in the UI & Sound Lab picks the beep's waveform:
+A radio group picks a beep's waveform:
 
 ```js
 const c = (id) => getCompByID(id)
@@ -135,10 +137,10 @@ How the parts are positioned:
 | `ref.changed` | `true` on frames where the value moved, by dragging or by a script. |
 | `ref.hovered`, `ref.pressed` | While over / dragging. |
 
-From the UI & Sound Lab, volume plus a mute checkbox, re-applied whenever either changes:
+A volume slider plus a mute checkbox, re-applied whenever either changes:
 
 ```js
-const g = ctx.globals.lab || (ctx.globals.lab = {})
+const g = ctx.globals.settings || (ctx.globals.settings = {})
 const volume = getCompByID('volume'), mute = getCompByID('mute')
 if (!g.init || volume.changed || mute.changed) {
   g.init = true

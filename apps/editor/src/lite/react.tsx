@@ -21,6 +21,8 @@ export interface ToastyLiteProps {
   paused?: boolean
   data?: Record<string, unknown>
   inputs?: Record<string, boolean | number | string>
+  /** A CSS colour for the scene's `ink` Property (line colour). */
+  ink?: string
   className?: string
   style?: CSSProperties
   title?: string
@@ -79,6 +81,17 @@ export function ToastyLite(props: ToastyLiteProps) {
     for (const [k, v] of changed(sentInputs.current, props.inputs)) player.setInput(k, v)
     sentInputs.current = props.inputs ? { ...props.inputs } : undefined
   }, [player, props.inputs])
+  useEffect(() => {
+    if (!player || !props.ink || !box.current) return
+    const probe = document.createElement('span')
+    probe.style.color = props.ink
+    box.current.appendChild(probe)
+    const m = getComputedStyle(probe).color.match(/rgba?\(([^)]+)\)/)
+    probe.remove()
+    if (!m) return
+    const [r, g, b, a] = m[1].split(/[ ,/]+/).filter(Boolean).map(Number)
+    player.set('ink', [r / 255, g / 255, b / 255, Number.isFinite(a) ? a : 1])
+  }, [player, props.ink])
   useEffect(() => {
     if (!player) return
     if (props.paused) player.pause()

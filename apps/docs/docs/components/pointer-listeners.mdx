@@ -1,0 +1,119 @@
+---
+title: Pointer Listeners
+sidebar_position: 20.5
+description: Run actions when the pointer enters, leaves, presses or releases a node, with no code. The usual way to drive a hover input on a state machine, in the engine and in Toasty Lite.
+---
+
+# Pointer Listeners
+
+**Pointer Listeners** runs a list of actions when the pointer moves onto a node, moves off it, presses it or releases it. It is the no-code way to make an animation react to hover and press, and it matches Rive's listeners.
+
+Add it with **Add Component → Events & Data → Pointer Listeners (hover / press)**. The internal name is `UiListeners`.
+
+:::note Needs a UI Button
+Pointer Listeners does not detect the pointer itself. The node also needs a **UI Button**, which hit-tests the pointer. If the button should not change the node's look, set its hover and press colours to white and its scales to 1; the button then works as an invisible hit area.
+:::
+
+## Lists
+
+The component has four action lists. Each one starts empty and has a **+ Add action** button.
+
+| List | Runs when |
+|---|---|
+| **On Pointer Enter** | The pointer moves onto the node. |
+| **On Pointer Exit** | The pointer leaves it. |
+| **On Pointer Down** | The node is pressed. |
+| **On Pointer Up** | The press ends. |
+
+<Shot id="pointer-listeners-inspector" caption="An invisible hit shape with a UI Button, On Click running Toggle input liked, and Pointer Listeners setting hover on enter and exit." />
+
+Each list runs once, on the frame the pointer state changes, not every frame while it holds. Within one frame the lists run in the order the events happen: enter, down, up, then the node's **On Click** actions if it was clicked, then exit.
+
+The actions are the same as in **On Click (Events)**: show or hide nodes, set node and component fields, **Fire trigger**, **Set input**, **Toggle input (Bool)**, **Set property**, **Load scene**, **Play sound** and **Call script function**. Each action has a target, **This node** or any other node in the scene. See [Properties and bindings](../editor/properties-and-bindings.mdx#on-click-events) for the full list and value formats.
+
+## The hover pattern
+
+The most common setup drives a Bool state machine input from hover:
+
+| List | Action | Value |
+|---|---|---|
+| On Pointer Enter | Set input `hover` | `true` |
+| On Pointer Exit | Set input `hover` | `false` |
+
+In the state machine, add a layer named `Hover` with two states, `Rest` and `Over`, and two transitions: `Rest` → `Over` when **Boolean is** `hover` is checked, and `Over` → `Rest` when it is unchecked. Mask the layer to the nodes it should animate, so hover plays on top of whatever the base layer is doing. See [State machines: layers](../editor/state-machines.mdx#layers).
+
+Every Toasty Lite icon on this site is built this way. Move the pointer over these:
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0' }}>
+  <Lite src="heart" ink="auto" label="Like" style={{ width: 72, height: 72 }} />
+  <Lite src="menu" ink="auto" label="Menu" style={{ width: 72, height: 72 }} />
+  <Lite src="theme" label="Theme" style={{ width: 72, height: 72 }} />
+  <Lite src="toasty" label="Toasty" style={{ width: 72, height: 72 }} />
+</div>
+
+Each one has an invisible hit shape carrying three components: a UI Button, an On Click list, and Pointer Listeners that set `hover`. The heart's On Click runs **Toggle input** `liked`, the menu's runs **Toggle input** `open`, and the theme switch's runs **Toggle input** `dark`. The mascot's On Click fires the `boop` trigger.
+
+## In a page
+
+Pointer Listeners export to [Toasty Lite](../runtimes/lite.mdx), so hover and press work on a website with no page code. The page only needs code for what the animation can't know, such as the like count:
+
+<LiveHTML
+  url="northwind.app/feed"
+  height={300}
+  html={`<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<article class="post">
+  <header>
+    <div class="avatar">MC</div>
+    <div>
+      <strong>Maya Chen</strong>
+      <span>Product designer at Northwind</span>
+    </div>
+  </header>
+  <p>Shipped the new onboarding flow today. Three screens instead of seven, and the drop-off chart finally looks like a staircase going the right way.</p>
+  <footer>
+    <toasty-lite src="/toasty/lite/heart.json" ink="currentColor" class="like"></toasty-lite>
+    <span id="likes">128</span>
+  </footer>
+</article>`}
+  css={`.post { max-width: 460px; margin: 24px auto; padding: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+header { display: flex; gap: 12px; align-items: center; }
+header span { display: block; color: var(--muted); font-size: 13px; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 600; }
+p { margin: 14px 0; }
+footer { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+.like { width: 40px; height: 40px; }`}
+  js={`const heart = document.querySelector('.like')
+const label = document.querySelector('#likes')
+let likes = 128
+
+// The heart toggles itself (On Click: Toggle input liked) and grows on
+// hover (Pointer Listeners: hover). The page only keeps the count.
+heart.addEventListener('toasty:state', (e) => {
+  const { layer, state, previous } = e.detail
+  if (layer !== null || previous === null) return
+  likes += state === 'Liked' ? 1 : -1
+  label.textContent = likes
+})`}
+  caption="Hover grows the heart and a click likes it, both from the file's own Pointer Listeners and On Click. The page listens for the base layer's state to keep the count."
+/>
+
+## Engine and Lite differences
+
+| | Engine (Playground, exported games, engine embed) | Toasty Lite |
+|---|---|---|
+| Hit area | The UI Button node's bounds | The node's real shape path |
+| Actions | All | **Set input**, **Fire trigger**, **Toggle input (Bool)**, **Set property**, **Show**, **Hide**, **Toggle visible**. **Call script function** is sent to the page as a `toasty:event`. |
+| Cursor | Unchanged | `cursor: pointer` over UI Button nodes |
+
+## Pointer Listeners or a script
+
+Use Pointer Listeners when the response is a fixed set of actions: set an input, fire a trigger, show a node. Use a script when the response depends on game logic; a script reads the same pointer state from the UI Button's `ref.hovered`, `ref.pressed` and `ref.clicked` (see [UI components](./ui-components.mdx#reading-clicks-in-a-script)).
+
+## Related
+
+- [UI components](./ui-components.mdx)
+- [Properties and bindings: On Click events](../editor/properties-and-bindings.mdx#on-click-events)
+- [State machines](../editor/state-machines.mdx)
+- [Toasty Lite](../runtimes/lite.mdx)
+- [Authoring for Lite](../runtimes/authoring.mdx)

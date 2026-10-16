@@ -11,12 +11,13 @@ Every website embed export includes an `AGENTS.md` written for AI coding assista
 This page is the general part of that file, so you can paste it into a prompt or point an assistant at it. The TypeScript declarations (`src/an1mbyt3/*.d.ts`) are the source of truth for signatures.
 
 :::tip Tell your assistant
-"Read `src/an1mbyt3/AGENTS.md` before writing code that touches the game." Then ask for what you want ("show the like count from our API in the game and toast when the user likes").
+"Read `src/an1mbyt3/AGENTS.md` before writing code that touches the game." Then ask for what you want ("add a difficulty select that sends `speed`, and a high-score table fed by the `gameover` event").
 :::
 
 ## What this is
 
 - A self-contained interactive scene or game (WebGPU, with a WebGL2 fallback) that runs in a container element and is steered by the host page.
+- The full engine, for games. For UI animation without scripts (icons, buttons, toggles), Toasty has a separate small runtime, Toasty Lite (`<toasty-lite>`, `createLite`), which allows any number per page. Don't use the engine embed for those.
 - Shipped as prebuilt ES modules (no npm package, no build step of its own) plus two static binary files.
 - **One player per page.** Creating a second player destroys the first.
 
@@ -63,7 +64,7 @@ const player = await createPlayer(container: HTMLElement, {
 | `fire(trigger)` | Fires a Trigger input. |
 | `loadScene(name)` | Switches scene after the current frame. |
 | `call(name, arg?)` | Synchronously calls a function a script registered with `ctx.on(name, fn)`; returns its result, or `undefined` plus a warning if not registered yet. |
-| `on(type, fn)` returns unsubscribe; `off(type, fn)` | Events below. Also DOM `CustomEvent('an1:<type>')` on the container (non-bubbling). |
+| `on(type, fn)` returns unsubscribe; `off(type, fn)` | Events below. Also DOM `CustomEvent('an1:<type>')` on the container; these bubble, except `an1:ready`. |
 | `waitForState(state, layer = null)` | Resolves when the base layer (or named layer) is in `state`; never rejects. |
 | `pause()` / `play()` / `paused` | Freeze / resume. |
 | `scenes`, `scene`, `state`, `layerStates` | Read-only snapshots. |
@@ -113,10 +114,10 @@ import { An1Player, useAn1Player, type An1PlayerHandle } from './an1mbyt3/an1mby
   import { defineAn1PlayerElement } from './an1mbyt3/an1mbyt3-embed.js'
   defineAn1PlayerElement()
 </script>
-<an1-player game="/an1mbyt3/game.teab" scene="Main" data='{"coins":3}' style="display:block;height:400px"></an1-player>
+<an1-player game="/an1mbyt3/game.teab" data='{"speed":1}' style="display:block;height:400px"></an1-player>
 ```
 
-Attributes `game`, `wasm`, `scene`, `data` (JSON), `paused`, `fit`, `keyboard`. `scene` / `data` / `paused` update live; the rest reload. `element.player` is the JS API after `an1:ready`. Only `an1:ready` and `an1:error` are dispatched on the element itself; subscribe to the rest with `element.player.on(...)`.
+Attributes `game`, `wasm`, `scene`, `data` (JSON), `paused`, `fit`, `keyboard`. `scene` / `data` / `paused` update live; the rest reload. `element.player` is the JS API after `an1:ready`. The `an1:*` events (`ready`, `event`, `prop`, `state`, `scene`, `error`) all bubble from the element, so `el.addEventListener('an1:event', …)` works. `an1:ready` fires once, on the element, after `element.player` is set.
 
 ## Game side (in the Toasty editor)
 
@@ -137,19 +138,24 @@ Attributes `game`, `wasm`, `scene`, `data` (JSON), `paused`, `fit`, `keyboard`. 
 8. Serve the `.wasm` compressed with long cache headers.
 9. Use the listed transitions to know which input reaches which state; `waitForState` / `onStateChange` confirm it happened.
 10. Don't use `keyboard: 'window'` on pages with text inputs unless you accept that Space, arrow keys, F3 and backtick are intercepted page-wide.
+11. Don't make the page own a Property the game itself writes (a score, lives). A `set` writes that key once (only keys sent since the last frame are pushed), so the game can change it afterwards, but every sent value is re-applied after a scene switch. Read game-owned Properties with `prop` events.
+12. One engine player per page. For animated UI around the game, use Toasty Lite, not a second engine player.
 
 ## Recipes
 
 ```ts
-// live API data → bound labels
-const player = await createPlayer(el, { game: '/an1mbyt3/game.teab' })
-setInterval(async () => player.setData(await (await fetch('/api/stats')).json()), 5000)
+// page setting → ctx.data (the game reads ctx.data.speed every frame)
+const player = await createPlayer(el, { game: '/an1mbyt3/game.teab', data: { speed: 1 } })
+difficultySelect.onchange = () => player.set('speed', Number(difficultySelect.value))
+
+// game Property → page HUD
+player.on('prop', ({ name, value }) => { if (name === 'score') scoreEl.textContent = String(value) })
 
 // animation as a message: wait for the intro, then enable the CTA
 await player.waitForState('Idle'); button.disabled = false
 
 // game event → app action
-player.on('event', ({ name, payload }) => { if (name === 'purchase') cart.add(payload) })
+player.on('event', ({ name, payload }) => { if (name === 'gameover') saveScore(payload.score) })
 
 // step-driven scenes in React
 <An1Player game="/an1mbyt3/game.teab" scene={['Intro', 'Pick', 'Done'][step]}
@@ -158,6 +164,6 @@ player.on('event', ({ name, payload }) => { if (name === 'purchase') cart.add(pa
 
 ## Where the game-specific part comes from
 
-The export scans the game and appends, for each scene: its Properties (name, type, default), each state machine's states and layers, every transition written as the call that triggers it (for example ``Idle → Liked when trigger `burst` fires — `fire('burst')` ``), and the inputs. Then the `ctx.data` keys, `ctx.emit` event names and `ctx.on` function names found in the scripts (names built at run time can't be found). See [Exporting for the web](./export-for-web.mdx).
+The export scans the game and appends, for each scene: its Properties (name, type, default), each state machine's states and layers, every transition written as the call that triggers it (for example ``Playing → Paused when `paused` is true — `setInput('paused', true)` ``), and the inputs. Then the `ctx.data` keys, `ctx.emit` event names and `ctx.on` function names found in the scripts (names built at run time can't be found). See [Exporting for the web](./export-for-web.mdx).
 
 Full human documentation: [API reference](./api-reference.mdx), [React](./react.mdx), [Troubleshooting](./troubleshooting.mdx).

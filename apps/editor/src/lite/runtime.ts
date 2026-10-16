@@ -826,14 +826,19 @@ class Player implements LitePlayer {
     const file = this.file
     const pose = this.pose()
     this.cur = pose
-    // Bindings write into the pose (they win over animation).
+    // Bindings write into the pose where no animation drives that value
+    // this frame — the same precedence as the engine, where a property
+    // binding is applied when the property changes and keyframes run every
+    // frame on top.
+    const animated = new Set(pose.keys())
+    const free = (key: string) => !animated.has(key)
     file.nodes.forEach((n, i) => {
       for (const b of n.bindings ?? []) {
         const v = this.props.get(b.property)
         if (v === undefined) continue
         if (b.target === 'text') this.nodes[i].text = b.format ? b.format.replace('{}', fmt(v)) : fmt(v)
-        else if (b.target === 'visible') pose.set(`${i}:visible`, [v ? 1 : 0])
-        else if ((b.target === 'fill' || b.target === 'strokeColor') && Array.isArray(v)) pose.set(`${i}:${b.target}`, v as number[])
+        else if (b.target === 'visible') free(`${i}:visible`) && pose.set(`${i}:visible`, [v ? 1 : 0])
+        else if ((b.target === 'fill' || b.target === 'strokeColor') && Array.isArray(v)) free(`${i}:${b.target}`) && pose.set(`${i}:${b.target}`, v as number[])
         else {
           const num = Number(v) * b.scale + b.offset
           const base = pose.get(`${i}:translation`) ?? [n.x, n.y]
@@ -844,7 +849,7 @@ class Player implements LitePlayer {
           else if (b.target === 'scale') pose.set(`${i}:scale`, [num, num])
           else if (b.target === 'scaleX') pose.set(`${i}:scale`, [num, sc[1]])
           else if (b.target === 'scaleY') pose.set(`${i}:scale`, [sc[0], num])
-          else pose.set(`${i}:${b.target}`, [num])
+          else if (free(`${i}:${b.target}`)) pose.set(`${i}:${b.target}`, [num])
         }
       }
     })

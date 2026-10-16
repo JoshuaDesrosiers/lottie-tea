@@ -1,0 +1,288 @@
+---
+title: Download progress
+sidebar_position: 7
+description: A shared-files list where each row's download button streams real progress into the Toasty Lite download icon's progress ring, with cancel, done and accessible status text.
+---
+
+# Download progress
+
+A download button should answer three questions without a second element: can I click this, how far along is it, and is it finished. The `download` component does that with an Enum input for the phase and a `progress` Property, a number from 0 to 1 that's bound to the trim end of its ring. This page builds a shared-files list where every row has its own button and its own progress, all running at once.
+
+<LiveHTML
+  url="app.northwind.app/files/shared"
+  height={470}
+  caption="Start several downloads at once. Click a button again while it's downloading to cancel. Progress here is simulated; the real fetch version is below."
+  html={`<section class="files">
+  <header class="files-head">
+    <div>
+      <h1>Shared with you</h1>
+      <p>From the Pier Street team · 4 files</p>
+    </div>
+  </header>
+
+  <ul class="list">
+    <li class="file" data-name="Q3 inventory report.pdf" data-bytes="2516582" data-speed="0.09">
+      <span class="type pdf" aria-hidden="true">PDF</span>
+      <div class="info"><strong>Q3 inventory report.pdf</strong><span class="meta">2.4 MB · Priya Raman</span></div>
+      <button class="dl" type="button"><toasty-lite src="/toasty/lite/download.json" ink="currentColor"></toasty-lite></button>
+    </li>
+    <li class="file" data-name="Supplier contacts.csv" data-bytes="86016" data-speed="0.2">
+      <span class="type csv" aria-hidden="true">CSV</span>
+      <div class="info"><strong>Supplier contacts.csv</strong><span class="meta">84 KB · Diego Alvarez</span></div>
+      <button class="dl" type="button"><toasty-lite src="/toasty/lite/download.json" ink="currentColor"></toasty-lite></button>
+    </li>
+    <li class="file" data-name="Brand assets.zip" data-bytes="50331648" data-speed="0.035">
+      <span class="type zip" aria-hidden="true">ZIP</span>
+      <div class="info"><strong>Brand assets.zip</strong><span class="meta">48 MB · Lena Fischer</span></div>
+      <button class="dl" type="button"><toasty-lite src="/toasty/lite/download.json" ink="currentColor"></toasty-lite></button>
+    </li>
+    <li class="file" data-name="Store walkthrough.mp4" data-bytes="132120576" data-speed="0.018">
+      <span class="type mp4" aria-hidden="true">MP4</span>
+      <div class="info"><strong>Store walkthrough.mp4</strong><span class="meta">126 MB · Sam Okafor</span></div>
+      <button class="dl" type="button"><toasty-lite src="/toasty/lite/download.json" ink="currentColor"></toasty-lite></button>
+    </li>
+  </ul>
+  <p class="visually-hidden" role="status" aria-live="polite" id="announcer"></p>
+</section>`}
+  css={`body { padding: 24px 16px; }
+.files { max-width: 620px; margin: 0 auto; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); overflow: hidden; }
+.files-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+.files-head h1 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
+.files-head p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.file { display: flex; align-items: center; gap: 14px; padding: 12px 12px 12px 20px; }
+.file + .file { border-top: 1px solid var(--line); }
+.type { display: grid; place-items: center; flex: none; width: 40px; height: 48px; border-radius: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; color: #fff; }
+.type.pdf { background: #e11d48; }
+.type.csv { background: #16a34a; }
+.type.zip { background: #7c3aed; }
+.type.mp4 { background: #0284c7; }
+.info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.info strong { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.meta { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.file[data-state="done"] .meta { color: #15803d; }
+:root[data-theme="dark"] .file[data-state="done"] .meta { color: #4ade80; }
+
+.dl { display: grid; place-items: center; flex: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink); cursor: pointer; }
+.dl:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.dl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dl toasty-lite { width: 44px; height: 44px; pointer-events: none; }
+.file[data-state="done"] .dl { cursor: default; background: transparent; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }`}
+  js={`const announcer = document.querySelector('#announcer')
+
+function formatBytes(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB'
+  return Math.max(1, Math.round(n / 1024)) + ' KB'
+}
+
+// A stand-in for a streaming download so this example runs anywhere.
+// It reports progress like a ReadableStream reader would and honours an
+// AbortSignal. The real version is in "Streaming a real download" below.
+function simulateDownload(bytes, speed, signal, onProgress) {
+  return new Promise((resolve, reject) => {
+    let loaded = 0
+    const tick = () => {
+      if (signal.aborted) return reject(new DOMException('Cancelled', 'AbortError'))
+      loaded = Math.min(bytes, loaded + bytes * speed * (0.5 + Math.random()))
+      onProgress(loaded, bytes)
+      if (loaded >= bytes) resolve()
+      else setTimeout(tick, 120)
+    }
+    tick()
+  })
+}
+
+for (const row of document.querySelectorAll('.file')) {
+  const button = row.querySelector('.dl')
+  const icon = row.querySelector('toasty-lite')
+  const meta = row.querySelector('.meta')
+  const name = row.dataset.name
+  const bytes = Number(row.dataset.bytes)
+  const original = meta.textContent
+  let state = 'idle'
+  let progress = 0
+  let controller = null
+
+  function render() {
+    row.dataset.state = state
+    icon.player?.setInput('state', state)
+    icon.player?.set('progress', progress)
+    const labels = { idle: 'Download ', downloading: 'Cancel download of ', done: 'Downloaded ' }
+    button.setAttribute('aria-label', labels[state] + name)
+    if (state === 'idle') meta.textContent = original
+    if (state === 'downloading') meta.textContent = Math.floor(progress * 100) + '% · ' + formatBytes(progress * bytes) + ' of ' + formatBytes(bytes)
+    if (state === 'done') meta.textContent = 'Downloaded · ' + formatBytes(bytes)
+  }
+
+  icon.addEventListener('toasty:ready', render)
+  render()
+
+  button.addEventListener('click', async () => {
+    if (state === 'downloading') { controller.abort(); return }
+    if (state === 'done') return
+
+    controller = new AbortController()
+    state = 'downloading'
+    progress = 0
+    render()
+    announcer.textContent = 'Downloading ' + name
+    try {
+      await simulateDownload(bytes, Number(row.dataset.speed), controller.signal, (loaded, total) => {
+        progress = loaded / total
+        render()
+      })
+      state = 'done'
+      announcer.textContent = name + ' downloaded'
+    } catch (err) {
+      state = 'idle'
+      progress = 0
+      announcer.textContent = 'Download of ' + name + ' cancelled'
+    }
+    render()
+  })
+
+  button.addEventListener('pointerenter', () => icon.player?.setInput('hover', true))
+  button.addEventListener('pointerleave', () => icon.player?.setInput('hover', false))
+}`}
+  react={`import { useRef, useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function DownloadButton({ url, name, ink = '#18181b' }) {
+  const [state, setState] = useState('idle')
+  const [progress, setProgress] = useState(0)
+  const controller = useRef(null)
+
+  async function start() {
+    if (state === 'downloading') return controller.current.abort()
+    if (state === 'done') return
+    controller.current = new AbortController()
+    setState('downloading')
+    setProgress(0)
+    try {
+      const blob = await download(url, controller.current.signal, setProgress)
+      saveBlob(blob, name)
+      setProgress(1)
+      setState('done')
+    } catch {
+      setProgress(0)
+      setState('idle')
+    }
+  }
+
+  const labels = { idle: 'Download ', downloading: 'Cancel download of ', done: 'Downloaded ' }
+  return (
+    <button type="button" className="dl" aria-label={labels[state] + name} onClick={start}>
+      <ToastyLite
+        src="/toasty/lite/download.json"
+        inputs={{ state }}
+        data={{ progress }}
+        ink={ink}
+        style={{ width: 44, height: 44, pointerEvents: 'none' }}
+      />
+    </button>
+  )
+}
+
+// download() and saveBlob() are the helpers from "Streaming a real download".`}
+/>
+
+## How it works
+
+### A phase and a number
+
+| Name | Kind | Values | What it does |
+|---|---|---|---|
+| `state` | Enum input | `idle`, `downloading`, `done` | `Idle` rests. `Downloading` loops a gentle bob of the arrow. `Done` drops the arrow and tray away, draws a green check, and turns the ring green. |
+| `progress` | Number Property | `0` to `1` | Bound to the ring's trim end. `0.42` draws 42 % of the circle. |
+| `hover` | Bool input | | Widens the tray a little, on its own `Hover` layer. |
+| `ink` | Color Property | | The arrow and tray. |
+
+The split matters. The state machine decides what the icon *is doing*; the Property says *how far* it got. You can stream hundreds of progress updates a second through `set('progress', …)` without ever touching the state machine, and the player repaints at most once per frame.
+
+```js
+icon.player?.setInput('state', state)   // phase: idle, downloading, done
+icon.player?.set('progress', progress)  // 0..1, straight onto the ring
+```
+
+### Each row owns its state
+
+The script loops over the rows and gives each one its own `state`, `progress` and `AbortController` in a closure. Any number of `<toasty-lite>` elements can run on one page. They share a single `requestAnimationFrame` loop and only repaint when something changes, so four rings streaming at once cost about the same as one.
+
+### The button
+
+- Its `aria-label` says what a click will do next: "Download Brand assets.zip", "Cancel download of Brand assets.zip", or "Downloaded Brand assets.zip".
+- The meta line under the file name shows the percentage and bytes for sighted users. A separate live region announces only the start, the finish and a cancellation, so a screen reader isn't flooded with percentages.
+- The canvas has `pointer-events: none`. The `download` file's own click sends a `download` event (useful when it stands alone, see below), but here the button handles clicks.
+
+### Streaming a real download
+
+Swap `simulateDownload` for this. It reads the response body as a stream and reports progress from `Content-Length`:
+
+```js
+async function download(url, signal, onProgress) {
+  const res = await fetch(url, { signal })
+  if (!res.ok) throw new Error('HTTP ' + res.status)
+  const total = Number(res.headers.get('Content-Length')) || 0
+  const reader = res.body.getReader()
+  const chunks = []
+  let loaded = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    loaded += value.length
+    if (total) onProgress(loaded / total)
+  }
+  return new Blob(chunks)
+}
+
+function saveBlob(blob, name) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = name
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+}
+```
+
+If the server doesn't send `Content-Length` (some compressed responses don't), there is no total to divide by. Leave `progress` at a small value such as `0.15` and rely on the `Downloading` bob to show activity.
+
+### Standalone: listen for the event
+
+With no button around it, the icon's own click sends a `download` event:
+
+```js
+icon.addEventListener('toasty:event', (e) => {
+  if (e.detail.name === 'download') startDownload()
+})
+```
+
+## React
+
+`state` goes in `inputs` and `progress` goes in `data`. Both are diffed, so each `setProgress` sends one number to the player. In these docs, with a slider standing in for the network:
+
+```jsx live
+function ProgressDemo() {
+  const [progress, setProgress] = React.useState(0.35)
+  const state = progress >= 1 ? 'done' : progress > 0 ? 'downloading' : 'idle'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+      <Lite src="download" ink="auto" inputs={{ state }} data={{ progress }} label={'Download ' + Math.round(progress * 100) + '% complete'} style={{ width: 72, height: 72 }} />
+      <input type="range" min="0" max="1" step="0.01" value={progress} onChange={(e) => setProgress(Number(e.target.value))} aria-label="Progress" />
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(progress * 100)}% · {state}</span>
+    </div>
+  )
+}
+```
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Download + progress** opens this exact `download` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/download.json` with your file. The page code on this page works unchanged.
+- **Uploads.** The page code is the same for uploads: feed `progress` from `XMLHttpRequest`'s `upload.onprogress`, or from any library that reports progress. For an arrow that points up, make your own variant of the icon (see the last point).
+- **Colours.** The arrow and tray follow `ink`. The amber ring and the green finish are colour keys in the `Idle`, `Downloading` and `Done` animations; change them in the editor.
+- **Reset after done.** For a button that can be used again (Export CSV), set `state` back to `idle` and `progress` to `0` a couple of seconds after `done`. The return crossfades over 0.3 s.
+- **Your own icon.** Any shape works with the same page code, as long as it has an Enum input named `state` with the three values and a Number Property named `progress`. Bind `progress` to a stroke's trim end with a Property Binding, then export with **Export → Animation → Toasty Lite (.json)**. See [Authoring for Lite](../runtimes/authoring.mdx).
+
+Related: [Loading states](./loading-states.mdx) · [Copy to clipboard](./copy-to-clipboard.mdx)

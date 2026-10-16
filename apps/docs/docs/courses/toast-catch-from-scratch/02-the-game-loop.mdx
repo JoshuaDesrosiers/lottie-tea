@@ -1,0 +1,96 @@
+---
+title: 2. The game loop
+sidebar_position: 2
+description: Attach a Code program to a state, keep the game's state in ctx.globals, and build the ready, play and game-over modes with a start function and a cached text helper.
+---
+
+# 2. The game loop
+
+**Goal:** a Code program that runs every frame, remembers the game between frames, and switches from "ready" to "play" when you click or press Space. Nothing falls yet, but the structure of the whole game is in place.
+
+## How a program runs
+
+A Code program is the body of a function that Toasty calls every frame, about 60 times a second, while its state is active. It runs top to bottom and returns. There is no update function to define and no loop to write. See [How scripts run](../../scripting/how-scripts-run.mdx).
+
+Two consequences shape this game:
+
+- **Local variables are forgotten every frame.** Anything that must survive, such as the plate's position or the list of falling toast, lives in `ctx.globals`.
+- **The program decides what to do based on a mode.** One frame might be "waiting for a click", the next "playing".
+
+## Steps
+
+### 1. A state with a program
+
+1. Open the **State Machine** tab. If the scene has no animation yet, open the **Animate** tab and choose **New Animation** first; a state needs one, even an empty one.
+2. In the left column, choose **New State Machine**, name it `Game`, and click **Create**. It starts with **State 1**.
+3. Select State 1 and, in the side column under **Program**, tick **Programmable State**.
+4. Double-click the State 1 box. In the program editor, choose the **Code** tab.
+
+The shipped game names this state `Play` and its empty animation `Game (code)`. The names don't matter to the program.
+
+### 2. The program
+
+Paste this into the Code tab:
+
+```js title="Toast Catch, step 1 of 4"
+const POOL = 6
+const g = ctx.globals.catch || (ctx.globals.catch = {
+  mode: 'ready',            // 'ready' | 'play' | 'over'
+  toasts: [],               // { x, y, vy, burnt, live }
+  spawnIn: 0,
+  plateX: 0,
+  text: {},
+})
+const dt = ctx.deltaSeconds
+const get = (id) => getCompByID(id)
+const say = (id, text) => { if (g.text[id] !== text) { g.text[id] = text; get(id).textContent = text } }
+
+function start() {
+  g.mode = 'play'
+  g.toasts = []
+  g.spawnIn = 0.4
+  ctx.props.score = 0
+  ctx.props.lives = 3
+  for (let i = 0; i < POOL; i++) get('toast' + i).visible = false
+  say('message', '')
+}
+
+if (g.mode !== 'play') {
+  if (ctx.tap || ctx.keysDown.has('space')) start()
+} else {
+  // The game itself goes here (lessons 3 to 5).
+}
+
+say('scoreText', String(ctx.props.score))
+for (let i = 0; i < 3; i++) get('life' + i).visible = i < ctx.props.lives
+```
+
+### 3. Try it
+
+Switch to **Playground**. Click the game: `CLICK TO PLAY` disappears. Nothing else happens yet, because the play branch is empty. Leave Playground and enter it again: the message is back, because leaving Playground restores the scene.
+
+## How it works
+
+| Line | What it does |
+|---|---|
+| `const POOL = 6` | The number of toast nodes in the scene. The program never uses more. |
+| `ctx.globals.catch \|\| (ctx.globals.catch = { … })` | Creates the game state on the first frame and reuses it on every later frame. `ctx.globals` lasts for the play session and is shared by every program. Naming the key `catch` keeps it from colliding with other programs. |
+| `mode` | `'ready'` before the first game, `'play'` while playing, `'over'` after losing. Both `'ready'` and `'over'` wait for a click. |
+| `const dt = ctx.deltaSeconds` | Seconds since the last frame. Every speed in this game is multiplied by `dt`, so it plays the same at 30, 60 or 144 frames per second. |
+| `get(id)` | A short name for `getCompByID`, which returns a **ref**: an object whose `x`, `y`, `rotation`, `visible`, `textContent` and `fillColor` you read and assign. |
+| `say(id, text)` | Sets a text node's content only when it changed. `g.text` remembers what each node shows. Updating text is the most expensive thing this game does, and it would otherwise happen every frame. |
+| `start()` | Resets everything for a new game: an empty toast list, the first slice in 0.4 s, score 0, three lives, all toast hidden, and no message. |
+| `ctx.tap` | True on the frame the player clicks or taps. |
+| `ctx.keysDown.has('space')` | True while Space is held. |
+| `ctx.props.score` | Reads and writes the scene Property `score`. Writing it notifies an embedding page. |
+| The last two lines | Run every frame in every mode: the score text and the three life dots always reflect the Properties. |
+
+## Check your work
+
+- In Playground, the first click hides `CLICK TO PLAY`.
+- The score reads `0` and all three life dots are visible.
+- The **Console** tab in Playground shows no errors. If it shows `Cannot set properties of null`, an id in the scene does not match the program; compare against lesson 1.
+
+## Next
+
+[3. Move the plate](./03-moving-the-plate.mdx): mouse and keyboard input.

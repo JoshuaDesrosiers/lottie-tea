@@ -1,0 +1,254 @@
+---
+title: Mascot
+sidebar_position: 11
+description: A brand character in the places a product feels empty, an empty inbox, a 404 page and onboarding, using the Toasty Lite mascot that blinks, hops on hover and squashes when booped.
+---
+
+# Mascot
+
+Empty states and error pages are where a product has the user's full attention and nothing to show them. A small character fills that gap: it softens a dead end, and it makes the next step (the one button on the page) more inviting. The `toasty` component is a slice of toast that breathes and blinks on its own, hops and blushes on hover, and squashes when it's clicked. This page puts it on an empty inbox and a 404, and shows how to cheer on a user through onboarding.
+
+## Empty inbox
+
+<LiveHTML
+  url="mail.northwind.app/inbox"
+  height={470}
+  caption="Point at Toasty or at the Check again button. Click either one."
+  html={`<div class="mail">
+  <nav class="folders" aria-label="Folders">
+    <a href="#" aria-current="page">Inbox <span class="n">0</span></a>
+    <a href="#">Starred</a>
+    <a href="#">Sent</a>
+    <a href="#">Drafts <span class="n">2</span></a>
+    <a href="#">Archive</a>
+  </nav>
+
+  <section class="empty" aria-labelledby="empty-title">
+    <toasty-lite class="mascot" src="/toasty/lite/toasty.json" aria-hidden="true"></toasty-lite>
+    <h1 id="empty-title">You're all caught up</h1>
+    <p>New messages from your team and suppliers will show up here.</p>
+    <div class="buttons">
+      <button class="btn primary check" type="button">Check again</button>
+      <a class="btn" href="#">Open archive</a>
+    </div>
+    <p class="checked" role="status" aria-live="polite">Last checked 2 minutes ago</p>
+  </section>
+</div>`}
+  css={`.mail { display: grid; grid-template-columns: 180px 1fr; min-height: 100%; }
+.folders { display: flex; flex-direction: column; gap: 2px; padding: 20px 12px; border-right: 1px solid var(--line); background: var(--surface); }
+.folders a { display: flex; justify-content: space-between; padding: 7px 10px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; }
+.folders a[aria-current="page"] { color: var(--ink); background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 500; }
+.n { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; text-align: center; }
+.mascot { width: 148px; height: 148px; margin-bottom: 4px; }
+.empty h1 { margin: 0 0 6px; font-size: 20px; letter-spacing: -.01em; }
+.empty p { max-width: 320px; margin: 0; color: var(--muted); }
+.buttons { display: flex; gap: 8px; margin-top: 20px; }
+.btn { display: inline-flex; align-items: center; height: 38px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px; text-decoration: none; cursor: pointer; }
+.btn.primary { border-color: transparent; background: var(--ink); color: var(--page); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.empty .checked { margin-top: 12px; font-size: 12.5px; }
+
+@media (max-width: 560px) { .mail { grid-template-columns: 1fr; } .folders { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); } }`}
+  js={`const mascot = document.querySelector('.mascot')
+const check = document.querySelector('.check')
+const checked = document.querySelector('.checked')
+
+// Pointing at the main action makes Toasty hop, as pointing at Toasty does.
+const hover = (on) => () => mascot.player?.setInput('hover', on)
+check.addEventListener('pointerenter', hover(true))
+check.addEventListener('pointerleave', hover(false))
+check.addEventListener('focus', hover(true))
+check.addEventListener('blur', hover(false))
+
+// A stand-in for asking the server for new mail.
+const fetchUnread = () => new Promise((resolve) => setTimeout(() => resolve(0), 700))
+
+check.addEventListener('click', async () => {
+  mascot.player?.fire('boop')
+  checked.textContent = 'Checking...'
+  const unread = await fetchUnread()
+  checked.textContent = unread ? unread + ' new messages' : 'No new mail. Checked just now.'
+})`}
+  react={`import { useRef, useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function EmptyInbox({ onCheck }) {
+  const mascot = useRef(null)
+  const [hover, setHover] = useState(false)
+  const [status, setStatus] = useState('Last checked 2 minutes ago')
+
+  async function check() {
+    mascot.current?.fire('boop')
+    setStatus('Checking...')
+    const unread = await onCheck()
+    setStatus(unread ? unread + ' new messages' : 'No new mail. Checked just now.')
+  }
+
+  const hoverProps = {
+    onPointerEnter: () => setHover(true),
+    onPointerLeave: () => setHover(false),
+    onFocus: () => setHover(true),
+    onBlur: () => setHover(false),
+  }
+
+  return (
+    <section className="empty" aria-labelledby="empty-title">
+      <ToastyLite
+        src="/toasty/lite/toasty.json"
+        inputs={{ hover }}
+        onReady={(player) => (mascot.current = player)}
+        style={{ width: 148, height: 148 }}
+      />
+      <h1 id="empty-title">You're all caught up</h1>
+      <p>New messages from your team and suppliers will show up here.</p>
+      <button type="button" className="btn primary" onClick={check} {...hoverProps}>Check again</button>
+      <p role="status" aria-live="polite">{status}</p>
+    </section>
+  )
+}`}
+/>
+
+## 404 page
+
+<LiveHTML
+  url="northwind.app/stores/pier-stret"
+  height={480}
+  caption="Point at Back to home to make Toasty hop."
+  html={`<main class="lost">
+  <toasty-lite class="mascot" src="/toasty/lite/toasty.json" aria-hidden="true"></toasty-lite>
+  <p class="code">Error 404</p>
+  <h1>This page wandered off</h1>
+  <p class="lede">We couldn't find <code>/stores/pier-stret</code>. It may have moved, or the link has a typo.</p>
+
+  <form class="search" role="search" onsubmit="return false">
+    <label for="q" class="visually-hidden">Search Northwind</label>
+    <input id="q" type="search" placeholder="Search stores, products, help" autocomplete="off">
+  </form>
+
+  <div class="links">
+    <a class="btn primary home" href="#">Back to home</a>
+    <a class="btn" href="#">Contact support</a>
+  </div>
+</main>`}
+  css={`.lost { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; padding: 32px 20px; text-align: center; background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%); }
+.mascot { width: 132px; height: 132px; }
+.code { margin: 0 0 4px; color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.lost h1 { margin: 0 0 8px; font-size: clamp(24px, 5vw, 32px); letter-spacing: -.02em; }
+.lede { max-width: 400px; margin: 0 0 20px; color: var(--muted); }
+.lede code { padding: 1px 5px; border-radius: 5px; background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink); font: 13px ui-monospace, Menlo, Consolas, monospace; }
+.search { width: min(100%, 360px); margin-bottom: 16px; }
+.search input { width: 100%; height: 42px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.links { display: flex; gap: 8px; }
+.btn { display: inline-flex; align-items: center; height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font-weight: 600; font-size: 14px; text-decoration: none; }
+.btn.primary { border-color: transparent; background: var(--accent); color: #fff; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }`}
+  js={`const mascot = document.querySelector('.mascot')
+const home = document.querySelector('.home')
+
+const hover = (on) => () => mascot.player?.setInput('hover', on)
+home.addEventListener('pointerenter', hover(true))
+home.addEventListener('pointerleave', hover(false))
+home.addEventListener('focus', hover(true))
+home.addEventListener('blur', hover(false))`}
+/>
+
+## How it works
+
+### Toasty plays by itself
+
+| State | Layer | When |
+|---|---|---|
+| `Idle` | Base | Always, looping every 3.6 s: a slow breath (a 1.5 % squash and stretch) and a blink near the end. |
+| `Boop`, `Boop again` | Base | When the `boop` Trigger fires: a squash and stretch with the eyes squeezed shut. Two states alternate so repeated boops restart it. |
+| `Calm`, `Happy` | `Face` | `hover` true: the face lifts, the mouth widens into a smile, the cheeks blush. |
+| `Down`, `Up` | `Hop` | `hover` true: a small hop. |
+
+Unlike the icons in the other use cases, Toasty keeps its own pointer handling here. It has no `pointer-events: none`, so pointing at it makes it hop (its Pointer Listeners set `hover`) and clicking it fires `boop` (its On Click action). That's fine because nothing on the page depends on those inputs. It's a picture you can poke, not a control.
+
+The file has no `ink` Property. The crust, bread and face colours are fixed, and they read on light and dark pages.
+
+### The page adds one connection
+
+Both examples forward the hover and focus of the page's main action to the mascot:
+
+```js
+home.addEventListener('pointerenter', () => mascot.player?.setInput('hover', true))
+home.addEventListener('pointerleave', () => mascot.player?.setInput('hover', false))
+```
+
+It's a small thing, but it ties the character to the one thing you want the user to do. On the empty inbox, clicking Check again also fires `boop`, so the button gets a reaction even when the answer is "no new mail".
+
+### Boop needs `hover` to hold
+
+`Boop` and `Boop again` return to `Idle` as soon as `hover` is `false`, with a 0.3 s crossfade. When the boop comes from Toasty's own click, the pointer is over it, so `hover` is `true` and the full squash plays. On the inbox, the click comes from Check again, which already set `hover` on pointer enter.
+
+If you fire `boop` from code with nothing hovered, hold `hover` for the length of the boop:
+
+```js
+function cheer() {
+  mascot.player?.setInput('hover', true)
+  mascot.player?.fire('boop')
+  setTimeout(() => mascot.player?.setInput('hover', false), 900)
+}
+```
+
+### Accessibility
+
+Toasty is decoration, so the element has `aria-hidden="true"`. The empty state's meaning is in the heading and text, and the actions are real buttons and links. The 404 page puts the requested path in the text, offers search, and links home and to support, so it's useful with the character removed.
+
+## Onboarding
+
+A mascot can also mark progress: a reaction each time the user finishes a setup step. This uses the `cheer()` pattern above. Tick the steps:
+
+```jsx live
+function Onboarding() {
+  const mascot = React.useRef(null)
+  const steps = ['Add your first store', 'Import products', 'Invite a teammate']
+  const [done, setDone] = React.useState([false, false, false])
+  const count = done.filter(Boolean).length
+
+  function toggle(i) {
+    const next = done.map((d, j) => (j === i ? !d : d))
+    setDone(next)
+    if (next[i] && mascot.current) {
+      mascot.current.setInput('hover', true)
+      mascot.current.fire('boop')
+      setTimeout(() => mascot.current && mascot.current.setInput('hover', false), 900)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', padding: 16, border: '1px solid var(--t-line)', borderRadius: 14 }}>
+      <Lite ref={mascot} src="toasty" style={{ width: 112, height: 112, flex: 'none' }} />
+      <div style={{ flex: 1, minWidth: 200 }}>
+        <strong>{count === steps.length ? 'You are all set' : 'Set up Northwind (' + count + ' of ' + steps.length + ')'}</strong>
+        <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 0' }}>
+          {steps.map((s, i) => (
+            <li key={s} style={{ margin: '6px 0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={done[i]} onChange={() => toggle(i)} />
+                <span style={{ textDecoration: done[i] ? 'line-through' : 'none', color: done[i] ? 'var(--t-muted)' : 'inherit' }}>{s}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+```
+
+The React tabs above capture the player with `onReady` and keep `hover` in `inputs`. A Trigger such as `boop` is an action, so it's fired on the player rather than passed as a prop.
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Toasty mascot** opens this exact `toasty` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/toasty.json` with your file. The page code on this page works unchanged.
+- **Placement.** Keep the character to places with room and no urgency: empty states, 404s, success screens, onboarding. Leave it out of error messages that need action, such as a failed payment.
+- **Size.** 112 to 160 px suits an empty state. Below about 64 px the face details stop reading.
+- **Your own character.** Toasty is built from plain filled shapes in a `body` group (pivot at the feet), a `face` group, and three state machine layers. To make your brand's character, build the same structure in the editor: an `Idle` loop on the base layer, a `boop` Trigger with two alternating states, and `Face` and `Hop` layers on a `hover` Bool, with a UI Button and Pointer Listeners on an invisible hit shape. Export with **Export → Animation → Toasty Lite (.json)**, and every page on this site works with it unchanged. See [Authoring for Lite](../runtimes/authoring.mdx).
+
+Related: [Call to action](./call-to-action.mdx) · [Toasty Lite runtime](../runtimes/lite.mdx)

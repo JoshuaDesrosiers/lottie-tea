@@ -89,6 +89,7 @@ function ShapesMenu({
   onLoadNinjaDemo,
   onLoadFpsDemo,
   onLoadStressDemo,
+  onLoadTemplate,
   onLoadRigDemo,
   onLoadDungeonDemo,
   onLoadMatch3Demo,
@@ -151,6 +152,9 @@ function ShapesMenu({
   /** Scratch-style "fake 3D" raycaster FPS. */
   onLoadFpsDemo: () => void
   onLoadStressDemo: () => void
+  /** Add → Templates: a Toasty Lite component (`heart`, `menu`, …) or a
+   * docs game (`toast-catch`, `hop`) by name. */
+  onLoadTemplate: (kind: string) => void
   onLoadRigDemo: () => void
   onLoadDungeonDemo: () => void
   onLoadMatch3Demo: () => void
@@ -290,6 +294,28 @@ function ShapesMenu({
         { kind: 'item', label: 'Ragdoll Arena', icon: <SparkleIcon />, onSelect: onLoadRigDemo },
         { kind: 'item', label: 'Physics Playground', icon: <SparkleIcon />, onSelect: onLoadPhysicsDemo },
         { kind: 'item', label: 'Stress Test', icon: <SparkleIcon />, onSelect: onLoadStressDemo },
+      ],
+    },
+    {
+      kind: 'submenu',
+      label: 'Templates',
+      icon: <SparkleIcon />,
+      children: [
+        ...[
+          ['heart', 'Like heart'],
+          ['menu', 'Menu ↔ close'],
+          ['theme', 'Light / dark switch'],
+          ['status', 'Form status'],
+          ['bell', 'Notification bell'],
+          ['download', 'Download + progress'],
+          ['copy', 'Copy button'],
+          ['arrow', 'Link arrow'],
+          ['loader', 'Loader'],
+          ['toasty', 'Toasty mascot'],
+        ].map(([kind, label]) => ({ kind: 'item' as const, label: `Lite: ${label}`, icon: <SparkleIcon />, onSelect: () => onLoadTemplate(kind) })),
+        { kind: 'separator' },
+        { kind: 'item', label: 'Game: Toast Catch', icon: <SparkleIcon />, onSelect: () => onLoadTemplate('toast-catch') },
+        { kind: 'item', label: 'Game: Hop', icon: <SparkleIcon />, onSelect: () => onLoadTemplate('hop') },
       ],
     },
   ]
@@ -518,6 +544,7 @@ export function TopToolbar({
   onAddText,
   onLoadFpsDemo,
   onLoadStressDemo,
+  onLoadTemplate,
   onLoadRigDemo,
   onLoadDungeonDemo,
   onLoadMatch3Demo,
@@ -584,6 +611,9 @@ export function TopToolbar({
   onAddText: (icon?: boolean) => void
   onLoadFpsDemo: () => void
   onLoadStressDemo: () => void
+  /** Add → Templates: a Toasty Lite component (`heart`, `menu`, …) or a
+   * docs game (`toast-catch`, `hop`) by name. */
+  onLoadTemplate: (kind: string) => void
   onLoadRigDemo: () => void
   onLoadDungeonDemo: () => void
   onLoadMatch3Demo: () => void
@@ -698,6 +728,7 @@ export function TopToolbar({
               onAddText={onAddText}
               onLoadFpsDemo={onLoadFpsDemo}
               onLoadStressDemo={onLoadStressDemo}
+              onLoadTemplate={onLoadTemplate}
               onLoadRigDemo={onLoadRigDemo}
               onLoadDungeonDemo={onLoadDungeonDemo}
               onLoadMatch3Demo={onLoadMatch3Demo}

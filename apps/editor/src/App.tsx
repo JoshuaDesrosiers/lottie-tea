@@ -2846,6 +2846,21 @@ function App() {
   }
 
   /** Stress Test demo — scalable profiling scene, straight into Playground. */
+  /** Add → Templates: the docs' Toasty Lite components and small games,
+   * each added as its own scene to open, restyle and re-export. */
+  const handleLoadTemplate = (kind: string) => {
+    const editor = editorRef.current
+    if (!editor) return
+    const game = kind === 'toast-catch' || kind === 'hop'
+    try {
+      const result = (game ? editor.load_docs_game(kind) : editor.load_lite_component(kind)) as { newArtboard: OpaqueId; document: DocumentSummary }
+      switchToScene(result.newArtboard, result.document)
+      if (game) setMode('Playground')
+    } catch (err) {
+      console.error('Template failed to load', err)
+    }
+  }
+
   const handleLoadStressDemo = () => {
     const editor = editorRef.current
     if (!editor) return
@@ -4721,6 +4736,7 @@ ${list}${more}`)
         onLoadNinjaDemo={handleLoadNinjaDemo}
         onLoadFpsDemo={handleLoadFpsDemo}
             onLoadStressDemo={handleLoadStressDemo}
+            onLoadTemplate={handleLoadTemplate}
             onLoadRigDemo={handleLoadRigDemo}
             onLoadDungeonDemo={handleLoadDungeonDemo}
             onLoadMatch3Demo={handleLoadMatch3Demo}

@@ -83,8 +83,29 @@ Dashed strokes and **Trim Path** for a Shape that has a stroke.
 | Trim offset | Slides the visible window round closed paths. | 0 to 1 | 0 |
 
 :::tip
-Draw-on signature: set Dash to 0, keyframe **Trim end** from 0 at frame 0 to 1 a second later.
+To draw a line on, set Dash to 0 and keyframe **Trim end** from 0 at 0 s to 1 a second later.
 :::
+
+Trim paths in use. The loader keyframes trim start, trim end and trim offset on one arc. The status icon (click a state) draws its check and cross on with trim end and closes its ring the same way.
+
+```jsx live
+function TrimPaths() {
+  const [status, setStatus] = React.useState('loading')
+  return (
+    <div style={{ display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
+      <Lite src="loader" label="Loading" style={{ width: 72, height: 72 }} />
+      <Lite src="status" ink="auto" label="Status" inputs={{ status }} style={{ width: 72, height: 72 }} />
+      <div style={{ display: 'flex', gap: 6 }}>
+        {['idle', 'loading', 'success', 'error'].map((s) => (
+          <button key={s} onClick={() => setStatus(s)} disabled={s === status}>{s}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+Stroke Style's trim start, trim end, trim offset and dash offset all export to [Toasty Lite](../runtimes/lite.mdx). See [Shapes and paths](../editor/shapes-and-paths.mdx#trim-paths) for the loader's keyframes.
 
 ## Pixel Snap
 

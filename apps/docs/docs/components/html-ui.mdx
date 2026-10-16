@@ -17,7 +17,9 @@ You can wire it up three ways, from no code to full control:
 | `data-bind` / `data-prop` | An element shows a scene property, or an input writes one. | None |
 | `ref.dom` | A script gets the element's live DOM (a `ShadowRoot`). | Yes |
 
-<ToastyDemo game="/games/html-ui-lab.teab" height={400} caption="HTML UI Lab: the HUD is HTML. Party mode uses data-trigger, the speed slider and score use ref.dom, and the speech bubble follows the star." />
+:::note HTML UI and websites
+HTML UI runs inside the full engine, as a DOM overlay on the game canvas. If you are building a website, the page's own HTML is the UI: put [Toasty Lite](../runtimes/lite.mdx) animations in it instead.
+:::
 
 ## Adding one
 
@@ -66,7 +68,7 @@ The element is CSS pixels at zoom 1. If your camera zooms in or the scene is sca
 
 ## data-trigger: clicks fire triggers
 
-Clicking an element with `data-trigger="name"`, or anything inside it, fires the state machine's trigger input called `name`. In the HTML UI Lab, the Party button switches between the Play and Party states with no code:
+Clicking an element with `data-trigger="name"`, or anything inside it, fires the state machine's trigger input called `name`. For example, a Party button can switch a scene between Play and Party states with no code:
 
 ```html
 <button class="party" data-trigger="celebrate">Party mode</button>
@@ -122,7 +124,7 @@ For anything beyond the data attributes, a script can reach into the element. Gi
 - The element is re-rendered **only** when its authored HTML, CSS or size changes, so changes your script makes to the DOM stick.
 - A new Play (or scene switch) builds a fresh DOM. Attach listeners once per DOM, not every frame.
 
-The HTML UI Lab's script, lightly trimmed:
+A HUD script with a score, a speed slider and a colour control:
 
 ```js
 const g = ctx.globals.html || (ctx.globals.html = { score: 0, speed: 3, hue: 40, wired: null })
@@ -150,7 +152,7 @@ Writing to the DOM every frame is cheap but not free. Compare before you write, 
 
 ### World-anchored HTML
 
-An HTML UI node outside the Camera lives in the world. The HTML UI Lab's speech bubble is a 120 × 44 element with **Interactive** off, moved every frame to follow the star:
+An HTML UI node outside the Camera lives in the world. This speech bubble is a 120 × 44 element with **Interactive** off, moved every frame to follow a node with Id `star`:
 
 ```js
 const star = getCompByID('star')
@@ -176,7 +178,5 @@ The **Fonts & Icons (Google)** helper in the Inspector does this for you: pick a
 | Typing (text inputs), native selects and ranges | Pixel-art looks using your sprites |
 | Rich CSS (gradients, blur, shadows, transitions) | Things animated with the timeline and state machines like any node |
 | Reusing existing HTML / CSS skills | Exporting to GIF / video (DOM overlays aren't part of the canvas) |
-
-Several demos use HTML UI for their menus and HUDs: **Voxel Craft** (hotbar, inventory), **LAN Party** (the lobby, see [Multiplayer](./multiplayer.mdx)), and **Shatterline**.
 
 See also: [Scripting: UI and DOM](../scripting/ui-and-dom.mdx).

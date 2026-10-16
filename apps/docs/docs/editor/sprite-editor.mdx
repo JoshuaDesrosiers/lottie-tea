@@ -142,7 +142,7 @@ Frame 1 is the child drawn furthest back, which is the **bottom** child of the g
 
 ### From a script
 
-Many games swap a single sprite's picture from code instead, picking frames by name. `ctx.images` lists every image asset with its `name` and `id`, and setting `ref.image` on an image node shows that image. This is the pattern the Ninja Adventure demo uses for its hero (simplified here; the node id `hero` is whatever Id you gave your sprite in the Inspector):
+Many games swap a single sprite's picture from code instead, picking frames by name. `ctx.images` lists every image asset with its `name` and `id`, and setting `ref.image` on an image node shows that image. A walk cycle looks like this (the node id `hero` is whatever Id you gave your sprite in the Inspector):
 
 ```js
 const G = ctx.globals            // survives from frame to frame

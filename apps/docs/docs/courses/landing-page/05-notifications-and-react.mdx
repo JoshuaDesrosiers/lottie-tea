@@ -1,0 +1,432 @@
+---
+title: 5. Notifications and the finished page
+sidebar_position: 5
+description: Add a notification bell with an unread badge and an inbox panel, see the complete landing page with five Lite components working together, and port it to React.
+---
+
+# 5. Notifications and the finished page
+
+**Goal:** a notification bell in the header. It shows a red badge while there are unread notifications, rings when a new one arrives, and opens an inbox panel. Then the finished page, and the same page in React.
+
+The `bell` icon's API:
+
+| Input | Kind | Effect |
+|---|---|---|
+| `unread` | Bool | Pops the red badge in (true) or out (false). It is on its own layer, so it works during a ring. |
+| `ring` | Trigger | Swings the bell with a decaying rotation. Firing it again mid-swing restarts it. |
+| `hover` | Bool | Tilts the bell slightly. |
+
+When the bell handles its own click, it also sends the page a `toasty:event` named `open`. Here the page owns the click, so it doesn't need that event.
+
+## The finished page
+
+<LiveHTML
+  url="crumb.kitchen"
+  height={640}
+  html={`<header class="site-header">
+  <a class="brand" href="#" aria-label="Crumb home">
+    <toasty-lite class="mascot" src="/toasty/lite/toasty.json"></toasty-lite>
+    <span>Crumb</span>
+  </a>
+  <nav class="links" aria-label="Main">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#signup">Waitlist</a>
+  </nav>
+  <div class="actions">
+    <button class="icon-button bell" type="button" aria-label="Notifications" aria-expanded="false" aria-controls="inbox">
+      <toasty-lite src="/toasty/lite/bell.json" ink="currentColor"></toasty-lite>
+    </button>
+    <button class="icon-button theme" type="button" aria-label="Dark mode" aria-pressed="false">
+      <toasty-lite src="/toasty/lite/theme.json"></toasty-lite>
+    </button>
+  </div>
+  <div id="inbox" class="inbox" hidden>
+    <p class="inbox-title">Notifications</p>
+    <ul>
+      <li><strong>Your list is ready</strong> Monday's shopping list has 14 items.</li>
+      <li><strong>Maya Chen</strong> shared "Weeknight lemon pasta" with you.</li>
+    </ul>
+  </div>
+</header>
+<main>
+  <section class="hero">
+    <h1>Plan a week of dinners in ten minutes.</h1>
+    <p>Crumb turns what is already in your fridge into five evenings you will actually cook, and one shopping list.</p>
+    <div class="ctas">
+      <a class="cta primary" href="#signup">Start planning free <toasty-lite src="/toasty/lite/arrow.json" ink="currentColor"></toasty-lite></a>
+      <a class="cta secondary" href="#features">See how it works <toasty-lite src="/toasty/lite/arrow.json" ink="currentColor"></toasty-lite></a>
+    </div>
+  </section>
+  <section id="signup" class="signup">
+    <h2>Get your first week free</h2>
+    <form class="signup-form" novalidate>
+      <label for="email">Email address</label>
+      <div class="field">
+        <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+        <button type="submit">
+          <span class="label">Join the waitlist</span>
+          <toasty-lite class="status" src="/toasty/lite/status.json" ink="currentColor"></toasty-lite>
+        </button>
+      </div>
+      <p class="form-message" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</main>
+<footer class="site-footer">
+  <span>Crumb, made in Lisbon.</span>
+  <button class="simulate" type="button">Simulate a new notification</button>
+</footer>`}
+  css={`.site-header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 24px; padding: 8px 16px 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.brand { display: flex; align-items: center; gap: 4px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+.mascot { width: 44px; height: 44px; }
+.links { display: flex; gap: 20px; }
+.links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+.links a:hover { color: var(--ink); }
+.hero { max-width: 680px; margin: 0 auto; padding: 48px 20px 28px; text-align: center; }
+.hero h1 { margin: 0 0 14px; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; letter-spacing: -0.03em; }
+.hero p { max-width: 500px; margin: 0 auto; color: var(--muted); font-size: 17px; }
+@media (max-width: 560px) { .links { display: none; } }
+.actions { margin-left: auto; display: flex; gap: 2px; }
+.icon-button { width: 44px; height: 44px; padding: 2px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer; }
+.icon-button:hover { background: var(--page); }
+.icon-button:focus-visible { outline: 2px solid var(--accent); }
+.icon-button toasty-lite { width: 40px; height: 40px; pointer-events: none; }
+.ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 28px; }
+.cta { display: inline-flex; align-items: center; gap: 2px; padding: 10px 10px 10px 18px; border-radius: 999px; font-weight: 600; text-decoration: none; }
+.cta toasty-lite { width: 26px; height: 26px; pointer-events: none; }
+.cta.primary { background: var(--accent); color: #fff; }
+.cta.secondary { color: var(--ink); border: 1px solid var(--line); }
+.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.signup { max-width: 520px; margin: 0 auto; padding: 28px 20px 40px; }
+.signup h2 { margin: 0 0 12px; font-size: 22px; letter-spacing: -0.02em; text-align: center; }
+.signup label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+.field { display: flex; gap: 8px; }
+.field input { flex: 1; min-width: 0; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.field button { display: inline-flex; align-items: center; gap: 2px; padding: 0 8px 0 16px; border: 0; border-radius: 10px; background: var(--ink); color: var(--page); font-weight: 600; cursor: pointer; }
+.field button:disabled { cursor: default; }
+.field .status { width: 28px; height: 28px; }
+.form-message { min-height: 1.5em; margin: 8px 0 0; font-size: 14px; color: var(--muted); }
+[data-status="error"] .form-message { color: #e11d48; }
+[data-status="success"] .form-message { color: #16a34a; }
+.inbox { position: absolute; top: 58px; right: 12px; width: min(320px, calc(100% - 24px)); padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 12px 32px rgb(0 0 0 / 0.12); }
+.inbox[hidden] { display: none; }
+.inbox-title { margin: 0 0 8px; font-weight: 600; }
+.inbox ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.inbox li { padding: 8px 10px; border-radius: 10px; background: var(--page); font-size: 14px; color: var(--muted); }
+.inbox li strong { display: block; color: var(--ink); }
+.site-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.simulate { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; cursor: pointer; font-size: 13px; }`}
+  js={`// Pointer and keyboard focus both count as hover for an icon.
+function hoverInput(el, icon) {
+  const set = (value) => { if (icon.player) icon.player.setInput('hover', value) }
+  el.addEventListener('pointerenter', () => set(true))
+  el.addEventListener('pointerleave', () => set(false))
+  el.addEventListener('focus', () => set(true))
+  el.addEventListener('blur', () => set(false))
+}
+
+// Theme switch: the page owns the theme, the icon shows it.
+const root = document.documentElement
+const themeButton = document.querySelector('.theme')
+const themeIcon = themeButton.querySelector('toasty-lite')
+let dark = root.dataset.theme === 'dark'
+
+function applyTheme() {
+  root.dataset.theme = dark ? 'dark' : 'light'
+  themeButton.setAttribute('aria-pressed', String(dark))
+  themeIcon.setAttribute('inputs', JSON.stringify({ dark: dark }))
+}
+themeButton.addEventListener('click', () => { dark = !dark; applyTheme() })
+hoverInput(themeButton, themeIcon)
+applyTheme()
+
+// Arrows follow their link's hover and focus.
+for (const cta of document.querySelectorAll('.cta')) {
+  hoverInput(cta, cta.querySelector('toasty-lite'))
+}
+
+// Signup form with a status icon.
+const form = document.querySelector('.signup-form')
+const email = form.querySelector('#email')
+const submit = form.querySelector('button[type="submit"]')
+const label = submit.querySelector('.label')
+const statusIcon = submit.querySelector('.status')
+const message = form.querySelector('.form-message')
+
+function setStatus(status, text) {
+  form.dataset.status = status
+  statusIcon.setAttribute('inputs', JSON.stringify({ status: status }))
+  message.textContent = text || ''
+}
+
+// Stand-in for your API: rejects an address that is already registered.
+const registered = ['maya@northwind.app']
+function joinWaitlist(address) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (registered.includes(address.toLowerCase())) reject(new Error('That address is already on the waitlist.'))
+      else resolve()
+    }, 1200)
+  })
+}
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  if (!email.checkValidity()) {
+    setStatus('error', 'Enter an email address, like name@example.com.')
+    email.focus()
+    return
+  }
+  setStatus('loading', 'Saving your spot...')
+  submit.disabled = true
+  label.textContent = 'Joining'
+  try {
+    await joinWaitlist(email.value.trim())
+    setStatus('success', 'You are on the list. Your first week arrives by email.')
+    label.textContent = 'Joined'
+  } catch (error) {
+    setStatus('error', error.message)
+    submit.disabled = false
+    label.textContent = 'Join the waitlist'
+  }
+})
+email.addEventListener('input', () => {
+  if (form.dataset.status === 'error') setStatus('idle')
+})
+
+// Notification bell and inbox.
+const bellButton = document.querySelector('.bell')
+const bellIcon = bellButton.querySelector('toasty-lite')
+const inbox = document.getElementById('inbox')
+let unread = 2
+
+function renderBell() {
+  bellButton.setAttribute('aria-label', unread ? 'Notifications, ' + unread + ' unread' : 'Notifications')
+  bellIcon.setAttribute('inputs', JSON.stringify({ unread: unread > 0 }))
+}
+function setInbox(open) {
+  inbox.hidden = !open
+  bellButton.setAttribute('aria-expanded', String(open))
+  if (open) { unread = 0; renderBell() }
+}
+bellButton.addEventListener('click', () => {
+  setInbox(inbox.hidden)
+  if (bellIcon.player) bellIcon.player.fire('ring')
+})
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setInbox(false) })
+document.addEventListener('click', (e) => {
+  if (!inbox.hidden && !inbox.contains(e.target) && !bellButton.contains(e.target)) setInbox(false)
+})
+document.querySelector('.simulate').addEventListener('click', () => {
+  const item = document.createElement('li')
+  item.innerHTML = '<strong>Price drop</strong> Oat milk is 20% off at your store this week.'
+  inbox.querySelector('ul').prepend(item)
+  unread += 1
+  renderBell()
+  if (bellIcon.player) bellIcon.player.fire('ring')
+})
+hoverInput(bellButton, bellIcon)
+renderBell()`}
+  react={`import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { ToastyLite, type LitePlayer } from './toasty/an1mbyt3-lite-react.js'
+
+const INK = { light: '#18181b', dark: '#ececef' }
+
+/** Hover and focus both drive an icon's hover input. */
+function useHover() {
+  const [hover, setHover] = useState(false)
+  const on = () => setHover(true)
+  const off = () => setHover(false)
+  return [hover, { onPointerEnter: on, onPointerLeave: off, onFocus: on, onBlur: off }] as const
+}
+
+function ThemeSwitch({ dark, onChange }: { dark: boolean; onChange: (dark: boolean) => void }) {
+  const [hover, hoverProps] = useHover()
+  return (
+    <button className="icon-button" type="button" aria-label="Dark mode" aria-pressed={dark} onClick={() => onChange(!dark)} {...hoverProps}>
+      <ToastyLite src="/toasty/lite/theme.json" inputs={{ dark, hover }} style={{ width: 40, height: 40, pointerEvents: 'none' }} />
+    </button>
+  )
+}
+
+type Notice = { id: number; title: string; body: string }
+
+function Bell({ ink, notices, unread, onOpen }: { ink: string; notices: Notice[]; unread: number; onOpen: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [hover, hoverProps] = useHover()
+  const bell = useRef<LitePlayer | null>(null)
+
+  // Ring whenever a new notice arrives.
+  const count = useRef(notices.length)
+  useEffect(() => {
+    if (notices.length > count.current) bell.current?.fire('ring')
+    count.current = notices.length
+  }, [notices.length])
+
+  function toggle() {
+    const next = !open
+    setOpen(next)
+    if (next) onOpen()
+    bell.current?.fire('ring')
+  }
+
+  return (
+    <>
+      <button className="icon-button" type="button" aria-label={unread ? 'Notifications, ' + unread + ' unread' : 'Notifications'} aria-expanded={open} aria-controls="inbox" onClick={toggle} {...hoverProps}>
+        <ToastyLite ref={bell} src="/toasty/lite/bell.json" ink={ink} inputs={{ unread: unread > 0, hover }} style={{ width: 40, height: 40, pointerEvents: 'none' }} />
+      </button>
+      <div id="inbox" className="inbox" hidden={!open}>
+        <p className="inbox-title">Notifications</p>
+        <ul>
+          {notices.map((n) => (
+            <li key={n.id}><strong>{n.title}</strong> {n.body}</li>
+          ))}
+        </ul>
+      </div>
+    </>
+  )
+}
+
+function Cta({ href, className, ink, children }: { href: string; className: string; ink: string; children: string }) {
+  const [hover, hoverProps] = useHover()
+  return (
+    <a className={'cta ' + className} href={href} {...hoverProps}>
+      {children}
+      <ToastyLite src="/toasty/lite/arrow.json" ink={ink} inputs={{ hover }} style={{ width: 26, height: 26, pointerEvents: 'none' }} />
+    </a>
+  )
+}
+
+type Status = 'idle' | 'loading' | 'success' | 'error'
+
+function SignupForm({ ink }: { ink: string }) {
+  const [status, setStatus] = useState<Status>('idle')
+  const [message, setMessage] = useState('')
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const input = event.currentTarget.elements.namedItem('email') as HTMLInputElement
+    if (!input.checkValidity()) {
+      setStatus('error')
+      setMessage('Enter an email address, like name@example.com.')
+      return
+    }
+    setStatus('loading')
+    setMessage('Saving your spot...')
+    const res = await fetch('/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: input.value.trim() }) })
+    if (res.ok) {
+      setStatus('success')
+      setMessage('You are on the list. Your first week arrives by email.')
+    } else {
+      setStatus('error')
+      setMessage(res.status === 409 ? 'That address is already on the waitlist.' : 'Something went wrong. Try again.')
+    }
+  }
+
+  return (
+    <form className="signup-form" noValidate onSubmit={submit} data-status={status}>
+      <label htmlFor="email">Email address</label>
+      <div className="field">
+        <input id="email" name="email" type="email" required autoComplete="email" placeholder="you@example.com"
+          onChange={() => status === 'error' && setStatus('idle')} />
+        <button type="submit" disabled={status === 'loading' || status === 'success'}>
+          <span className="label">{status === 'loading' ? 'Joining' : status === 'success' ? 'Joined' : 'Join the waitlist'}</span>
+          <ToastyLite className="status" src="/toasty/lite/status.json" ink={ink} inputs={{ status }} style={{ width: 28, height: 28 }} />
+        </button>
+      </div>
+      <p className="form-message" role="status" aria-live="polite">{message}</p>
+    </form>
+  )
+}
+
+export function LandingPage() {
+  const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
+  const [notices, setNotices] = useState<Notice[]>([
+    { id: 1, title: 'Your list is ready', body: "Monday's shopping list has 14 items." },
+    { id: 2, title: 'Maya Chen', body: 'shared "Weeknight lemon pasta" with you.' },
+  ])
+  const [unread, setUnread] = useState(2)
+  const ink = dark ? INK.dark : INK.light
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  }, [dark])
+
+  return (
+    <>
+      <header className="site-header">
+        <a className="brand" href="/" aria-label="Crumb home">
+          <ToastyLite className="mascot" src="/toasty/lite/toasty.json" style={{ width: 44, height: 44 }} />
+          <span>Crumb</span>
+        </a>
+        <nav className="links" aria-label="Main">
+          <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#signup">Waitlist</a>
+        </nav>
+        <div className="actions">
+          <Bell ink={ink} notices={notices} unread={unread} onOpen={() => setUnread(0)} />
+          <ThemeSwitch dark={dark} onChange={setDark} />
+        </div>
+      </header>
+      <main>
+        <section className="hero">
+          <h1>Plan a week of dinners in ten minutes.</h1>
+          <p>Crumb turns what is already in your fridge into five evenings you will actually cook, and one shopping list.</p>
+          <div className="ctas">
+            <Cta href="#signup" className="primary" ink="#ffffff">Start planning free</Cta>
+            <Cta href="#features" className="secondary" ink={ink}>See how it works</Cta>
+          </div>
+        </section>
+        <section id="signup" className="signup">
+          <h2>Get your first week free</h2>
+          <SignupForm ink={dark ? INK.light : INK.dark} />
+        </section>
+      </main>
+      <footer className="site-footer">
+        <span>Crumb, made in Lisbon.</span>
+        <button className="simulate" type="button" onClick={() => {
+          setNotices((list) => [{ id: Date.now(), title: 'Price drop', body: 'Oat milk is 20% off at your store this week.' }, ...list])
+          setUnread((n) => n + 1)
+        }}>Simulate a new notification</button>
+      </footer>
+    </>
+  )
+}`}
+  caption="The complete Crumb landing page: five Lite components, about 110 lines of plain JavaScript."
+/>
+
+Use **Simulate a new notification** in the footer to see the bell ring and the badge return.
+
+## How it works
+
+- **`unread` is a fact, `ring` is a moment.** The badge follows a Bool that the page keeps in step with its unread count. The swing is a Trigger the page fires when something arrives, and also on click as feedback.
+- **Opening the inbox marks everything read**, so the page sets `unread` to false and the badge pops out. The button's `aria-label` carries the count for screen readers: "Notifications, 2 unread".
+- **Escape and a click outside close the panel**, like any menu.
+- **Five components, one loop.** The mascot, theme switch, two arrows, status icon and bell share one requestAnimationFrame loop. Each repaints only when something changes, and pauses when scrolled out of view, so an idle page costs almost nothing.
+
+## The React port
+
+The **React** tab above has the same page as components. Each icon is a `<ToastyLite>`; its props are diffed, so changing `inputs` or `ink` updates the running icon without reloading it.
+
+| HTML version | React version |
+|---|---|
+| `inputs` attribute | `inputs` prop |
+| `ink="currentColor"` | `ink` prop with a colour derived from the theme state (the prop is a fixed CSS colour, so pass a new one when the theme changes) |
+| `icon.player.fire('ring')` | `ref` to the player, then `bell.current?.fire('ring')` |
+| `hoverInput(el, icon)` | A `useHover()` hook that returns `hover` and the event props |
+
+Every component in the React port owns its own state, except the theme and the notifications, which live in `LandingPage` because more than one component needs them.
+
+## Check your work
+
+- With unread notifications, the bell shows a red dot; opening the inbox removes it.
+- **Simulate a new notification** rings the bell, brings the badge back and adds the notice to the top of the inbox.
+- Switching the theme recolours the bell, the secondary arrow and the form button's spinner at the same time.
+
+## Where to go next
+
+- [Notifications](../../use-cases/notifications.mdx), [Form status](../../use-cases/form-status.mdx), [Theme switch](../../use-cases/theme-switch.mdx), [Call to action](../../use-cases/call-to-action.mdx) and [Mascot](../../use-cases/mascot.mdx) use cases.
+- [Toasty Lite in React](../../runtimes/react.mdx) and [JavaScript](../../runtimes/javascript.mdx) references.

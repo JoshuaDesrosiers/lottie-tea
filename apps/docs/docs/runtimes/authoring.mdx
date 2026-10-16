@@ -1,0 +1,234 @@
+---
+title: Authoring for Lite
+sidebar_position: 6
+description: Build a Toasty Lite animation in the editor. Line art with trim paths, path morphs, a state machine with inputs, hover with Pointer Listeners, click with On Click, properties and bindings, and the export.
+---
+
+# Authoring for Lite
+
+A Toasty Lite file is an ordinary Toasty scene that uses only what Lite can draw. This page walks through the parts of a Lite-ready scene in the order you usually build them, using the ten components as references. Everything here also runs in the full engine, so you can preview it in the editor's Playground.
+
+<div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', margin: '1.5rem 0' }}>
+  <Lite src="heart" ink="auto" label="Like" style={{ width: 64, height: 64 }} />
+  <Lite src="menu" ink="auto" label="Menu" style={{ width: 64, height: 64 }} />
+  <Lite src="theme" label="Theme switch" style={{ width: 64, height: 64 }} />
+  <Lite src="copy" ink="auto" label="Copy" style={{ width: 64, height: 64 }} />
+  <span style={{ color: 'var(--t-muted)', fontSize: '0.9rem' }}>Each of these is shapes, trim paths, keyframes and one state machine. No scripts.</span>
+</div>
+
+## What Lite plays
+
+| Area | Supported |
+|---|---|
+| Nodes | Shapes, groups and text, in a transform hierarchy with anchors. Clip children. Cameras and bones export as plain groups. |
+| Paint | Solid fills, linear and radial gradients, strokes with cap, join and width, stroke gradients |
+| Stroke Style | Trim start, trim end, trim offset; dash, gap and dash offset |
+| Keyframes | Position, rotation, scale, fill colour, path (morphs), trim start / end / offset, dash offset, stroke width, stroke colour, visibility, anchor, text size and text colour |
+| Easing | Linear and cubic-bezier |
+| State machine | Bool, Number, Enum and Trigger inputs; every layer; Boolean, Number and Enum conditions and triggers; crossfades; Forward and Reverse transitions; Once, Loop and PingPong |
+| Interaction | UI Button hover and press looks; On Click and Pointer Listeners actions |
+| Data | Scene properties; Property Bindings to text, position, rotation, scale, visibility, fill colour, stroke colour, and Stroke Style trim and dash offset |
+
+Everything else needs the full engine. See [What gets skipped](#what-gets-skipped) below.
+
+## Start from a template
+
+The quickest way to a Lite-ready scene is to start from one of the ten components. In the editor, open **+ → Templates** and choose one of **Lite: Like heart**, **Lite: Menu ↔ close**, **Lite: Light / dark switch**, **Lite: Form status**, **Lite: Notification bell**, **Lite: Download + progress**, **Lite: Copy button**, **Lite: Link arrow**, **Lite: Loader** or **Lite: Toasty mascot**. Each one is added to your project as its own scene, with its animations, state machine, hit shape and `ink` binding. Open it, restyle it, and export it again. The same menu has **Game: Toast Catch** and **Game: Hop** for the full engine.
+
+The rest of this page explains how those scenes are built, so you can change them or make your own.
+
+## 1. Set up the scene
+
+1. Open the **Scene** picker in the top toolbar and choose **New Scene**. Name it after the file you want, for example `Bookmark`: the export suggests the scene name in lower case with dashes (`bookmark.json`).
+2. Click empty canvas and set the Canvas **Size** to the icon's design size. The ten components use **96 × 96**, which gives you a comfortable grid for 4 to 6 unit strokes.
+3. Keep the art centred on the **Main Camera**. Lite frames the export through it: the camera's position is the centre of the image and the scene size, at the camera's zoom, is the frame.
+
+The runtime scales the scene to whatever box the page gives it, so the design size only sets proportions, not pixels.
+
+## 2. Draw with strokes
+
+Line icons are strokes, not filled outlines. Draw each line as its own shape, from **+ → 2D Object** or by importing an icon with **+ → Import → SVG…**, then in the Inspector's Shape section:
+
+- tick **Stroke**, set its **Width**, and set **Cap** and **Join** to **Round** so trimmed ends look finished;
+- set the fill's alpha to 0 if the shape should be a line only;
+- give each node a clear name (`outline`, `shaft`, `check`). The names travel into the exported file, which helps when you read it.
+
+Draw the parts you will animate separately. In `menu`, the three bars are three shapes so each can rotate on its own; in `heart`, the outline and the red fill are two shapes so the fill can pop while the outline fades.
+
+:::tip Icons from fonts
+**+ → 2D Object → Icon (Material Symbols)** creates a text node. Lite can draw it, but the export embeds the whole font file in the JSON. For small files, import the icon as SVG instead, so it becomes shapes.
+:::
+
+## 3. Add trim paths
+
+Trim paths make a line draw itself on, retract or chase its own tail. Select a stroke and choose **Add Component → Effects 2D → Stroke Style (dash, trim path)**. It adds:
+
+| Field | Range | Effect |
+|---|---|---|
+| **Trim start** | 0 to 1 | Where the visible part begins, as a share of the path's length |
+| **Trim end** | 0 to 1 | Where it ends |
+| **Trim offset** | 0 to 1 | Slides the visible window along a closed path |
+| **Dash**, **Gap**, **Dash offset** | units | Dashed lines; animate Dash offset for marching ants |
+
+To animate one, open the timeline, select the node, click **+ Property** and search for `trim`. Then key it like any other row. Some patterns from the components:
+
+| Effect | Keys | Used in |
+|---|---|---|
+| Draw on | Trim end 0 → 1 | The check in `status`, `copy` and `download` |
+| Draw off | Trim end 1 → 0 | The two sheets in `copy` |
+| Shoot out | Trim end 0 → 1, then trim start 0 → 1 a little later | The eight rays in `heart` |
+| Shrink to centre | Trim start 0 → 0.5 and trim end 1 → 0.5 together | The middle bar in `menu` |
+| Chase | Trim start and trim end leapfrog while trim offset and rotation turn | `loader` |
+
+Trim is measured along the path from its first point, so the direction you draw a shape in is the direction it draws on. Lines that should draw from the centre outwards, like the heart's rays, start at the inner point.
+
+<div style={{ display: 'flex', gap: 24, alignItems: 'center', margin: '16px 0' }}>
+  <Lite src="loader" ink="auto" label="Loading" style={{ width: 64, height: 64 }} />
+  <Lite src="status" ink="auto" inputs={{ status: 'success' }} label="Success" style={{ width: 64, height: 64 }} />
+  <Lite src="copy" ink="auto" label="Copy" style={{ width: 64, height: 64 }} />
+</div>
+
+## 4. Path morphs
+
+Lite also plays keyframes on a shape's path itself, interpolating every point. The `theme` component morphs its sun body into a crescent moon this way.
+
+A morph needs every keyframe of the path to have **the same structure**: the same number of points and the same command at each step (move, line, curve, close). Lite keeps the shape's command list and blends the coordinates position by position, so keys with a different structure can't morph: the shape jumps or distorts. The simplest way to get matching shapes is to build every pose by moving points of one copy of the path, never adding or removing points.
+
+:::note Keying a path
+The editor's timeline doesn't have a **Path** row yet, so path keyframes can't be added from the timeline today. Files that already contain path keyframes, such as imported animations, keep them and export them to Lite.
+:::
+
+<Lite src="theme" label="Theme switch" style={{ width: 64, height: 64, margin: '16px 0' }} />
+
+## 5. Animations and the state machine
+
+Make one animation per state, then connect them with a state machine. Lite reads the state machine, not the timeline, to decide what plays.
+
+1. **Animations.** For a two-state toggle, make two animations, such as `Unsaved` and `Saved`. Key every value that differs between them in **both**, so each state fully describes its pose. A rest state can be a single keyframe at 0 s.
+2. **Inputs.** In the **State Machine** tab, choose **New State Machine**, then declare the inputs the page will use: a Bool `saved`, and a Bool `hover` for hover feedback.
+3. **States.** One state per animation. Set the loop mode: **Once** for a pose you reach and hold, **Loop** for spinners, **PingPong** for back-and-forth idles.
+4. **Transitions.** Drag between states and set the condition. For a toggle: `Unsaved` → `Saved` when **Boolean is** `saved` = checked, and back when unchecked. Set **Crossfade (s)**: `0` for a pop that should start instantly, `0.15` to `0.3` for a smooth return.
+
+Patterns from the components:
+
+| Pattern | How | Used in |
+|---|---|---|
+| Toggle | Two states, two Bool transitions | `heart`, `menu`, `theme` |
+| Status | One state per Enum value, each with transitions to every other | `status`, `download` |
+| Replayable one-shot | A Trigger moves `Idle` → `Ringing`, and `Ringing` ⇄ `Ringing again` on the same trigger, both playing the same animation | `bell`, `copy`, `toasty` |
+| Hover | A separate **layer** with `Rest` and `Over` states on the `hover` input | `heart`, `menu`, `theme`, `bell`, `download`, `copy`; `toasty` uses two hover layers, `Face` and `Hop` |
+
+The replayable one-shot uses two states so that every trigger is a real state change. Lite reports a state to the page only when the state name changes, so alternating between two identically animated states lets the page hear every ring or copy.
+
+### Layers in Lite
+
+Layers let hover feedback run on top of the main states: the heart can be `Liked` and hovered at once. Lite plays every layer, in order, each overriding the ones before it wherever they animate the same value.
+
+:::caution Lite ignores layer masks
+Lite does not read the layer mask. Every track in a layer's animations applies. Keep each layer's animations to the nodes that layer owns, for example a `Hover` layer that only scales one group.
+:::
+
+Lite also exports only one state machine per scene, the first in the scene's list. Keep a single state machine in scenes meant for Lite.
+
+## 6. Hover with Pointer Listeners
+
+The pointer is detected by a **UI Button**, and the **Pointer Listeners** component runs actions when it enters or leaves. The interactive components share one setup: an invisible shape on top that covers the icon.
+
+1. Add a shape over the whole icon, such as an ellipse or rounded rectangle. Set its fill alpha to 0 and give it no stroke. Name it `hit`.
+2. With `hit` selected, choose **Add Component → UI → UI Button**. Set **Hover scale** and **Press scale** to 1 and the colours to white, so the button adds no look of its own; the state machine does the animation.
+3. Choose **Add Component → Events & Data → Pointer Listeners (hover / press)**.
+4. Under **On Pointer Enter**, click **+ Add action** and choose **Set input**, input `hover`, value `true`.
+5. Under **On Pointer Exit**, add **Set input** `hover` = `false`.
+
+<Shot id="lite-pointer-listeners" caption="Inspector for the hit shape of the heart: UI Button with Hover scale and Press scale at 1, then Pointer Listeners (hover / press) with On Pointer Enter → Set input hover = true and On Pointer Exit → Set input hover = false." />
+
+Lite hit-tests against the real shape of the button node, so a round `hit` responds only inside the circle. It shows a pointer cursor while over it. **On Pointer Down** and **On Pointer Up** work the same way, for press feedback.
+
+A UI Button's own look also works in Lite: the **Normal**, **Highlighted** and **Pressed** colours tint the node (and its children with **Tint children**), and **Hover scale** and **Press scale** scale it, easing over **Fade** seconds. Use these for simple buttons; use a hover layer when you want designed motion.
+
+## 7. Click with On Click
+
+A UI Button comes with **On Click (Events)**. Add actions there:
+
+| Action | In Lite |
+|---|---|
+| **Toggle input (Bool)** | Flips a Bool input. The heart, menu and theme use it, so they work with no page code. |
+| **Set input** | Sets an input to a value. |
+| **Fire trigger** | Fires a Trigger. `bell`, `copy` and `toasty` use it. |
+| **Set property** | Sets a scene property. For numbers, `+1` and `-1` add to the current value. |
+| **Call script function** | Sends the page an event. The function name becomes the event `name`, and the argument becomes its `payload`. `bell` sends `open`, `copy` sends `copy`, `download` sends `download`. |
+| **Show**, **Hide**, **Toggle visible** | Shows or hides this node or another one. |
+
+A click runs when the pointer is released over the button while pressed. Other actions, such as **Load scene**, **Play sound** or setting component fields, are exported as unsupported and do nothing in Lite.
+
+<Shot id="lite-on-click" caption="Inspector for the heart's hit shape: On Click (Events) with one action, Toggle input (Bool) liked." />
+
+## 8. Properties and bindings
+
+Properties are the values a page sets with `data` or `player.set`. Add them with nothing selected, in the Inspector's **Properties** section (**+ Number**, **+ Bool**, **+ Text**, **+ Color**), then bind nodes to them with **Add Component → Events & Data → Property Binding**:
+
+| Goal | Property | Binding target | Example |
+|---|---|---|---|
+| Theme the lines | `ink` (Color) | **Stroke colour** on each stroke | All components with `ink` |
+| Show progress | `progress` (Number, 0 to 1) | **StrokeStyle2D › trimEnd** | The ring in `download` |
+| Show a count | `count` (Number) | **Text**, with a format such as `{}` | A badge with a number |
+| Show or hide a part | `pro` (Bool) | **Visible** | A badge on a plan icon |
+| Move or rotate a part | `level` (Number) | **Position X**, **Rotation** and others, with × and + | A gauge needle |
+
+A binding sets its value only while no animation track drives that value in the current frame, the same precedence as the engine. While a state keyframes a bound value, the keyframes show; when no track drives it, the binding applies. See [Theming](./theming.mdx#authoring-an-ink-able-icon) for building an `ink` icon step by step.
+
+## 9. Export
+
+Choose **Export → Animation → Toasty Lite (.json)** and pick where to save. The export writes the scene that is open.
+
+If the scene uses anything Lite can't play, an alert lists up to 12 items under "Exported. Toasty Lite left out what needs the full engine:". The complete list is saved in the file's `skipped` array, so you can check it later:
+
+```js
+const file = await fetch('/toasty/lite/bookmark.json').then((r) => r.json())
+console.log(file.skipped)
+```
+
+<Shot id="lite-export-alert" caption="The alert after Export → Animation → Toasty Lite (.json) on a scene with a particle system and a script: 'Exported. Toasty Lite left out what needs the full engine:' followed by bullet items." />
+
+## What gets skipped
+
+The export reports these in `skipped`:
+
+| Skipped | Reported as |
+|---|---|
+| Image, particle system, tilemap and component instance nodes | The node name and its kind; it exports as an empty group, so its children still draw |
+| Any component other than Stroke Style, UI Button, On Click, Pointer Listeners, Property Binding and Camera | The node name and the component |
+| A state's Code program | The state name |
+| Keyframes on fields Lite doesn't draw | The animation name and the field |
+| Motion path tracks | The animation name |
+
+Lite also ignores some things without reporting them:
+
+- layer masks (see [Layers in Lite](#layers-in-lite));
+- every state machine after the first;
+- blend states: a state plays its own animation;
+- **Allow exit during transition**: in Lite, any transition can interrupt a crossfade;
+- a UI Button's **Disabled** colour, **Multiplier** and **Sprite Swap** images;
+- On Click and Pointer Listeners actions other than those in the table above;
+- bindings to component fields other than Stroke Style's trim and dash offset.
+
+## Checklist
+
+Before you export:
+
+- [ ] The scene contains only shapes, groups and text.
+- [ ] Every line that should follow the page's theme is bound to `ink` with **Stroke colour**.
+- [ ] The state machine's inputs have the names the page will use.
+- [ ] Every state's animation keys every value that differs from the other states.
+- [ ] Layer animations touch only that layer's nodes.
+- [ ] Interactive icons have an invisible `hit` shape with a UI Button.
+- [ ] A hover layer, if any, is driven by a `hover` Bool, so pages can also drive it from their own controls.
+
+## Related
+
+- [Shapes and paths](../editor/shapes-and-paths.mdx)
+- [Animation timeline](../editor/animation-timeline.mdx)
+- [State machines](../editor/state-machines.mdx)
+- [Properties and bindings](../editor/properties-and-bindings.mdx)
+- [UI components](../components/ui-components.mdx)
+- [Exporting](../editor/exporting.mdx)

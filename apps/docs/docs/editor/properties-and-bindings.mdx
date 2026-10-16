@@ -19,9 +19,29 @@ description: Give a scene named, typed properties, show them on nodes with Prope
 
 The idea is Rive's "view model": design the data once, then wire the visuals to it.
 
-Try it: this button's `count` and `liked` are scene properties, bound to its text and look. The page can set them too.
+The Toasty Lite icons on this site use a Color property for exactly this. Each one has an `ink` property bound to its line colour with a **Stroke colour** binding, so a page can recolour the icon by setting one value. Pick a colour:
 
-<ToastyDemo game="/games/like-button.teab" height={260} data={{ count: 128 }} caption="like-button.teab: count (Number) and liked (Bool) are scene properties; clicking toggles liked and sends a like event with both values." />
+```jsx live
+function InkPicker() {
+  const swatches = ['#1c1c21', '#2563eb', '#16a34a', '#d97706', '#db2777']
+  const [ink, setInk] = React.useState(swatches[1])
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        {['heart', 'menu', 'bell', 'copy', 'download'].map((name) => (
+          <Lite key={name} src={name} ink={ink} label={name} style={{ width: 56, height: 56 }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {swatches.map((c) => (
+          <button key={c} onClick={() => setInk(c)} aria-label={c}
+            style={{ width: 28, height: 28, borderRadius: 14, background: c, border: c === ink ? '3px solid var(--ifm-color-emphasis-500)' : '1px solid var(--ifm-color-emphasis-300)' }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+```
 
 ## Adding properties
 
@@ -44,7 +64,7 @@ Properties belong to the scene they're defined in.
 ### How values behave at runtime
 
 - Every **Play**, and every **scene switch**, starts each property again from its starting value.
-- Values keep their type: writing `"3"` to a Number property stores the number `3`. That's what makes HTML inputs and page data "just work".
+- Values keep their type: writing `"3"` to a Number property stores the number `3`, so HTML inputs and page data need no conversion.
 - Writing to a property that doesn't exist is reported in the Console.
 
 ## Property Binding: showing properties on nodes
@@ -54,17 +74,21 @@ Add **Add Component → Events & Data → Property Binding** to a node, then cli
 | Field | What it does |
 |---|---|
 | **Property…** | Which scene property. |
-| Target | What it drives: **Text**, **Position X**, **Position Y**, **Rotation**, **Scale**, **Scale X**, **Scale Y**, **Visible**, **Fill colour**, or any field of the node's components (for example a light's intensity). |
+| Target | What it drives: **Text**, **Position X**, **Position Y**, **Rotation**, **Scale**, **Scale X**, **Scale Y**, **Visible**, **Fill colour**, **Stroke colour**, or any field of the node's components (for example a light's intensity, or a Stroke Style's trim end). |
 | Format | For Text: how to show the value, `{}` standing for it, e.g. `Score: {}`. Empty shows just the value. |
 | × and + | For numbers: multiply by, then add, before applying. For example, health 0–100 → a bar's **Scale X** with × `0.01`. |
 
 Bindings apply every frame while the game runs. A **Visible** binding shows the node while the value is truthy. A node can have many bindings.
+
+**Stroke colour** drives the line colour of the node's own shape stroke, so it needs a Color property and a shape that has a stroke. It does not reach into children: in a line icon made of several strokes, add the binding to each stroke node. This is how a page themes an icon: bind every line to an `ink` property, then set `ink` from the page (Toasty Lite's `ink` attribute does this for you and follows light and dark mode; see [Theming](../runtimes/theming.mdx)).
 
 ```text
 score (Number)   → Text        format "Score: {}"
 health (Number)  → Scale X     × 0.01  + 0
 isNight (Bool)   → Visible
 accent (Color)   → Fill colour
+ink (Color)      → Stroke colour
+progress (Number) → StrokeStyle2D › trimEnd
 ```
 
 ## On Click events
@@ -77,10 +101,16 @@ Click **+ Add action** to add a step. Each step has a **target** (**This node** 
 |---|---|
 | Node | **Show**, **Hide**, **Toggle visible**, **Set x**, **Set y**, **Set rotation**, **Set scaleX**, **Set scaleY**, **Set text**, **Set fillColor** |
 | A component on the target | Its methods (**Emit particles**, **Burst particles**, **Play** / **Stop** a sound, **Shake** / **Regrow** a tree, **Mend (reset)** a cloth, **Add impulse** to a rigidbody, **Toggle** a UI toggle…) and **Set** any of its fields |
-| State machine | **Fire trigger**, **Set input** (shown when the scene's state machines have inputs) |
+| State machine | **Fire trigger**, **Set input**, **Toggle input (Bool)** (shown when the scene's state machines have inputs) |
 | Scene | **Set property**, **Load scene**, **Play sound**, **Call script function** |
 
 Rows can be reordered with the up/down arrows and removed with ×.
+
+**Toggle input (Bool)** flips a Bool state machine input each time it runs, like Rive's toggle listener. One action makes a like button, a menu button or a theme switch: the first click sets `liked` to `true`, the second sets it back to `false`. The same actions are available in [Pointer Listeners](../components/pointer-listeners.mdx), which run on pointer enter, exit, down and up instead of on click.
+
+:::note Actions in Toasty Lite
+A file exported for [Toasty Lite](../runtimes/lite.mdx) keeps **Set input**, **Fire trigger**, **Toggle input (Bool)**, **Set property**, **Show**, **Hide** and **Toggle visible**. **Call script function** becomes an event the page receives (`toasty:event`). Other actions need the full engine and do nothing in Lite.
+:::
 
 ### Values
 
@@ -90,6 +120,7 @@ Rows can be reordered with the up/down arrows and removed with ×.
 | Set text | the new text |
 | Set a component field | JSON: `3`, `true`, `"text"`, `[1,0,0,1]` |
 | Set input | `true`, `3`, `Run` |
+| Toggle input (Bool) | no value; pick a Bool input |
 | **Set property**, Number | `5` sets it; `+1` or `-1` adds to it |
 | **Set property**, Bool | `true`, `false`, or `!` to flip it |
 | **Call script function** | the function name, plus an optional argument |
@@ -125,7 +156,7 @@ See [Props and data](../scripting/props-and-data.mdx).
 
 ## Properties and the web page
 
-When your game is embedded, page data flows straight into properties: `player.set('count', 5)` (or React `data={{ count: 5 }}`) writes `ctx.data.count` **and** the scene property named `count`. Changes the game makes are reported back with `prop` events. That's what lets a React app and a Toasty widget share state without glue code. See [Data binding](../embedding/data-binding.mdx).
+When your game is embedded, page data flows straight into properties: `player.set('count', 5)` (or React `data={{ count: 5 }}`) writes `ctx.data.count` **and** the scene property named `count`. Changes the game makes are reported back with `prop` events. A React app and a Toasty file can therefore share state without glue code. See [Data binding](../embedding/data-binding.mdx).
 
 ## Choosing between properties, inputs and globals
 
@@ -142,4 +173,6 @@ When your game is embedded, page data flows straight into properties: `player.se
 - [Props and data (scripting)](../scripting/props-and-data.mdx)
 - [HTML UI](../components/html-ui.mdx)
 - [UI components](../components/ui-components.mdx)
+- [Pointer Listeners](../components/pointer-listeners.mdx)
+- [Toasty Lite runtime](../runtimes/lite.mdx)
 - [Data binding (embedding)](../embedding/data-binding.mdx)

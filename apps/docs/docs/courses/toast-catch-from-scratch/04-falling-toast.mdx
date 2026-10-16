@@ -1,0 +1,80 @@
+---
+title: 4. Falling toast
+sidebar_position: 4
+description: Spawn slices from a fixed pool of six nodes, speed the game up with the score and page data, and let gravity, spin and colour bring each slice to life.
+---
+
+# 4. Falling toast
+
+**Goal:** slices of toast appear at random places above the frame, fall faster and faster under gravity, spin as they go, and a quarter of them are burnt. They don't interact with the plate yet; they fall past it and are recycled.
+
+## An object pool
+
+The scene has exactly six toast nodes. The program keeps a matching list, `g.toasts`, of plain objects: one per slice in play, with its position, speed and whether it is burnt. Entry `i` in the list is drawn by node `toast` + `i`.
+
+When a slice is caught or falls off the bottom, its entry is marked `live: false`. The next spawn reuses the first dead entry instead of adding a new one. So the list never grows past six, and no node is ever created or destroyed while the game runs. That is an **object pool**, and it is the usual way to handle bullets, coins, enemies and particles in a game loop.
+
+## Steps
+
+Add this to the play branch, after the plate code:
+
+```js title="Toast Catch, step 3 of 4: spawning and falling"
+  // Spawn a slice now and then — faster as the score climbs.
+  const speed = (Number(ctx.data.speed) || 1) * (1 + ctx.props.score / 40)
+  g.spawnIn -= dt
+  if (g.spawnIn <= 0 && g.toasts.filter((t) => t.live).length < POOL) {
+    g.spawnIn = 0.9 / speed + Math.random() * 0.4
+    const free = g.toasts.find((t) => !t.live) || (g.toasts.push({}), g.toasts[g.toasts.length - 1])
+    Object.assign(free, { x: -260 + Math.random() * 520, y: 210, vy: 0, burnt: Math.random() < 0.25, live: true, spin: (Math.random() - 0.5) * 200 })
+  }
+
+  // Fall.
+  g.toasts.forEach((t, i) => {
+    const node = get('toast' + i)
+    if (!t.live) { node.visible = false; return }
+    t.vy -= 520 * speed * dt
+    t.y += t.vy * dt
+    if (t.y < -200) t.live = false
+    node.visible = t.live
+    node.x = t.x
+    node.y = t.y
+    node.rotation += t.spin * dt
+    node.fillColor = t.burnt ? [0.22, 0.15, 0.11, 1] : [0.97, 0.76, 0.38, 1]
+  })
+```
+
+Start Playground and watch the slices rain down.
+
+## How it works
+
+### Spawning
+
+| Code | Meaning |
+|---|---|
+| `Number(ctx.data.speed) \|\| 1` | A speed multiplier the embedding page can pass in, 1 when it doesn't. `ctx.data` holds values from the page; see [Props and data](../../scripting/props-and-data.mdx). |
+| `* (1 + ctx.props.score / 40)` | Difficulty: at 40 points everything is twice as fast, at 80 three times. |
+| `g.spawnIn -= dt` | A countdown in seconds. When it reaches 0, a slice spawns and the countdown restarts. |
+| `0.9 / speed + Math.random() * 0.4` | The next gap: 0.9 s at normal speed, shorter as the game speeds up, plus up to 0.4 s of randomness so the rhythm is not mechanical. |
+| `.filter((t) => t.live).length < POOL` | Never more than six slices at once, because there are six nodes. |
+| `g.toasts.find((t) => !t.live) \|\| (…push…)` | Reuse a dead entry, or add a new one while the list is shorter than six. The comma expression pushes an empty object and then evaluates to it. |
+| `x: -260 + Math.random() * 520` | Anywhere between −260 and 260, so a slice is always reachable by the plate. |
+| `y: 210` | Just above the top edge at 180, so it slides into view. |
+| `burnt: Math.random() < 0.25` | One slice in four is burnt. |
+| `spin: (Math.random() - 0.5) * 200` | Between −100 and 100 degrees per second, each slice its own. |
+
+### Falling
+
+- **Gravity is acceleration.** Each frame `vy` (vertical speed) decreases by `520 * speed * dt`, and `y` moves by `vy * dt`. That is a constant downward acceleration of 520 units per second per second at normal speed, so each slice starts slowly and falls faster.
+- **Recycling at the bottom.** Below y −200 a slice is off-screen, so it is marked dead and its node hidden. Its entry is free for the next spawn.
+- **Writing the node.** Position, rotation and visibility come from the entry every frame. `rotation` is in degrees and accumulates, so each slice keeps turning.
+- **Colour is the burnt flag.** `fillColor` takes `[r, g, b, a]` from 0 to 1. Because nodes are reused, a node that was burnt last time must be set back to toast colour, which is why the program writes the colour every frame rather than once.
+
+## Check your work
+
+- Slices appear at different horizontal positions and never more than six at a time.
+- Roughly one in four is dark brown.
+- Each slice spins at its own speed and accelerates as it falls.
+
+## Next
+
+[5. Catch, score and game over](./05-catch-score-lives.mdx): the plate catches, the score climbs, and the lives run out.

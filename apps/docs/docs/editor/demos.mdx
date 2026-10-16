@@ -1,80 +1,35 @@
 ---
 title: Demos
 sidebar_position: 14
-description: The built-in demo games and labs in the + menu — what each one shows off, how loading one affects your document, and how to learn from them.
+description: The built-in demo scenes in the + menu, what loading one does to your document, and how to study one.
 ---
 
 # Demos
 
-Toasty ships with a library of finished games and feature labs. They're the best way to see what the engine can do, and every one of them is made from the same nodes, components, state machines and scripts you use yourself, so you can open them up and take them apart.
+The editor includes a set of built-in demo scenes under **+ → Demos** in the top toolbar: small games and single-feature labs for physics, particles, lighting, UI, 3D and more. Each one is built from the same nodes, components, state machines and scripts you use yourself, so you can open it and read how it works.
 
-Find them under **+ → Demos** in the top toolbar.
-
-<Shot id="demos-menu" caption="The + menu with the Demos submenu open, listing Demo Scene, Geometry Dash, Ninja Adventure, Dungeon Royale, Crown Match and the rest." />
+These docs do not walk through the built-in demos. For worked examples, use the [use cases](../use-cases/index.mdx), the two documented [games](../games/index.mdx), and the [courses](../courses/index.mdx).
 
 ## What loading a demo does
 
-- Most demos **add their own scene(s)** to the document you have open, switch to it, and start **Playground** right away. Press **Design** to stop and look inside.
-- Two demos build into the scene you have open instead of adding a new one: **Demo Scene** (imports a rocket and an animation into the current scene) and **Geometry Dash** (builds its level into the current scene).
-- Demos with big art (images, 3D models, avatars) can take a moment to load.
+- Most demos **add their own scenes** to the document you have open, switch to the first one, and start **Playground**. Press **Design** to stop and inspect it.
+- A few build into the scene you have open instead of adding a new one.
+- Demos with large assets (images, 3D models, avatars) take a moment to load.
 
 :::caution Demos and your project
-A demo's scenes become part of the document like any scene you made. If a project is open, they're **autosaved into it**. When you're done exploring, delete the demo's scenes from the **Scene** picker (trash button), or explore demos in a separate project made for the purpose. See [Projects and saving](../getting-started/projects-and-saving.mdx#replacing-the-document).
+A demo's scenes become part of the document like any scene you made. If a project is open, they are **autosaved into it**. When you are done, delete the demo's scenes from the **Scene** picker (trash button), or explore demos in a separate project. See [Projects and saving](../getting-started/projects-and-saving.mdx#replacing-the-document).
 :::
 
-## How to learn from a demo
+## How to study a demo
 
 1. Load it and play it.
-2. Press **Design**. Use the **Scene** picker to see all the scenes it added.
-3. Click around the **Layers** panel and read each node's components in the **Inspector**.
-4. Open the **State Machine** tab: most demos run their game logic from a Programmable State. Double-click a state with a ▸ badge to read its code, or switch to **Code** mode to browse every scene script in one place.
+2. Press **Design**. Use the **Scene** picker to see every scene it added.
+3. Select nodes in the **Layers** panel and read their components in the **Inspector**.
+4. Open the **State Machine** tab. Most demos run their logic from a Programmable State: double-click a state with a ▸ badge to read its code, or switch to **Code** mode to browse every scene script.
 5. Change something and press **Playground** again.
-
-## The demo list
-
-### Games
-
-| Demo | What it is | Shows off |
-|---|---|---|
-| **Geometry Dash** | Auto-runner: Space to jump, hit a spike and you respawn at the start, reach the end to get launched into the wall. | A Blocks program in a state machine |
-| **Ninja Adventure** | Top-down exploration with a village and a house to walk between, built from the CC0 Ninja Adventure asset pack. | Two scenes and `ctx.loadScene`, `ctx.globals` surviving scene switches, grid-sliced sprite sheets |
-| **Dungeon Royale** | Clash Royale meets dungeon crawler: drag cards from your hand into the dungeon to deploy troops, buildings and spells against waves of monsters. Every run is randomly generated. | A large scripted game, pixel-art asset pack, scripted menus |
-| **Crown Match (match-3)** | A royal match-3 puzzle game: a home screen, a 20-level map, and the board, all vector shapes with no images. | Several scenes, shape-only art, scripted UI |
-| **Ragdoll Torture** | A crash-test dummy ragdoll in a lab full of hazards, with grab, punch, bomb, anvil and cannon tools and a PAIN score. | Ragdoll physics, prefabs (the dummy respawns from one) |
-| **Raycaster FPS** | A Wolfenstein-style first-person shooter built the way people do "3D" in Scratch: no 3D at all, just 80 vertical 2D strips and maths. | Script-driven rendering tricks |
-| **Ragdoll Arena** | Two bone-rigged puppets brawl in a lantern-lit cave. | Bones, live IK, ragdoll joints, sprite skinning, layered state machines |
-| **Fatal Clash (3D fighting)** | A Mortal Kombat-style 3D fighter with VRM avatars, ragdoll knockdowns, rounds and finishers, against the CPU or a second player. | VRM avatars, toon materials, 3D physics |
-| **Sunset Tactics (5v5)** | A top-down tactical shooter on a recreation of a classic map: pick an agent, use abilities and ultimates, against bots that play their roles. | Shadow-cast vision, AI, VRM agents |
-| **Shatterline (glass)** | A Smash Hit-style rail shooter: throw chrome balls to break real fracturing glass down an endless corridor. | Breakable glass, 3D |
-| **Voxel Craft** | A Minecraft/Minetest-style block sandbox: an endless generated world, first-person dig, build and fly, hotbar and creative inventory. | Voxel worlds, HTML UI |
-| **LAN Party (multiplayer)** | Toon blobs and host-owned coins over the local network: host on a port or join by address. | `ctx.net` multiplayer. Hosting needs the desktop app; see [Multiplayer](../components/multiplayer.mdx). |
-
-### Labs (one feature each)
-
-| Demo | Shows off |
-|---|---|
-| **Demo Scene** | An imported SVG rocket with a hover animation, opened in the Animate tab and playing. A gentle first look at the timeline. |
-| **Liquid Lab** | Liquid 2D: water with floating crates and a honey faucet; click to drop crates (Shift: stones). See [Goo and liquid](../components/goo-and-liquid.mdx). |
-| **UI & Sound Lab** | Anchored HUD text, a stack of UI Buttons, synthesized sounds on click. See [UI components](../components/ui-components.mdx) and [Audio](../components/audio.mdx). |
-| **Responsive Layout** | A page that reflows for phones and desktops (UI Layout, Show When, Responsive screen). See [Responsive layout](../components/responsive-layout.mdx). |
-| **HTML UI Lab** | HTML + CSS UI in a scene, wired by `data-trigger`, by script (`ref.dom`), and anchored in the world. See [HTML UI](../components/html-ui.mdx). |
-| **Physics Playground** | Rigidbody 2D, box/circle/capsule colliders and triggers, plus the script physics API. See [Physics 2D](../components/physics-2d.mdx). |
-| **Physics 3D Lab** | Rigidbody 3D and Collider 3D: a crate pyramid, a ramp, a trigger zone and a click-to-fire cannon. See [Physics 3D](../components/physics-3d.mdx). |
-| **3D Showroom** | Every 3D primitive on a lit stage, an orbit camera and moving point lights. See [3D basics](../components/3d-basics.mdx). |
-| **Tree Garden** | The Tree 2D component: every species growing in, swaying, shaken by clicks. |
-| **Reyna's Leer** | 3D particles (swirling bands, smoke, converging sparks) around a see-through shader-graph eye. See [Particles 3D](../components/particles-3d.mdx). |
-| **Goo Lab** | 2D particles as liquid (Particle Fluid 2D) steered by Particle Behaviours 2D. |
-| **Goo Shapes** | Goo 2D on text, shapes and particles: members of one group melt together. |
-| **Cloth Lab** | The Cloth 2D component: a flag, a curtain, a banner, a tearable sheet and a caped hero. |
-| **Toon Explosion** | A cartoon explosion from layered particle systems plus a starburst flash, comic words and screen shake. |
-| **Stress Test** | A scene that scales up on demand for profiling (Up/Down add or remove thousands of moving sprites). Press **F3** for the frame breakdown. |
-
-## The showcase games on this site
-
-The small widgets embedded throughout these docs (`like-button.teab`, `day-night.teab`, `mood-blob.teab` and friends) aren't in the Demos menu; they're examples made for the [Embedding](../embedding/overview.mdx) docs and [Courses](../courses/index.mdx).
 
 ## Related
 
 - [Interface tour](../getting-started/interface-tour.mdx)
 - [Scripting overview](../scripting/overview.mdx)
-- [Courses](../courses/index.mdx)
+- [Games](../games/index.mdx)

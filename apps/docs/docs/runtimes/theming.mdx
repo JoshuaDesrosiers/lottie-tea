@@ -1,0 +1,239 @@
+---
+title: Theming
+sidebar_position: 5
+description: Match Toasty Lite icons to your site's colours and light and dark themes with the ink property, ink="currentColor" and the Stroke colour binding.
+---
+
+# Theming
+
+A line icon should be drawn in the same colour as the text around it, and change when your site switches theme. Toasty Lite does this with an ordinary scene property, by convention called `ink`, that is bound to the colour of every line in the animation.
+
+<div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', margin: '1.5rem 0' }}>
+  <Lite src="heart" ink="auto" label="Like" style={{ width: 56, height: 56 }} />
+  <Lite src="menu" ink="auto" label="Menu" style={{ width: 56, height: 56 }} />
+  <Lite src="bell" ink="auto" label="Notifications" style={{ width: 56, height: 56 }} />
+  <Lite src="copy" ink="auto" label="Copy" style={{ width: 56, height: 56 }} />
+  <Lite src="arrow" ink="auto" label="Arrow" style={{ width: 56, height: 56 }} />
+  <span style={{ color: 'var(--t-muted)', fontSize: '0.9rem' }}>Switch this site between light and dark mode. The lines follow the text colour.</span>
+</div>
+
+## The ink property
+
+`ink` is a **Color** property in the scene. Each line in the icon has a **Property Binding** with the target **Stroke colour**, so setting `ink` repaints every line at once. Accent colours, such as the heart's red fill or the loader's amber arc, are not bound and stay as designed.
+
+Eight of the ten components have `ink`. Its default is a near-black, `[0.11, 0.11, 0.13, 1]`.
+
+| File | What `ink` colours |
+|---|---|
+| `heart` | The heart outline |
+| `menu` | All three bars |
+| `status` | The ring |
+| `bell` | The bell, its knob and clapper |
+| `download` | The arrow and tray |
+| `copy` | Both sheets |
+| `arrow` | The shaft and head |
+| `loader` | The faint track (the arc is amber) |
+| `theme`, `toasty` | No `ink`: their colours are part of the design |
+
+## Setting ink
+
+| Where | Code |
+|---|---|
+| HTML | `<toasty-lite ink="#2563eb">` or `<toasty-lite ink="currentColor">` |
+| HTML, through data | `<toasty-lite data='{"ink": "#2563eb"}'>` |
+| JavaScript | `player.set('ink', '#2563eb')` or `player.set('ink', [0.15, 0.39, 0.92, 1])` |
+| React | `<ToastyLite ink="#2563eb" />`, or `<ToastyLite data={{ ink: '#2563eb' }} />` |
+
+The `ink` **attribute** accepts CSS colours that the browser reports as `rgb()`: names, hex in any length, `rgb()`, `hsl()` and `currentColor`. The element resolves the colour through the browser and converts it for you.
+
+:::note Wide-gamut colours
+Browsers can report colours written as `oklch()`, `lab()`, `color()` or `color-mix()` in that colour space instead of `rgb()`. The element can't convert those, and leaves `ink` unchanged. If your text colours use them, set `ink` to a hex value instead, or define an sRGB fallback for the icon's `color`.
+:::
+
+A colour **property** set directly (through `data`, `player.set` or React `data`) accepts only two formats:
+
+| Format | Example |
+|---|---|
+| Six-digit hex string | `'#2563eb'` |
+| Array of 0 to 1 values | `[0.15, 0.39, 0.92, 1]` (alpha optional) |
+
+Anything else, such as `'rgb(37, 99, 235)'`, `'#26e'` or `'royalblue'`, becomes white. Convert computed colours first (see [Properties](./javascript.mdx#properties)).
+
+## Following your site's theme
+
+`ink="currentColor"` paints the lines in the element's own text colour, read from where the element sits. An icon inside a dark card takes the card's text colour; an icon inside a link takes the link's colour.
+
+The element then keeps following the theme. It reads the colour again whenever:
+
+- the `class`, `data-theme` or `style` attribute of `<html>` changes, which covers most theme switchers (`<html class="dark">`, `<html data-theme="dark">`, CSS variables set on `document.documentElement.style`);
+- the system preference `prefers-color-scheme` changes.
+
+<LiveHTML
+  url="app.northwind.io/settings"
+  height={460}
+  caption="Switch between Light and Dark. The page only changes data-theme on <html>; every icon with ink=currentColor follows."
+  html={`<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<div class="panel">
+  <header>
+    <h1>Settings</h1>
+    <div class="icons" aria-hidden="true">
+      <toasty-lite id="theme-icon" src="/toasty/lite/theme.json"></toasty-lite>
+      <toasty-lite src="/toasty/lite/bell.json" ink="currentColor"></toasty-lite>
+      <toasty-lite src="/toasty/lite/menu.json" ink="currentColor"></toasty-lite>
+    </div>
+  </header>
+
+  <section>
+    <h2>Appearance</h2>
+    <p class="muted">Choose how Northwind looks on this device.</p>
+    <div class="segmented" role="radiogroup" aria-label="Theme">
+      <button type="button" role="radio" aria-checked="true" data-value="light">Light</button>
+      <button type="button" role="radio" aria-checked="false" data-value="dark">Dark</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Downloads</h2>
+    <div class="row">
+      <toasty-lite src="/toasty/lite/download.json" ink="currentColor" inputs='{"state": "downloading"}' data='{"progress": 0.7}'></toasty-lite>
+      <div><strong>Q3 revenue report.pdf</strong><div class="muted">1.7 of 2.4 MB</div></div>
+    </div>
+  </section>
+</div>`}
+  css={`body { display: grid; place-items: start center; padding: 20px 16px; transition: background .2s, color .2s; }
+.panel { width: min(100%, 440px); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 20px; border-bottom: 1px solid var(--line); }
+h1 { margin: 0; font-size: 18px; }
+.icons { display: flex; gap: 2px; }
+.icons toasty-lite { width: 36px; height: 36px; }
+section { padding: 16px 20px; }
+section + section { border-top: 1px solid var(--line); }
+h2 { margin: 0; font-size: 14px; }
+.muted { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.segmented { display: inline-flex; margin-top: 12px; padding: 3px; border-radius: 10px; background: var(--page); border: 1px solid var(--line); }
+.segmented button { height: 32px; padding: 0 16px; border: 0; border-radius: 7px; background: transparent; cursor: pointer; font-size: 14px; }
+.segmented [aria-checked="true"] { background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / .12); font-weight: 500; }
+.segmented button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 14px; }
+.row toasty-lite { width: 44px; height: 44px; }`}
+  js={`const root = document.documentElement
+const radios = document.querySelectorAll('[role=radio]')
+const themeIcon = document.querySelector('#theme-icon')
+
+function setTheme(value) {
+  root.dataset.theme = value
+  for (const radio of radios) radio.setAttribute('aria-checked', String(radio.dataset.value === value))
+  themeIcon.setAttribute('inputs', JSON.stringify({ dark: value === 'dark' }))
+}
+
+for (const radio of radios) radio.addEventListener('click', () => setTheme(radio.dataset.value))
+setTheme(root.dataset.theme === 'dark' ? 'dark' : 'light')`}
+/>
+
+### Colour from context
+
+Because `currentColor` is read from the element itself, the same markup works in light and dark surfaces of one page. Here, the featured plan's button has light text on a dark surface, and its arrow matches without any extra code:
+
+<LiveHTML
+  url="northwind.io/pricing"
+  height={420}
+  caption="Hover or Tab to a plan's button. Each arrow uses ink=currentColor and takes its button's text colour."
+  html={`<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<div class="plans">
+  <article class="plan">
+    <h2>Starter</h2>
+    <p class="price">$0 <span>per user / month</span></p>
+    <p class="muted">For small teams planning their first roadmap.</p>
+    <a class="cta" href="#starter">Start free <toasty-lite src="/toasty/lite/arrow.json" ink="currentColor"></toasty-lite></a>
+  </article>
+  <article class="plan featured">
+    <h2>Team</h2>
+    <p class="price">$12 <span>per user / month</span></p>
+    <p class="muted">Shared timelines, budgets and quarterly reviews.</p>
+    <a class="cta" href="#team">Start a trial <toasty-lite src="/toasty/lite/arrow.json" ink="currentColor"></toasty-lite></a>
+  </article>
+</div>`}
+  css={`body { padding: 24px 16px; }
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; max-width: 560px; margin: 0 auto; }
+.plan { display: flex; flex-direction: column; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.featured { background: #18181b; color: #f4f4f5; border-color: #18181b; }
+.featured .muted { color: #a1a1aa; }
+h2 { margin: 0; font-size: 15px; }
+.price { margin: 8px 0 0; font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+.price span { font-size: 13px; font-weight: 400; opacity: .7; letter-spacing: 0; }
+.muted { margin: 8px 0 20px; color: var(--muted); font-size: 14px; flex: 1; }
+.cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 2px; height: 42px;
+  border-radius: 10px; border: 1px solid currentColor; color: inherit; text-decoration: none; font-weight: 500;
+}
+.featured .cta { background: #f4f4f5; color: #18181b; border-color: #f4f4f5; }
+.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cta toasty-lite { width: 24px; height: 24px; pointer-events: none; }`}
+  js={`for (const link of document.querySelectorAll('.cta')) {
+  const arrow = link.querySelector('toasty-lite')
+  const hover = (on) => arrow.player?.setInput('hover', on)
+  link.addEventListener('pointerenter', () => hover(true))
+  link.addEventListener('pointerleave', () => hover(false))
+  link.addEventListener('focus', () => hover(true))
+  link.addEventListener('blur', () => hover(false))
+}`}
+/>
+
+### When the colour changes some other way
+
+`currentColor` is read again only on the changes listed above. If your theme changes in another way, set `ink` yourself:
+
+- the theme class is on `<body>` or on a container instead of `<html>`;
+- a CSS `:hover` rule changes the text colour of the surrounding link or button;
+- a stylesheet is swapped, or a CSS variable changes on an element other than `<html>`.
+
+```js
+/** Re-reads an element's text colour into its ink property. */
+function refreshInk(el) {
+  const [r, g, b, a = 1] = getComputedStyle(el).color.match(/[\d.]+/g).map(Number)
+  el.player?.set('ink', [r / 255, g / 255, b / 255, a])
+}
+
+document.body.classList.toggle('dark')
+document.querySelectorAll('toasty-lite[ink="currentColor"]').forEach(refreshInk)
+```
+
+If the colour animates with a CSS transition, call `refreshInk` on `transitionend` so you read the final colour, not one from the middle of the transition.
+
+## Brand colours and accents
+
+`ink` is only a convention. A scene can have as many Color properties as you like, bound to strokes with **Stroke colour** or to shapes with **Fill colour**, and a page sets them all the same way. For a file of your own with an `accent` property bound to a fill:
+
+```html
+<toasty-lite
+  src="/toasty/lite/your-badge.json"
+  ink="currentColor"
+  data='{"accent": "#e8590c"}'>
+</toasty-lite>
+```
+
+The colours you don't bind are fixed in the file. Choose accents that read on both light and dark backgrounds, such as mid-tone reds, ambers and greens, as the ten components do.
+
+## Authoring an ink-able icon
+
+To make your own icon follow the page's colour:
+
+1. **Add the property.** Click empty canvas so nothing is selected. In the Inspector's **Properties** section, click **+ Color**, name it `ink`, and set **Starts as** to the colour the icon should have when no page sets it, for example `[0.11, 0.11, 0.13, 1]`.
+2. **Bind each line.** Select a stroke shape. Choose **Add Component → Events & Data → Property Binding**, click **+ Bind a property**, pick `ink`, and set the target to **Stroke colour**. Repeat for every stroke node: a binding colours only its own node's stroke, not its children.
+3. **Bind fills if needed.** For a solid glyph, use the target **Fill colour** instead.
+4. **Leave accents unbound.** Keep coloured details, such as a red badge or a green check, on their own nodes without a binding.
+5. **Export** with **Export → Animation → Toasty Lite (.json)** and set `ink` from the page.
+
+:::note Bindings and keyframes
+A binding applies only while no animation track drives the same value. A line bound to `ink` follows the page in states that don't key its stroke colour, and shows the keyframed colour in states that do. The `status` ring works this way: it follows `ink` while idle and loading, and turns green or red on success or error.
+:::
+
+Test the icon with a very dark and a very light `ink` before you ship it, at the smallest size you plan to use.
+
+## Related
+
+- [Properties and bindings](../editor/properties-and-bindings.mdx): every binding target
+- [Authoring for Lite](./authoring.mdx): building the rest of the icon
+- [Theme switch](../use-cases/theme-switch.mdx): the `theme` component as a site's theme toggle

@@ -1,0 +1,83 @@
+---
+title: 5. Theme colour and export
+sidebar_position: 5
+description: Add an ink Color property, bind it to the outline's stroke colour so a web page can theme the heart, and export the scene as a Toasty Lite JSON file.
+---
+
+# 5. Theme colour and export
+
+**Goal:** the outline's line colour comes from a scene Property named `ink`, so a page can make the heart match its text colour in light and dark mode. Then you export the file.
+
+Pick a colour to see what `ink` does on the shipped heart:
+
+```jsx live
+function InkDemo() {
+  const inks = ['#1c1c21', '#2563eb', '#0f766e', '#9333ea']
+  const [ink, setInk] = React.useState(inks[0])
+  return (
+    <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+      <div style={{ padding: 12, borderRadius: 12, background: ink === '#1c1c21' ? '#f5f5f4' : '#ffffff' }}>
+        <Lite src="heart" ink={ink} label="Heart" style={{ width: 72, height: 72 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {inks.map((c) => (
+          <button key={c} onClick={() => setInk(c)} aria-label={'Ink ' + c}
+            style={{ width: 28, height: 28, borderRadius: 14, background: c, cursor: 'pointer',
+              border: c === ink ? '3px solid var(--ifm-color-emphasis-500)' : '1px solid var(--ifm-color-emphasis-300)' }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+Only the outline changes. The red fill, ring and rays are brand colours and stay fixed in every theme.
+
+## Steps
+
+### 1. Add the `ink` property
+
+1. Click empty canvas so nothing is selected.
+2. In the Inspector, under **Properties**, click **+ Color**. A property named `tint` appears.
+3. Rename it to `ink` (click the name, type, then click away).
+4. Set its starting value to `[0.11, 0.11, 0.13, 1]`. That is `#1C1C21`, the same ink colour the outline already has, written as red, green, blue and alpha from 0 to 1.
+
+### 2. Bind the outline's stroke colour
+
+1. Select `outline`.
+2. **Add Component → Events & Data → Property Binding**.
+3. Click **+ Bind a property**.
+4. In the first dropdown pick `ink`. In the second, under **Node**, pick **Stroke colour**.
+
+The outline now draws in whatever colour `ink` holds. Change the property's value in the Inspector to check, then set it back.
+
+<Shot id="course-heart-binding" caption="The outline node's Property Binding component: one binding row reading ink → Stroke colour; above it, the scene Properties list (nothing selected view) with ink as a Color property set to [0.11, 0.11, 0.13, 1]." />
+
+### 3. Export to Toasty Lite
+
+1. Open **Export** in the top toolbar and choose **Animation → Toasty Lite (.json)**.
+2. Save the file as `heart.json`. The suggested name comes from the scene name.
+
+Toasty Lite plays vector shapes, strokes with trim paths, groups, keyframed animation, the state machine, UI Buttons with On Click and Pointer Listeners, and Property Bindings. Everything in this scene is in that list. If a scene contains something Lite can't play, such as a script, physics, particles, images, 3D, audio or post effects, the export still succeeds and then shows an alert that lists what it left out. The same list is saved in the file under `skipped`.
+
+| You see | It means |
+|---|---|
+| No alert | Everything in the scene made it into the file. |
+| "Exported. Toasty Lite left out what needs the full engine:" and a list | Those items are missing from `heart.json`. Remove them from the scene, or use the [full engine](../../runtimes/lite-vs-engine.mdx) for this piece. |
+
+## How it works
+
+- **Properties are the component's public data.** Inputs drive the state machine; Properties hold values that bindings and pages read and write. A page sets `ink` through the `ink` attribute, `player.set('ink', …)`, or the `data` option. See [Theming](../../runtimes/theming.mdx).
+- **Animation wins over a binding.** A binding drives a value only while no animation track is driving it, in Toasty Lite and in the engine alike. If an animation keyed the outline's stroke colour, the page's `ink` would be ignored during that animation. That is why the heart never animates its outline colour: it leaves that to the page.
+- **Colours are four numbers.** The editor stores a Color property as `[r, g, b, a]` from 0 to 1. Pages can pass a `#rrggbb` string or a four-number array; the `<toasty-lite>` element also accepts any CSS colour in its `ink` attribute, including `currentColor`.
+- **Why `ink` and not a colour per state.** A single colour property, bound to every line that should follow the text colour, means one value themes the whole component. Every Lite component in these docs uses the same name, so one line of page code themes all of them.
+
+## Check your work
+
+- With nothing selected, the Inspector lists one property: `ink`, Color.
+- Changing `ink` to `[0, 0.4, 1, 1]` turns only the outline blue.
+- No alert appeared after the export, and the `skipped` list in `heart.json` is empty.
+
+## Next
+
+[6. Ship it in a real page](./06-ship-it.mdx): put the heart inside a like button in HTML, then in React.

@@ -1,0 +1,110 @@
+---
+title: 2. A theme switch
+sidebar_position: 2
+description: Add the theme icon to the header and wire it to the page theme, so the page owns light and dark mode and the icon shows it.
+---
+
+# 2. A theme switch
+
+**Goal:** a button in the header that switches the whole page between light and dark. The `theme` icon inside it plays the sun-to-moon animation.
+
+## Steps
+
+1. Add an actions area to the header with a `<button>` around the icon. The icon gets `pointer-events: none`: the button handles every click and key press.
+2. Add the JavaScript. A small `hoverInput` helper connects a button's hover and focus to an icon's `hover` input; you reuse it for every icon in this course.
+
+<LiveHTML
+  url="crumb.kitchen"
+  height={300}
+  html={`<header class="site-header">
+  <a class="brand" href="#" aria-label="Crumb home">
+    <toasty-lite class="mascot" src="/toasty/lite/toasty.json"></toasty-lite>
+    <span>Crumb</span>
+  </a>
+  <nav class="links" aria-label="Main">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#signup">Waitlist</a>
+  </nav>
+  <div class="actions">
+    <button class="icon-button theme" type="button" aria-label="Dark mode" aria-pressed="false">
+      <toasty-lite src="/toasty/lite/theme.json"></toasty-lite>
+    </button>
+  </div>
+</header>
+<main>
+  <section class="hero">
+    <h1>Plan a week of dinners in ten minutes.</h1>
+    <p>Crumb turns what is already in your fridge into five evenings you will actually cook, and one shopping list.</p>
+  </section>
+</main>`}
+  css={`.site-header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 24px; padding: 8px 16px 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.brand { display: flex; align-items: center; gap: 4px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+.mascot { width: 44px; height: 44px; }
+.links { display: flex; gap: 20px; }
+.links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+.links a:hover { color: var(--ink); }
+.hero { max-width: 680px; margin: 0 auto; padding: 48px 20px 28px; text-align: center; }
+.hero h1 { margin: 0 0 14px; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; letter-spacing: -0.03em; }
+.hero p { max-width: 500px; margin: 0 auto; color: var(--muted); font-size: 17px; }
+@media (max-width: 560px) { .links { display: none; } }
+.actions { margin-left: auto; display: flex; gap: 2px; }
+.icon-button { width: 44px; height: 44px; padding: 2px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer; }
+.icon-button:hover { background: var(--page); }
+.icon-button:focus-visible { outline: 2px solid var(--accent); }
+.icon-button toasty-lite { width: 40px; height: 40px; pointer-events: none; }`}
+  js={`// Pointer and keyboard focus both count as hover for an icon.
+function hoverInput(el, icon) {
+  const set = (value) => { if (icon.player) icon.player.setInput('hover', value) }
+  el.addEventListener('pointerenter', () => set(true))
+  el.addEventListener('pointerleave', () => set(false))
+  el.addEventListener('focus', () => set(true))
+  el.addEventListener('blur', () => set(false))
+}
+
+// Theme switch: the page owns the theme, the icon shows it.
+const root = document.documentElement
+const themeButton = document.querySelector('.theme')
+const themeIcon = themeButton.querySelector('toasty-lite')
+let dark = root.dataset.theme === 'dark'
+
+function applyTheme() {
+  root.dataset.theme = dark ? 'dark' : 'light'
+  themeButton.setAttribute('aria-pressed', String(dark))
+  themeIcon.setAttribute('inputs', JSON.stringify({ dark: dark }))
+}
+themeButton.addEventListener('click', () => { dark = !dark; applyTheme() })
+hoverInput(themeButton, themeIcon)
+applyTheme()`}
+  caption="The theme switch drives data-theme on the page; the icon shows the state."
+/>
+
+## How it works
+
+- **The page owns the theme.** The button's click flips `dark`, writes `data-theme` on `<html>` and sets the icon's `dark` input. Every CSS token switches with `data-theme`, so the whole page changes at once.
+- **The icon starts in the right state.** `applyTheme()` runs once at load and sets `inputs` before the icon has loaded. The element reads the attribute when it starts, so a page that opens in dark mode shows the moon without playing the animation.
+- **`aria-pressed`** tells assistive technology that this is a toggle and whether it is on. The label stays "Dark mode" in both states, which is the recommended pattern for toggle buttons.
+- **Hover through the player.** `hoverInput` calls `icon.player.setInput('hover', …)` directly instead of rewriting the `inputs` attribute, so it never overwrites the `dark` value the attribute carries. `player` is set once the icon is ready; before that, a hover is simply skipped.
+- **Remembering the choice.** On your own site, save the choice so it survives a reload, and read it before the first paint to avoid a flash:
+
+```js
+// In applyTheme(), after setting data-theme:
+try { localStorage.setItem('crumb.theme', dark ? 'dark' : 'light') } catch {}
+
+// At startup, before the first applyTheme():
+let saved = null
+try { saved = localStorage.getItem('crumb.theme') } catch {}
+let dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+```
+
+The live example leaves this out so it always starts in the docs' current theme.
+
+## Check your work
+
+- Clicking the icon switches the frame's page between light and dark, and the icon animates each time.
+- Tab to the button and press Space: the same happens, and a focus ring shows.
+- Switching the docs theme resets the frame to match.
+
+## Next
+
+[3. Arrow calls to action](./03-cta-arrows.mdx).

@@ -11,7 +11,7 @@ description: Start a Toasty game with createPlayer in any page, control it with 
 ## Start a player
 
 ```html
-<div id="game" style="width: 100%; height: 400px"></div>
+<div id="game" style="width: 100%; height: 360px"></div>
 
 <script type="module">
   import { createPlayer } from './an1mbyt3/an1mbyt3-embed.js'
@@ -30,15 +30,15 @@ The container is yours: any element with a size. The player adds its canvas insi
 
 ```js
 const player = await createPlayer(container, {
-  game: '/an1mbyt3/game.teab',       // required: URL, URL object, ArrayBuffer or Uint8Array
+  game: '/an1mbyt3/game.teab',             // required: URL, URL object, ArrayBuffer or Uint8Array
   wasm: '/an1mbyt3/an1mbyt3_wasm_bg.wasm', // default: next to `game` (required when `game` is bytes)
-  scene: 'Like',                     // start scene by name; default: the first scene
-  fit: 'contain',                    // 'contain' (letterbox, default) or 'cover' (fill + crop)
-  keyboard: 'focus',                 // 'focus' (default), 'window' or 'none'
-  data: { count: 128, liked: false },// starting data, same as calling set() for each
-  paused: false,                     // start paused
-  background: '#0b0d12',             // letterbox colour; default transparent
-  stats: false,                      // frame profiler overlay; F3 or ` toggles it too
+  scene: 'Toast Catch',                    // start scene by name; default: the first scene
+  fit: 'contain',                          // 'contain' (letterbox, default) or 'cover' (fill + crop)
+  keyboard: 'focus',                       // 'focus' (default), 'window' or 'none'
+  data: { speed: 1 },                      // starting data, same as calling set() for each
+  paused: false,                           // start paused
+  background: '#0b0d12',                   // letterbox colour; default transparent
+  stats: false,                            // frame profiler overlay; F3 or ` toggles it too
 })
 ```
 
@@ -47,27 +47,29 @@ Every option is described in the [API reference](./api-reference.mdx#createplaye
 ## Control it
 
 ```js
-player.set('count', 200)                   // data: ctx.data.count + Property "count"
-player.setData({ count: 200, liked: true }) // several at once
-player.get('count')                        // the Property's current value
+player.set('speed', 1.5)                   // data: ctx.data.speed (+ Property "speed" if the scene has one)
+player.setData({ speed: 1.5, name: 'Ada' }) // several at once
+player.get('score')                        // a scene Property's current value
 
-player.setInput('isNight', true)           // Bool / Number / Enum input
-player.fire('burst')                       // a Trigger
-player.loadScene('House')                  // switch scene after this frame
-player.call('reset', { level: 1 })         // a function the game registered with ctx.on
+player.setInput('paused', true)            // a Bool / Number / Enum state machine input
+player.fire('restart')                     // a Trigger input
+player.loadScene('Level 2')                // switch scene after this frame
+player.call('start', { level: 1 })         // a function the game registered with ctx.on
 
 player.pause()
 player.play()
 player.destroy()                           // stop, remove the canvas, free the engine
 ```
 
+The input, trigger, scene and function names above are examples; use the names your game defines. Your export's `AGENTS.md` and `an1mbyt3.json` list them.
+
 And read where it is:
 
 ```js
-player.scenes       // ['Village', 'House']
-player.scene        // 'Village'
-player.state        // base layer's current state, e.g. 'Idle' (null without a state machine)
-player.layerStates  // { Eyes: 'Blink', … } for extra state machine layers
+player.scenes       // ['Toast Catch']
+player.scene        // 'Toast Catch'
+player.state        // base layer's current state, e.g. 'Play' (null without a state machine)
+player.layerStates  // { Hover: 'Rest', … } for extra state machine layers
 player.paused       // true / false
 player.canvas       // the <canvas>
 player.container    // the element you passed in
@@ -78,17 +80,17 @@ Here is the same player object driven live. In React the docs' `ToastyPlayer` ex
 ```jsx live
 function PlayerObject() {
   const ref = React.useRef(null)
-  const [out, setOut] = React.useState('click the card to start, then try the buttons')
-  const show = (label, value) => setOut(`${label} → ${JSON.stringify(value)}`)
+  const [out, setOut] = React.useState('Start the game, then try the buttons.')
+  const show = (label, value) => setOut(label + ' → ' + JSON.stringify(value))
   const p = () => ref.current
   return (
     <div>
-      <ToastyPlayer ref={ref} game="/games/like-button.teab" style={{ height: 220 }} />
+      <ToastyPlayer ref={ref} game="/games/toast-catch.teab" style={{ height: 300 }} />
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-        <button onClick={() => p()?.set('count', Math.floor(Math.random() * 1000))}>set('count', random)</button>
-        <button onClick={() => p()?.set('liked', !p()?.get('liked'))}>toggle 'liked'</button>
-        <button onClick={() => show("get('count')", p()?.get('count'))}>get('count')</button>
-        <button onClick={() => p()?.fire('burst')}>fire('burst')</button>
+        <button onClick={() => p()?.set('speed', 2)}>set('speed', 2)</button>
+        <button onClick={() => p()?.set('speed', 1)}>set('speed', 1)</button>
+        <button onClick={() => show("get('score')", p()?.get('score'))}>get('score')</button>
+        <button onClick={() => show("get('lives')", p()?.get('lives'))}>get('lives')</button>
         <button onClick={() => show('state', p()?.state)}>state</button>
         <button onClick={() => show('scenes', p()?.scenes)}>scenes</button>
         <button onClick={() => (p()?.paused ? p()?.play() : p()?.pause())}>pause / play</button>
@@ -103,32 +105,35 @@ function PlayerObject() {
 
 ```js
 const off = player.on('event', ({ name, payload }) => {
-  if (name === 'like') console.log('now', payload.count)
+  if (name === 'gameover') console.log('final score', payload.score)
 })
+player.on('prop', ({ name, value }) => console.log('game set', name, value))   // e.g. lives → 2
 player.on('state', ({ layer, state, previous }) => console.log(layer ?? 'base', previous, '→', state))
-player.on('prop', ({ name, value }) => console.log('game set', name, value))
 player.on('scene', ({ scene, previous }) => console.log('scene', previous, '→', scene))
 player.on('error', ({ error }) => console.error(error))
 
 off()                        // on() returns an unsubscribe function
 player.off('event', handler) // or remove a named handler
 
-await player.waitForState('Liked')  // resolves when the base layer is in 'Liked'
+await player.waitForState('Play')  // resolves when the base layer is in 'Play'
 ```
 
 The starting state is not sent as a `state` event; read `player.state` right after `createPlayer` resolves, then subscribe. More in [Listening to the game](./listening.mdx).
 
 ### DOM events
 
-Every player event is also dispatched as a DOM `CustomEvent` named `an1:<type>` on the container, with the payload in `detail`. Handy when another part of your page, which doesn't hold the player object, wants to know:
+Every player event is also dispatched as a DOM `CustomEvent` named `an1:<type>` on the container, with the payload in `detail`. The events **bubble**, so another part of your page that doesn't hold the player object can listen on the container or on any ancestor:
 
 ```js
-const box = document.getElementById('game')
-box.addEventListener('an1:state', (e) => console.log(e.detail.state))
-box.addEventListener('an1:event', (e) => console.log(e.detail.name, e.detail.payload))
+document.addEventListener('an1:event', (e) => {
+  if (e.detail.name === 'gameover') showLeaderboard(e.detail.payload.score)
+})
+document.getElementById('game').addEventListener('an1:prop', (e) => {
+  if (e.detail.name === 'lives') livesEl.textContent = e.detail.value
+})
 ```
 
-These events don't bubble, so listen on the container itself. `an1:ready` is dispatched before `createPlayer` resolves, so add that listener *before* calling `createPlayer`.
+`an1:ready` is the exception: it doesn't bubble, and it is dispatched before `createPlayer` resolves, so add that listener to the container itself *before* calling `createPlayer`.
 
 ## Loading and errors
 
@@ -138,12 +143,12 @@ These events don't bubble, so listen on the container itself. `an1:ready` is dis
 try {
   const player = await createPlayer(box, { game: '/an1mbyt3/game.teab' })
 } catch (err) {
-  box.textContent = 'The animation could not load.'
+  box.textContent = 'The game could not load.'
   console.error(err) // e.g. "couldn't load /an1mbyt3/game.teab (404)"
 }
 ```
 
-Show a placeholder while it loads (the engine is the big part of the download), for example a CSS background on the container or a spinner you remove after `await`.
+Show a placeholder while it loads (the engine is the big part of the download), for example a poster image as the container's CSS background, or a spinner you remove after `await`. A [Toasty Lite loader](../use-cases/loading-states.mdx) works well here, since Lite starts instantly.
 
 After it starts, a frame that throws is skipped and reported through `on('error')`; the game keeps running.
 
@@ -155,28 +160,28 @@ Only one player runs per page: calling `createPlayer` again destroys the previou
 
 ## Vue 3
 
-```vue title="ToastyGame.vue"
+```vue title="ToastCatch.vue"
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { createPlayer, type An1Player } from './an1mbyt3/an1mbyt3-embed.js'
 
-const props = defineProps<{ count: number }>()
-const emit = defineEmits<{ like: [count: number] }>()
+const props = defineProps<{ speed: number }>()
+const emit = defineEmits<{ gameover: [score: number] }>()
 const box = ref<HTMLDivElement | null>(null)
 let player: An1Player | null = null
 let cancelled = false
 
 onMounted(async () => {
-  const p = await createPlayer(box.value!, { game: '/an1mbyt3/game.teab', data: { count: props.count } })
+  const p = await createPlayer(box.value!, { game: '/an1mbyt3/game.teab', data: { speed: props.speed } })
   if (cancelled) return p.destroy()
   player = p
   player.on('event', (e) => {
-    if (e.name === 'like') emit('like', (e.payload as { count: number }).count)
+    if (e.name === 'gameover') emit('gameover', (e.payload as { score: number }).score)
   })
 })
 
 // Props → game. set() is cheap; call it on every change.
-watch(() => props.count, (count) => player?.set('count', count))
+watch(() => props.speed, (speed) => player?.set('speed', speed))
 
 onBeforeUnmount(() => {
   cancelled = true
@@ -185,7 +190,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="box" style="height: 320px" />
+  <div ref="box" style="height: 360px" />
 </template>
 ```
 
@@ -193,21 +198,21 @@ In Nuxt, wrap it in `<ClientOnly>` (the player can't run on the server).
 
 ## Svelte 5
 
-```svelte title="ToastyGame.svelte"
+```svelte title="ToastCatch.svelte"
 <script lang="ts">
   import { onMount } from 'svelte'
   import { createPlayer, type An1Player } from './an1mbyt3/an1mbyt3-embed.js'
 
-  let { count = 128, onlike = (n: number) => {} } = $props()
+  let { speed = 1, ongameover = (score: number) => {} } = $props()
   let box: HTMLDivElement
   let player: An1Player | null = $state(null)
 
   onMount(() => {
     let cancelled = false
-    createPlayer(box, { game: '/an1mbyt3/game.teab', data: { count } }).then((p) => {
+    createPlayer(box, { game: '/an1mbyt3/game.teab', data: { speed } }).then((p) => {
       if (cancelled) return p.destroy()
       player = p
-      p.on('event', (e) => e.name === 'like' && onlike((e.payload as { count: number }).count))
+      p.on('event', (e) => e.name === 'gameover' && ongameover((e.payload as { score: number }).score))
     })
     return () => {
       cancelled = true
@@ -215,42 +220,42 @@ In Nuxt, wrap it in `<ClientOnly>` (the player can't run on the server).
     }
   })
 
-  // Re-runs whenever `count` (or `player`) changes.
+  // Re-runs whenever `speed` (or `player`) changes.
   $effect(() => {
-    player?.set('count', count)
+    player?.set('speed', speed)
   })
 </script>
 
-<div bind:this={box} style="height: 320px"></div>
-<button disabled={!player} onclick={() => player?.fire('burst')}>Burst</button>
+<div bind:this={box} style="height: 360px"></div>
+<button disabled={!player} onclick={() => (player?.paused ? player.play() : player?.pause())}>Pause</button>
 ```
 
 `onMount` never runs during SvelteKit's server rendering, so no extra guard is needed.
 
 ## Angular
 
-```ts title="toasty-game.component.ts"
+```ts title="toast-catch.component.ts"
 import { Component, ElementRef, Input, OnChanges, OnDestroy, AfterViewInit, ViewChild } from '@angular/core'
 import { createPlayer, type An1Player } from './an1mbyt3/an1mbyt3-embed.js'
 
 @Component({
-  selector: 'toasty-game',
+  selector: 'toast-catch',
   standalone: true,
-  template: `<div #box style="height: 320px"></div>`,
+  template: `<div #box style="height: 360px"></div>`,
 })
-export class ToastyGameComponent implements AfterViewInit, OnChanges, OnDestroy {
+export class ToastCatchComponent implements AfterViewInit, OnChanges, OnDestroy {
   @ViewChild('box') box!: ElementRef<HTMLDivElement>
-  @Input() count = 128
+  @Input() speed = 1
   private player: An1Player | null = null
   private destroyed = false
 
   async ngAfterViewInit() {
-    const p = await createPlayer(this.box.nativeElement, { game: '/an1mbyt3/game.teab', data: { count: this.count } })
+    const p = await createPlayer(this.box.nativeElement, { game: '/an1mbyt3/game.teab', data: { speed: this.speed } })
     if (this.destroyed) return p.destroy()
     this.player = p
   }
   ngOnChanges() {
-    this.player?.set('count', this.count)
+    this.player?.set('speed', this.speed)
   }
   ngOnDestroy() {
     this.destroyed = true

@@ -13,6 +13,8 @@ Toasty has two ways to put a game on the web:
 | **Game → Web page (.html)** | One self-contained page. Runs in any browser, but it is a closed box. | You want to share a game as a link or upload it to itch.io. See [Exporting](../editor/exporting.mdx). |
 | **Game → Website embed (React / JS)** | A folder of files for *your* web project, with a JavaScript API to steer the game. | You want the game inside your own site, talking to your code. This page. |
 
+For UI animation (icons, buttons, loaders) that needs no scripts, export **Animation → Toasty Lite (.json)** instead and play it with [Toasty Lite](../runtimes/lite.mdx).
+
 ## Run the export
 
 1. Open the scene the embed should **start on** and make it the active scene. The export uses its name as the embed's title and as the start scene.
@@ -30,7 +32,7 @@ In the web editor the export writes to a real folder on your disk through the br
 ## What's in the folder
 
 ```text
-Like-embed/
+Toast-Catch-embed/
   README.md                     what it is and a quick start
   GUIDE.md                      a step-by-step guide for people
   AGENTS.md                     the API and rules for AI coding assistants
@@ -51,7 +53,7 @@ Like-embed/
 
 The two halves, `src/` and `public/`, mirror the root of a typical Vite, Next.js or Create React App project, so you can drag both folders straight into your project root.
 
-<Shot id="export-embed-folder" caption="The exported Like-embed folder open in a file explorer, src and public expanded" />
+<Shot id="export-embed-folder" caption="The exported Toast-Catch-embed folder open in a file explorer, src and public expanded" />
 
 ### The JavaScript files
 
@@ -72,35 +74,41 @@ These are fetched at run time, never imported. Don't `import` anything from `pub
 
 `README.md`, `GUIDE.md` and `AGENTS.md` are generated for **this game**: each ends with a "What … offers" section listing every scene, its Properties (with type and default), its state machine's states, the transitions between them and which call triggers each one, the inputs, the `ctx.data` keys its scripts read, the events it emits and the functions it registers.
 
-`an1mbyt3.json` is the same thing as data. Roughly:
+`an1mbyt3.json` is the same thing as data. For [Toast Catch](../games/toast-catch.mdx) it is:
 
 ```json
 {
-  "title": "Like",
-  "startScene": "Like",
+  "title": "Toast Catch",
+  "startScene": "Toast Catch",
   "scenes": [
     {
-      "name": "Like",
+      "name": "Toast Catch",
       "properties": [
-        { "name": "count", "kind": "Number", "default": "128" },
-        { "name": "liked", "kind": "Bool", "default": "false" }
+        { "name": "score", "kind": "Number", "default": "0" },
+        { "name": "lives", "kind": "Number", "default": "3" }
       ],
       "stateMachines": [
         {
-          "name": "…",
-          "initialState": "Idle",
-          "states": ["Idle", "Liked"],
-          "transitions": [{ "layer": null, "from": "Idle", "to": "Liked", "when": "…" }],
+          "name": "Game",
+          "initialState": "Play",
+          "states": ["Play"],
+          "transitions": [],
           "layers": [],
-          "inputs": [{ "name": "burst", "kind": "Trigger" }]
+          "inputs": []
         }
       ]
     }
   ],
-  "dataKeys": [],
-  "events": ["like"],
+  "dataKeys": ["speed"],
+  "events": ["gameover", "score"],
   "functions": []
 }
+```
+
+A game with a richer state machine also lists each transition with the call that triggers it:
+
+```json
+{ "layer": null, "from": "Idle", "to": "Paused", "when": "`paused` is true — `setInput('paused', true)`" }
 ```
 
 :::note How the lists are found
@@ -112,7 +120,7 @@ Data keys, events and functions are found by scanning the game's scripts for `ct
 `example.html` is a working page with the game, a scene picker, a "set data" box, a "fire trigger" box and a live log of every event. Browsers refuse to load the engine from a `file://` address, so serve the folder over HTTP:
 
 ```bash
-cd Like-embed
+cd Toast-Catch-embed
 npx serve .
 ```
 
@@ -168,12 +176,12 @@ If the engine is hosted somewhere other than next to the game (a CDN, a shared f
 
 ```js
 createPlayer(el, {
-  game: '/games/like/game.teab',
+  game: '/games/toast-catch/game.teab',
   wasm: 'https://cdn.example.com/an1mbyt3/an1mbyt3_wasm_bg.wasm',
 })
 ```
 
-The default is resolved relative to the `game` URL, so `game: '/games/like/game.teab'` looks for `/games/like/an1mbyt3_wasm_bg.wasm`.
+The default is resolved relative to the `game` URL, so `game: '/games/toast-catch/game.teab'` looks for `/games/toast-catch/an1mbyt3_wasm_bg.wasm`.
 
 ### Games as bytes
 

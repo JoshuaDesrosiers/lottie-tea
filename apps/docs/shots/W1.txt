@@ -1,0 +1,3 @@
+lite-pointer-listeners | A 96x96 Lite icon scene (e.g. a heart outline) with the invisible "hit" ellipse selected. Inspector shows UI Button (Hover scale 1, Press scale 1, white colours) and Pointer Listeners (hover / press): On Pointer Enter -> Set input hover = true, On Pointer Exit -> Set input hover = false.
+lite-on-click | Same scene, hit shape selected, Inspector scrolled to On Click (Events) with a single action: Toggle input (Bool) liked.
+lite-export-alert | The browser alert after Export > Animation > Toasty Lite (.json) on a scene containing a particle system and a programmable state: "Exported. Toasty Lite left out what needs the full engine:" followed by bullet items.

@@ -1,0 +1,200 @@
+---
+title: 4. A signup form
+sidebar_position: 4
+description: Add a waitlist form whose submit button shows a status icon for loading, success and error, driven by one Enum input, with an accessible status message.
+---
+
+# 4. A signup form
+
+**Goal:** a waitlist form. Pressing **Join the waitlist** shows a spinning ring on the button while the request runs, then a green check if it worked or a red cross with a shake if it didn't. A message under the field says the same thing in words.
+
+The `status` icon has one input, an Enum named `status`, with four values:
+
+| Value | Shows |
+|---|---|
+| `idle` | Nothing |
+| `loading` | A spinning trim-path arc (loops) |
+| `success` | The ring closes, a green disc pops, a white check draws on |
+| `error` | A red disc, a white cross draws on, and a shake |
+
+## Steps
+
+1. Add the form. The icon sits inside the submit button, after its label.
+2. Add the submit handler. One `setStatus` function updates the icon, a `data-status` attribute for CSS, and the status message together.
+
+Try it with any address. To see the error path, use `maya@northwind.app`, which the stand-in server treats as already registered, or submit an empty field.
+
+<LiveHTML
+  url="crumb.kitchen"
+  height={560}
+  html={`<header class="site-header">
+  <a class="brand" href="#" aria-label="Crumb home">
+    <toasty-lite class="mascot" src="/toasty/lite/toasty.json"></toasty-lite>
+    <span>Crumb</span>
+  </a>
+  <nav class="links" aria-label="Main">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#signup">Waitlist</a>
+  </nav>
+  <div class="actions">
+    <button class="icon-button theme" type="button" aria-label="Dark mode" aria-pressed="false">
+      <toasty-lite src="/toasty/lite/theme.json"></toasty-lite>
+    </button>
+  </div>
+</header>
+<main>
+  <section class="hero">
+    <h1>Plan a week of dinners in ten minutes.</h1>
+    <p>Crumb turns what is already in your fridge into five evenings you will actually cook, and one shopping list.</p>
+    <div class="ctas">
+      <a class="cta primary" href="#signup">Start planning free <toasty-lite src="/toasty/lite/arrow.json" ink="currentColor"></toasty-lite></a>
+      <a class="cta secondary" href="#features">See how it works <toasty-lite src="/toasty/lite/arrow.json" ink="currentColor"></toasty-lite></a>
+    </div>
+  </section>
+  <section id="signup" class="signup">
+    <h2>Get your first week free</h2>
+    <form class="signup-form" novalidate>
+      <label for="email">Email address</label>
+      <div class="field">
+        <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com">
+        <button type="submit">
+          <span class="label">Join the waitlist</span>
+          <toasty-lite class="status" src="/toasty/lite/status.json" ink="currentColor"></toasty-lite>
+        </button>
+      </div>
+      <p class="form-message" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+</main>`}
+  css={`.site-header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 24px; padding: 8px 16px 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.brand { display: flex; align-items: center; gap: 4px; color: var(--ink); text-decoration: none; font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+.mascot { width: 44px; height: 44px; }
+.links { display: flex; gap: 20px; }
+.links a { color: var(--muted); text-decoration: none; font-size: 14px; }
+.links a:hover { color: var(--ink); }
+.hero { max-width: 680px; margin: 0 auto; padding: 48px 20px 28px; text-align: center; }
+.hero h1 { margin: 0 0 14px; font-size: clamp(30px, 6vw, 44px); line-height: 1.08; letter-spacing: -0.03em; }
+.hero p { max-width: 500px; margin: 0 auto; color: var(--muted); font-size: 17px; }
+@media (max-width: 560px) { .links { display: none; } }
+.actions { margin-left: auto; display: flex; gap: 2px; }
+.icon-button { width: 44px; height: 44px; padding: 2px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer; }
+.icon-button:hover { background: var(--page); }
+.icon-button:focus-visible { outline: 2px solid var(--accent); }
+.icon-button toasty-lite { width: 40px; height: 40px; pointer-events: none; }
+.ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 28px; }
+.cta { display: inline-flex; align-items: center; gap: 2px; padding: 10px 10px 10px 18px; border-radius: 999px; font-weight: 600; text-decoration: none; }
+.cta toasty-lite { width: 26px; height: 26px; pointer-events: none; }
+.cta.primary { background: var(--accent); color: #fff; }
+.cta.secondary { color: var(--ink); border: 1px solid var(--line); }
+.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.signup { max-width: 520px; margin: 0 auto; padding: 28px 20px 40px; }
+.signup h2 { margin: 0 0 12px; font-size: 22px; letter-spacing: -0.02em; text-align: center; }
+.signup label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+.field { display: flex; gap: 8px; }
+.field input { flex: 1; min-width: 0; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.field input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.field button { display: inline-flex; align-items: center; gap: 2px; padding: 0 8px 0 16px; border: 0; border-radius: 10px; background: var(--ink); color: var(--page); font-weight: 600; cursor: pointer; }
+.field button:disabled { cursor: default; }
+.field .status { width: 28px; height: 28px; }
+.form-message { min-height: 1.5em; margin: 8px 0 0; font-size: 14px; color: var(--muted); }
+[data-status="error"] .form-message { color: #e11d48; }
+[data-status="success"] .form-message { color: #16a34a; }`}
+  js={`// Pointer and keyboard focus both count as hover for an icon.
+function hoverInput(el, icon) {
+  const set = (value) => { if (icon.player) icon.player.setInput('hover', value) }
+  el.addEventListener('pointerenter', () => set(true))
+  el.addEventListener('pointerleave', () => set(false))
+  el.addEventListener('focus', () => set(true))
+  el.addEventListener('blur', () => set(false))
+}
+
+// Theme switch: the page owns the theme, the icon shows it.
+const root = document.documentElement
+const themeButton = document.querySelector('.theme')
+const themeIcon = themeButton.querySelector('toasty-lite')
+let dark = root.dataset.theme === 'dark'
+
+function applyTheme() {
+  root.dataset.theme = dark ? 'dark' : 'light'
+  themeButton.setAttribute('aria-pressed', String(dark))
+  themeIcon.setAttribute('inputs', JSON.stringify({ dark: dark }))
+}
+themeButton.addEventListener('click', () => { dark = !dark; applyTheme() })
+hoverInput(themeButton, themeIcon)
+applyTheme()
+
+// Arrows follow their link's hover and focus.
+for (const cta of document.querySelectorAll('.cta')) {
+  hoverInput(cta, cta.querySelector('toasty-lite'))
+}
+
+// Signup form with a status icon.
+const form = document.querySelector('.signup-form')
+const email = form.querySelector('#email')
+const submit = form.querySelector('button[type="submit"]')
+const label = submit.querySelector('.label')
+const statusIcon = submit.querySelector('.status')
+const message = form.querySelector('.form-message')
+
+function setStatus(status, text) {
+  form.dataset.status = status
+  statusIcon.setAttribute('inputs', JSON.stringify({ status: status }))
+  message.textContent = text || ''
+}
+
+// Stand-in for your API: rejects an address that is already registered.
+const registered = ['maya@northwind.app']
+function joinWaitlist(address) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (registered.includes(address.toLowerCase())) reject(new Error('That address is already on the waitlist.'))
+      else resolve()
+    }, 1200)
+  })
+}
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  if (!email.checkValidity()) {
+    setStatus('error', 'Enter an email address, like name@example.com.')
+    email.focus()
+    return
+  }
+  setStatus('loading', 'Saving your spot...')
+  submit.disabled = true
+  label.textContent = 'Joining'
+  try {
+    await joinWaitlist(email.value.trim())
+    setStatus('success', 'You are on the list. Your first week arrives by email.')
+    label.textContent = 'Joined'
+  } catch (error) {
+    setStatus('error', error.message)
+    submit.disabled = false
+    label.textContent = 'Join the waitlist'
+  }
+})
+email.addEventListener('input', () => {
+  if (form.dataset.status === 'error') setStatus('idle')
+})`}
+  caption="Try maya@northwind.app to see the error state."
+/>
+
+## How it works
+
+- **One input, four states.** Every value of `status` has its own state, and every state can reach every other directly, so the page can jump from `loading` to `error` or from `error` back to `idle` at any time. Transitions back to `idle` crossfade for 0.25 s; the others start instantly.
+- **`loading` loops until you change it.** The page doesn't need to know how long the request takes. When it settles, set `success` or `error` and the icon finishes from wherever the spinner was.
+- **The words matter more than the icon.** The `<p role="status" aria-live="polite">` announces each message to screen readers. The icon is decoration on top.
+- **The button is disabled while loading** so a double click can't submit twice, and stays disabled after success. After an error it is enabled again, and typing in the field returns the icon to `idle`.
+- **The ring follows the button text.** `ink="currentColor"` gives the spinner the button's text colour, which flips with the theme because the button uses `--ink` and `--page`.
+- **Replace `joinWaitlist`** with your real request. Resolve for success, reject with an `Error` whose message is safe to show.
+
+## Check your work
+
+- A valid new address shows the spinner for about a second, then the check and the success message.
+- `maya@northwind.app` shows the red cross, the shake and the message "That address is already on the waitlist."
+- After an error, typing in the field clears the cross.
+
+## Next
+
+[5. Notifications and the finished page](./05-notifications-and-react.mdx).

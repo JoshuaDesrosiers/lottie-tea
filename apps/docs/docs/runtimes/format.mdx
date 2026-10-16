@@ -1,0 +1,317 @@
+---
+title: File format
+sidebar_position: 8
+description: Reference for the Toasty Lite JSON format. Top-level keys, nodes, animation tracks and keys, the state machine, conditions, actions, properties and bindings.
+---
+
+# File format
+
+A Toasty Lite file is one scene as a self-describing JSON document. The editor writes it with **Export → Animation → Toasty Lite (.json)**, and the runtime reads it as is. You don't need this page to use Lite, but it helps when you inspect a file, debug an export, or generate or tweak files with your own tools.
+
+The format is identified by `"format": "toasty-lite"` and `"version": 1`. The runtime refuses any file whose `format` is different.
+
+## Conventions
+
+- **Coordinates** are world units exactly as authored, with **y pointing up**. The view's centre (normally the Main Camera) is the middle of the canvas. The runtime flips y when it draws.
+- **Angles** in node transforms and rotation tracks are **radians**.
+- **Colours** are arrays `[r, g, b, a]` with straight (not premultiplied) values from 0 to 1.
+- **References** between parts of the file are array indices: a node's `parent`, a track's `node`, a state's `animation`.
+- **Key order** inside objects doesn't matter. Exported files list keys alphabetically.
+
+## Top-level keys
+
+| Key | Type | Description |
+|---|---|---|
+| `format` | `"toasty-lite"` | Format tag. |
+| `version` | number | Format version, currently `1`. |
+| `scene` | string | The scene's name. |
+| `width`, `height` | number | The scene's design size in world units. The runtime fits this frame into the player's box. |
+| `view` | `{ x, y, zoom }` | The frame's centre and zoom, from the scene's active camera. Without a camera, `{ x: 0, y: 0, zoom: 1 }`. |
+| `background` | colour or `null` | The camera's background colour. Painted only when the player's `background` option is on. |
+| `nodes` | array | Every node, in draw order. See [Nodes](#nodes). |
+| `animations` | array | Every animation in the scene. See [Animations](#animations). |
+| `stateMachine` | object or `null` | The scene's first state machine. See [State machine](#state-machine). |
+| `properties` | array | The scene's properties. See [Properties](#properties). |
+| `fonts` | array | Fonts used by text nodes: `{ name, data }`, with the font file as base64 in `data`. |
+| `skipped` | string array | Human-readable notes on everything the export left out. Empty when nothing was skipped. |
+
+## Nodes
+
+`nodes` is a flat array in draw order: a depth-first walk of the scene tree, parents before their children, earlier siblings first. Later nodes draw on top.
+
+### Fields on every node
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | The node's id in the editor document. |
+| `name` | string | The node's name. |
+| `kind` | `"shape"`, `"group"` or `"text"` | What it draws. Cameras, bones and unsupported nodes export as `"group"`. |
+| `parent` | number or `null` | Index of the parent node, or `null` at the root. |
+| `visible` | boolean | Whether it is shown. A hidden node hides its children. |
+| `x`, `y` | number | Position relative to the parent. |
+| `rotation` | number | Rotation in radians. |
+| `scaleX`, `scaleY` | number | Scale. |
+| `anchorX`, `anchorY` | number | The pivot, in the node's own coordinates. The node rotates and scales around it. |
+| `clip` | `true` | Present when the node clips its children to its own path. |
+
+### Shape fields
+
+| Field | Type | Description |
+|---|---|---|
+| `path` | string | SVG-style path data using only `M`, `L`, `C` and `Z`, absolute, space-separated, for example `"M-18 0 L16 0"`. |
+| `fill` | colour | Fill colour. An alpha of 0 means no fill. |
+| `gradient` | gradient | Present when the fill is a gradient. Replaces `fill`. |
+| `stroke` | object | Present when the shape has a stroke: `{ width, color, cap, join, gradient? }`. `cap` is `"butt"`, `"square"` or `"round"`; `join` is `"miter"`, `"round"` or `"bevel"`. |
+| `trim` | `{ start, end, offset }` | From a Stroke Style component. Values from 0 to 1. |
+| `dash` | `{ dash, gap, offset }` | From a Stroke Style component with a dash length above 0. |
+
+A gradient is:
+
+```json
+{ "kind": "linear", "start": [-20, 0], "end": [20, 0], "stops": [{ "offset": 0, "color": [1, 0.6, 0.1, 1] }, { "offset": 1, "color": [0.9, 0.2, 0.4, 1] }] }
+```
+
+`kind` is `"linear"` (from `start` to `end`) or `"radial"` (centred on `start`, with a radius equal to the distance to `end`).
+
+### Text fields
+
+| Field | Type | Description |
+|---|---|---|
+| `text` | `{ content, font, size, color }` | The text, the font family name (matching an entry in `fonts`), the size in world units, and the colour. Text is drawn centred on the node. |
+
+### Interaction fields
+
+| Field | Type | Description |
+|---|---|---|
+| `button` | object | From a UI Button. Only nodes with a `button` and a `path` are hit-tested. See below. |
+| `listeners` | object | Action lists by trigger: `click` (On Click), and `enter`, `exit`, `down`, `up` (Pointer Listeners). Each is an array of [actions](#actions). |
+| `bindings` | array | From a Property Binding component. See [Bindings](#bindings). |
+
+The `button` object:
+
+| Field | Description |
+|---|---|
+| `interactable` | `false` turns off hit testing for this node. |
+| `transition` | The editor's transition mode, such as `"ColorTint"`. |
+| `normalColor`, `hoverColor`, `pressedColor` | Colours that multiply the node's colours in each state. |
+| `hoverScale`, `pressedScale` | Scale multipliers while hovered and pressed. |
+| `fade` | Seconds to ease between looks. |
+| `tintChildren` | Whether the tint also applies to the node's children. |
+
+## Animations
+
+Each animation is `{ name, duration, tracks }`. `duration` is in seconds. Each track animates one property of one node:
+
+```json
+{ "node": 2, "prop": "trimStart", "keys": [{ "t": 0, "v": [0, 0, 0, 0], "e": null }, { "t": 0.08, "v": [0.6, 0, 0, 0], "e": [0.22, 1, 0.36, 1] }] }
+```
+
+### Track props
+
+| `prop` | Values in `v` | From the editor |
+|---|---|---|
+| `translation` | `[x, y]` | Position row |
+| `rotation` | `[radians]` | Rotation row |
+| `scale` | `[x, y]` | Scale row |
+| `fill` | `[r, g, b, a]` | Fill row, or a text node's colour |
+| `path` | Every coordinate of the path in command order. The key also has `d`, the same path as path data. | Path keyframes (a path morph) |
+| `trimStart`, `trimEnd`, `trimOffset` | first value | Stroke Style trim fields |
+| `dashOffset` | first value | Stroke Style dash offset |
+| `strokeWidth` | first value | The shape's stroke width |
+| `strokeColor` | `[r, g, b, a]` | The shape's stroke colour |
+| `textSize` | first value | A text node's size |
+| `visible` | first value; below 0.5 is hidden | The node's visibility |
+| `anchor` | `[x, y]` | The node's anchor |
+
+Tracks that come from **+ Property** fields carry four numbers in `v` even for a single value; the runtime reads the first. A path morph rebuilds the shape from the node's own `path` commands with the interpolated numbers, so every key must have the same structure.
+
+### Keys
+
+| Field | Type | Description |
+|---|---|---|
+| `t` | number | Time in seconds. |
+| `v` | number array | The value. |
+| `e` | `null` or `[x1, y1, x2, y2]` | Easing of the segment **leaving** this key: `null` is linear, an array is a cubic-bezier curve like CSS `cubic-bezier()`. |
+| `d` | string | Path tracks only: the key's path as path data. |
+
+Before the first key, a track holds the first value; after the last key, it holds the last value.
+
+## State machine
+
+```json
+{
+  "name": "Machine",
+  "inputs": [{ "name": "hover", "kind": "bool" }],
+  "layers": [{ "name": null, "initial": "Rest", "states": [ ... ] }]
+}
+```
+
+| Field | Description |
+|---|---|
+| `name` | The state machine's name. |
+| `inputs` | `{ name, kind }`, where `kind` is `"bool"`, `"number"`, `"enum"` or `"trigger"`. |
+| `layers` | The base layer first, with `name: null`, then each extra layer by name. Each has `initial` (a state name) and `states`. |
+
+Layers apply in order, each overriding earlier ones where they animate the same value. Layer masks are not part of the format.
+
+### States
+
+| Field | Description |
+|---|---|
+| `name` | The state's name, as reported to the page. |
+| `animation` | Index into `animations`, or `null` for a state with no animation. |
+| `loop` | `"once"`, `"loop"` or `"pingpong"`. |
+| `transitions` | Checked in order every frame; the first whose condition holds is taken. |
+
+Each transition is `{ to, condition, duration, reverse }`: the target state's name, a [condition](#conditions), the crossfade length in seconds (0 is instant), and whether the target animation plays backwards from its end.
+
+### Conditions
+
+| `type` | Fields | Holds when |
+|---|---|---|
+| `"bool"` | `input`, `value` | The Bool input equals `value`. |
+| `"gt"` | `input`, `value` | The Number input is greater than `value`. |
+| `"lt"` | `input`, `value` | The Number input is less than `value`. |
+| `"enum"` | `input`, `value` | The Enum input equals the string `value`. |
+| `"trigger"` | `input` | The Trigger fired this frame. |
+
+## Actions
+
+Actions appear in a node's `listeners` lists. Values written in the editor are stored as strings and parsed as JSON when they run, falling back to the plain string.
+
+| `type` | Fields | Effect |
+|---|---|---|
+| `"setInput"` | `input`, `value` | Sets an input. |
+| `"fireTrigger"` | `input` | Fires a Trigger. |
+| `"toggleInput"` | `input` | Flips a Bool input. |
+| `"setProperty"` | `property`, `value` | Sets a property. A value such as `"+1"` or `"-1"` adds to a numeric property. |
+| `"event"` | `name`, `arg` | Sends the page an event (`toasty:event`) with `name`, and `arg` as the payload (`undefined` when empty). Exported from **Call script function**. |
+| `"setVisible"` | `target`, `visible` | Shows or hides node `target` (an index), or this node when `null`. |
+| `"toggleVisible"` | `target` | Toggles node `target`, or this node when `null`. |
+| `"unsupported"` | `action` | An action Lite doesn't run, described for debugging. Ignored. |
+
+## Properties
+
+Each property is `{ name, kind, default }`. `kind` is `"number"`, `"bool"`, `"text"` or `"color"`. `default` is the starting value, for example `0`, `false`, `"Hello"` or `[0.11, 0.11, 0.13, 1]`.
+
+### Bindings
+
+A node's `bindings` connect properties to the node. Each binding is `{ property, target, format, scale, offset }`:
+
+| `target` | Effect |
+|---|---|
+| `"text"` | Replaces the text. `format` is a template where `{}` stands for the value; an empty format shows the value alone. |
+| `"x"`, `"y"` | Position, as `value × scale + offset`. |
+| `"rotation"` | Rotation in **degrees**, as `value × scale + offset`. |
+| `"scale"`, `"scaleX"`, `"scaleY"` | Scale, as `value × scale + offset`. |
+| `"visible"` | Shows the node while the value is truthy. |
+| `"fill"` | Fill colour (a Color property). |
+| `"strokeColor"` | Stroke colour (a Color property). |
+| `"trimStart"`, `"trimEnd"`, `"trimOffset"`, `"dashOffset"` | Stroke Style values, as `value × scale + offset`. |
+
+A binding writes its value only when no animation track drives that same value in the current frame, so keyframes take precedence, as in the engine.
+
+## A complete file
+
+This is `arrow.json`, the link arrow, with numbers rounded for reading. It has a group, two stroked lines with trim paths bound to `ink`, an invisible hit shape with Pointer Listeners, two animations and a two-state machine.
+
+```json title="arrow.json"
+{
+  "format": "toasty-lite",
+  "version": 1,
+  "scene": "Arrow",
+  "width": 96,
+  "height": 96,
+  "view": { "x": 0, "y": 0, "zoom": 1 },
+  "background": [0, 0, 0, 0],
+  "nodes": [
+    { "id": "camera", "name": "Main Camera", "kind": "group", "parent": null, "visible": true,
+      "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "anchorX": 0, "anchorY": 0 },
+    { "id": "arrow", "name": "arrow", "kind": "group", "parent": null, "visible": true,
+      "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "anchorX": 0, "anchorY": 0 },
+    { "id": "shaft", "name": "shaft", "kind": "shape", "parent": 1, "visible": true,
+      "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "anchorX": 0, "anchorY": 0,
+      "path": "M-18 0 L16 0",
+      "fill": [0, 0, 0, 0],
+      "stroke": { "width": 5, "color": [0.11, 0.11, 0.13, 1], "cap": "round", "join": "round" },
+      "trim": { "start": 0, "end": 1, "offset": 0 },
+      "bindings": [{ "property": "ink", "target": "strokeColor", "format": "", "scale": 1, "offset": 0 }] },
+    { "id": "head", "name": "head", "kind": "shape", "parent": 1, "visible": true,
+      "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "anchorX": 0, "anchorY": 0,
+      "path": "M4 12 L16 0 L4 -12",
+      "fill": [0, 0, 0, 0],
+      "stroke": { "width": 5, "color": [0.11, 0.11, 0.13, 1], "cap": "round", "join": "round" },
+      "trim": { "start": 0, "end": 1, "offset": 0 },
+      "bindings": [{ "property": "ink", "target": "strokeColor", "format": "", "scale": 1, "offset": 0 }] },
+    { "id": "hit", "name": "hit", "kind": "shape", "parent": null, "visible": true,
+      "x": 0, "y": 0, "rotation": 0, "scaleX": 1, "scaleY": 1, "anchorX": 0, "anchorY": 0,
+      "path": "M0 40 L24 40 C32.837 40 40 32.837 40 24 L40 -24 C40 -32.837 32.837 -40 24 -40 L-24 -40 C-32.837 -40 -40 -32.837 -40 -24 L-40 24 C-40 32.837 -32.837 40 -24 40 Z",
+      "fill": [0, 0, 0, 0],
+      "button": { "interactable": true, "transition": "ColorTint",
+        "normalColor": [1, 1, 1, 1], "hoverColor": [1, 1, 1, 1], "pressedColor": [1, 1, 1, 1],
+        "hoverScale": 1, "pressedScale": 1, "fade": 0.1, "tintChildren": false },
+      "listeners": {
+        "click": [], "down": [], "up": [],
+        "enter": [{ "type": "setInput", "input": "hover", "value": "true" }],
+        "exit": [{ "type": "setInput", "input": "hover", "value": "false" }]
+      } }
+  ],
+  "animations": [
+    { "name": "Rest", "duration": 0.3, "tracks": [
+      { "node": 1, "prop": "translation", "keys": [{ "t": 0, "v": [0, 0], "e": null }] },
+      { "node": 2, "prop": "trimStart", "keys": [{ "t": 0, "v": [0, 0, 0, 0], "e": null }] }
+    ] },
+    { "name": "Over", "duration": 0.45, "tracks": [
+      { "node": 1, "prop": "translation", "keys": [
+        { "t": 0, "v": [0, 0], "e": [0.22, 1, 0.36, 1] },
+        { "t": 0.3, "v": [10, 0], "e": null }
+      ] },
+      { "node": 2, "prop": "trimStart", "keys": [
+        { "t": 0, "v": [0, 0, 0, 0], "e": null },
+        { "t": 0.08, "v": [0.6, 0, 0, 0], "e": [0.22, 1, 0.36, 1] },
+        { "t": 0.4, "v": [0, 0, 0, 0], "e": null }
+      ] }
+    ] }
+  ],
+  "stateMachine": {
+    "name": "Machine",
+    "inputs": [{ "name": "hover", "kind": "bool" }],
+    "layers": [{
+      "name": null,
+      "initial": "Rest",
+      "states": [
+        { "name": "Rest", "animation": 0, "loop": "once", "transitions": [
+          { "to": "Over", "condition": { "type": "bool", "input": "hover", "value": true }, "duration": 0, "reverse": false }
+        ] },
+        { "name": "Over", "animation": 1, "loop": "once", "transitions": [
+          { "to": "Rest", "condition": { "type": "bool", "input": "hover", "value": false }, "duration": 0.25, "reverse": false }
+        ] }
+      ]
+    }]
+  },
+  "properties": [{ "name": "ink", "kind": "color", "default": [0.11, 0.11, 0.13, 1] }],
+  "fonts": [],
+  "skipped": []
+}
+```
+
+Read it the way the runtime does: when the page sets `hover` to `true`, the base layer leaves `Rest` for `Over`. Over 0.3 seconds the `arrow` group (node 1) slides 10 units right with an ease-out, while the shaft (node 2) trims its start to 0.6 and back, so the line retracts and redraws from behind. Setting `hover` to `false` crossfades back to `Rest` over 0.25 seconds.
+
+## Loading a file yourself
+
+Because a file is plain JSON, you can fetch, inspect or modify it before playing it. `createLite` accepts the parsed object as `src`:
+
+```js
+import { createLite } from '/toasty/an1mbyt3-lite.js'
+
+const file = await fetch('/toasty/lite/heart.json').then((r) => r.json())
+console.log(file.stateMachine.inputs.map((i) => i.name + ': ' + i.kind))
+// ['liked: bool', 'hover: bool']
+
+const player = await createLite(document.querySelector('#like'), { src: file })
+```
+
+## Related
+
+- [Authoring for Lite](./authoring.mdx): how editor features map to this format
+- [JavaScript](./javascript.mdx): the player that reads it

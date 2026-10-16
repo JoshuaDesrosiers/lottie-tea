@@ -1,0 +1,311 @@
+---
+title: JavaScript
+sidebar_position: 3
+description: Create Toasty Lite players from JavaScript with createLite, drive inputs and properties, listen for state changes and events, and clean up.
+---
+
+# JavaScript
+
+Use the JavaScript API when you want a player without a custom element: inside a component of your own framework, in a list rendered from data, or when you need the player object right away.
+
+```js
+import { createLite } from '/toasty/an1mbyt3-lite.js'
+
+const player = await createLite(document.querySelector('#like'), {
+  src: '/toasty/lite/heart.json',
+  inputs: { liked: true },
+})
+
+player.on('state', (e) => console.log(e.layer, e.state))
+```
+
+`an1mbyt3-lite.js` exports `createLite` and `loadLite` alongside the `<toasty-lite>` element. Importing it also defines the element.
+
+## createLite
+
+```ts
+createLite(container: HTMLElement, options: LiteOptions): Promise<LitePlayer>
+```
+
+`createLite` loads the file, loads any fonts embedded in it, appends a `<canvas>` to `container` and resolves with the player. The canvas fills the container, so the container needs a size. The promise rejects if the file can't be fetched (`Toasty Lite: <url> → 404`) or isn't a Toasty Lite file.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `src` | `string`, `URL` or a parsed file object | Required | The file's URL, or the JSON itself if you loaded or bundled it. |
+| `fit` | `'contain'` or `'cover'` | `'contain'` | `contain` letterboxes the scene in the box; `cover` fills the box and crops. |
+| `background` | `boolean` | `false` | Paint the scene's background colour. Otherwise the canvas is transparent. |
+| `data` | `object` | | Starting values for scene properties. |
+| `inputs` | `object` | | Starting values for state machine inputs. |
+| `paused` | `boolean` | `false` | Start paused. |
+
+Starting `data` and `inputs` are applied before the first frame, so the animation never flashes its defaults.
+
+### Preloading with loadLite
+
+`loadLite(url)` fetches and parses a file and caches it by URL. `createLite` uses the same cache, so you can warm it before the player is needed:
+
+```js
+import { createLite, loadLite } from '/toasty/an1mbyt3-lite.js'
+
+// While the page is idle, fetch the file the checkout button will need.
+loadLite('/toasty/lite/status.json')
+```
+
+## The player
+
+| Member | Description |
+|---|---|
+| `player.setInput(name, value)` | Sets a state machine input. A Trigger fires when `value` is truthy. |
+| `player.fire(trigger)` | Fires a Trigger input. Same as `setInput(trigger, true)`. |
+| `player.set(name, value)` | Sets a scene property. Bound colours, text, positions and trim update on the next frame. |
+| `player.setData(object)` | Sets several properties at once. |
+| `player.get(name)` | Reads a property's current value. |
+| `player.state(layer?)` | The name of the current state of a layer. Omit `layer` (or pass `null`) for the base layer. |
+| `player.on(type, fn)` | Subscribes to `'state'`, `'prop'` or `'event'`. Returns a function that unsubscribes. |
+| `player.play()` | Resumes time. |
+| `player.pause()` | Stops time. Animations hold their frame and the state machine stops changing state. |
+| `player.destroy()` | Stops the player, removes its canvas and disconnects its observers. |
+| `player.file` | The parsed file. Useful for reading `file.stateMachine.inputs` or `file.properties`. |
+| `player.canvas` | The `<canvas>` element the player draws into. |
+
+### Inputs
+
+Inputs are declared in the file's state machine. `setInput` converts the value to the input's type:
+
+| Input type | Accepts |
+|---|---|
+| Bool | `true`, `'true'`, `1` or `'1'` mean true; anything else is false. |
+| Number | Any value `Number()` understands; anything else is 0. |
+| Enum | Any value, converted to a string. It must match an option exactly, for example `'loading'`. |
+| Trigger | Fires when the value is truthy. A trigger counts for one frame, then resets. |
+
+A name the file doesn't declare is ignored without an error. To list what a file accepts, read `player.file.stateMachine.inputs`.
+
+### Properties
+
+Properties are the scene's named values. `set` converts the value to the property's kind:
+
+| Kind | Accepts |
+|---|---|
+| `number` | Any value `Number()` understands; anything else is 0. |
+| `bool` | `true`, `1`, `'true'` or `'1'` mean true. |
+| `text` | Any value, converted to a string. |
+| `color` | An array `[r, g, b]` or `[r, g, b, a]` with values from 0 to 1, or a `'#rrggbb'` string. |
+
+A colour in any other format, such as `'rgb(37, 99, 235)'` or `'#26e'`, becomes white. To use a computed CSS colour, convert it first:
+
+```js
+/** 'rgb(37, 99, 235)' or 'rgba(...)' → [r, g, b, a] from 0 to 1. */
+function toRgba(css) {
+  const [r, g, b, a = 1] = css.match(/[\d.]+/g).map(Number)
+  return [r / 255, g / 255, b / 255, a]
+}
+
+player.set('ink', toRgba(getComputedStyle(link).color))
+```
+
+The `ink` attribute of `<toasty-lite>` does this conversion for you. See [Theming](./theming.mdx).
+
+### Events
+
+`player.on` takes one of three event types and returns an unsubscribe function:
+
+| Type | Payload | When |
+|---|---|---|
+| `'state'` | `{ layer, state, previous }` | A layer entered a state. `layer` is `null` for the base layer. |
+| `'prop'` | `{ name, value }` | A property changed, from a click action or from `set` / `setData`. |
+| `'event'` | `{ name, payload }` | A **Call script function** action ran on a click or hover. `payload` is the action's argument parsed as JSON, the raw string if it isn't JSON, or `undefined` if empty. |
+
+```js
+const stop = player.on('state', ({ layer, state }) => {
+  if (layer === null && state === 'Liked') saveLike(postId)
+})
+
+// Later
+stop()
+```
+
+The same events are also dispatched on the container as bubbling DOM events named `toasty:state`, `toasty:prop` and `toasty:event`, with the payload as `detail`. That lets one listener on a list handle every player inside it.
+
+Each layer enters its initial state while the player is being created, before `createLite` resolves, so `player.on('state')` never sees it. Read the starting state with `player.state()`, or listen for `toasty:state` on the container before calling `createLite`.
+
+## Driving inputs from DOM hover and focus
+
+Most components have a `hover` input set by their own Pointer Listeners. That only reacts to the pointer over the canvas. When the animation is part of a larger control, such as an arrow inside a link, drive `hover` from the control instead, and include keyboard focus:
+
+<LiveHTML
+  url="northwind.io"
+  height={380}
+  caption="Hover or Tab to either link. The whole link drives the arrow, not just the arrow's own box."
+  html={`<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<section class="hero">
+  <p class="eyebrow">Northwind 4.2</p>
+  <h1>Plan the quarter in one place.</h1>
+  <p class="lede">Roadmaps, budgets and reviews share one timeline, so the plan stays current without the Monday spreadsheet.</p>
+  <div class="actions">
+    <a class="cta" href="#pricing">See pricing <span class="arrow" aria-hidden="true"></span></a>
+    <a class="link" href="#changelog">Read the changelog <span class="arrow" aria-hidden="true"></span></a>
+  </div>
+</section>`}
+  css={`.hero { max-width: 560px; margin: 0 auto; padding: 40px 20px; }
+.eyebrow { margin: 0 0 8px; color: var(--accent); font-size: 13px; font-weight: 600; }
+h1 { margin: 0; font-size: clamp(26px, 5vw, 36px); line-height: 1.15; letter-spacing: -.02em; }
+.lede { margin: 12px 0 24px; color: var(--muted); font-size: 16px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+.actions a { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; text-decoration: none; }
+.actions a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+.cta { height: 44px; padding: 0 10px 0 18px; border-radius: 10px; background: var(--ink); color: var(--page); }
+.link { color: var(--ink); }
+.arrow { display: inline-block; width: 26px; height: 26px; pointer-events: none; }`}
+  js={`import { createLite } from '/toasty/an1mbyt3-lite.js'
+
+/** 'rgb(r, g, b)' → [r, g, b, a] from 0 to 1, the format colour properties take. */
+function toRgba(css) {
+  const [r, g, b, a = 1] = css.match(/[\\d.]+/g).map(Number)
+  return [r / 255, g / 255, b / 255, a]
+}
+
+for (const link of document.querySelectorAll('.actions a')) {
+  const arrow = await createLite(link.querySelector('.arrow'), {
+    src: '/toasty/lite/arrow.json',
+    data: { ink: toRgba(getComputedStyle(link).color) },
+  })
+  const on = () => arrow.setInput('hover', true)
+  const off = () => arrow.setInput('hover', false)
+  link.addEventListener('pointerenter', on)
+  link.addEventListener('pointerleave', off)
+  link.addEventListener('focus', on)
+  link.addEventListener('blur', off)
+}`}
+/>
+
+The arrow's box has `pointer-events: none`. Without it, the arrow's own Pointer Listeners would set `hover` to false as the pointer leaves the arrow, even though it is still over the link.
+
+## Driving an animation through a task
+
+The `download` component combines an Enum input (`state`) with a Number property (`progress`) bound to its ring. Your code owns the task and reports to the animation as it goes:
+
+<LiveHTML
+  url="app.northwind.io/reports"
+  height={300}
+  caption="Click Download. The page sets state to downloading, streams progress from 0 to 1, then sets state to done. Click again to reset."
+  html={`<script type="module" src="/toasty/an1mbyt3-lite.js"></script>
+
+<div class="report">
+  <div class="file">
+    <strong>Q3 revenue report</strong>
+    <span class="meta">PDF · 2.4 MB · Updated Oct 2</span>
+  </div>
+  <button class="download" type="button">
+    <span class="icon" aria-hidden="true"></span>
+    <span class="label">Download</span>
+  </button>
+</div>
+<p class="visually-hidden" role="status" aria-live="polite"></p>`}
+  css={`body { display: grid; place-items: center; padding: 24px 16px; }
+.report {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  width: min(100%, 460px); padding: 14px 14px 14px 18px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+}
+.file { display: flex; flex-direction: column; }
+.meta { color: var(--muted); font-size: 13px; }
+.download {
+  display: inline-flex; align-items: center; gap: 2px; height: 40px; padding: 0 14px 0 4px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  font-weight: 500; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.download:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.icon { display: inline-block; width: 36px; height: 36px; pointer-events: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }`}
+  js={`import { createLite } from '/toasty/an1mbyt3-lite.js'
+
+const button = document.querySelector('.download')
+const label = button.querySelector('.label')
+const status = document.querySelector('[role=status]')
+const ink = getComputedStyle(button).color.match(/[\\d.]+/g).map((v, i) => (i < 3 ? v / 255 : +v))
+
+const icon = await createLite(button.querySelector('.icon'), {
+  src: '/toasty/lite/download.json',
+  data: { ink },
+})
+
+let timer = 0
+button.addEventListener('click', () => {
+  if (icon.state() === 'Done') {
+    icon.setInput('state', 'idle')
+    icon.set('progress', 0)
+    label.textContent = 'Download'
+    return
+  }
+  if (timer) return
+  icon.setInput('state', 'downloading')
+  status.textContent = 'Downloading Q3 revenue report'
+  let progress = 0
+  timer = setInterval(() => {
+    progress = Math.min(1, progress + 0.035)
+    icon.set('progress', progress)
+    label.textContent = Math.round(progress * 100) + '%'
+    if (progress === 1) {
+      clearInterval(timer)
+      timer = 0
+      icon.setInput('state', 'done')
+      label.textContent = 'Downloaded'
+      status.textContent = 'Download complete'
+    }
+  }, 80)
+})
+
+const hover = (on) => icon.setInput('hover', on)
+button.addEventListener('pointerenter', () => hover(true))
+button.addEventListener('pointerleave', () => hover(false))
+button.addEventListener('focus', () => hover(true))
+button.addEventListener('blur', () => hover(false))`}
+/>
+
+In a real download, replace the timer with your transfer's progress events, for example the `loaded / total` of a `fetch` response stream.
+
+## Cleanup
+
+A player keeps a canvas, a `ResizeObserver`, an `IntersectionObserver` and pointer listeners. Call `destroy()` when its view goes away, for example on a client-side route change. Because `createLite` is asynchronous, guard against the view closing before the player is ready:
+
+```js
+function mountIcon(el, src) {
+  let player = null
+  let closed = false
+  createLite(el, { src }).then((p) => {
+    if (closed) p.destroy()
+    else player = p
+  })
+  return () => {
+    closed = true
+    player?.destroy()
+  }
+}
+
+const unmount = mountIcon(document.querySelector('#status'), '/toasty/lite/status.json')
+// When the view closes
+unmount()
+```
+
+`<toasty-lite>` elements and the React component do this for you when they are removed.
+
+## Errors
+
+`createLite` rejects with an `Error` when the file can't be loaded or isn't a Toasty Lite file. Errors thrown inside your `player.on` callbacks are caught and logged to the console, so one faulty listener doesn't stop the animation or other listeners.
+
+```js
+try {
+  await createLite(box, { src: '/toasty/lite/status.json' })
+} catch (err) {
+  box.hidden = true
+  console.warn(err)
+}
+```
+
+## Related
+
+- [The toasty-lite element](./html.mdx): the same player behind an HTML tag
+- [React](./react.mdx): the same player as a component
+- [File format](./format.mdx): what `player.file` contains

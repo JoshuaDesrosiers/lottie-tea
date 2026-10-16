@@ -1,0 +1,280 @@
+---
+title: React
+sidebar_position: 4
+description: Use Toasty Lite in React with the ToastyLite component. Props, controlled and uncontrolled patterns, triggers, data and live examples.
+---
+
+# React
+
+`<ToastyLite>` renders a Toasty Lite animation as a React component. Props are diffed and sent to the running player: changing `inputs` or `data` updates the animation without reloading it.
+
+```tsx
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function LikeIcon({ liked }: { liked: boolean }) {
+  return <ToastyLite src="/toasty/lite/heart.json" inputs={{ liked }} style={{ width: 40, height: 40 }} />
+}
+```
+
+## Setup
+
+Copy `an1mbyt3-lite-react.js` and `an1mbyt3-runtime.js` into your source folder, side by side (the examples use `src/toasty/`). The component imports `react` and `react/jsx-runtime`, so it must go through your bundler (Vite, Next.js, webpack and similar). Put the exported `.json` files where your site serves static files, such as `public/toasty/lite/`.
+
+The file is plain JavaScript. For TypeScript, add a declaration next to it:
+
+```ts title="src/toasty/an1mbyt3-lite-react.d.ts"
+import type { CSSProperties, Ref } from 'react'
+
+export interface LitePlayer {
+  readonly file: unknown
+  readonly canvas: HTMLCanvasElement
+  set(name: string, value: unknown): void
+  setData(data: Record<string, unknown>): void
+  get(name: string): unknown
+  setInput(name: string, value: boolean | number | string): void
+  fire(trigger: string): void
+  state(layer?: string | null): string | null
+  on(type: 'event' | 'state' | 'prop', fn: (event: any) => void): () => void
+  play(): void
+  pause(): void
+  destroy(): void
+}
+
+export interface ToastyLiteProps {
+  src: string | object
+  fit?: 'contain' | 'cover'
+  background?: boolean
+  paused?: boolean
+  data?: Record<string, unknown>
+  inputs?: Record<string, boolean | number | string>
+  ink?: string
+  className?: string
+  style?: CSSProperties
+  title?: string
+  ref?: Ref<LitePlayer | null>
+  onReady?: (player: LitePlayer) => void
+  onEvent?: (event: { name: string; payload: unknown }) => void
+  onStateChange?: (event: { layer: string | null; state: string; previous: string | null }) => void
+  onPropChange?: (event: { name: string; value: unknown }) => void
+}
+
+export function ToastyLite(props: ToastyLiteProps): JSX.Element
+```
+
+## Props
+
+| Prop | Type | Description |
+|---|---|---|
+| `src` | `string` or a parsed file | The file's URL, or the JSON object itself. Changing it loads the new file. |
+| `fit` | `'contain'` or `'cover'` | How the scene fits the box. Default `'contain'`. Changing it recreates the player. |
+| `background` | `boolean` | Paint the scene's background colour. Default transparent. Changing it recreates the player. |
+| `paused` | `boolean` | Pauses and resumes time. |
+| `data` | `object` | Scene property values. Only keys whose value changed are sent. |
+| `inputs` | `object` | State machine input values. Only keys whose value changed are sent. |
+| `ink` | `string` | Any CSS colour (hex, `rgb()`, `hsl()`, a name, or a `var(--…)` colour). Resolved through the browser's computed style when the prop changes. It is not re-read on theme changes, so pass a value that changes with your theme rather than relying on `currentColor`. Colours the browser reports outside `rgb()`, such as `oklch()`, are ignored. An alternative to `data={{ ink }}`, which accepts only `'#rrggbb'` or `[r, g, b, a]`. |
+| `className`, `style`, `title` | | Applied to the wrapper `<div>`. Give it a size. |
+| `ref` | `Ref<LitePlayer>` | The player, once ready. Passed as a regular prop, which needs React 19. On React 18, use `onReady`. |
+| `onReady` | `(player) => void` | Called once the player is ready, and again after a reload. |
+| `onStateChange` | `({ layer, state, previous }) => void` | A layer entered a state. `layer` is `null` for the base layer. |
+| `onPropChange` | `({ name, value }) => void` | A scene property changed. |
+| `onEvent` | `({ name, payload }) => void` | A **Call script function** action ran on a click or hover. |
+
+How the diffing works:
+
+- `inputs` and `data` are compared key by key with `Object.is` against what was last sent. Passing a new object literal on every render is fine; unchanged values are not resent.
+- Removing a key does not reset it. Set it to its neutral value instead (`false`, `0` or `'idle'`).
+- A colour written as a new array on every render (`[0.1, 0.1, 0.1, 1]`) is resent on every render. That is harmless, but a `'#rrggbb'` string or a memoised array avoids it.
+- Callbacks always use the latest props, so inline arrow functions don't cause reloads.
+
+## The examples on this page
+
+The live examples below use `<Lite>`, this documentation site's wrapper around the same runtime. It takes the same props as `<ToastyLite>` plus two conveniences:
+
+- `src="heart"` is shorthand for `/toasty/lite/heart.json`.
+- `ink="auto"` follows this site's theme. `<ToastyLite>` takes `ink` too, as any CSS colour.
+
+So `<Lite src="heart" ink="#1c1c21" inputs={{ liked }} />` here is `<ToastyLite src="/toasty/lite/heart.json" ink="#1c1c21" inputs={{ liked }} />` in your code. Edit any example; it re-runs as you type.
+
+## Uncontrolled: the animation owns the state
+
+The `heart` toggles its own `liked` input when clicked (its On Click runs **Toggle input**). Leave `inputs` out, and follow along with `onStateChange`:
+
+```jsx live
+function LikeCount() {
+  const [likes, setLikes] = React.useState(128)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <Lite
+        src="heart"
+        ink="auto"
+        label="Like"
+        style={{ width: 56, height: 56 }}
+        onStateChange={(e) => {
+          if (e.layer !== null || e.previous === null) return
+          setLikes((n) => n + (e.state === 'Liked' ? 1 : -1))
+        }}
+      />
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{likes.toLocaleString()}</span>
+    </div>
+  )
+}
+```
+
+This is the quickest way to add a decorative interaction. Because the canvas is the only control, it is pointer-only; for anything a keyboard user needs, use the controlled pattern below.
+
+## Controlled: your state owns the animation
+
+Keep the value in React, render a real `<button>`, and pass the value down through `inputs`. Set `pointerEvents: 'none'` on the animation so only the button handles clicks, and mirror hover and focus into the `hover` input:
+
+```jsx live
+function ThemeToggle() {
+  const [dark, setDark] = React.useState(false)
+  const [hover, setHover] = React.useState(false)
+  const ink = dark ? '#ececef' : '#18181b'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: 16, borderRadius: 12, background: dark ? '#17171b' : '#f7f7f5', color: ink, transition: 'background .3s, color .3s' }}>
+      <button
+        type="button"
+        aria-label="Dark theme"
+        aria-pressed={dark}
+        onClick={() => setDark((d) => !d)}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
+        style={{ width: 48, height: 48, padding: 0, border: '1px solid currentColor', borderRadius: 12, background: 'transparent', color: 'inherit', cursor: 'pointer' }}
+      >
+        <Lite src="theme" inputs={{ dark, hover }} style={{ width: 46, height: 46, pointerEvents: 'none' }} />
+      </button>
+      <div>
+        <strong>Northwind</strong>
+        <div style={{ opacity: 0.7, fontSize: 14 }}>{dark ? 'Dark theme' : 'Light theme'}</div>
+      </div>
+      <Lite src="bell" ink={ink} style={{ width: 40, height: 40, marginLeft: 'auto' }} />
+    </div>
+  )
+}
+```
+
+The bell's `ink` changes with the theme, which re-colours its lines without reloading it.
+
+### Keeping both in sync
+
+You can also let the canvas handle clicks and still pass `inputs`. Update your state from `onStateChange` so the two never disagree:
+
+```tsx
+const [liked, setLiked] = useState(post.likedByMe)
+
+<ToastyLite
+  src="/toasty/lite/heart.json"
+  inputs={{ liked }}
+  onStateChange={(e) => {
+    if (e.layer === null) setLiked(e.state === 'Liked')
+  }}
+/>
+```
+
+When the canvas toggles `liked` itself, `onStateChange` sets the same value in React, and the diff sends nothing back. When your code changes `liked` (a server reply, an undo), the new value is sent to the animation.
+
+## Enum inputs from async work
+
+Drive an Enum input from the stages of a request. The `status` component plays a spinner for `loading`, then draws a check or a cross:
+
+```jsx live
+function Subscribe() {
+  const [email, setEmail] = React.useState('')
+  const [status, setStatus] = React.useState('idle')
+  async function submit(e) {
+    e.preventDefault()
+    setStatus('loading')
+    await new Promise((resolve) => setTimeout(resolve, 1400))
+    setStatus(email.includes('@') ? 'success' : 'error')
+  }
+  const message = { idle: '', loading: 'Subscribing', success: 'You are on the list.', error: 'Enter a valid email address.' }[status]
+  return (
+    <form onSubmit={submit} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+      <input
+        value={email}
+        onChange={(e) => { setEmail(e.target.value); setStatus('idle') }}
+        placeholder="you@company.com"
+        aria-label="Email address"
+        style={{ height: 38, padding: '0 12px', borderRadius: 8, border: '1px solid var(--t-line)', background: 'transparent', color: 'inherit', font: 'inherit' }}
+      />
+      <button type="submit" disabled={status === 'loading'} style={{ height: 38, padding: '0 16px', borderRadius: 8, border: 0, background: '#e8590c', color: '#fff', font: 'inherit', fontWeight: 500, cursor: 'pointer' }}>
+        Subscribe
+      </button>
+      <Lite src="status" ink="auto" inputs={{ status }} style={{ width: 36, height: 36 }} />
+      <span role="status" style={{ fontSize: 14 }}>{message}</span>
+    </form>
+  )
+}
+```
+
+## Properties through data
+
+`data` sets scene properties. The `download` component binds its `progress` property (0 to 1) to the trim end of its ring:
+
+```jsx live
+function UploadProgress() {
+  const [progress, setProgress] = React.useState(0.35)
+  const state = progress >= 1 ? 'done' : progress > 0 ? 'downloading' : 'idle'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <Lite src="download" ink="auto" inputs={{ state }} data={{ progress }} style={{ width: 64, height: 64 }} />
+      <input type="range" min={0} max={1} step={0.01} value={progress} onChange={(e) => setProgress(Number(e.target.value))} aria-label="Progress" />
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(progress * 100)}%</span>
+    </div>
+  )
+}
+```
+
+## Triggers through the player
+
+A Trigger fires once per call, so it doesn't fit the `inputs` diff: sending `{ ring: true }` twice in a row sends it only once. Fire triggers on the player instead, through `ref` or `onReady`:
+
+```jsx live
+function Inbox() {
+  const bell = React.useRef(null)
+  const [unread, setUnread] = React.useState(0)
+  const button = { height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid var(--t-line)', background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer' }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <Lite ref={bell} src="bell" ink="auto" inputs={{ unread: unread > 0 }} label={unread + ' unread'} style={{ width: 56, height: 56 }} />
+      <button style={button} onClick={() => { setUnread((n) => n + 1); bell.current?.fire('ring') }}>Simulate a message</button>
+      <button style={button} onClick={() => setUnread(0)}>Mark all read</button>
+      <span style={{ fontSize: 14 }}>{unread} unread</span>
+    </div>
+  )
+}
+```
+
+With `<ToastyLite>` on React 18, keep the player from `onReady` in a ref:
+
+```tsx
+const bell = useRef<LitePlayer | null>(null)
+
+<ToastyLite src="/toasty/lite/bell.json" onReady={(p) => (bell.current = p)} />
+```
+
+## Events
+
+`onEvent` receives **Call script function** actions from On Click and Pointer Listeners. The `bell` sends `open` when clicked, `copy` sends `copy`, and `download` sends `download`:
+
+```tsx
+<ToastyLite
+  src="/toasty/lite/copy.json"
+  onEvent={(e) => {
+    if (e.name === 'copy') navigator.clipboard.writeText(apiKey)
+  }}
+/>
+```
+
+## Server rendering
+
+The component renders an empty `<div>` on the server and creates the player in an effect, so it is safe in Next.js and other SSR frameworks. In the Next.js App Router, use it from a Client Component (`'use client'`). Reserve the size with `style` or `className` so the layout doesn't shift when the animation appears.
+
+## Related
+
+- [JavaScript](./javascript.mdx): every player member
+- [Theming](./theming.mdx): `ink` and colour properties
+- [Use cases](../use-cases/index.mdx): each component in a realistic page, with React tabs

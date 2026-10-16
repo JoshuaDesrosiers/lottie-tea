@@ -6,11 +6,11 @@ description: Block worlds (Minecraft / Minetest style) with the Voxels mesh shap
 
 # Voxels
 
-A **Voxels** mesh is a block world: a grid of 1 m cubes, each one of Toasty's built-in block types (grass, dirt, stone, wood, glass, water, ores...). It's what the **Voxel Craft** demo (**+ → Demos → Voxel Craft**) is built on: an endless, streamed Minetest-style world with caves, forests, mining and building.
+A **Voxels** mesh is a block world: a grid of 1 m cubes, each one of Toasty's built-in block types (grass, dirt, stone, wood, glass, water, ores...). It scales from a single block to an endless, streamed world with caves, forests, mining and building.
 
 The engine meshes the blocks for you with face culling (hidden faces between solid blocks are skipped) and ambient occlusion (soft darkening in corners), re-meshes only the part of the world an edit touches, and only draws regions the camera can see.
 
-<Shot id="voxels-voxel-craft" caption="Voxel Craft in Playground: a hillside with trees and water, the block outline on the aimed block, and the HTML hotbar at the bottom" />
+<Shot id="voxels-world" caption="A streamed voxel world in Playground: a hillside with trees and water, the block outline on the aimed block, and an HTML hotbar at the bottom" />
 
 ## Making a block world
 
@@ -73,7 +73,7 @@ getCompByID('world').setVoxel(hitX, hitY, hitZ, 0)      // break
 getCompByID('world').setVoxel(placeX, placeY, placeZ, 9) // place planks
 ```
 
-A 1-block Voxels node makes a handy "block in hand" or item icon: Voxel Craft's held block is a second Voxels node filled with `held.setVoxels([blockId])`.
+A 1-block Voxels node makes a handy "block in hand" or item icon: for example, a held block is a second Voxels node filled with `held.setVoxels([blockId])`.
 
 ## Streamed worlds (no edges)
 
@@ -84,7 +84,7 @@ For worlds bigger than you'd want to fill at once, stream them in **chunks** as 
 | `ref.setVoxelChunk(cx, cz, blocks)` | Load (or replace) the chunk column `cx, cz`: blocks `cx*16 .. cx*16+15` × `0 .. height-1` × `cz*16 .. cz*16+15`. Bytes are x fastest, then z, then y: index `lx + 16 * (lz + 16 * y)`. |
 | `ref.unloadVoxelChunk(cx, cz)` | Drop a loaded chunk and its meshes. |
 
-The first `setVoxelChunk` call switches the node into streamed mode. Chunk coordinates can be negative, so the world has no edge. The column height is the node's **H** (Voxel Craft uses 80).
+The first `setVoxelChunk` call switches the node into streamed mode. Chunk coordinates can be negative, so the world has no edge. The column height is the node's **H** (80 is a good value for terrain).
 
 How the engine handles it:
 
@@ -92,10 +92,10 @@ How the engine handles it:
 - A chunk column is only drawn once its four neighbours are loaded (so its edge faces are known); the outermost ring you load is never drawn.
 - Meshing works nearest-first, a limited number of 16³ regions per frame, and only regions inside the camera's view are drawn.
 
-Voxel Craft streams chunks within a radius of 8 and unloads beyond 10, generating at most a few milliseconds of chunks per frame:
+A typical streamer loads chunks within a radius of 8 and unloads beyond 10, generating at most a few milliseconds of chunks per frame:
 
 ```js
-// From demo_voxel.js (simplified): hand a generated chunk to the engine.
+// Hand a generated chunk to the engine.
 getCompByID('world').setVoxelChunk(cx, cz, chunkBytes)
 // ...and drop one that's now far behind the player.
 getCompByID('world').unloadVoxelChunk(cx, cz)
@@ -103,13 +103,13 @@ getCompByID('world').unloadVoxelChunk(cx, cz)
 
 ## Collision and aiming
 
-Voxels meshes aren't part of [Physics 3D](./physics-3d.mdx), and `ctx.raycast3` doesn't hit them. Games keep their own copy of the block bytes (the same array they generated) for walking collision and for finding the block under the crosshair. Voxel Craft does exactly this: its script owns the authoritative block data and mirrors every change to the engine with `setVoxelChunk` / `setVoxel`.
+Voxels meshes aren't part of [Physics 3D](./physics-3d.mdx), and `ctx.raycast3` doesn't hit them. Games keep their own copy of the block bytes (the same array they generated) for walking collision and for finding the block under the crosshair. The script owns the authoritative block data and mirrors every change to the engine with `setVoxelChunk` / `setVoxel`.
 
 ## Look and atmosphere
 
 - Blocks use a built-in pixel-art texture atlas.
 - Ambient occlusion is only computed for **unscaled** Voxels nodes; scale the node and AO is turned off.
-- Distance **fog** sells the scale. Set it with `ctx.setEnvironment3`, usually matching the camera's sky colour; Voxel Craft also switches to thick blue fog underwater:
+- Distance **fog** sells the scale. Set it with `ctx.setEnvironment3`, usually matching the camera's sky colour. To switch to thick blue fog underwater:
 
 ```js
 ctx.setEnvironment3(headUnderwater
@@ -117,6 +117,6 @@ ctx.setEnvironment3(headUnderwater
   : { fog: SKY, fogDensity: 0.0115, ambient: [0.42, 0.47, 0.56] })
 ```
 
-Useful input for block games: `ctx.keysDown` reports held mouse buttons as `'mouseleft'`, `'mouseright'` and `'mousemiddle'`, and `ctx.wheelY` the wheel (Voxel Craft cycles the hotbar with it). See [Input](../scripting/input.mdx).
+Useful input for block games: `ctx.keysDown` reports held mouse buttons as `'mouseleft'`, `'mouseright'` and `'mousemiddle'`, and `ctx.wheelY` the wheel (useful for cycling a hotbar). See [Input](../scripting/input.mdx).
 
 See also: [3D basics](./3d-basics.mdx), [Scripting: 3D](../scripting/3d-api.mdx).

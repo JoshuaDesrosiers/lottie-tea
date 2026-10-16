@@ -130,11 +130,11 @@ function m(e) {
 var h = class e {
 	static __wrap(t) {
 		let n = Object.create(e.prototype);
-		return n.__wbg_ptr = t, be.register(n, n.__wbg_ptr, n), n;
+		return n.__wbg_ptr = t, xe.register(n, n.__wbg_ptr, n), n;
 	}
 	__destroy_into_raw() {
 		let e = this.__wbg_ptr;
-		return this.__wbg_ptr = 0, be.unregister(this), e;
+		return this.__wbg_ptr = 0, xe.unregister(this), e;
 	}
 	free() {
 		let e = this.__destroy_into_raw();
@@ -158,11 +158,11 @@ Symbol.dispose && (h.prototype[Symbol.dispose] = h.prototype.free);
 var g = class e {
 	static __wrap(t) {
 		let n = Object.create(e.prototype);
-		return n.__wbg_ptr = t, M.register(n, n.__wbg_ptr, n), n;
+		return n.__wbg_ptr = t, Se.register(n, n.__wbg_ptr, n), n;
 	}
 	__destroy_into_raw() {
 		let e = this.__wbg_ptr;
-		return this.__wbg_ptr = 0, M.unregister(this), e;
+		return this.__wbg_ptr = 0, Se.unregister(this), e;
 	}
 	free() {
 		let e = this.__destroy_into_raw();
@@ -362,7 +362,7 @@ var g = class e {
 	audio_bytes(e) {
 		let t = q.wasmeditor_audio_bytes(this.__wbg_ptr, e);
 		if (t[3]) throw G(t[2]);
-		var n = R(t[0], t[1]).slice();
+		var n = L(t[0], t[1]).slice();
 		return q.__wbindgen_free(t[0], t[1] * 1, 1), n;
 	}
 	audio_list() {
@@ -373,7 +373,7 @@ var g = class e {
 	auto_slice_image(e, t, n, r) {
 		let i = q.wasmeditor_auto_slice_image(this.__wbg_ptr, e, t, n, r);
 		if (i[3]) throw G(i[2]);
-		var a = L(i[0], i[1]).slice();
+		var a = I(i[0], i[1]).slice();
 		return q.__wbindgen_free(i[0], i[1] * 4, 4), a;
 	}
 	bind_sprite_skin(e, t, n, r, i) {
@@ -617,7 +617,7 @@ var g = class e {
 	get_image_source(e) {
 		let t = q.wasmeditor_get_image_source(this.__wbg_ptr, e);
 		if (t[3]) throw G(t[2]);
-		var n = R(t[0], t[1]).slice();
+		var n = L(t[0], t[1]).slice();
 		return q.__wbindgen_free(t[0], t[1] * 1, 1), n;
 	}
 	glass_crack(e, t, n, r, i, a, o) {
@@ -918,7 +918,7 @@ var g = class e {
 	node_local_bounds(e, t) {
 		let n = q.wasmeditor_node_local_bounds(this.__wbg_ptr, e, t);
 		if (n[3]) throw G(n[2]);
-		var r = P(n[0], n[1]).slice();
+		var r = N(n[0], n[1]).slice();
 		return q.__wbindgen_free(n[0], n[1] * 4, 4), r;
 	}
 	physics3d_add_force(e, t, n, r, i, a) {
@@ -1089,7 +1089,7 @@ var g = class e {
 	static project_asset_paths(e) {
 		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_project_asset_paths(t, n);
 		if (r[3]) throw G(r[2]);
-		var i = Ee(r[0], r[1]);
+		var i = De(r[0], r[1]);
 		return q.__wbindgen_free(r[0], r[1] * 4, 4), i;
 	}
 	project_file_index(e) {
@@ -1216,18 +1216,18 @@ var g = class e {
 	save_teab() {
 		let e = q.wasmeditor_save_teab(this.__wbg_ptr);
 		if (e[3]) throw G(e[2]);
-		var t = R(e[0], e[1]).slice();
+		var t = L(e[0], e[1]).slice();
 		return q.__wbindgen_free(e[0], e[1] * 1, 1), t;
 	}
 	screen_info_now() {
 		let e = q.wasmeditor_screen_info_now(this.__wbg_ptr);
-		var t = P(e[0], e[1]).slice();
+		var t = N(e[0], e[1]).slice();
 		return q.__wbindgen_free(e[0], e[1] * 4, 4), t;
 	}
 	script_dynamic(e) {
 		let t = q.wasmeditor_script_dynamic(this.__wbg_ptr, e);
 		if (t[3]) throw G(t[2]);
-		var n = P(t[0], t[1]).slice();
+		var n = N(t[0], t[1]).slice();
 		return q.__wbindgen_free(t[0], t[1] * 4, 4), n;
 	}
 	script_revision(e) {
@@ -1655,7 +1655,7 @@ var g = class e {
 	}
 	take_project_file_bytes(e) {
 		let t = q.wasmeditor_take_project_file_bytes(this.__wbg_ptr, e);
-		var n = R(t[0], t[1]).slice();
+		var n = L(t[0], t[1]).slice();
 		return q.__wbindgen_free(t[0], t[1] * 1, 1), n;
 	}
 	translate_nodes(e, t, n) {
@@ -1713,7 +1713,7 @@ var g = class e {
 	view3d_bone_drag(e, t, n, r, i, a, o, s) {
 		let c = qe(n, q.__wbindgen_malloc), l = K, u = q.wasmeditor_view3d_bone_drag(this.__wbg_ptr, e, t, c, l, r, i, a, o, s);
 		if (u[3]) throw G(u[2]);
-		var d = P(u[0], u[1]).slice();
+		var d = N(u[0], u[1]).slice();
 		return q.__wbindgen_free(u[0], u[1] * 4, 4), d;
 	}
 	view3d_bone_drag_begin(e, t) {
@@ -1724,7 +1724,7 @@ var g = class e {
 	view3d_drag_transform(e, t, n, r, i, a, o, s) {
 		let c = qe(n, q.__wbindgen_malloc), l = K, u = q.wasmeditor_view3d_drag_transform(this.__wbg_ptr, e, t, c, l, r, i, a, o, s);
 		if (u[3]) throw G(u[2]);
-		var d = P(u[0], u[1]).slice();
+		var d = N(u[0], u[1]).slice();
 		return q.__wbindgen_free(u[0], u[1] * 4, 4), d;
 	}
 	view3d_fly(e, t, n) {
@@ -1800,11 +1800,11 @@ Symbol.dispose && (g.prototype[Symbol.dispose] = g.prototype.free);
 var _ = class e {
 	static __wrap(t) {
 		let n = Object.create(e.prototype);
-		return n.__wbg_ptr = t, xe.register(n, n.__wbg_ptr, n), n;
+		return n.__wbg_ptr = t, j.register(n, n.__wbg_ptr, n), n;
 	}
 	__destroy_into_raw() {
 		let e = this.__wbg_ptr;
-		return this.__wbg_ptr = 0, xe.unregister(this), e;
+		return this.__wbg_ptr = 0, j.unregister(this), e;
 	}
 	free() {
 		let e = this.__destroy_into_raw();
@@ -1855,7 +1855,7 @@ var _ = class e {
 	}
 	state_machine_names() {
 		let e = q.wasmplayer_state_machine_names(this.__wbg_ptr);
-		var t = Ee(e[0], e[1]);
+		var t = De(e[0], e[1]);
 		return q.__wbindgen_free(e[0], e[1] * 4, 4), t;
 	}
 };
@@ -1890,7 +1890,7 @@ function v() {
 				return H(n) ? 16777215 : +!!n;
 			},
 			__wbg___wbindgen_debug_string_a57024b9c6e4a48b: function(e, t) {
-				let n = W(Ce(t), q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
+				let n = W(we(t), q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
 				z().setInt32(e + 4, r, !0), z().setInt32(e + 0, n, !0);
 			},
 			__wbg___wbindgen_in_ac983077f137f2e6: function(e, t) {
@@ -2065,13 +2065,13 @@ function v() {
 				}, arguments);
 			},
 			__wbg_clearBufferfv_ccbb43fb098f1912: function(e, t, n, r, i) {
-				e.clearBufferfv(t >>> 0, n, P(r, i));
+				e.clearBufferfv(t >>> 0, n, N(r, i));
 			},
 			__wbg_clearBufferiv_8b1c68299632478f: function(e, t, n, r, i) {
-				e.clearBufferiv(t >>> 0, n, F(r, i));
+				e.clearBufferiv(t >>> 0, n, P(r, i));
 			},
 			__wbg_clearBufferuiv_cd72147d09d432e8: function(e, t, n, r, i) {
-				e.clearBufferuiv(t >>> 0, n, L(r, i));
+				e.clearBufferuiv(t >>> 0, n, I(r, i));
 			},
 			__wbg_clearDepth_887000180cc9eb2e: function(e, t) {
 				e.clearDepth(t);
@@ -2164,37 +2164,37 @@ function v() {
 			},
 			__wbg_createBuffer_44b37c222efbd326: function(e) {
 				let t = e.createBuffer();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createBuffer_af6c411fe2b091f8: function(e) {
 				let t = e.createBuffer();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createCommandEncoder_ec1f40f0cb4d09df: function(e, t) {
 				return e.createCommandEncoder(t);
 			},
 			__wbg_createFramebuffer_4dc2fb6bd93463a5: function(e) {
 				let t = e.createFramebuffer();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createFramebuffer_e6d8917bf9291c65: function(e) {
 				let t = e.createFramebuffer();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createPipelineLayout_2c8cd4528b06c108: function(e, t) {
 				return e.createPipelineLayout(t);
 			},
 			__wbg_createProgram_2ebbd17565e0ede7: function(e) {
 				let t = e.createProgram();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createProgram_81b37242eadef893: function(e) {
 				let t = e.createProgram();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createQuery_5ef5edffbd3a678d: function(e) {
 				let t = e.createQuery();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createRenderPipeline_cf98d4d699bfb03c: function() {
 				return V(function(e, t) {
@@ -2203,29 +2203,29 @@ function v() {
 			},
 			__wbg_createRenderbuffer_be624f81e06a0cfd: function(e) {
 				let t = e.createRenderbuffer();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createRenderbuffer_cd2638d5dda9c277: function(e) {
 				let t = e.createRenderbuffer();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createSampler_c8ffb3c8d565f704: function(e, t) {
 				return e.createSampler(t);
 			},
 			__wbg_createSampler_f1aedbf47c21745a: function(e) {
 				let t = e.createSampler();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createShaderModule_2e44fc7677c6288b: function(e, t) {
 				return e.createShaderModule(t);
 			},
 			__wbg_createShader_9a8e5f335caac850: function(e, t) {
 				let n = e.createShader(t >>> 0);
-				return H(n) ? 0 : N(n);
+				return H(n) ? 0 : M(n);
 			},
 			__wbg_createShader_f8638cf4c19a1d2d: function(e, t) {
 				let n = e.createShader(t >>> 0);
-				return H(n) ? 0 : N(n);
+				return H(n) ? 0 : M(n);
 			},
 			__wbg_createTexture_1bac74c999b8a48e: function() {
 				return V(function(e, t) {
@@ -2234,19 +2234,19 @@ function v() {
 			},
 			__wbg_createTexture_42c791197006c64a: function(e) {
 				let t = e.createTexture();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createTexture_c74740f68b5c2a93: function(e) {
 				let t = e.createTexture();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createVertexArrayOES_f7e8c94194c4e075: function(e) {
 				let t = e.createVertexArrayOES();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createVertexArray_abd18ded26b75653: function(e) {
 				let t = e.createVertexArray();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_createView_ceaf2f5881adbd34: function() {
 				return V(function(e, t) {
@@ -2349,7 +2349,7 @@ function v() {
 			},
 			__wbg_document_ac38448dbfd31a57: function(e) {
 				let t = e.document;
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_done_669171204c3dcae2: function(e) {
 				return e.done;
@@ -2415,7 +2415,7 @@ function v() {
 			},
 			__wbg_fenceSync_57ab30f550e5a5a2: function(e, t, n) {
 				let r = e.fenceSync(t >>> 0, n >>> 0);
-				return H(r) ? 0 : N(r);
+				return H(r) ? 0 : M(r);
 			},
 			__wbg_finish_4d91de5e927dd13f: function(e, t) {
 				return e.finish(t);
@@ -2468,25 +2468,25 @@ function v() {
 			__wbg_getContext_123ddade3a0fb2f5: function() {
 				return V(function(e, t, n, r) {
 					let i = e.getContext(B(t, n), r);
-					return H(i) ? 0 : N(i);
+					return H(i) ? 0 : M(i);
 				}, arguments);
 			},
 			__wbg_getContext_53c8c42beb820370: function() {
 				return V(function(e, t, n, r) {
 					let i = e.getContext(B(t, n), r);
-					return H(i) ? 0 : N(i);
+					return H(i) ? 0 : M(i);
 				}, arguments);
 			},
 			__wbg_getContext_71c33f14b63da593: function() {
 				return V(function(e, t, n) {
 					let r = e.getContext(B(t, n));
-					return H(r) ? 0 : N(r);
+					return H(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_getContext_c5236e0057b35024: function() {
 				return V(function(e, t, n) {
 					let r = e.getContext(B(t, n));
-					return H(r) ? 0 : N(r);
+					return H(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_getCurrentTexture_20714d1bd9051cab: function() {
@@ -2497,7 +2497,7 @@ function v() {
 			__wbg_getExtension_8e8c3be603d4f5ce: function() {
 				return V(function(e, t, n) {
 					let r = e.getExtension(B(t, n));
-					return H(r) ? 0 : N(r);
+					return H(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_getIndexedParameter_fa6cca29d50de787: function() {
@@ -2561,11 +2561,11 @@ function v() {
 			},
 			__wbg_getSupportedExtensions_63e3eaba880055c5: function(e) {
 				let t = e.getSupportedExtensions();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_getSupportedProfiles_7cd826b4eff5e8fc: function(e) {
 				let t = e.getSupportedProfiles();
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_getSyncParameter_3eb3ecefa061c5ee: function(e, t, n) {
 				return e.getSyncParameter(t, n >>> 0);
@@ -2575,15 +2575,15 @@ function v() {
 			},
 			__wbg_getUniformLocation_11fd99fee70965dc: function(e, t, n, r) {
 				let i = e.getUniformLocation(t, B(n, r));
-				return H(i) ? 0 : N(i);
+				return H(i) ? 0 : M(i);
 			},
 			__wbg_getUniformLocation_c493d2f5f1a6213d: function(e, t, n, r) {
 				let i = e.getUniformLocation(t, B(n, r));
-				return H(i) ? 0 : N(i);
+				return H(i) ? 0 : M(i);
 			},
 			__wbg_get_36debceb6d43d7a1: function(e, t) {
 				let n = e[t >>> 0];
-				return H(n) ? 0 : N(n);
+				return H(n) ? 0 : M(n);
 			},
 			__wbg_get_c0c8f8d7da0c03dd: function(e, t) {
 				return e[t >>> 0];
@@ -2716,7 +2716,7 @@ function v() {
 			__wbg_matchMedia_0e2963d34f3ddd40: function() {
 				return V(function(e, t, n) {
 					let r = e.matchMedia(B(t, n));
-					return H(r) ? 0 : N(r);
+					return H(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_matches_72427e51457a4411: function(e) {
@@ -2854,7 +2854,7 @@ function v() {
 						let r = n.a;
 						n.a = 0;
 						try {
-							return w(r, n.b, e, t);
+							return ee(r, n.b, e, t);
 						} finally {
 							n.a = r;
 						}
@@ -2890,7 +2890,7 @@ function v() {
 			},
 			__wbg_performance_821a3767f0dce300: function(e) {
 				let t = e.performance;
-				return H(t) ? 0 : N(t);
+				return H(t) ? 0 : M(t);
 			},
 			__wbg_pixelStorei_11bdfb5bc6a39d28: function(e, t, n) {
 				e.pixelStorei(t >>> 0, n);
@@ -2905,7 +2905,7 @@ function v() {
 				e.polygonOffset(t, n);
 			},
 			__wbg_prototypesetcall_de8e0d9553586985: function(e, t, n) {
-				Uint8Array.prototype.set.call(R(e, t), n);
+				Uint8Array.prototype.set.call(L(e, t), n);
 			},
 			__wbg_push_adb0107829f02d75: function(e, t) {
 				return e.push(t);
@@ -2921,7 +2921,7 @@ function v() {
 			__wbg_querySelector_2c472eddb417c6b3: function() {
 				return V(function(e, t, n) {
 					let r = e.querySelector(B(t, n));
-					return H(r) ? 0 : N(r);
+					return H(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_queueMicrotask_ac694eae12e92dfb: function(e) {
@@ -2991,17 +2991,17 @@ function v() {
 			},
 			__wbg_setBindGroup_268fd1714fff0ef5: function() {
 				return V(function(e, t, n, r, i, a, o) {
-					e.setBindGroup(t >>> 0, n, L(r, i), a, o >>> 0);
+					e.setBindGroup(t >>> 0, n, I(r, i), a, o >>> 0);
 				}, arguments);
 			},
 			__wbg_setBindGroup_f0de6cb2c7dbfc2c: function(e, t, n) {
 				e.setBindGroup(t >>> 0, n);
 			},
 			__wbg_setIndexBuffer_2531a9103450445e: function(e, t, n, r) {
-				e.setIndexBuffer(t, ce[n], r);
+				e.setIndexBuffer(t, O[n], r);
 			},
 			__wbg_setIndexBuffer_7f3cf667b4d71566: function(e, t, n, r, i) {
-				e.setIndexBuffer(t, ce[n], r, i);
+				e.setIndexBuffer(t, O[n], r, i);
 			},
 			__wbg_setPipeline_c41bf46790f27f9e: function(e, t) {
 				e.setPipeline(t);
@@ -3036,16 +3036,16 @@ function v() {
 				e.a = t;
 			},
 			__wbg_set_access_9a5092f05dc45fad: function(e, t) {
-				e.access = he[t];
+				e.access = me[t];
 			},
 			__wbg_set_address_mode_u_9e2695575a219e33: function(e, t) {
-				e.addressModeU = T[t];
+				e.addressModeU = w[t];
 			},
 			__wbg_set_address_mode_v_f479b2e6cccbcac4: function(e, t) {
-				e.addressModeV = T[t];
+				e.addressModeV = w[t];
 			},
 			__wbg_set_address_mode_w_46273e153230180d: function(e, t) {
-				e.addressModeW = T[t];
+				e.addressModeW = w[t];
 			},
 			__wbg_set_alpha_bfd2df62e7bc581b: function(e, t) {
 				e.alpha = t;
@@ -3063,13 +3063,13 @@ function v() {
 				e.arrayStride = t;
 			},
 			__wbg_set_aspect_0d453bca3d012f02: function(e, t) {
-				e.aspect = _e[t];
+				e.aspect = ge[t];
 			},
 			__wbg_set_aspect_4962514fe99e68e6: function(e, t) {
-				e.aspect = _e[t];
+				e.aspect = ge[t];
 			},
 			__wbg_set_attributes_7537844a7e6dafdc: function(e, t, n) {
-				e.attributes = I(t, n);
+				e.attributes = F(t, n);
 			},
 			__wbg_set_b_c47befe0af3261eb: function(e, t) {
 				e.b = t;
@@ -3084,7 +3084,7 @@ function v() {
 				e.beginningOfPassWriteIndex = t >>> 0;
 			},
 			__wbg_set_bind_group_layouts_5a9cfea401c020ab: function(e, t, n) {
-				e.bindGroupLayouts = I(t, n);
+				e.bindGroupLayouts = F(t, n);
 			},
 			__wbg_set_binding_155b0440b4307793: function(e, t) {
 				e.binding = t >>> 0;
@@ -3105,7 +3105,7 @@ function v() {
 				e.buffer = t;
 			},
 			__wbg_set_buffers_7d0d8f507699e956: function(e, t, n) {
-				e.buffers = I(t, n);
+				e.buffers = F(t, n);
 			},
 			__wbg_set_bytes_per_row_c54ca96953f35774: function(e, t) {
 				e.bytesPerRow = t >>> 0;
@@ -3123,19 +3123,19 @@ function v() {
 				e.color = t;
 			},
 			__wbg_set_color_attachments_581fdb3310e4abfa: function(e, t, n) {
-				e.colorAttachments = I(t, n);
+				e.colorAttachments = F(t, n);
 			},
 			__wbg_set_compare_cd9b62cdb92eb580: function(e, t) {
-				e.compare = D[t];
+				e.compare = ae[t];
 			},
 			__wbg_set_compare_f36b34abfaa08ccb: function(e, t) {
-				e.compare = D[t];
+				e.compare = ae[t];
 			},
 			__wbg_set_count_069a4eac409bac55: function(e, t) {
 				e.count = t >>> 0;
 			},
 			__wbg_set_cull_mode_fc649853947a3d0c: function(e, t) {
-				e.cullMode = ae[t];
+				e.cullMode = D[t];
 			},
 			__wbg_set_depth_bias_clamp_1c0d695df7f092e5: function(e, t) {
 				e.depthBiasClamp = t;
@@ -3150,13 +3150,13 @@ function v() {
 				e.depthClearValue = t;
 			},
 			__wbg_set_depth_compare_0c8631eb2eae98e3: function(e, t) {
-				e.depthCompare = D[t];
+				e.depthCompare = ae[t];
 			},
 			__wbg_set_depth_fail_op_668155ae33d3c06f: function(e, t) {
-				e.depthFailOp = me[t];
+				e.depthFailOp = pe[t];
 			},
 			__wbg_set_depth_load_op_511c513eab4e56a9: function(e, t) {
-				e.depthLoadOp = le[t];
+				e.depthLoadOp = ce[t];
 			},
 			__wbg_set_depth_or_array_layers_89371305ed0bd962: function(e, t) {
 				e.depthOrArrayLayers = t >>> 0;
@@ -3171,7 +3171,7 @@ function v() {
 				e.depthStencilAttachment = t;
 			},
 			__wbg_set_depth_store_op_c89f33b39b43361c: function(e, t) {
-				e.depthStoreOp = ge[t];
+				e.depthStoreOp = he[t];
 			},
 			__wbg_set_depth_write_enabled_ce89750042940350: function(e, t) {
 				e.depthWriteEnabled = t !== 0;
@@ -3180,10 +3180,10 @@ function v() {
 				e.device = t;
 			},
 			__wbg_set_dimension_868eee80f4b90011: function(e, t) {
-				e.dimension = O[t];
+				e.dimension = _e[t];
 			},
 			__wbg_set_dimension_e325282e613ca0a4: function(e, t) {
-				e.dimension = j[t];
+				e.dimension = A[t];
 			},
 			__wbg_set_dst_factor_ec7407f19be1aff9: function(e, t) {
 				e.dstFactor = te[t];
@@ -3192,10 +3192,10 @@ function v() {
 				e.endOfPassWriteIndex = t >>> 0;
 			},
 			__wbg_set_entries_86a29dd6291c95e7: function(e, t, n) {
-				e.entries = I(t, n);
+				e.entries = F(t, n);
 			},
 			__wbg_set_entries_a12aca1e458b0456: function(e, t, n) {
-				e.entries = I(t, n);
+				e.entries = F(t, n);
 			},
 			__wbg_set_entry_point_207540f042015ce5: function(e, t, n) {
 				e.entryPoint = B(t, n);
@@ -3207,7 +3207,7 @@ function v() {
 				e.externalTexture = t;
 			},
 			__wbg_set_fail_op_92f716dbc88b6973: function(e, t) {
-				e.failOp = me[t];
+				e.failOp = pe[t];
 			},
 			__wbg_set_format_1fcaa7d60546b490: function(e, t) {
 				e.format = k[t];
@@ -3219,7 +3219,7 @@ function v() {
 				e.format = k[t];
 			},
 			__wbg_set_format_5d2f25cc93654ecc: function(e, t) {
-				e.format = ve[t];
+				e.format = ye[t];
 			},
 			__wbg_set_format_5ff53724ed6cedf2: function(e, t) {
 				e.format = k[t];
@@ -3297,10 +3297,10 @@ function v() {
 				e.layout = t;
 			},
 			__wbg_set_layout_gpu_auto_layout_mode_aeba193938b47882: function(e, t) {
-				e.layout = ee[t];
+				e.layout = T[t];
 			},
 			__wbg_set_load_op_99661da6c4eab9b0: function(e, t) {
-				e.loadOp = le[t];
+				e.loadOp = ce[t];
 			},
 			__wbg_set_lod_max_clamp_dd2d9f9f052f4f44: function(e, t) {
 				e.lodMaxClamp = t;
@@ -3336,7 +3336,7 @@ function v() {
 				e.mipLevel = t >>> 0;
 			},
 			__wbg_set_mipmap_filter_5bf66195a3639700: function(e, t) {
-				e.mipmapFilter = ue[t];
+				e.mipmapFilter = le[t];
 			},
 			__wbg_set_mode_9990b3393ba469ae: function(e, t) {
 				e.mode = ie[t];
@@ -3366,16 +3366,16 @@ function v() {
 				e.offset = t;
 			},
 			__wbg_set_operation_62ce44e1728c4047: function(e, t) {
-				e.operation = E[t];
+				e.operation = ne[t];
 			},
 			__wbg_set_origin_gpu_origin_3d_dict_631c04520718091f: function(e, t) {
 				e.origin = t;
 			},
 			__wbg_set_pass_op_cf02fa088d6352a7: function(e, t) {
-				e.passOp = me[t];
+				e.passOp = pe[t];
 			},
 			__wbg_set_power_preference_8fdca0b7af640d49: function(e, t) {
-				e.powerPreference = de[t];
+				e.powerPreference = ue[t];
 			},
 			__wbg_set_primitive_43c23761a55b4088: function(e, t) {
 				e.primitive = t;
@@ -3387,7 +3387,7 @@ function v() {
 				e.r = t;
 			},
 			__wbg_set_required_features_1baf274a8669db60: function(e, t, n) {
-				e.requiredFeatures = I(t, n);
+				e.requiredFeatures = F(t, n);
 			},
 			__wbg_set_required_limits_871ed33c68613dcb: function(e, t) {
 				e.requiredLimits = t;
@@ -3414,7 +3414,7 @@ function v() {
 				e.sampleCount = t >>> 0;
 			},
 			__wbg_set_sample_type_c32e1dfff94e63eb: function(e, t) {
-				e.sampleType = A[t];
+				e.sampleType = ve[t];
 			},
 			__wbg_set_sampler_c0e1258543a33bce: function(e, t) {
 				e.sampler = t;
@@ -3444,7 +3444,7 @@ function v() {
 				e.stencilFront = t;
 			},
 			__wbg_set_stencil_load_op_31838c036993098a: function(e, t) {
-				e.stencilLoadOp = le[t];
+				e.stencilLoadOp = ce[t];
 			},
 			__wbg_set_stencil_read_mask_5cc26495e8b3ae82: function(e, t) {
 				e.stencilReadMask = t >>> 0;
@@ -3453,25 +3453,25 @@ function v() {
 				e.stencilReadOnly = t !== 0;
 			},
 			__wbg_set_stencil_store_op_e6be1cbc3a8fc210: function(e, t) {
-				e.stencilStoreOp = ge[t];
+				e.stencilStoreOp = he[t];
 			},
 			__wbg_set_stencil_write_mask_d9cb40ec4b4bee5b: function(e, t) {
 				e.stencilWriteMask = t >>> 0;
 			},
 			__wbg_set_step_mode_a97bb24714da41a9: function(e, t) {
-				e.stepMode = ye[t];
+				e.stepMode = be[t];
 			},
 			__wbg_set_storage_texture_939a097db4b18bd4: function(e, t) {
 				e.storageTexture = t;
 			},
 			__wbg_set_store_op_b5fdf672436f13f3: function(e, t) {
-				e.storeOp = ge[t];
+				e.storeOp = he[t];
 			},
 			__wbg_set_strip_index_format_9f787be6c5fc9e87: function(e, t) {
-				e.stripIndexFormat = ce[t];
+				e.stripIndexFormat = O[t];
 			},
 			__wbg_set_targets_c38bd200c836d66f: function(e, t, n) {
-				e.targets = I(t, n);
+				e.targets = F(t, n);
 			},
 			__wbg_set_texture_1f64653a5d2d7b4d: function(e, t) {
 				e.texture = t;
@@ -3486,13 +3486,13 @@ function v() {
 				e.toneMapping = t;
 			},
 			__wbg_set_topology_da25f2cc5af203d2: function(e, t) {
-				e.topology = fe[t];
+				e.topology = de[t];
 			},
 			__wbg_set_type_ccf8472d40abcddf: function(e, t) {
-				e.type = pe[t];
+				e.type = fe[t];
 			},
 			__wbg_set_type_d09829f59932a0fc: function(e, t) {
-				e.type = ne[t];
+				e.type = E[t];
 			},
 			__wbg_set_unclipped_depth_04524a2b44e1e3c1: function(e, t) {
 				e.unclippedDepth = t !== 0;
@@ -3513,16 +3513,16 @@ function v() {
 				e.vertex = t;
 			},
 			__wbg_set_view_dimension_0df554032f1f3a85: function(e, t) {
-				e.viewDimension = j[t];
+				e.viewDimension = A[t];
 			},
 			__wbg_set_view_dimension_4818d4c18ce5815e: function(e, t) {
-				e.viewDimension = j[t];
+				e.viewDimension = A[t];
 			},
 			__wbg_set_view_formats_4347dc8363331086: function(e, t, n) {
-				e.viewFormats = I(t, n);
+				e.viewFormats = F(t, n);
 			},
 			__wbg_set_view_formats_5797d2fff3c11808: function(e, t, n) {
-				e.viewFormats = I(t, n);
+				e.viewFormats = F(t, n);
 			},
 			__wbg_set_view_gpu_texture_view_9b2d86b6b99d9fd9: function(e, t) {
 				e.view = t;
@@ -3566,19 +3566,19 @@ function v() {
 			},
 			__wbg_static_accessor_GLOBAL_THIS_466428f93b4eaa76: function() {
 				let e = typeof globalThis > "u" ? null : globalThis;
-				return H(e) ? 0 : N(e);
+				return H(e) ? 0 : M(e);
 			},
 			__wbg_static_accessor_GLOBAL_c7aea38d4de089bc: function() {
 				let e = typeof global > "u" ? null : global;
-				return H(e) ? 0 : N(e);
+				return H(e) ? 0 : M(e);
 			},
 			__wbg_static_accessor_SELF_42d4fae05e59267a: function() {
 				let e = typeof self > "u" ? null : self;
-				return H(e) ? 0 : N(e);
+				return H(e) ? 0 : M(e);
 			},
 			__wbg_static_accessor_WINDOW_e0db14a0eba6a812: function() {
 				let e = typeof window > "u" ? null : window;
-				return H(e) ? 0 : N(e);
+				return H(e) ? 0 : M(e);
 			},
 			__wbg_stencilFuncSeparate_1455ac65895207da: function(e, t, n, r, i) {
 				e.stencilFuncSeparate(t >>> 0, n >>> 0, r, i >>> 0);
@@ -3611,7 +3611,7 @@ function v() {
 				return e.subgroupMinSize;
 			},
 			__wbg_submit_ce44115121cd166c: function(e, t, n) {
-				e.submit(I(t, n));
+				e.submit(F(t, n));
 			},
 			__wbg_texImage2D_053488112c3d702f: function() {
 				return V(function(e, t, n, r, i, a, o, s, c, l) {
@@ -3753,34 +3753,34 @@ function v() {
 				e.uniform1ui(t, n >>> 0);
 			},
 			__wbg_uniform2fv_1443080aaf9c1077: function(e, t, n, r) {
-				e.uniform2fv(t, P(n, r));
+				e.uniform2fv(t, N(n, r));
 			},
 			__wbg_uniform2fv_b039f28911c30526: function(e, t, n, r) {
-				e.uniform2fv(t, P(n, r));
+				e.uniform2fv(t, N(n, r));
 			},
 			__wbg_uniform2iv_9648a06d054a25aa: function(e, t, n, r) {
-				e.uniform2iv(t, F(n, r));
+				e.uniform2iv(t, P(n, r));
 			},
 			__wbg_uniform2iv_e0496dc424dc25ec: function(e, t, n, r) {
-				e.uniform2iv(t, F(n, r));
+				e.uniform2iv(t, P(n, r));
 			},
 			__wbg_uniform2uiv_935dfb31f50dfbe3: function(e, t, n, r) {
-				e.uniform2uiv(t, L(n, r));
+				e.uniform2uiv(t, I(n, r));
 			},
 			__wbg_uniform3fv_025760367cc4eed3: function(e, t, n, r) {
-				e.uniform3fv(t, P(n, r));
+				e.uniform3fv(t, N(n, r));
 			},
 			__wbg_uniform3fv_b985d45f54156d3b: function(e, t, n, r) {
-				e.uniform3fv(t, P(n, r));
+				e.uniform3fv(t, N(n, r));
 			},
 			__wbg_uniform3iv_193b7a0e1ae9ac9a: function(e, t, n, r) {
-				e.uniform3iv(t, F(n, r));
+				e.uniform3iv(t, P(n, r));
 			},
 			__wbg_uniform3iv_63e82687b07e66fc: function(e, t, n, r) {
-				e.uniform3iv(t, F(n, r));
+				e.uniform3iv(t, P(n, r));
 			},
 			__wbg_uniform3uiv_ccd86b78a5fb3077: function(e, t, n, r) {
-				e.uniform3uiv(t, L(n, r));
+				e.uniform3uiv(t, I(n, r));
 			},
 			__wbg_uniform4f_61192d516e9bede4: function(e, t, n, r, i, a) {
 				e.uniform4f(t, n, r, i, a);
@@ -3789,58 +3789,58 @@ function v() {
 				e.uniform4f(t, n, r, i, a);
 			},
 			__wbg_uniform4fv_c39527800fc76c8e: function(e, t, n, r) {
-				e.uniform4fv(t, P(n, r));
+				e.uniform4fv(t, N(n, r));
 			},
 			__wbg_uniform4fv_fcff56a650906708: function(e, t, n, r) {
-				e.uniform4fv(t, P(n, r));
+				e.uniform4fv(t, N(n, r));
 			},
 			__wbg_uniform4iv_197c2f54a8dfb5c2: function(e, t, n, r) {
-				e.uniform4iv(t, F(n, r));
+				e.uniform4iv(t, P(n, r));
 			},
 			__wbg_uniform4iv_9e6e36f0e1d1f84d: function(e, t, n, r) {
-				e.uniform4iv(t, F(n, r));
+				e.uniform4iv(t, P(n, r));
 			},
 			__wbg_uniform4uiv_73fc9e298d02c948: function(e, t, n, r) {
-				e.uniform4uiv(t, L(n, r));
+				e.uniform4uiv(t, I(n, r));
 			},
 			__wbg_uniformBlockBinding_057177606c8b522f: function(e, t, n, r) {
 				e.uniformBlockBinding(t, n >>> 0, r >>> 0);
 			},
 			__wbg_uniformMatrix2fv_013723900a9cb65c: function(e, t, n, r, i) {
-				e.uniformMatrix2fv(t, n !== 0, P(r, i));
+				e.uniformMatrix2fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix2fv_fb61eccac67a8218: function(e, t, n, r, i) {
-				e.uniformMatrix2fv(t, n !== 0, P(r, i));
+				e.uniformMatrix2fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix2x3fv_de8b00219f47ffb4: function(e, t, n, r, i) {
-				e.uniformMatrix2x3fv(t, n !== 0, P(r, i));
+				e.uniformMatrix2x3fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix2x4fv_e659cc34e95fee5e: function(e, t, n, r, i) {
-				e.uniformMatrix2x4fv(t, n !== 0, P(r, i));
+				e.uniformMatrix2x4fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix3fv_3e548032fc28c3e2: function(e, t, n, r, i) {
-				e.uniformMatrix3fv(t, n !== 0, P(r, i));
+				e.uniformMatrix3fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix3fv_72ca83d3393e0364: function(e, t, n, r, i) {
-				e.uniformMatrix3fv(t, n !== 0, P(r, i));
+				e.uniformMatrix3fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix3x2fv_8598636e806d318d: function(e, t, n, r, i) {
-				e.uniformMatrix3x2fv(t, n !== 0, P(r, i));
+				e.uniformMatrix3x2fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix3x4fv_277fbf38db85e612: function(e, t, n, r, i) {
-				e.uniformMatrix3x4fv(t, n !== 0, P(r, i));
+				e.uniformMatrix3x4fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix4fv_20161efad644f822: function(e, t, n, r, i) {
-				e.uniformMatrix4fv(t, n !== 0, P(r, i));
+				e.uniformMatrix4fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix4fv_8689fd0481ac5ab4: function(e, t, n, r, i) {
-				e.uniformMatrix4fv(t, n !== 0, P(r, i));
+				e.uniformMatrix4fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix4x2fv_e91bd4e774f6266d: function(e, t, n, r, i) {
-				e.uniformMatrix4x2fv(t, n !== 0, P(r, i));
+				e.uniformMatrix4x2fv(t, n !== 0, N(r, i));
 			},
 			__wbg_uniformMatrix4x3fv_a829c88dfd0c29d3: function(e, t, n, r, i) {
-				e.uniformMatrix4x3fv(t, n !== 0, P(r, i));
+				e.uniformMatrix4x3fv(t, n !== 0, N(r, i));
 			},
 			__wbg_unmap_adaf93276fdf9aaf: function(e) {
 				e.unmap();
@@ -3889,12 +3889,12 @@ function v() {
 			},
 			__wbg_writeBuffer_8b5bd251a89198bc: function() {
 				return V(function(e, t, n, r, i, a, o) {
-					e.writeBuffer(t, n, R(r, i), a, o);
+					e.writeBuffer(t, n, L(r, i), a, o);
 				}, arguments);
 			},
 			__wbg_writeTexture_53ba204c494b042c: function() {
 				return V(function(e, t, n, r, i, a) {
-					e.writeTexture(t, R(n, r), i, a);
+					e.writeTexture(t, L(n, r), i, a);
 				}, arguments);
 			},
 			__wbindgen_cast_0000000000000001: function(e, t) {
@@ -3919,25 +3919,25 @@ function v() {
 				return e;
 			},
 			__wbindgen_cast_0000000000000008: function(e, t) {
-				return P(e, t);
+				return N(e, t);
 			},
 			__wbindgen_cast_0000000000000009: function(e, t) {
-				return we(e, t);
-			},
-			__wbindgen_cast_000000000000000a: function(e, t) {
-				return F(e, t);
-			},
-			__wbindgen_cast_000000000000000b: function(e, t) {
 				return Te(e, t);
 			},
+			__wbindgen_cast_000000000000000a: function(e, t) {
+				return P(e, t);
+			},
+			__wbindgen_cast_000000000000000b: function(e, t) {
+				return Ee(e, t);
+			},
 			__wbindgen_cast_000000000000000c: function(e, t) {
-				return De(e, t);
+				return Oe(e, t);
 			},
 			__wbindgen_cast_000000000000000d: function(e, t) {
-				return L(e, t);
+				return I(e, t);
 			},
 			__wbindgen_cast_000000000000000e: function(e, t) {
-				return R(e, t);
+				return L(e, t);
 			},
 			__wbindgen_cast_000000000000000f: function(e, t) {
 				return B(e, t);
@@ -3971,14 +3971,14 @@ function C(e, t, n) {
 	let r = q.wasm_bindgen__convert__closures_____invoke__h38ba885d5c890306_4(e, t, n);
 	if (r[1]) throw G(r[0]);
 }
-function w(e, t, n, r) {
+function ee(e, t, n, r) {
 	q.wasm_bindgen__convert__closures_____invoke__h851bff43d8d0d8b2(e, t, n, r);
 }
-var T = [
+var w = [
 	"clamp-to-edge",
 	"repeat",
 	"mirror-repeat"
-], ee = ["auto"], te = [
+], T = ["auto"], te = [
 	"zero",
 	"one",
 	"src",
@@ -3996,17 +3996,17 @@ var T = [
 	"one-minus-src1",
 	"src1-alpha",
 	"one-minus-src1-alpha"
-], E = [
+], ne = [
 	"add",
 	"subtract",
 	"reverse-subtract",
 	"min",
 	"max"
-], ne = [
+], E = [
 	"uniform",
 	"storage",
 	"read-only-storage"
-], re = ["opaque", "premultiplied"], ie = ["standard", "extended"], D = [
+], re = ["opaque", "premultiplied"], ie = ["standard", "extended"], ae = [
 	"never",
 	"less",
 	"equal",
@@ -4015,21 +4015,21 @@ var T = [
 	"not-equal",
 	"greater-equal",
 	"always"
-], ae = [
+], D = [
 	"none",
 	"front",
 	"back"
-], oe = ["nearest", "linear"], se = ["ccw", "cw"], ce = ["uint16", "uint32"], le = ["load", "clear"], ue = ["nearest", "linear"], de = ["low-power", "high-performance"], fe = [
+], oe = ["nearest", "linear"], se = ["ccw", "cw"], O = ["uint16", "uint32"], ce = ["load", "clear"], le = ["nearest", "linear"], ue = ["low-power", "high-performance"], de = [
 	"point-list",
 	"line-list",
 	"line-strip",
 	"triangle-list",
 	"triangle-strip"
-], pe = [
+], fe = [
 	"filtering",
 	"non-filtering",
 	"comparison"
-], me = [
+], pe = [
 	"keep",
 	"zero",
 	"replace",
@@ -4038,50 +4038,50 @@ var T = [
 	"decrement-clamp",
 	"increment-wrap",
 	"decrement-wrap"
-], he = [
+], me = [
 	"write-only",
 	"read-only",
 	"read-write"
-], ge = ["store", "discard"], _e = [
+], he = ["store", "discard"], ge = [
 	"all",
 	"stencil-only",
 	"depth-only"
-], O = [
+], _e = [
 	"1d",
 	"2d",
 	"3d"
-], k = /* @__PURE__ */ "r8unorm.r8snorm.r8uint.r8sint.r16unorm.r16snorm.r16uint.r16sint.r16float.rg8unorm.rg8snorm.rg8uint.rg8sint.r32uint.r32sint.r32float.rg16unorm.rg16snorm.rg16uint.rg16sint.rg16float.rgba8unorm.rgba8unorm-srgb.rgba8snorm.rgba8uint.rgba8sint.bgra8unorm.bgra8unorm-srgb.rgb9e5ufloat.rgb10a2uint.rgb10a2unorm.rg11b10ufloat.rg32uint.rg32sint.rg32float.rgba16unorm.rgba16snorm.rgba16uint.rgba16sint.rgba16float.rgba32uint.rgba32sint.rgba32float.stencil8.depth16unorm.depth24plus.depth24plus-stencil8.depth32float.depth32float-stencil8.bc1-rgba-unorm.bc1-rgba-unorm-srgb.bc2-rgba-unorm.bc2-rgba-unorm-srgb.bc3-rgba-unorm.bc3-rgba-unorm-srgb.bc4-r-unorm.bc4-r-snorm.bc5-rg-unorm.bc5-rg-snorm.bc6h-rgb-ufloat.bc6h-rgb-float.bc7-rgba-unorm.bc7-rgba-unorm-srgb.etc2-rgb8unorm.etc2-rgb8unorm-srgb.etc2-rgb8a1unorm.etc2-rgb8a1unorm-srgb.etc2-rgba8unorm.etc2-rgba8unorm-srgb.eac-r11unorm.eac-r11snorm.eac-rg11unorm.eac-rg11snorm.astc-4x4-unorm.astc-4x4-unorm-srgb.astc-5x4-unorm.astc-5x4-unorm-srgb.astc-5x5-unorm.astc-5x5-unorm-srgb.astc-6x5-unorm.astc-6x5-unorm-srgb.astc-6x6-unorm.astc-6x6-unorm-srgb.astc-8x5-unorm.astc-8x5-unorm-srgb.astc-8x6-unorm.astc-8x6-unorm-srgb.astc-8x8-unorm.astc-8x8-unorm-srgb.astc-10x5-unorm.astc-10x5-unorm-srgb.astc-10x6-unorm.astc-10x6-unorm-srgb.astc-10x8-unorm.astc-10x8-unorm-srgb.astc-10x10-unorm.astc-10x10-unorm-srgb.astc-12x10-unorm.astc-12x10-unorm-srgb.astc-12x12-unorm.astc-12x12-unorm-srgb".split("."), A = [
+], k = /* @__PURE__ */ "r8unorm.r8snorm.r8uint.r8sint.r16unorm.r16snorm.r16uint.r16sint.r16float.rg8unorm.rg8snorm.rg8uint.rg8sint.r32uint.r32sint.r32float.rg16unorm.rg16snorm.rg16uint.rg16sint.rg16float.rgba8unorm.rgba8unorm-srgb.rgba8snorm.rgba8uint.rgba8sint.bgra8unorm.bgra8unorm-srgb.rgb9e5ufloat.rgb10a2uint.rgb10a2unorm.rg11b10ufloat.rg32uint.rg32sint.rg32float.rgba16unorm.rgba16snorm.rgba16uint.rgba16sint.rgba16float.rgba32uint.rgba32sint.rgba32float.stencil8.depth16unorm.depth24plus.depth24plus-stencil8.depth32float.depth32float-stencil8.bc1-rgba-unorm.bc1-rgba-unorm-srgb.bc2-rgba-unorm.bc2-rgba-unorm-srgb.bc3-rgba-unorm.bc3-rgba-unorm-srgb.bc4-r-unorm.bc4-r-snorm.bc5-rg-unorm.bc5-rg-snorm.bc6h-rgb-ufloat.bc6h-rgb-float.bc7-rgba-unorm.bc7-rgba-unorm-srgb.etc2-rgb8unorm.etc2-rgb8unorm-srgb.etc2-rgb8a1unorm.etc2-rgb8a1unorm-srgb.etc2-rgba8unorm.etc2-rgba8unorm-srgb.eac-r11unorm.eac-r11snorm.eac-rg11unorm.eac-rg11snorm.astc-4x4-unorm.astc-4x4-unorm-srgb.astc-5x4-unorm.astc-5x4-unorm-srgb.astc-5x5-unorm.astc-5x5-unorm-srgb.astc-6x5-unorm.astc-6x5-unorm-srgb.astc-6x6-unorm.astc-6x6-unorm-srgb.astc-8x5-unorm.astc-8x5-unorm-srgb.astc-8x6-unorm.astc-8x6-unorm-srgb.astc-8x8-unorm.astc-8x8-unorm-srgb.astc-10x5-unorm.astc-10x5-unorm-srgb.astc-10x6-unorm.astc-10x6-unorm-srgb.astc-10x8-unorm.astc-10x8-unorm-srgb.astc-10x10-unorm.astc-10x10-unorm-srgb.astc-12x10-unorm.astc-12x10-unorm-srgb.astc-12x12-unorm.astc-12x12-unorm-srgb".split("."), ve = [
 	"float",
 	"unfilterable-float",
 	"depth",
 	"sint",
 	"uint"
-], j = [
+], A = [
 	"1d",
 	"2d",
 	"2d-array",
 	"cube",
 	"cube-array",
 	"3d"
-], ve = /* @__PURE__ */ "uint8.uint8x2.uint8x4.sint8.sint8x2.sint8x4.unorm8.unorm8x2.unorm8x4.snorm8.snorm8x2.snorm8x4.uint16.uint16x2.uint16x4.sint16.sint16x2.sint16x4.unorm16.unorm16x2.unorm16x4.snorm16.snorm16x2.snorm16x4.float16.float16x2.float16x4.float32.float32x2.float32x3.float32x4.uint32.uint32x2.uint32x3.uint32x4.sint32.sint32x2.sint32x3.sint32x4.unorm10-10-10-2.unorm8x4-bgra".split("."), ye = ["vertex", "instance"], be = typeof FinalizationRegistry > "u" ? {
+], ye = /* @__PURE__ */ "uint8.uint8x2.uint8x4.sint8.sint8x2.sint8x4.unorm8.unorm8x2.unorm8x4.snorm8.snorm8x2.snorm8x4.uint16.uint16x2.uint16x4.sint16.sint16x2.sint16x4.unorm16.unorm16x2.unorm16x4.snorm16.snorm16x2.snorm16x4.float16.float16x2.float16x4.float32.float32x2.float32x3.float32x4.uint32.uint32x2.uint32x3.uint32x4.sint32.sint32x2.sint32x3.sint32x4.unorm10-10-10-2.unorm8x4-bgra".split("."), be = ["vertex", "instance"], xe = typeof FinalizationRegistry > "u" ? {
 	register: () => {},
 	unregister: () => {}
-} : new FinalizationRegistry((e) => q.__wbg_wasmboneik_free(e, 1)), M = typeof FinalizationRegistry > "u" ? {
+} : new FinalizationRegistry((e) => q.__wbg_wasmboneik_free(e, 1)), Se = typeof FinalizationRegistry > "u" ? {
 	register: () => {},
 	unregister: () => {}
-} : new FinalizationRegistry((e) => q.__wbg_wasmeditor_free(e, 1)), xe = typeof FinalizationRegistry > "u" ? {
+} : new FinalizationRegistry((e) => q.__wbg_wasmeditor_free(e, 1)), j = typeof FinalizationRegistry > "u" ? {
 	register: () => {},
 	unregister: () => {}
 } : new FinalizationRegistry((e) => q.__wbg_wasmplayer_free(e, 1));
-function N(e) {
+function M(e) {
 	let t = q.__externref_table_alloc();
 	return q.__wbindgen_externrefs.set(t, e), t;
 }
-var Se = typeof FinalizationRegistry > "u" ? {
+var Ce = typeof FinalizationRegistry > "u" ? {
 	register: () => {},
 	unregister: () => {}
 } : new FinalizationRegistry((e) => q.__wbindgen_destroy_closure(e.a, e.b));
-function Ce(e) {
+function we(e) {
 	let t = typeof e;
 	if (t == "number" || t == "boolean" || e == null) return `${e}`;
 	if (t == "string") return `"${e}"`;
@@ -4095,8 +4095,8 @@ function Ce(e) {
 	}
 	if (Array.isArray(e)) {
 		let t = e.length, n = "[";
-		t > 0 && (n += Ce(e[0]));
-		for (let r = 1; r < t; r++) n += ", " + Ce(e[r]);
+		t > 0 && (n += we(e[0]));
+		for (let r = 1; r < t; r++) n += ", " + we(e[r]);
 		return n += "]", n;
 	}
 	let n = /\[object ([^\]]+)\]/.exec(toString.call(e)), r;
@@ -4109,42 +4109,42 @@ function Ce(e) {
 	}
 	return e instanceof Error ? `${e.name}: ${e.message}\n${e.stack}` : r;
 }
-function P(e, t) {
+function N(e, t) {
 	return e >>>= 0, Ae().subarray(e / 4, e / 4 + t);
 }
-function we(e, t) {
+function Te(e, t) {
 	return e >>>= 0, Pe().subarray(e / 2, e / 2 + t);
 }
-function F(e, t) {
+function P(e, t) {
 	return e >>>= 0, Ie().subarray(e / 4, e / 4 + t);
 }
-function Te(e, t) {
+function Ee(e, t) {
 	return e >>>= 0, Re().subarray(e / 1, e / 1 + t);
 }
-function Ee(e, t) {
+function De(e, t) {
 	e >>>= 0;
 	let n = z(), r = [];
 	for (let i = e; i < e + 4 * t; i += 4) r.push(q.__wbindgen_externrefs.get(n.getUint32(i, !0)));
 	return q.__externref_drop_slice(e, t), r;
 }
-function I(e, t) {
+function F(e, t) {
 	e >>>= 0;
 	let n = z(), r = [];
 	for (let i = e; i < e + 4 * t; i += 4) r.push(q.__wbindgen_externrefs.get(n.getUint32(i, !0)));
 	return r;
 }
-function De(e, t) {
+function Oe(e, t) {
 	return e >>>= 0, Be().subarray(e / 2, e / 2 + t);
 }
-function L(e, t) {
+function I(e, t) {
 	return e >>>= 0, He().subarray(e / 4, e / 4 + t);
 }
-function R(e, t) {
+function L(e, t) {
 	return e >>>= 0, We().subarray(e / 1, e / 1 + t);
 }
-var Oe = null;
+var R = null;
 function z() {
-	return (Oe === null || Oe.buffer.detached === !0 || Oe.buffer.detached === void 0 && Oe.buffer !== q.memory.buffer) && (Oe = new DataView(q.memory.buffer)), Oe;
+	return (R === null || R.buffer.detached === !0 || R.buffer.detached === void 0 && R.buffer !== q.memory.buffer) && (R = new DataView(q.memory.buffer)), R;
 }
 var ke = null;
 function Ae() {
@@ -4185,7 +4185,7 @@ function V(e, t) {
 	try {
 		return e.apply(this, t);
 	} catch (e) {
-		let t = N(e);
+		let t = M(e);
 		q.__wbindgen_exn_store(t);
 	}
 }
@@ -4208,8 +4208,8 @@ function Ge(e, t, n) {
 		}
 	};
 	return i._wbg_cb_unref = () => {
-		--r.cnt === 0 && (q.__wbindgen_destroy_closure(r.a, r.b), r.a = 0, Se.unregister(r));
-	}, Se.register(i, r, r), i;
+		--r.cnt === 0 && (q.__wbindgen_destroy_closure(r.a, r.b), r.a = 0, Ce.unregister(r));
+	}, Ce.register(i, r, r), i;
 }
 function Ke(e, t) {
 	let n = t(e.length * 4, 4) >>> 0;
@@ -4230,7 +4230,7 @@ function Je(e, t) {
 function Ye(e, t) {
 	let n = t(e.length * 4, 4) >>> 0;
 	for (let t = 0; t < e.length; t++) {
-		let r = N(e[t]);
+		let r = M(e[t]);
 		z().setUint32(n + 4 * t, r, !0);
 	}
 	return K = e.length, n;
@@ -4279,7 +4279,7 @@ var et = new TextEncoder();
 });
 var K = 0, q;
 function tt(e, t) {
-	return q = e.exports, Oe = null, ke = null, je = null, Ne = null, Fe = null, Le = null, ze = null, Ve = null, Ue = null, q.__wbindgen_start(), q;
+	return q = e.exports, R = null, ke = null, je = null, Ne = null, Fe = null, Le = null, ze = null, Ve = null, Ue = null, q.__wbindgen_start(), q;
 }
 async function nt(e, t) {
 	if (typeof Response == "function" && e instanceof Response) {
@@ -5256,8 +5256,8 @@ var Hn = class {
 			a.steps > 1 && (e = Math.round(e * (a.steps - 1)) / (a.steps - 1)), o.value = e;
 		}
 		if (!n) return;
-		let C = this.stateFor(n), w = s ? n.bounds[3] - n.bounds[1] : n.bounds[2] - n.bounds[0], T = w > 1e-4 ? h / w : 1, ee = y(Ln(o.value)), te = `${T.toFixed(4)}|${ee.toFixed(2)}`;
-		C.layout !== te && (C.layout = te, s ? e.setScale(n.id, C.baseScale.x, C.baseScale.y * T, n.transform.translation.x, ee) : e.setScale(n.id, C.baseScale.x * T, C.baseScale.y, ee, n.transform.translation.y)), this.applyStyle(e, n, C, a.style, a.interactable ? o.pressed ? "pressed" : S ? "highlighted" : "normal" : "disabled", [], !1);
+		let C = this.stateFor(n), ee = s ? n.bounds[3] - n.bounds[1] : n.bounds[2] - n.bounds[0], w = ee > 1e-4 ? h / ee : 1, T = y(Ln(o.value)), te = `${w.toFixed(4)}|${T.toFixed(2)}`;
+		C.layout !== te && (C.layout = te, s ? e.setScale(n.id, C.baseScale.x, C.baseScale.y * w, n.transform.translation.x, T) : e.setScale(n.id, C.baseScale.x * w, C.baseScale.y, T, n.transform.translation.y)), this.applyStyle(e, n, C, a.style, a.interactable ? o.pressed ? "pressed" : S ? "highlighted" : "normal" : "disabled", [], !1);
 	}
 }, Un = (e) => `${e.idx}:${e.version}`, Wn = new class {
 	container = null;
@@ -6980,7 +6980,7 @@ async function qr(e, t) {
 		}
 		e.dispatchEvent(new CustomEvent(`an1:${t}`, {
 			detail: n,
-			bubbles: !0
+			bubbles: t !== "ready"
 		}));
 	}, c = typeof t.game == "string" || t.game instanceof URL ? new URL(String(t.game), location.href) : null, l = t.wasm ?? (c ? new URL("an1mbyt3_wasm_bg.wasm", c) : null);
 	if (!l) throw Error("an1mbyt3: pass `wasm` (the engine) when `game` is bytes");
@@ -7021,32 +7021,32 @@ async function qr(e, t) {
 	y.observe(e), n.push(() => y.disconnect()), An.onChange = v, n.push(() => {
 		An.onChange === v && (An.onChange = null);
 	});
-	let b = /* @__PURE__ */ new Map(), x = /* @__PURE__ */ new Map(), S = !1, C = () => {
+	let b = /* @__PURE__ */ new Map(), x = /* @__PURE__ */ new Map(), S = !1, C = /* @__PURE__ */ new Set(), ee = (e = !1) => {
 		if (g) {
 			J.ensureScene(g);
-			for (let [e, t] of b) J.has(e) && !Kr(J.get(e), t) && J.set(e, t), J.has(e) && x.set(e, J.get(e));
-			S = !1;
+			for (let [t, n] of b) !e && !C.has(t) || (J.has(t) && !Kr(J.get(t), n) && J.set(t, n), J.has(t) && x.set(t, J.get(t)));
+			C.clear(), S = !1;
 		}
 	};
 	for (let [e, n] of Object.entries(t.data ?? {})) b.set(e, n), X.setData(e, n);
-	let w = null, T = null, ee = (e) => {
+	let w = null, T = null, te = (e) => {
 		p = dt(f, e), p = Ft(f, e, "Playground"), g = e;
 		let t = w;
 		w = p.artboards.find((t) => Gr(t.id, e))?.name ?? null, v(), J.ensureScene(e), x.clear();
 		for (let e of J.names()) x.set(e, J.get(e));
-		C(), w !== null && s("scene", {
+		ee(!0), w !== null && s("scene", {
 			scene: w,
 			previous: t
 		});
-	}, te = p.artboards.find((e) => e.name === t.scene) ?? p.artboards[0];
-	if (!te) throw Error("an1mbyt3: this game has no scenes");
-	let E = /* @__PURE__ */ new Set(), ne = {
+	}, ne = p.artboards.find((e) => e.name === t.scene) ?? p.artboards[0];
+	if (!ne) throw Error("an1mbyt3: this game has no scenes");
+	let E = /* @__PURE__ */ new Set(), re = {
 		x: 0,
 		y: 0
-	}, re = {
+	}, ie = {
 		x: 0,
 		y: 0
-	}, ie = !1, D = t.keyboard ?? "focus", ae = (e, t) => {
+	}, ae = !1, D = t.keyboard ?? "focus", oe = (e, t) => {
 		let n = Pr(e.key);
 		[
 			"space",
@@ -7058,30 +7058,30 @@ async function qr(e, t) {
 	};
 	if (D !== "none") {
 		let e = D === "window" ? window : a;
-		r(e, "keydown", (e) => ae(e, !0)), r(e, "keyup", (e) => ae(e, !1)), r(D === "window" ? window : a, "blur", () => {
+		r(e, "keydown", (e) => oe(e, !0)), r(e, "keyup", (e) => oe(e, !1)), r(D === "window" ? window : a, "blur", () => {
 			for (let e of E) tn(f, e, !1);
 			E.clear();
 		});
 	}
-	let oe = new Ir();
+	let se = new Ir();
 	r(window, "pointermove", (e) => {
 		let t = e;
-		re = {
-			x: re.x + t.movementX,
-			y: re.y + t.movementY
-		}, ne = {
+		ie = {
+			x: ie.x + t.movementX,
+			y: ie.y + t.movementY
+		}, re = {
 			x: t.clientX,
 			y: t.clientY
 		}, E.has("mouse") && Fr(E, t);
 	}), r(a, "pointerdown", (e) => {
 		let t = e;
-		ne = {
+		re = {
 			x: t.clientX,
 			y: t.clientY
-		}, oe.down(t), E.add("mouse"), Fr(E, t), D === "focus" && a.focus({ preventScroll: !0 }), ie && document.pointerLockElement !== a && a.requestPointerLock();
+		}, se.down(t), E.add("mouse"), Fr(E, t), D === "focus" && a.focus({ preventScroll: !0 }), ae && document.pointerLockElement !== a && a.requestPointerLock();
 	}), r(window, "pointerup", (e) => {
 		let t = e;
-		E.has("mouse") && oe.up(t), Fr(E, t), t.buttons || E.delete("mouse");
+		E.has("mouse") && se.up(t), Fr(E, t), t.buttons || E.delete("mouse");
 	}), r(window, "pointercancel", () => {
 		for (let e of [
 			"mouse",
@@ -7090,22 +7090,22 @@ async function qr(e, t) {
 			"mousemiddle"
 		]) E.delete(e);
 	}), r(a, "contextmenu", (e) => e.preventDefault());
-	let se = {
+	let O = {
 		x: 0,
 		y: 0
 	};
 	r(a, "wheel", (e) => {
 		let t = e;
-		t.preventDefault(), se = {
-			x: se.x + t.deltaX,
-			y: se.y + t.deltaY
+		t.preventDefault(), O = {
+			x: O.x + t.deltaX,
+			y: O.y + t.deltaY
 		};
 	}, { passive: !1 });
 	let ce = (e, t, n, r, i) => {
 		let a = Dt(f, e), o = a ? {
 			x: a[0],
 			y: a[1]
-		} : O.pan, s = a ? h.width / Math.max(1, r) : 1 / Math.max(1e-6, O.zoom * (r / Math.max(1, m.width)));
+		} : k.pan, s = a ? h.width / Math.max(1, r) : 1 / Math.max(1e-6, k.zoom * (r / Math.max(1, m.width)));
 		return {
 			x: o.x + (t - r / 2) * s,
 			y: o.y - (n - i / 2) * s
@@ -7126,13 +7126,13 @@ async function qr(e, t) {
 			y: 0
 		},
 		zoom: Math.min(m.width / Math.max(1, e.width), m.height / Math.max(1, e.height))
-	}), O = {
+	}), k = {
 		pan: {
 			x: 0,
 			y: 0
 		},
 		zoom: 1
-	}, k = !1, A = null, j = {}, ve = () => {
+	}, ve = !1, A = null, ye = {}, be = () => {
 		let e = Zt(f);
 		if (e.activeState && e.activeState !== A) {
 			let t = A;
@@ -7142,9 +7142,9 @@ async function qr(e, t) {
 				previous: t
 			});
 		}
-		for (let [t, n] of Object.entries(e.layerActiveStates ?? {})) if (j[t] !== n) {
-			let e = j[t] ?? null;
-			j[t] = n, s("state", {
+		for (let [t, n] of Object.entries(e.layerActiveStates ?? {})) if (ye[t] !== n) {
+			let e = ye[t] ?? null;
+			ye[t] = n, s("state", {
 				layer: t,
 				state: n,
 				previous: e
@@ -7158,17 +7158,17 @@ async function qr(e, t) {
 			}));
 		}
 		return e;
-	}, ye = (e) => {
+	}, xe = (e) => {
 		if (!ge) {
-			if (he = requestAnimationFrame(ye), me) {
+			if (he = requestAnimationFrame(xe), me) {
 				fe = null;
 				return;
 			}
 			try {
 				let t = fe === null ? 0 : Math.min((e - fe) / 1e3, .1);
-				fe = e, S && C();
+				fe = e, S && ee();
 				let n = jn(), r = _();
-				r && !k && (O = _e(r)), f.render(t, O.pan.x, O.pan.y, O.zoom * n, -1, n, 0, 0, 0, 0, 0, 0);
+				r && !ve && (k = _e(r)), f.render(t, k.pan.x, k.pan.y, k.zoom * n, -1, n, 0, 0, 0, 0, 0, 0);
 				let i = performance.now(), o = Zt(f);
 				le.tick(o, t), ue.add("sync", performance.now() - i);
 				let s = p.artboards.find((e) => g && Gr(e.id, g)), c = null;
@@ -7182,45 +7182,45 @@ async function qr(e, t) {
 							name: s.name
 						},
 						machine: e,
-						mouseWorld: ce(s.id, ne.x - n.left, ne.y - n.top, n.width, n.height),
-						mouseDelta: re,
-						wheel: se,
-						gestures: oe.take(),
+						mouseWorld: ce(s.id, re.x - n.left, re.y - n.top, n.width, n.height),
+						mouseDelta: ie,
+						wheel: O,
+						gestures: se.take(),
 						keysDown: E,
 						pointerLocked: document.pointerLockElement === a,
 						requestPointerLock: () => {
-							ie = !0;
+							ae = !0;
 						},
 						exitPointerLock: () => {
-							ie = !1, document.pointerLockElement && document.exitPointerLock();
+							ae = !1, document.pointerLockElement && document.exitPointerLock();
 						},
 						camera: {
-							panX: O.pan.x,
-							panY: O.pan.y,
-							zoom: O.zoom
+							panX: k.pan.x,
+							panY: k.pan.y,
+							zoom: k.zoom
 						},
 						setCamera: (e, t, n) => {
-							O = {
+							k = {
 								pan: {
 									x: e,
 									y: t
 								},
 								zoom: n
-							}, k = !0;
+							}, ve = !0;
 						},
 						globals: de
 					}), ue.add("scripts", performance.now() - r);
 				}
-				ve();
+				be();
 				let l = T ?? c;
 				if (T = null, l !== null) {
 					let e = p.artboards.find((e) => e.name === l);
-					e ? (k = !1, ee(e.id)) : console.warn(`an1mbyt3: no scene named "${l}"`);
+					e ? (ve = !1, te(e.id)) : console.warn(`an1mbyt3: no scene named "${l}"`);
 				}
-				re = {
+				ie = {
 					x: 0,
 					y: 0
-				}, se = {
+				}, O = {
 					x: 0,
 					y: 0
 				}, ue.endFrame(f, t * 1e3, e), An.update(f, t * 1e3, e, !0);
@@ -7228,10 +7228,10 @@ async function qr(e, t) {
 				pe++, (pe <= 3 || pe % 600 == 0) && (console.error(`an1mbyt3: frame threw (#${pe}) — skipping it`, e), s("error", { error: e }));
 			}
 		}
-	}, be = (e) => {
+	}, Se = (e) => {
 		let t = _();
 		return (t?.stateMachines.find((e) => t.activeStateMachine && Gr(e.id, t.activeStateMachine)))?.inputs.find((t) => t.name === e)?.kind;
-	}, M = {
+	}, j = {
 		container: e,
 		canvas: a,
 		get scenes() {
@@ -7244,22 +7244,22 @@ async function qr(e, t) {
 			return A;
 		},
 		get layerStates() {
-			return { ...j };
+			return { ...ye };
 		},
 		get paused() {
 			return me;
 		},
 		set(e, t) {
-			b.set(e, t), X.setData(e, t), S = !0;
+			b.set(e, t), X.setData(e, t), C.add(e), S = !0;
 		},
 		setData(e) {
-			for (let [t, n] of Object.entries(e)) M.set(t, n);
+			for (let [t, n] of Object.entries(e)) j.set(t, n);
 		},
 		get(e) {
 			return J.has(e) ? J.get(e) : b.get(e);
 		},
 		setInput(e, t) {
-			let n = be(e);
+			let n = Se(e);
 			n === "Bool" ? Qt(f, e, !!t) : n === "Number" ? $t(f, e, Number(t)) : n === "Enum" ? en(f, e, String(t)) : n === "Trigger" ? t && Xt(f, e) : console.warn(`an1mbyt3: the scene's state machine has no input "${e}"`);
 		},
 		fire(e) {
@@ -7274,14 +7274,14 @@ async function qr(e, t) {
 		},
 		on(e, t) {
 			let n = o.get(e);
-			return n || o.set(e, n = /* @__PURE__ */ new Set()), n.add(t), () => M.off(e, t);
+			return n || o.set(e, n = /* @__PURE__ */ new Set()), n.add(t), () => j.off(e, t);
 		},
 		off(e, t) {
 			o.get(e)?.delete(t);
 		},
 		waitForState(e, t = null) {
-			return (t === null ? A : j[t] ?? null) === e ? Promise.resolve() : new Promise((n) => {
-				let r = M.on("state", (i) => {
+			return (t === null ? A : ye[t] ?? null) === e ? Promise.resolve() : new Promise((n) => {
+				let r = j.on("state", (i) => {
 					i.state === e && i.layer === t && (r(), n());
 				});
 			});
@@ -7301,14 +7301,14 @@ async function qr(e, t) {
 				try {
 					f.free();
 				} catch {}
-				Ur === xe && (Ur = null);
+				Ur === M && (Ur = null);
 			}
 		}
-	}, xe = { destroy: () => M.destroy() };
-	return Ur = xe, ee(te.id), ve(), s("ready", {
-		scenes: M.scenes,
-		scene: w ?? te.name
-	}), he = requestAnimationFrame(ye), M;
+	}, M = { destroy: () => j.destroy() };
+	return Ur = M, te(ne.id), be(), s("ready", {
+		scenes: j.scenes,
+		scene: w ?? ne.name
+	}), he = requestAnimationFrame(xe), j;
 }
 //#endregion
 //#region src/player/main.ts

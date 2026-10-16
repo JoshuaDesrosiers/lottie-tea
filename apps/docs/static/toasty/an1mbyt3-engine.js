@@ -138,1646 +138,24 @@ var h = class e {
 	}
 	free() {
 		let e = this.__destroy_into_raw();
-		q.__wbg_wasmboneik_free(e, 0);
+		K.__wbg_wasmboneik_free(e, 0);
 	}
 	static create(e) {
-		return q.wasmboneik_create(e);
+		return K.wasmboneik_create(e);
 	}
 	render() {
-		let e = q.wasmboneik_render(this.__wbg_ptr);
-		if (e[1]) throw G(e[0]);
+		let e = K.wasmboneik_render(this.__wbg_ptr);
+		if (e[1]) throw W(e[0]);
 	}
 	resize(e, t) {
-		q.wasmboneik_resize(this.__wbg_ptr, e, t);
+		K.wasmboneik_resize(this.__wbg_ptr, e, t);
 	}
 	set_target(e, t) {
-		q.wasmboneik_set_target(this.__wbg_ptr, e, t);
+		K.wasmboneik_set_target(this.__wbg_ptr, e, t);
 	}
 };
 Symbol.dispose && (h.prototype[Symbol.dispose] = h.prototype.free);
 var g = class e {
-	static __wrap(t) {
-		let n = Object.create(e.prototype);
-		return n.__wbg_ptr = t, j.register(n, n.__wbg_ptr, n), n;
-	}
-	__destroy_into_raw() {
-		let e = this.__wbg_ptr;
-		return this.__wbg_ptr = 0, j.unregister(this), e;
-	}
-	free() {
-		let e = this.__destroy_into_raw();
-		q.__wbg_wasmeditor_free(e, 0);
-	}
-	adaptive_resolution() {
-		let e = q.wasmeditor_adaptive_resolution(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	add_animated_drawing(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_add_animated_drawing(this.__wbg_ptr, n, r, t);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	add_animation(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_add_animation(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	add_artboard(e, t, n) {
-		let r = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_add_artboard(this.__wbg_ptr, r, i, t, n);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	add_bitmap_drawing(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = U(t, q.__wbindgen_malloc), a = K;
-		return q.wasmeditor_add_bitmap_drawing(this.__wbg_ptr, n, r, i, a);
-	}
-	add_blank_shape_node(e, t) {
-		let n = q.wasmeditor_add_blank_shape_node(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	add_bone_node(e, t, n) {
-		let r = q.wasmeditor_add_bone_node(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	add_camera_node(e, t) {
-		let n = q.wasmeditor_add_camera_node(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	add_component(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_add_component(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	add_component_variant(e, t, n) {
-		let r = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_add_component_variant(this.__wbg_ptr, e, r, i, n);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	add_demo_hover_animation(e, t, n) {
-		let r = q.wasmeditor_add_demo_hover_animation(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	add_drawing(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_add_drawing(this.__wbg_ptr, n, r, i, a);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	add_drawing_cel_image(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = U(t, q.__wbindgen_malloc), a = K;
-		return q.wasmeditor_add_drawing_cel_image(this.__wbg_ptr, n, r, i, a);
-	}
-	add_font(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = U(t, q.__wbindgen_malloc), a = K, o = q.wasmeditor_add_font(this.__wbg_ptr, n, r, i, a);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	add_ik_target(e, t, n) {
-		let r = q.wasmeditor_add_ik_target(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	add_image_node(e, t, n, r, i) {
-		let a = q.wasmeditor_add_image_node(this.__wbg_ptr, e, t, n, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	add_instance_node(e, t, n) {
-		let r = q.wasmeditor_add_instance_node(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	add_keyframe(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_add_keyframe(this.__wbg_ptr, e, t, i, a, r);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	add_light2d_node(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_add_light2d_node(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	add_material(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_add_material(this.__wbg_ptr, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	add_motion_path_keyframe(e, t, n, r) {
-		let i = q.wasmeditor_add_motion_path_keyframe(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	add_node3d(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_add_node3d(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	add_particle_system_node(e, t) {
-		let n = q.wasmeditor_add_particle_system_node(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	add_property(e, t, n) {
-		let r = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = q.wasmeditor_add_property(this.__wbg_ptr, e, r, i, a, o);
-		if (s[2]) throw G(s[1]);
-		return G(s[0]);
-	}
-	add_script(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_add_script(this.__wbg_ptr, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	add_shape_node(e, t, n) {
-		let r = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_add_shape_node(this.__wbg_ptr, e, r, i, n);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	add_state(e, t, n, r, i, a) {
-		let o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = W(i, q.__wbindgen_malloc, q.__wbindgen_realloc), l = K, u = q.wasmeditor_add_state(this.__wbg_ptr, e, t, o, s, r, c, l, a);
-		if (u[2]) throw G(u[1]);
-		return G(u[0]);
-	}
-	add_state_machine(e, t, n) {
-		let r = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_add_state_machine(this.__wbg_ptr, e, r, i, n);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	add_state_machine_input(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = q.wasmeditor_add_state_machine_input(this.__wbg_ptr, e, t, i, a, o, s);
-		if (c[2]) throw G(c[1]);
-		return G(c[0]);
-	}
-	add_state_machine_layer(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_add_state_machine_layer(this.__wbg_ptr, e, t, i, a, r);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	add_text_file(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_add_text_file(this.__wbg_ptr, n, r, i, a);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	add_text_node(e, t) {
-		let n = q.wasmeditor_add_text_node(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	add_tilemap_node(e, t, n, r, i, a, o, s, c) {
-		let l = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), u = K, d = U(r, q.__wbindgen_malloc), f = K;
-		return q.wasmeditor_add_tilemap_node(this.__wbg_ptr, e, t, l, u, d, f, i, a, o, s, c);
-	}
-	add_toon_material(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_add_toon_material(this.__wbg_ptr, n, r, i, a);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	add_trail_node(e, t) {
-		let n = q.wasmeditor_add_trail_node(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	add_transition(e, t, n, r, i, a, o, s, c) {
-		let l = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), u = K, d = W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), f = K, p = W(a, q.__wbindgen_malloc, q.__wbindgen_realloc), m = K, h = q.wasmeditor_add_transition(this.__wbg_ptr, e, t, l, u, d, f, i, p, m, o, s, c);
-		if (h[2]) throw G(h[1]);
-		return G(h[0]);
-	}
-	add_ui_node(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_add_ui_node(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	apply_node_writes(e, t) {
-		let n = Je(t, q.__wbindgen_malloc), r = K, i = q.wasmeditor_apply_node_writes(this.__wbg_ptr, e, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	apply_prefab_instance(e, t) {
-		let n = q.wasmeditor_apply_prefab_instance(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	audio_bytes(e) {
-		let t = q.wasmeditor_audio_bytes(this.__wbg_ptr, e);
-		if (t[3]) throw G(t[2]);
-		var n = L(t[0], t[1]).slice();
-		return q.__wbindgen_free(t[0], t[1] * 1, 1), n;
-	}
-	audio_list() {
-		let e = q.wasmeditor_audio_list(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	auto_slice_image(e, t, n, r) {
-		let i = q.wasmeditor_auto_slice_image(this.__wbg_ptr, e, t, n, r);
-		if (i[3]) throw G(i[2]);
-		var a = I(i[0], i[1]).slice();
-		return q.__wbindgen_free(i[0], i[1] * 4, 4), a;
-	}
-	bind_sprite_skin(e, t, n, r, i) {
-		let a = q.wasmeditor_bind_sprite_skin(this.__wbg_ptr, e, t, n, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	bring_node_to_front(e, t) {
-		let n = q.wasmeditor_bring_node_to_front(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	burst_particles_3d(e, t, n) {
-		let r = q.wasmeditor_burst_particles_3d(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return r[0] !== 0;
-	}
-	camera_shake(e, t) {
-		let n = q.wasmeditor_camera_shake(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	cloth_drag(e, t, n) {
-		let r = q.wasmeditor_cloth_drag(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	cloth_grab(e, t, n, r) {
-		let i = q.wasmeditor_cloth_grab(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return i[0] !== 0;
-	}
-	cloth_release(e) {
-		let t = q.wasmeditor_cloth_release(this.__wbg_ptr, e);
-		if (t[1]) throw G(t[0]);
-	}
-	cloth_reset(e) {
-		let t = q.wasmeditor_cloth_reset(this.__wbg_ptr, e);
-		if (t[1]) throw G(t[0]);
-	}
-	cloth_tear(e, t, n, r) {
-		let i = q.wasmeditor_cloth_tear(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return i[0] >>> 0;
-	}
-	cloth_wind(e, t) {
-		var n = H(t) ? 0 : qe(t, q.__wbindgen_malloc), r = K;
-		let i = q.wasmeditor_cloth_wind(this.__wbg_ptr, e, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	commit_bone_pose(e, t, n) {
-		let r = qe(n, q.__wbindgen_malloc), i = K, a = q.wasmeditor_commit_bone_pose(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	commit_keyframe_time(e, t, n, r, i, a) {
-		let o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = q.wasmeditor_commit_keyframe_time(this.__wbg_ptr, e, t, o, s, r, i, a);
-		if (c[2]) throw G(c[1]);
-		return G(c[0]);
-	}
-	commit_node_anchor(e, t, n, r, i, a, o, s, c, l) {
-		let u = q.wasmeditor_commit_node_anchor(this.__wbg_ptr, e, t, n, r, i, a, o, s, c, l);
-		if (u[2]) throw G(u[1]);
-		return G(u[0]);
-	}
-	commit_node_rotation(e, t, n, r, i) {
-		let a = q.wasmeditor_commit_node_rotation(this.__wbg_ptr, e, t, n, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	commit_node_scale(e, t, n, r, i, a, o, s, c, l, u) {
-		let d = q.wasmeditor_commit_node_scale(this.__wbg_ptr, e, t, n, r, i, a, o, s, c, l, u);
-		if (d[2]) throw G(d[1]);
-		return G(d[0]);
-	}
-	commit_node_translation(e, t, n, r, i, a) {
-		let o = q.wasmeditor_commit_node_translation(this.__wbg_ptr, e, t, n, r, i, a);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	static create(e) {
-		return q.wasmeditor_create(e);
-	}
-	create_prefab(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_create_prefab(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	default_component(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_default_component(this.__wbg_ptr, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	delete_animation(e, t) {
-		let n = q.wasmeditor_delete_animation(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	delete_artboard(e) {
-		let t = q.wasmeditor_delete_artboard(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	delete_audio(e) {
-		let t = q.wasmeditor_delete_audio(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	delete_component(e) {
-		let t = q.wasmeditor_delete_component(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	delete_drawing(e) {
-		let t = q.wasmeditor_delete_drawing(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	delete_material(e) {
-		let t = q.wasmeditor_delete_material(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	delete_node(e, t) {
-		let n = q.wasmeditor_delete_node(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	delete_nodes(e, t) {
-		let n = q.wasmeditor_delete_nodes(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	delete_prefab(e) {
-		let t = q.wasmeditor_delete_prefab(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	delete_property(e) {
-		let t = q.wasmeditor_delete_property(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	delete_script(e) {
-		let t = q.wasmeditor_delete_script(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	delete_state(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_delete_state(this.__wbg_ptr, e, t, i, a, r);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	delete_state_machine(e, t) {
-		let n = q.wasmeditor_delete_state_machine(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	delete_state_machine_layer(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_delete_state_machine_layer(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	delete_text_file(e) {
-		let t = q.wasmeditor_delete_text_file(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	destroy_node(e, t) {
-		let n = q.wasmeditor_destroy_node(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	document_instance() {
-		return q.wasmeditor_document_instance(this.__wbg_ptr);
-	}
-	document_revision() {
-		return q.wasmeditor_document_revision(this.__wbg_ptr);
-	}
-	document_summary() {
-		let e = q.wasmeditor_document_summary(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	document_summary_json() {
-		let e, t;
-		try {
-			let i = q.wasmeditor_document_summary_json(this.__wbg_ptr);
-			var n = i[0], r = i[1];
-			if (i[3]) throw n = 0, r = 0, G(i[2]);
-			return e = n, t = r, B(n, r);
-		} finally {
-			q.__wbindgen_free(e, t, 1);
-		}
-	}
-	drawing_content(e) {
-		let t = q.wasmeditor_drawing_content(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	drawing_svg(e) {
-		let t = q.wasmeditor_drawing_svg(this.__wbg_ptr, e);
-		if (t[3]) throw G(t[2]);
-		let n;
-		return t[0] !== 0 && (n = B(t[0], t[1]), q.__wbindgen_free(t[0], t[1] * 1, 1)), n;
-	}
-	duplicate_nodes(e, t) {
-		let n = q.wasmeditor_duplicate_nodes(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	dynamic_scale() {
-		return q.wasmeditor_dynamic_scale(this.__wbg_ptr);
-	}
-	emit_particles(e, t, n) {
-		let r = q.wasmeditor_emit_particles(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	fill_nodes(e, t, n, r) {
-		let i = q.wasmeditor_fill_nodes(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	fire_trigger(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K;
-		q.wasmeditor_fire_trigger(this.__wbg_ptr, t, n);
-	}
-	frame_stats() {
-		let e = q.wasmeditor_frame_stats(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	get_image_source(e) {
-		let t = q.wasmeditor_get_image_source(this.__wbg_ptr, e);
-		if (t[3]) throw G(t[2]);
-		var n = L(t[0], t[1]).slice();
-		return q.__wbindgen_free(t[0], t[1] * 1, 1), n;
-	}
-	glass_crack(e, t, n, r, i, a, o) {
-		let s = q.wasmeditor_glass_crack(this.__wbg_ptr, e, t, n, r, i, a, o);
-		if (s[2]) throw G(s[1]);
-		return s[0] >>> 0;
-	}
-	glass_intact(e, t) {
-		let n = q.wasmeditor_glass_intact(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return n[0];
-	}
-	glass_raycast(e, t, n, r, i, a, o, s) {
-		let c = q.wasmeditor_glass_raycast(this.__wbg_ptr, e, t, n, r, i, a, o, s);
-		if (c[2]) throw G(c[1]);
-		return G(c[0]);
-	}
-	glass_reset(e, t) {
-		let n = q.wasmeditor_glass_reset(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	glass_shatter(e, t, n, r, i, a, o, s, c, l) {
-		let u = q.wasmeditor_glass_shatter(this.__wbg_ptr, e, t, n, r, i, a, o, s, c, l);
-		if (u[2]) throw G(u[1]);
-		return G(u[0]);
-	}
-	group_nodes(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_group_nodes(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	import_audio(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = U(t, q.__wbindgen_malloc), a = K, o = q.wasmeditor_import_audio(this.__wbg_ptr, n, r, i, a);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	import_humanoid_animation(e, t, n, r) {
-		let i = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = U(t, q.__wbindgen_malloc), s = K, c = q.wasmeditor_import_humanoid_animation(this.__wbg_ptr, i, a, o, s, n, r);
-		if (c[2]) throw G(c[1]);
-		return G(c[0]);
-	}
-	import_image(e, t, n) {
-		let r = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = U(n, q.__wbindgen_malloc), o = K;
-		return q.wasmeditor_import_image(this.__wbg_ptr, e, r, i, a, o);
-	}
-	import_image_asset(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = U(t, q.__wbindgen_malloc), a = K;
-		return q.wasmeditor_import_image_asset(this.__wbg_ptr, n, r, i, a);
-	}
-	import_model(e, t, n, r, i, a) {
-		let o = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = U(n, q.__wbindgen_malloc), l = K, u = Ye(r, q.__wbindgen_malloc), d = K, f = U(i, q.__wbindgen_malloc), p = K, m = Ke(a, q.__wbindgen_malloc), h = K, g = q.wasmeditor_import_model(this.__wbg_ptr, e, o, s, c, l, u, d, f, p, m, h);
-		if (g[2]) throw G(g[1]);
-		return G(g[0]);
-	}
-	import_svg(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_import_svg(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	instantiate_prefab(e, t, n, r, i) {
-		let a = q.wasmeditor_instantiate_prefab(this.__wbg_ptr, e, t, n, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	load_3d_demo() {
-		return q.wasmeditor_load_3d_demo(this.__wbg_ptr);
-	}
-	load_boom_demo() {
-		return q.wasmeditor_load_boom_demo(this.__wbg_ptr);
-	}
-	load_cloth_demo() {
-		return q.wasmeditor_load_cloth_demo(this.__wbg_ptr);
-	}
-	load_docs_showcase(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_load_docs_showcase(this.__wbg_ptr, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	load_dungeon_demo() {
-		return q.wasmeditor_load_dungeon_demo(this.__wbg_ptr);
-	}
-	load_fight_demo(e) {
-		let t = U(e, q.__wbindgen_malloc), n = K;
-		return q.wasmeditor_load_fight_demo(this.__wbg_ptr, t, n);
-	}
-	load_fps_demo() {
-		return q.wasmeditor_load_fps_demo(this.__wbg_ptr);
-	}
-	load_geometry_dash_demo(e) {
-		let t = q.wasmeditor_load_geometry_dash_demo(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	load_goo_demo() {
-		return q.wasmeditor_load_goo_demo(this.__wbg_ptr);
-	}
-	load_goo_shapes_demo() {
-		return q.wasmeditor_load_goo_shapes_demo(this.__wbg_ptr);
-	}
-	load_html_demo() {
-		return q.wasmeditor_load_html_demo(this.__wbg_ptr);
-	}
-	load_lan_demo() {
-		return q.wasmeditor_load_lan_demo(this.__wbg_ptr);
-	}
-	load_leer_demo() {
-		return q.wasmeditor_load_leer_demo(this.__wbg_ptr);
-	}
-	load_liquid_demo() {
-		return q.wasmeditor_load_liquid_demo(this.__wbg_ptr);
-	}
-	load_match3_demo() {
-		return q.wasmeditor_load_match3_demo(this.__wbg_ptr);
-	}
-	load_ninja_demo() {
-		return q.wasmeditor_load_ninja_demo(this.__wbg_ptr);
-	}
-	load_physics3d_demo() {
-		return q.wasmeditor_load_physics3d_demo(this.__wbg_ptr);
-	}
-	load_physics_demo() {
-		let e = q.wasmeditor_load_physics_demo(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	load_project(e, t, n, r) {
-		let i = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = Ye(t, q.__wbindgen_malloc), s = K, c = Ke(n, q.__wbindgen_malloc), l = K, u = U(r, q.__wbindgen_malloc), d = K;
-		return q.wasmeditor_load_project(this.__wbg_ptr, i, a, o, s, c, l, u, d);
-	}
-	load_responsive_demo() {
-		return q.wasmeditor_load_responsive_demo(this.__wbg_ptr);
-	}
-	load_rig_demo() {
-		return q.wasmeditor_load_rig_demo(this.__wbg_ptr);
-	}
-	load_shatter_demo() {
-		return q.wasmeditor_load_shatter_demo(this.__wbg_ptr);
-	}
-	load_stress_demo() {
-		return q.wasmeditor_load_stress_demo(this.__wbg_ptr);
-	}
-	load_tactics_demo(e) {
-		var t = H(e) ? 0 : U(e, q.__wbindgen_malloc), n = K;
-		return q.wasmeditor_load_tactics_demo(this.__wbg_ptr, t, n);
-	}
-	load_tea(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K;
-		return q.wasmeditor_load_tea(this.__wbg_ptr, t, n);
-	}
-	load_teab(e) {
-		let t = U(e, q.__wbindgen_malloc), n = K;
-		return q.wasmeditor_load_teab(this.__wbg_ptr, t, n);
-	}
-	load_torture_demo() {
-		return q.wasmeditor_load_torture_demo(this.__wbg_ptr);
-	}
-	load_trees_demo() {
-		return q.wasmeditor_load_trees_demo(this.__wbg_ptr);
-	}
-	load_ui_demo() {
-		return q.wasmeditor_load_ui_demo(this.__wbg_ptr);
-	}
-	load_voxel_demo() {
-		return q.wasmeditor_load_voxel_demo(this.__wbg_ptr);
-	}
-	make_ragdoll(e, t, n, r, i) {
-		let a = q.wasmeditor_make_ragdoll(this.__wbg_ptr, e, t, n, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	material_graph(e) {
-		let t = q.wasmeditor_material_graph(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	material_status(e) {
-		let t = q.wasmeditor_material_status(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	material_toon(e) {
-		let t = q.wasmeditor_material_toon(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	model_anim_state(e, t) {
-		let n = q.wasmeditor_model_anim_state(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	model_bone_position(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_model_bone_position(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	model_clear_bones(e, t) {
-		let n = q.wasmeditor_model_clear_bones(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	model_clips(e) {
-		let t = q.wasmeditor_model_clips(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	model_extract_materials(e, t) {
-		let n = q.wasmeditor_model_extract_materials(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	model_info(e, t) {
-		let n = q.wasmeditor_model_info(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	model_is_ragdoll(e, t) {
-		let n = q.wasmeditor_model_is_ragdoll(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return n[0] !== 0;
-	}
-	model_play_anim(e, t, n, r, i, a) {
-		let o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = q.wasmeditor_model_play_anim(this.__wbg_ptr, e, t, o, s, r, i, a);
-		if (c[2]) throw G(c[1]);
-		return c[0] !== 0;
-	}
-	model_pose(e, t) {
-		let n, r;
-		try {
-			let o = q.wasmeditor_model_pose(this.__wbg_ptr, e, t);
-			var i = o[0], a = o[1];
-			if (o[3]) throw i = 0, a = 0, G(o[2]);
-			return n = i, r = a, B(i, a);
-		} finally {
-			q.__wbindgen_free(n, r, 1);
-		}
-	}
-	model_ragdoll(e, t, n, r, i, a) {
-		let o = q.wasmeditor_model_ragdoll(this.__wbg_ptr, e, t, n, r, i, a);
-		if (o[2]) throw G(o[1]);
-		return o[0] !== 0;
-	}
-	model_ragdoll_hit(e, t, n, r, i, a) {
-		let o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = q.wasmeditor_model_ragdoll_hit(this.__wbg_ptr, e, t, o, s, r, i, a);
-		if (c[2]) throw G(c[1]);
-		return c[0] !== 0;
-	}
-	model_reset_springs(e, t) {
-		let n = q.wasmeditor_model_reset_springs(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	model_set_bone(e, t, n, r, i, a) {
-		let o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = q.wasmeditor_model_set_bone(this.__wbg_ptr, e, t, o, s, r, i, a);
-		if (c[2]) throw G(c[1]);
-		return c[0] !== 0;
-	}
-	model_set_bone_offset(e, t, n, r, i, a) {
-		let o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = q.wasmeditor_model_set_bone_offset(this.__wbg_ptr, e, t, o, s, r, i, a);
-		if (c[2]) throw G(c[1]);
-		return c[0] !== 0;
-	}
-	model_set_expression(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_model_set_expression(this.__wbg_ptr, e, t, i, a, r);
-		if (o[2]) throw G(o[1]);
-		return o[0] !== 0;
-	}
-	model_set_pose(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_model_set_pose(this.__wbg_ptr, e, t, i, a, r);
-		if (o[2]) throw G(o[1]);
-		return o[0] !== 0;
-	}
-	move_node_forward(e, t) {
-		let n = q.wasmeditor_move_node_forward(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	multi_transform_begin(e, t) {
-		let n = q.wasmeditor_multi_transform_begin(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	multi_transform_end(e) {
-		let t = q.wasmeditor_multi_transform_end(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	multi_transform_preview(e, t, n, r, i, a) {
-		let o = q.wasmeditor_multi_transform_preview(this.__wbg_ptr, e, t, n, r, i, a);
-		if (o[1]) throw G(o[0]);
-	}
-	node_fields(e, t) {
-		let n = q.wasmeditor_node_fields(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	node_local_bounds(e, t) {
-		let n = q.wasmeditor_node_local_bounds(this.__wbg_ptr, e, t);
-		if (n[3]) throw G(n[2]);
-		var r = N(n[0], n[1]).slice();
-		return q.__wbindgen_free(n[0], n[1] * 4, 4), r;
-	}
-	physics3d_add_force(e, t, n, r, i, a) {
-		let o = q.wasmeditor_physics3d_add_force(this.__wbg_ptr, e, t, n, r, i, a);
-		if (o[1]) throw G(o[0]);
-	}
-	physics3d_angular_velocity(e, t) {
-		let n = q.wasmeditor_physics3d_angular_velocity(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	physics3d_raycast(e, t, n, r, i, a, o, s, c) {
-		let l = q.wasmeditor_physics3d_raycast(this.__wbg_ptr, e, t, n, r, i, a, o, s, c);
-		if (l[2]) throw G(l[1]);
-		return G(l[0]);
-	}
-	physics3d_set_velocity(e, t, n, r, i, a) {
-		let o = q.wasmeditor_physics3d_set_velocity(this.__wbg_ptr, e, t, n, r, i, a);
-		if (o[1]) throw G(o[0]);
-	}
-	physics3d_velocity(e, t) {
-		let n = q.wasmeditor_physics3d_velocity(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	physics_add_force(e, t, n, r, i) {
-		let a = q.wasmeditor_physics_add_force(this.__wbg_ptr, e, t, n, r, i);
-		if (a[1]) throw G(a[0]);
-	}
-	physics_angular_velocity(e, t) {
-		let n = q.wasmeditor_physics_angular_velocity(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	physics_events(e) {
-		let t = q.wasmeditor_physics_events(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	physics_raycast(e, t, n, r, i, a, o) {
-		let s = q.wasmeditor_physics_raycast(this.__wbg_ptr, e, t, n, r, i, a, o);
-		if (s[2]) throw G(s[1]);
-		return G(s[0]);
-	}
-	physics_set_angular_velocity(e, t, n) {
-		let r = q.wasmeditor_physics_set_angular_velocity(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	physics_set_velocity(e, t, n, r) {
-		let i = q.wasmeditor_physics_set_velocity(this.__wbg_ptr, e, t, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	physics_velocity(e, t) {
-		let n = q.wasmeditor_physics_velocity(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	pick_node_at(e, t, n) {
-		let r = q.wasmeditor_pick_node_at(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	place_drawing(e, t, n, r, i) {
-		let a = q.wasmeditor_place_drawing(this.__wbg_ptr, e, t, n, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	playground_view(e) {
-		let t = q.wasmeditor_playground_view(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	prefab_instance_root(e, t) {
-		let n = q.wasmeditor_prefab_instance_root(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	preview_body_type(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_preview_body_type(this.__wbg_ptr, e, t, i, a, r);
-		if (o[1]) throw G(o[0]);
-	}
-	preview_bone_aim(e, t, n, r) {
-		let i = q.wasmeditor_preview_bone_aim(this.__wbg_ptr, e, t, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	preview_bone_ik(e, t, n, r, i) {
-		let a = q.wasmeditor_preview_bone_ik(this.__wbg_ptr, e, t, n, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	preview_break_joint(e, t) {
-		let n = q.wasmeditor_preview_break_joint(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	preview_component_field(e, t, n, r, i) {
-		let a = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), c = K, l = W(i, q.__wbindgen_malloc, q.__wbindgen_realloc), u = K, d = q.wasmeditor_preview_component_field(this.__wbg_ptr, e, t, a, o, s, c, l, u);
-		if (d[2]) throw G(d[1]);
-		return d[0] !== 0;
-	}
-	preview_fill_color(e, t, n) {
-		let r = q.wasmeditor_preview_fill_color(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	preview_keyframe_time(e, t, n, r, i) {
-		let a = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = q.wasmeditor_preview_keyframe_time(this.__wbg_ptr, e, t, a, o, r, i);
-		if (s[1]) throw G(s[0]);
-	}
-	preview_light(e, t, n, r) {
-		let i = q.wasmeditor_preview_light(this.__wbg_ptr, e, t, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	preview_node3d_animation(e, t, n, r, i) {
-		let a = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = W(i, q.__wbindgen_malloc, q.__wbindgen_realloc), c = K, l = q.wasmeditor_preview_node3d_animation(this.__wbg_ptr, e, t, a, o, r, s, c);
-		if (l[1]) throw G(l[0]);
-	}
-	preview_node3d_transform(e, t, n) {
-		let r = qe(n, q.__wbindgen_malloc), i = K, a = q.wasmeditor_preview_node3d_transform(this.__wbg_ptr, e, t, r, i);
-		if (a[1]) throw G(a[0]);
-	}
-	preview_node_anchor(e, t, n, r, i, a) {
-		let o = q.wasmeditor_preview_node_anchor(this.__wbg_ptr, e, t, n, r, i, a);
-		if (o[1]) throw G(o[0]);
-	}
-	preview_node_image(e, t, n) {
-		let r = q.wasmeditor_preview_node_image(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	preview_node_path(e, t, n) {
-		let r = q.wasmeditor_preview_node_path(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	preview_node_rotation(e, t, n) {
-		let r = q.wasmeditor_preview_node_rotation(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	preview_node_scale(e, t, n, r, i, a) {
-		let o = q.wasmeditor_preview_node_scale(this.__wbg_ptr, e, t, n, r, i, a);
-		if (o[1]) throw G(o[0]);
-	}
-	preview_node_translation(e, t, n, r) {
-		let i = q.wasmeditor_preview_node_translation(this.__wbg_ptr, e, t, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	preview_node_visible(e, t, n) {
-		let r = q.wasmeditor_preview_node_visible(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	preview_node_z_index(e, t, n) {
-		let r = q.wasmeditor_preview_node_z_index(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	preview_shape_path(e, t, n) {
-		let r = q.wasmeditor_preview_shape_path(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	preview_text_content(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_preview_text_content(this.__wbg_ptr, e, t, r, i);
-		if (a[1]) throw G(a[0]);
-	}
-	preview_tilemap_tiles(e, t, n) {
-		let r = Ke(n, q.__wbindgen_malloc), i = K, a = q.wasmeditor_preview_tilemap_tiles(this.__wbg_ptr, e, t, r, i);
-		if (a[1]) throw G(a[0]);
-	}
-	preview_vrm_pose_bone(e, t, n, r, i, a, o) {
-		let s = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), c = K, l = W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), u = K, d = q.wasmeditor_preview_vrm_pose_bone(this.__wbg_ptr, e, t, s, c, l, u, i, a, o);
-		if (d[1]) throw G(d[0]);
-	}
-	static project_asset_paths(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_project_asset_paths(t, n);
-		if (r[3]) throw G(r[2]);
-		var i = De(r[0], r[1]);
-		return q.__wbindgen_free(r[0], r[1] * 4, 4), i;
-	}
-	project_file_index(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_project_file_index(this.__wbg_ptr, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	record_keys() {
-		return q.wasmeditor_record_keys(this.__wbg_ptr) !== 0;
-	}
-	redo() {
-		let e = q.wasmeditor_redo(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	remove_keyframe(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_remove_keyframe(this.__wbg_ptr, e, t, i, a, r);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	remove_motion_path_track(e, t) {
-		let n = q.wasmeditor_remove_motion_path_track(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	remove_transition(e, t, n, r, i) {
-		let a = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = q.wasmeditor_remove_transition(this.__wbg_ptr, e, t, a, o, r, i);
-		if (s[2]) throw G(s[1]);
-		return G(s[0]);
-	}
-	rename_animation(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_rename_animation(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	rename_artboard(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_rename_artboard(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	rename_audio(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_rename_audio(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	rename_drawing(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_rename_drawing(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	rename_material(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_rename_material(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	rename_node(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_rename_node(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	rename_prefab(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_rename_prefab(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	rename_state_machine(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_rename_state_machine(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	rename_text_file(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_rename_text_file(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	render(e, t, n, r, i, a, o, s, c, l, u, d) {
-		let f = q.wasmeditor_render(this.__wbg_ptr, e, t, n, r, i, a, o, s, c, l, u, d);
-		if (f[1]) throw G(f[0]);
-	}
-	reparent_node(e, t, n) {
-		let r = q.wasmeditor_reparent_node(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	reparent_node_before(e, t, n, r) {
-		let i = q.wasmeditor_reparent_node_before(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	replay_particle_system(e, t) {
-		let n = q.wasmeditor_replay_particle_system(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	resize(e, t) {
-		q.wasmeditor_resize(this.__wbg_ptr, e, t);
-	}
-	resize_tilemap(e, t, n, r) {
-		let i = q.wasmeditor_resize_tilemap(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	revert_prefab_instance(e, t) {
-		let n = q.wasmeditor_revert_prefab_instance(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	save_project(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_save_project(this.__wbg_ptr, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	save_tea() {
-		let e, t;
-		try {
-			let i = q.wasmeditor_save_tea(this.__wbg_ptr);
-			var n = i[0], r = i[1];
-			if (i[3]) throw n = 0, r = 0, G(i[2]);
-			return e = n, t = r, B(n, r);
-		} finally {
-			q.__wbindgen_free(e, t, 1);
-		}
-	}
-	save_teab() {
-		let e = q.wasmeditor_save_teab(this.__wbg_ptr);
-		if (e[3]) throw G(e[2]);
-		var t = L(e[0], e[1]).slice();
-		return q.__wbindgen_free(e[0], e[1] * 1, 1), t;
-	}
-	screen_info_now() {
-		let e = q.wasmeditor_screen_info_now(this.__wbg_ptr);
-		var t = N(e[0], e[1]).slice();
-		return q.__wbindgen_free(e[0], e[1] * 4, 4), t;
-	}
-	script_dynamic(e) {
-		let t = q.wasmeditor_script_dynamic(this.__wbg_ptr, e);
-		if (t[3]) throw G(t[2]);
-		var n = N(t[0], t[1]).slice();
-		return q.__wbindgen_free(t[0], t[1] * 4, 4), n;
-	}
-	script_revision(e) {
-		let t = q.wasmeditor_script_revision(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return t[0] >>> 0;
-	}
-	script_scene(e) {
-		let t = q.wasmeditor_script_scene(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	send_node_backward(e, t) {
-		let n = q.wasmeditor_send_node_backward(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	send_node_to_back(e, t) {
-		let n = q.wasmeditor_send_node_to_back(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_active_animation(e, t) {
-		let n = q.wasmeditor_set_active_animation(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_active_artboard(e) {
-		let t = q.wasmeditor_set_active_artboard(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	set_active_camera(e, t) {
-		let n = q.wasmeditor_set_active_camera(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_active_state_machine(e, t) {
-		let n = q.wasmeditor_set_active_state_machine(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_adaptive_resolution(e, t) {
-		q.wasmeditor_set_adaptive_resolution(this.__wbg_ptr, e, t);
-	}
-	set_animate_mode_active(e) {
-		q.wasmeditor_set_animate_mode_active(this.__wbg_ptr, e);
-	}
-	set_animation_duration(e, t, n) {
-		let r = q.wasmeditor_set_animation_duration(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_artboard_gravity(e, t, n) {
-		let r = q.wasmeditor_set_artboard_gravity(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_artboard_gravity_3d(e, t, n, r) {
-		let i = q.wasmeditor_set_artboard_gravity_3d(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	set_artboard_resolution_scale(e, t) {
-		let n = q.wasmeditor_set_artboard_resolution_scale(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_artboard_screen(e, t) {
-		let n = q.wasmeditor_set_artboard_screen(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_artboard_size(e, t, n) {
-		let r = q.wasmeditor_set_artboard_size(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_audio_file(e, t) {
-		var n = H(t) ? 0 : W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-		let i = q.wasmeditor_set_audio_file(this.__wbg_ptr, e, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	set_bone_length(e, t, n) {
-		let r = q.wasmeditor_set_bone_length(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_camera(e, t, n) {
-		let r = q.wasmeditor_set_camera(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_component_default_fill_color(e, t) {
-		let n = q.wasmeditor_set_component_default_fill_color(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_dynamic_scale(e) {
-		q.wasmeditor_set_dynamic_scale(this.__wbg_ptr, e);
-	}
-	set_environment_3d(e, t, n, r, i, a, o) {
-		q.wasmeditor_set_environment_3d(this.__wbg_ptr, e, t, n, r, i, a, o);
-	}
-	set_export_transparent(e) {
-		q.wasmeditor_set_export_transparent(this.__wbg_ptr, e);
-	}
-	set_exporting(e) {
-		q.wasmeditor_set_exporting(this.__wbg_ptr, e);
-	}
-	set_fill_color(e, t, n) {
-		let r = q.wasmeditor_set_fill_color(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_gradient(e, t, n) {
-		let r = q.wasmeditor_set_gradient(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_group_mask(e, t, n) {
-		let r = q.wasmeditor_set_group_mask(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_group_y_sort(e, t, n) {
-		let r = q.wasmeditor_set_group_y_sort(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_image_file(e, t) {
-		var n = H(t) ? 0 : W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-		let i = q.wasmeditor_set_image_file(this.__wbg_ptr, e, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	set_image_processing(e, t) {
-		return q.wasmeditor_set_image_processing(this.__wbg_ptr, e, t);
-	}
-	set_instance_fill_color_override(e, t, n) {
-		let r = q.wasmeditor_set_instance_fill_color_override(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_instance_variant(e, t, n) {
-		let r = q.wasmeditor_set_instance_variant(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_key_down(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-		q.wasmeditor_set_key_down(this.__wbg_ptr, n, r, t);
-	}
-	set_keyframe_easing(e, t, n, r, i) {
-		let a = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = q.wasmeditor_set_keyframe_easing(this.__wbg_ptr, e, t, a, o, r, i);
-		if (s[2]) throw G(s[1]);
-		return G(s[0]);
-	}
-	set_light2d(e, t, n) {
-		let r = q.wasmeditor_set_light2d(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_material_graph(e, t) {
-		let n = q.wasmeditor_set_material_graph(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_material_toon(e, t, n) {
-		let r = q.wasmeditor_set_material_toon(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_mode(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_set_mode(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	set_motion_path_guide(e, t, n) {
-		let r = q.wasmeditor_set_motion_path_guide(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_node3d(e, t, n) {
-		let r = q.wasmeditor_set_node3d(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_node_anchor(e, t, n, r) {
-		let i = q.wasmeditor_set_node_anchor(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	set_node_behaviors(e, t, n) {
-		let r = q.wasmeditor_set_node_behaviors(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_node_classes(e, t, n) {
-		let r = q.wasmeditor_set_node_classes(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_node_clip_children(e, t, n) {
-		let r = q.wasmeditor_set_node_clip_children(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_node_id(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_set_node_id(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	set_node_rotation(e, t, n) {
-		let r = q.wasmeditor_set_node_rotation(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_node_scale(e, t, n, r) {
-		let i = q.wasmeditor_set_node_scale(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	set_node_translation(e, t, n, r) {
-		let i = q.wasmeditor_set_node_translation(this.__wbg_ptr, e, t, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	set_node_unlit(e, t, n) {
-		let r = q.wasmeditor_set_node_unlit(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_node_visible(e, t, n) {
-		let r = q.wasmeditor_set_node_visible(this.__wbg_ptr, e, t, n);
-		if (r[1]) throw G(r[0]);
-	}
-	set_node_z_index(e, t, n) {
-		let r = q.wasmeditor_set_node_z_index(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_particle_system(e, t, n) {
-		let r = q.wasmeditor_set_particle_system(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_post_effects(e, t) {
-		let n = q.wasmeditor_set_post_effects(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_preview_screen(e, t) {
-		q.wasmeditor_set_preview_screen(this.__wbg_ptr, e, t);
-	}
-	set_record_keys(e) {
-		q.wasmeditor_set_record_keys(this.__wbg_ptr, e);
-	}
-	set_script_fields(e, t) {
-		let n = q.wasmeditor_set_script_fields(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_scrub_time(e, t) {
-		let n = q.wasmeditor_set_scrub_time(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	set_selected_node(e) {
-		let t = q.wasmeditor_set_selected_node(this.__wbg_ptr, e);
-		if (t[1]) throw G(t[0]);
-	}
-	set_shadow_caster(e, t, n) {
-		let r = q.wasmeditor_set_shadow_caster(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_shape_blend_mode(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_set_shape_blend_mode(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	set_shape_image(e, t, n) {
-		let r = q.wasmeditor_set_shape_image(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_shape_path(e, t, n) {
-		let r = q.wasmeditor_set_shape_path(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_shape_stroke(e, t, n) {
-		let r = q.wasmeditor_set_shape_stroke(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_sorting_layers(e) {
-		let t = q.wasmeditor_set_sorting_layers(this.__wbg_ptr, e);
-		if (t[2]) throw G(t[1]);
-		return G(t[0]);
-	}
-	set_state_blend(e, t, n, r, i) {
-		let a = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = q.wasmeditor_set_state_blend(this.__wbg_ptr, e, t, a, o, r, i);
-		if (s[2]) throw G(s[1]);
-		return G(s[0]);
-	}
-	set_state_machine_active(e) {
-		q.wasmeditor_set_state_machine_active(this.__wbg_ptr, e);
-	}
-	set_state_machine_bool_input(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-		q.wasmeditor_set_state_machine_bool_input(this.__wbg_ptr, n, r, t);
-	}
-	set_state_machine_enum_input(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K;
-		q.wasmeditor_set_state_machine_enum_input(this.__wbg_ptr, n, r, i, a);
-	}
-	set_state_machine_initial_state(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_set_state_machine_initial_state(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	set_state_machine_layer_initial_state(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = q.wasmeditor_set_state_machine_layer_initial_state(this.__wbg_ptr, e, t, i, a, o, s);
-		if (c[2]) throw G(c[1]);
-		return G(c[0]);
-	}
-	set_state_machine_layer_mask(e, t, n, r) {
-		let i = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = q.wasmeditor_set_state_machine_layer_mask(this.__wbg_ptr, e, t, i, a, r);
-		if (o[2]) throw G(o[1]);
-		return G(o[0]);
-	}
-	set_state_machine_number_input(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-		q.wasmeditor_set_state_machine_number_input(this.__wbg_ptr, n, r, t);
-	}
-	set_state_machine_programs_enabled(e) {
-		q.wasmeditor_set_state_machine_programs_enabled(this.__wbg_ptr, e);
-	}
-	set_state_position(e, t, n, r, i, a) {
-		let o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = q.wasmeditor_set_state_position(this.__wbg_ptr, e, t, o, s, r, i, a);
-		if (c[2]) throw G(c[1]);
-		return G(c[0]);
-	}
-	set_state_program(e, t, n, r, i) {
-		let a = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = q.wasmeditor_set_state_program(this.__wbg_ptr, e, t, a, o, r, i);
-		if (s[2]) throw G(s[1]);
-		return G(s[0]);
-	}
-	set_text_content(e, t, n) {
-		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_set_text_content(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	set_text_file_text(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_set_text_file_text(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return i[0] !== 0;
-	}
-	set_text_font(e, t, n) {
-		let r = q.wasmeditor_set_text_font(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_text_size(e, t, n) {
-		let r = q.wasmeditor_set_text_size(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_tile(e, t, n, r, i) {
-		let a = q.wasmeditor_set_tile(this.__wbg_ptr, e, t, n, r, H(i) ? 2 ** 53 - 1 : i >>> 0);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	set_tilemap_cell_size(e, t, n) {
-		let r = q.wasmeditor_set_tilemap_cell_size(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_trail(e, t, n) {
-		let r = q.wasmeditor_set_trail(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	set_transition(e, t, n, r, i, a, o, s, c) {
-		let l = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), u = K, d = W(a, q.__wbindgen_malloc, q.__wbindgen_realloc), f = K, p = q.wasmeditor_set_transition(this.__wbg_ptr, e, t, l, u, r, i, d, f, o, s, c);
-		if (p[2]) throw G(p[1]);
-		return G(p[0]);
-	}
-	shader_node_catalog() {
-		let e = q.wasmeditor_shader_node_catalog(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	slice_image(e, t, n, r, i) {
-		let a = Ke(t, q.__wbindgen_malloc), o = K, s = W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), c = K;
-		return q.wasmeditor_slice_image(this.__wbg_ptr, e, a, o, n, s, c, i);
-	}
-	solve_two_bone_ik(e, t, n, r, i) {
-		let a = q.wasmeditor_solve_two_bone_ik(this.__wbg_ptr, e, t, n, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	sorting_layers() {
-		let e = q.wasmeditor_sorting_layers(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	spawn_prefab(e, t, n, r, i) {
-		let a = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = q.wasmeditor_spawn_prefab(this.__wbg_ptr, e, a, o, n, r, i);
-		if (s[2]) throw G(s[1]);
-		return G(s[0]);
-	}
-	state_machine_summary() {
-		let e = q.wasmeditor_state_machine_summary(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	summary_fingerprint() {
-		return q.wasmeditor_summary_fingerprint(this.__wbg_ptr);
-	}
-	take_project_file_bytes(e) {
-		let t = q.wasmeditor_take_project_file_bytes(this.__wbg_ptr, e);
-		var n = L(t[0], t[1]).slice();
-		return q.__wbindgen_free(t[0], t[1] * 1, 1), n;
-	}
-	translate_nodes(e, t, n) {
-		let r = qe(n, q.__wbindgen_malloc), i = K, a = q.wasmeditor_translate_nodes(this.__wbg_ptr, e, t, r, i);
-		if (a[2]) throw G(a[1]);
-		return G(a[0]);
-	}
-	tree_regrow(e) {
-		let t = q.wasmeditor_tree_regrow(this.__wbg_ptr, e);
-		if (t[1]) throw G(t[0]);
-	}
-	tree_shake(e, t) {
-		let n = q.wasmeditor_tree_shake(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	undo() {
-		let e = q.wasmeditor_undo(this.__wbg_ptr);
-		if (e[2]) throw G(e[1]);
-		return G(e[0]);
-	}
-	unpack_prefab_instance(e, t) {
-		let n = q.wasmeditor_unpack_prefab_instance(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	update_animated_drawing(e, t) {
-		let n = q.wasmeditor_update_animated_drawing(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	update_bitmap_drawing(e, t) {
-		let n = U(t, q.__wbindgen_malloc), r = K;
-		return q.wasmeditor_update_bitmap_drawing(this.__wbg_ptr, e, n, r);
-	}
-	update_drawing(e, t) {
-		let n = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = q.wasmeditor_update_drawing(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return G(i[0]);
-	}
-	update_property(e, t, n, r) {
-		let i = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K, o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), l = K, u = q.wasmeditor_update_property(this.__wbg_ptr, e, i, a, o, s, c, l);
-		if (u[2]) throw G(u[1]);
-		return G(u[0]);
-	}
-	update_state(e, t, n, r, i, a) {
-		let o = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), s = K, c = W(i, q.__wbindgen_malloc, q.__wbindgen_realloc), l = K, u = q.wasmeditor_update_state(this.__wbg_ptr, e, t, o, s, r, c, l, a);
-		if (u[2]) throw G(u[1]);
-		return G(u[0]);
-	}
-	view3d_align_camera(e, t) {
-		let n = q.wasmeditor_view3d_align_camera(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return G(n[0]);
-	}
-	view3d_bone_drag(e, t, n, r, i, a, o, s) {
-		let c = qe(n, q.__wbindgen_malloc), l = K, u = q.wasmeditor_view3d_bone_drag(this.__wbg_ptr, e, t, c, l, r, i, a, o, s);
-		if (u[3]) throw G(u[2]);
-		var d = N(u[0], u[1]).slice();
-		return q.__wbindgen_free(u[0], u[1] * 4, 4), d;
-	}
-	view3d_bone_drag_begin(e, t) {
-		let n = qe(t, q.__wbindgen_malloc), r = K, i = q.wasmeditor_view3d_bone_drag_begin(this.__wbg_ptr, e, n, r);
-		if (i[2]) throw G(i[1]);
-		return i[0] !== 0;
-	}
-	view3d_drag_transform(e, t, n, r, i, a, o, s) {
-		let c = qe(n, q.__wbindgen_malloc), l = K, u = q.wasmeditor_view3d_drag_transform(this.__wbg_ptr, e, t, c, l, r, i, a, o, s);
-		if (u[3]) throw G(u[2]);
-		var d = N(u[0], u[1]).slice();
-		return q.__wbindgen_free(u[0], u[1] * 4, 4), d;
-	}
-	view3d_fly(e, t, n) {
-		q.wasmeditor_view3d_fly(this.__wbg_ptr, e, t, n);
-	}
-	view3d_frame(e, t) {
-		let n = q.wasmeditor_view3d_frame(this.__wbg_ptr, e, t);
-		if (n[1]) throw G(n[0]);
-	}
-	view3d_hover(e, t, n, r) {
-		let i = q.wasmeditor_view3d_hover(this.__wbg_ptr, e, t, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	view3d_look_through(e, t) {
-		let n = q.wasmeditor_view3d_look_through(this.__wbg_ptr, e, t);
-		if (n[2]) throw G(n[1]);
-		return n[0] !== 0;
-	}
-	view3d_orbit(e, t) {
-		q.wasmeditor_view3d_orbit(this.__wbg_ptr, e, t);
-	}
-	view3d_pan(e, t) {
-		q.wasmeditor_view3d_pan(this.__wbg_ptr, e, t);
-	}
-	view3d_pick(e, t, n) {
-		let r = q.wasmeditor_view3d_pick(this.__wbg_ptr, e, t, n);
-		if (r[2]) throw G(r[1]);
-		return G(r[0]);
-	}
-	view3d_select(e) {
-		let t = q.wasmeditor_view3d_select(this.__wbg_ptr, e);
-		if (t[1]) throw G(t[0]);
-	}
-	view3d_select_bone(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K;
-		q.wasmeditor_view3d_select_bone(this.__wbg_ptr, t, n);
-	}
-	view3d_set_enabled(e) {
-		q.wasmeditor_view3d_set_enabled(this.__wbg_ptr, e);
-	}
-	view3d_set_gizmo_mode(e) {
-		q.wasmeditor_view3d_set_gizmo_mode(this.__wbg_ptr, e);
-	}
-	view3d_view(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K;
-		q.wasmeditor_view3d_view(this.__wbg_ptr, t, n);
-	}
-	view3d_zoom(e) {
-		q.wasmeditor_view3d_zoom(this.__wbg_ptr, e);
-	}
-	view3d_zoom_at(e, t, n) {
-		q.wasmeditor_view3d_zoom_at(this.__wbg_ptr, e, t, n);
-	}
-	voxel_chunk_set(e, t, n, r, i) {
-		let a = U(i, q.__wbindgen_malloc), o = K, s = q.wasmeditor_voxel_chunk_set(this.__wbg_ptr, e, t, n, r, a, o);
-		if (s[1]) throw G(s[0]);
-	}
-	voxel_chunk_unload(e, t, n, r) {
-		let i = q.wasmeditor_voxel_chunk_unload(this.__wbg_ptr, e, t, n, r);
-		if (i[1]) throw G(i[0]);
-	}
-	voxel_set(e, t, n, r, i, a) {
-		let o = q.wasmeditor_voxel_set(this.__wbg_ptr, e, t, n, r, i, a);
-		if (o[2]) throw G(o[1]);
-		return o[0] !== 0;
-	}
-	voxels_set(e, t, n) {
-		let r = U(n, q.__wbindgen_malloc), i = K, a = q.wasmeditor_voxels_set(this.__wbg_ptr, e, t, r, i);
-		if (a[1]) throw G(a[0]);
-	}
-};
-Symbol.dispose && (g.prototype[Symbol.dispose] = g.prototype.free);
-var _ = class e {
 	static __wrap(t) {
 		let n = Object.create(e.prototype);
 		return n.__wbg_ptr = t, Se.register(n, n.__wbg_ptr, n), n;
@@ -1788,55 +166,1697 @@ var _ = class e {
 	}
 	free() {
 		let e = this.__destroy_into_raw();
-		q.__wbg_wasmplayer_free(e, 0);
+		K.__wbg_wasmeditor_free(e, 0);
 	}
-	static create(e, t) {
-		return q.wasmplayer_create(e, t);
+	adaptive_resolution() {
+		let e = K.wasmeditor_adaptive_resolution(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	add_animated_drawing(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_add_animated_drawing(this.__wbg_ptr, n, r, t);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	add_animation(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_add_animation(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	add_artboard(e, t, n) {
+		let r = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_add_artboard(this.__wbg_ptr, r, i, t, n);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	add_bitmap_drawing(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = V(t, K.__wbindgen_malloc), a = G;
+		return K.wasmeditor_add_bitmap_drawing(this.__wbg_ptr, n, r, i, a);
+	}
+	add_blank_shape_node(e, t) {
+		let n = K.wasmeditor_add_blank_shape_node(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	add_bone_node(e, t, n) {
+		let r = K.wasmeditor_add_bone_node(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	add_camera_node(e, t) {
+		let n = K.wasmeditor_add_camera_node(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	add_component(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_add_component(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	add_component_variant(e, t, n) {
+		let r = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_add_component_variant(this.__wbg_ptr, e, r, i, n);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	add_demo_hover_animation(e, t, n) {
+		let r = K.wasmeditor_add_demo_hover_animation(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	add_drawing(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_add_drawing(this.__wbg_ptr, n, r, i, a);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	add_drawing_cel_image(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = V(t, K.__wbindgen_malloc), a = G;
+		return K.wasmeditor_add_drawing_cel_image(this.__wbg_ptr, n, r, i, a);
+	}
+	add_font(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = V(t, K.__wbindgen_malloc), a = G, o = K.wasmeditor_add_font(this.__wbg_ptr, n, r, i, a);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	add_ik_target(e, t, n) {
+		let r = K.wasmeditor_add_ik_target(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	add_image_node(e, t, n, r, i) {
+		let a = K.wasmeditor_add_image_node(this.__wbg_ptr, e, t, n, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	add_instance_node(e, t, n) {
+		let r = K.wasmeditor_add_instance_node(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	add_keyframe(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_add_keyframe(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	add_light2d_node(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_add_light2d_node(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	add_material(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G, r = K.wasmeditor_add_material(this.__wbg_ptr, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	add_motion_path_keyframe(e, t, n, r) {
+		let i = K.wasmeditor_add_motion_path_keyframe(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	add_node3d(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_add_node3d(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	add_particle_system_node(e, t) {
+		let n = K.wasmeditor_add_particle_system_node(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	add_property(e, t, n) {
+		let r = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = K.wasmeditor_add_property(this.__wbg_ptr, e, r, i, a, o);
+		if (s[2]) throw W(s[1]);
+		return W(s[0]);
+	}
+	add_script(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G, r = K.wasmeditor_add_script(this.__wbg_ptr, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	add_shape_node(e, t, n) {
+		let r = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_add_shape_node(this.__wbg_ptr, e, r, i, n);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	add_state(e, t, n, r, i, a) {
+		let o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = U(i, K.__wbindgen_malloc, K.__wbindgen_realloc), l = G, u = K.wasmeditor_add_state(this.__wbg_ptr, e, t, o, s, r, c, l, a);
+		if (u[2]) throw W(u[1]);
+		return W(u[0]);
+	}
+	add_state_machine(e, t, n) {
+		let r = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_add_state_machine(this.__wbg_ptr, e, r, i, n);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	add_state_machine_input(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = K.wasmeditor_add_state_machine_input(this.__wbg_ptr, e, t, i, a, o, s);
+		if (c[2]) throw W(c[1]);
+		return W(c[0]);
+	}
+	add_state_machine_layer(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_add_state_machine_layer(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	add_text_file(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_add_text_file(this.__wbg_ptr, n, r, i, a);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	add_text_node(e, t) {
+		let n = K.wasmeditor_add_text_node(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	add_tilemap_node(e, t, n, r, i, a, o, s, c) {
+		let l = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), u = G, d = V(r, K.__wbindgen_malloc), f = G;
+		return K.wasmeditor_add_tilemap_node(this.__wbg_ptr, e, t, l, u, d, f, i, a, o, s, c);
+	}
+	add_toon_material(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_add_toon_material(this.__wbg_ptr, n, r, i, a);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	add_trail_node(e, t) {
+		let n = K.wasmeditor_add_trail_node(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	add_transition(e, t, n, r, i, a, o, s, c) {
+		let l = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), u = G, d = U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), f = G, p = U(a, K.__wbindgen_malloc, K.__wbindgen_realloc), m = G, h = K.wasmeditor_add_transition(this.__wbg_ptr, e, t, l, u, d, f, i, p, m, o, s, c);
+		if (h[2]) throw W(h[1]);
+		return W(h[0]);
+	}
+	add_ui_node(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_add_ui_node(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	apply_node_writes(e, t) {
+		let n = Ye(t, K.__wbindgen_malloc), r = G, i = K.wasmeditor_apply_node_writes(this.__wbg_ptr, e, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	apply_prefab_instance(e, t) {
+		let n = K.wasmeditor_apply_prefab_instance(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	audio_bytes(e) {
+		let t = K.wasmeditor_audio_bytes(this.__wbg_ptr, e);
+		if (t[3]) throw W(t[2]);
+		var n = I(t[0], t[1]).slice();
+		return K.__wbindgen_free(t[0], t[1] * 1, 1), n;
+	}
+	audio_list() {
+		let e = K.wasmeditor_audio_list(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	auto_slice_image(e, t, n, r) {
+		let i = K.wasmeditor_auto_slice_image(this.__wbg_ptr, e, t, n, r);
+		if (i[3]) throw W(i[2]);
+		var a = ke(i[0], i[1]).slice();
+		return K.__wbindgen_free(i[0], i[1] * 4, 4), a;
+	}
+	bind_sprite_skin(e, t, n, r, i) {
+		let a = K.wasmeditor_bind_sprite_skin(this.__wbg_ptr, e, t, n, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	bring_node_to_front(e, t) {
+		let n = K.wasmeditor_bring_node_to_front(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	burst_particles_3d(e, t, n) {
+		let r = K.wasmeditor_burst_particles_3d(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return r[0] !== 0;
+	}
+	camera_shake(e, t) {
+		let n = K.wasmeditor_camera_shake(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	cloth_drag(e, t, n) {
+		let r = K.wasmeditor_cloth_drag(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	cloth_grab(e, t, n, r) {
+		let i = K.wasmeditor_cloth_grab(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return i[0] !== 0;
+	}
+	cloth_release(e) {
+		let t = K.wasmeditor_cloth_release(this.__wbg_ptr, e);
+		if (t[1]) throw W(t[0]);
+	}
+	cloth_reset(e) {
+		let t = K.wasmeditor_cloth_reset(this.__wbg_ptr, e);
+		if (t[1]) throw W(t[0]);
+	}
+	cloth_tear(e, t, n, r) {
+		let i = K.wasmeditor_cloth_tear(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return i[0] >>> 0;
+	}
+	cloth_wind(e, t) {
+		var n = B(t) ? 0 : H(t, K.__wbindgen_malloc), r = G;
+		let i = K.wasmeditor_cloth_wind(this.__wbg_ptr, e, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	commit_bone_pose(e, t, n) {
+		let r = H(n, K.__wbindgen_malloc), i = G, a = K.wasmeditor_commit_bone_pose(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	commit_keyframe_time(e, t, n, r, i, a) {
+		let o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = K.wasmeditor_commit_keyframe_time(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw W(c[1]);
+		return W(c[0]);
+	}
+	commit_node_anchor(e, t, n, r, i, a, o, s, c, l) {
+		let u = K.wasmeditor_commit_node_anchor(this.__wbg_ptr, e, t, n, r, i, a, o, s, c, l);
+		if (u[2]) throw W(u[1]);
+		return W(u[0]);
+	}
+	commit_node_rotation(e, t, n, r, i) {
+		let a = K.wasmeditor_commit_node_rotation(this.__wbg_ptr, e, t, n, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	commit_node_scale(e, t, n, r, i, a, o, s, c, l, u) {
+		let d = K.wasmeditor_commit_node_scale(this.__wbg_ptr, e, t, n, r, i, a, o, s, c, l, u);
+		if (d[2]) throw W(d[1]);
+		return W(d[0]);
+	}
+	commit_node_translation(e, t, n, r, i, a) {
+		let o = K.wasmeditor_commit_node_translation(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	static create(e) {
+		return K.wasmeditor_create(e);
+	}
+	create_prefab(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_create_prefab(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	default_component(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G, r = K.wasmeditor_default_component(this.__wbg_ptr, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	delete_animation(e, t) {
+		let n = K.wasmeditor_delete_animation(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	delete_artboard(e) {
+		let t = K.wasmeditor_delete_artboard(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	delete_audio(e) {
+		let t = K.wasmeditor_delete_audio(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	delete_component(e) {
+		let t = K.wasmeditor_delete_component(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	delete_drawing(e) {
+		let t = K.wasmeditor_delete_drawing(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	delete_material(e) {
+		let t = K.wasmeditor_delete_material(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	delete_node(e, t) {
+		let n = K.wasmeditor_delete_node(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	delete_nodes(e, t) {
+		let n = K.wasmeditor_delete_nodes(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	delete_prefab(e) {
+		let t = K.wasmeditor_delete_prefab(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	delete_property(e) {
+		let t = K.wasmeditor_delete_property(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	delete_script(e) {
+		let t = K.wasmeditor_delete_script(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	delete_state(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_delete_state(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	delete_state_machine(e, t) {
+		let n = K.wasmeditor_delete_state_machine(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	delete_state_machine_layer(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_delete_state_machine_layer(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	delete_text_file(e) {
+		let t = K.wasmeditor_delete_text_file(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	destroy_node(e, t) {
+		let n = K.wasmeditor_destroy_node(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	document_instance() {
+		return K.wasmeditor_document_instance(this.__wbg_ptr);
+	}
+	document_revision() {
+		return K.wasmeditor_document_revision(this.__wbg_ptr);
+	}
+	document_summary() {
+		let e = K.wasmeditor_document_summary(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	document_summary_json() {
+		let e, t;
+		try {
+			let i = K.wasmeditor_document_summary_json(this.__wbg_ptr);
+			var n = i[0], r = i[1];
+			if (i[3]) throw n = 0, r = 0, W(i[2]);
+			return e = n, t = r, R(n, r);
+		} finally {
+			K.__wbindgen_free(e, t, 1);
+		}
+	}
+	drawing_content(e) {
+		let t = K.wasmeditor_drawing_content(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	drawing_svg(e) {
+		let t = K.wasmeditor_drawing_svg(this.__wbg_ptr, e);
+		if (t[3]) throw W(t[2]);
+		let n;
+		return t[0] !== 0 && (n = R(t[0], t[1]), K.__wbindgen_free(t[0], t[1] * 1, 1)), n;
+	}
+	duplicate_nodes(e, t) {
+		let n = K.wasmeditor_duplicate_nodes(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	dynamic_scale() {
+		return K.wasmeditor_dynamic_scale(this.__wbg_ptr);
+	}
+	emit_particles(e, t, n) {
+		let r = K.wasmeditor_emit_particles(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	export_lite(e) {
+		let t, n;
+		try {
+			let a = K.wasmeditor_export_lite(this.__wbg_ptr, e);
+			var r = a[0], i = a[1];
+			if (a[3]) throw r = 0, i = 0, W(a[2]);
+			return t = r, n = i, R(r, i);
+		} finally {
+			K.__wbindgen_free(t, n, 1);
+		}
+	}
+	fill_nodes(e, t, n, r) {
+		let i = K.wasmeditor_fill_nodes(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
 	}
 	fire_trigger(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K;
-		q.wasmplayer_fire_trigger(this.__wbg_ptr, t, n);
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G;
+		K.wasmeditor_fire_trigger(this.__wbg_ptr, t, n);
+	}
+	frame_stats() {
+		let e = K.wasmeditor_frame_stats(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	get_image_source(e) {
+		let t = K.wasmeditor_get_image_source(this.__wbg_ptr, e);
+		if (t[3]) throw W(t[2]);
+		var n = I(t[0], t[1]).slice();
+		return K.__wbindgen_free(t[0], t[1] * 1, 1), n;
+	}
+	glass_crack(e, t, n, r, i, a, o) {
+		let s = K.wasmeditor_glass_crack(this.__wbg_ptr, e, t, n, r, i, a, o);
+		if (s[2]) throw W(s[1]);
+		return s[0] >>> 0;
+	}
+	glass_intact(e, t) {
+		let n = K.wasmeditor_glass_intact(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return n[0];
+	}
+	glass_raycast(e, t, n, r, i, a, o, s) {
+		let c = K.wasmeditor_glass_raycast(this.__wbg_ptr, e, t, n, r, i, a, o, s);
+		if (c[2]) throw W(c[1]);
+		return W(c[0]);
+	}
+	glass_reset(e, t) {
+		let n = K.wasmeditor_glass_reset(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	glass_shatter(e, t, n, r, i, a, o, s, c, l) {
+		let u = K.wasmeditor_glass_shatter(this.__wbg_ptr, e, t, n, r, i, a, o, s, c, l);
+		if (u[2]) throw W(u[1]);
+		return W(u[0]);
+	}
+	group_nodes(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_group_nodes(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	import_audio(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = V(t, K.__wbindgen_malloc), a = G, o = K.wasmeditor_import_audio(this.__wbg_ptr, n, r, i, a);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	import_humanoid_animation(e, t, n, r) {
+		let i = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = V(t, K.__wbindgen_malloc), s = G, c = K.wasmeditor_import_humanoid_animation(this.__wbg_ptr, i, a, o, s, n, r);
+		if (c[2]) throw W(c[1]);
+		return W(c[0]);
+	}
+	import_image(e, t, n) {
+		let r = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = V(n, K.__wbindgen_malloc), o = G;
+		return K.wasmeditor_import_image(this.__wbg_ptr, e, r, i, a, o);
+	}
+	import_image_asset(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = V(t, K.__wbindgen_malloc), a = G;
+		return K.wasmeditor_import_image_asset(this.__wbg_ptr, n, r, i, a);
+	}
+	import_model(e, t, n, r, i, a) {
+		let o = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = V(n, K.__wbindgen_malloc), l = G, u = Xe(r, K.__wbindgen_malloc), d = G, f = V(i, K.__wbindgen_malloc), p = G, m = Je(a, K.__wbindgen_malloc), h = G, g = K.wasmeditor_import_model(this.__wbg_ptr, e, o, s, c, l, u, d, f, p, m, h);
+		if (g[2]) throw W(g[1]);
+		return W(g[0]);
+	}
+	import_svg(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_import_svg(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	instantiate_prefab(e, t, n, r, i) {
+		let a = K.wasmeditor_instantiate_prefab(this.__wbg_ptr, e, t, n, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	load_3d_demo() {
+		return K.wasmeditor_load_3d_demo(this.__wbg_ptr);
+	}
+	load_boom_demo() {
+		return K.wasmeditor_load_boom_demo(this.__wbg_ptr);
+	}
+	load_cloth_demo() {
+		return K.wasmeditor_load_cloth_demo(this.__wbg_ptr);
+	}
+	load_docs_game(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G, r = K.wasmeditor_load_docs_game(this.__wbg_ptr, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	load_dungeon_demo() {
+		return K.wasmeditor_load_dungeon_demo(this.__wbg_ptr);
+	}
+	load_fight_demo(e) {
+		let t = V(e, K.__wbindgen_malloc), n = G;
+		return K.wasmeditor_load_fight_demo(this.__wbg_ptr, t, n);
+	}
+	load_fps_demo() {
+		return K.wasmeditor_load_fps_demo(this.__wbg_ptr);
+	}
+	load_geometry_dash_demo(e) {
+		let t = K.wasmeditor_load_geometry_dash_demo(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	load_goo_demo() {
+		return K.wasmeditor_load_goo_demo(this.__wbg_ptr);
+	}
+	load_goo_shapes_demo() {
+		return K.wasmeditor_load_goo_shapes_demo(this.__wbg_ptr);
+	}
+	load_html_demo() {
+		return K.wasmeditor_load_html_demo(this.__wbg_ptr);
+	}
+	load_lan_demo() {
+		return K.wasmeditor_load_lan_demo(this.__wbg_ptr);
+	}
+	load_leer_demo() {
+		return K.wasmeditor_load_leer_demo(this.__wbg_ptr);
+	}
+	load_liquid_demo() {
+		return K.wasmeditor_load_liquid_demo(this.__wbg_ptr);
+	}
+	load_lite_component(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G, r = K.wasmeditor_load_lite_component(this.__wbg_ptr, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	load_match3_demo() {
+		return K.wasmeditor_load_match3_demo(this.__wbg_ptr);
+	}
+	load_ninja_demo() {
+		return K.wasmeditor_load_ninja_demo(this.__wbg_ptr);
+	}
+	load_physics3d_demo() {
+		return K.wasmeditor_load_physics3d_demo(this.__wbg_ptr);
+	}
+	load_physics_demo() {
+		let e = K.wasmeditor_load_physics_demo(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	load_project(e, t, n, r) {
+		let i = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = Xe(t, K.__wbindgen_malloc), s = G, c = Je(n, K.__wbindgen_malloc), l = G, u = V(r, K.__wbindgen_malloc), d = G;
+		return K.wasmeditor_load_project(this.__wbg_ptr, i, a, o, s, c, l, u, d);
+	}
+	load_responsive_demo() {
+		return K.wasmeditor_load_responsive_demo(this.__wbg_ptr);
+	}
+	load_rig_demo() {
+		return K.wasmeditor_load_rig_demo(this.__wbg_ptr);
+	}
+	load_shatter_demo() {
+		return K.wasmeditor_load_shatter_demo(this.__wbg_ptr);
+	}
+	load_stress_demo() {
+		return K.wasmeditor_load_stress_demo(this.__wbg_ptr);
+	}
+	load_tactics_demo(e) {
+		var t = B(e) ? 0 : V(e, K.__wbindgen_malloc), n = G;
+		return K.wasmeditor_load_tactics_demo(this.__wbg_ptr, t, n);
+	}
+	load_tea(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G;
+		return K.wasmeditor_load_tea(this.__wbg_ptr, t, n);
 	}
 	load_teab(e) {
-		let t = U(e, q.__wbindgen_malloc), n = K;
-		return q.wasmplayer_load_teab(this.__wbg_ptr, t, n);
+		let t = V(e, K.__wbindgen_malloc), n = G;
+		return K.wasmeditor_load_teab(this.__wbg_ptr, t, n);
 	}
-	pause() {
-		q.wasmplayer_pause(this.__wbg_ptr);
+	load_torture_demo() {
+		return K.wasmeditor_load_torture_demo(this.__wbg_ptr);
 	}
-	play() {
-		q.wasmplayer_play(this.__wbg_ptr);
+	load_trees_demo() {
+		return K.wasmeditor_load_trees_demo(this.__wbg_ptr);
 	}
-	render(e) {
-		let t = q.wasmplayer_render(this.__wbg_ptr, e);
-		if (t[1]) throw G(t[0]);
+	load_ui_demo() {
+		return K.wasmeditor_load_ui_demo(this.__wbg_ptr);
+	}
+	load_voxel_demo() {
+		return K.wasmeditor_load_voxel_demo(this.__wbg_ptr);
+	}
+	make_ragdoll(e, t, n, r, i) {
+		let a = K.wasmeditor_make_ragdoll(this.__wbg_ptr, e, t, n, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	material_graph(e) {
+		let t = K.wasmeditor_material_graph(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	material_status(e) {
+		let t = K.wasmeditor_material_status(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	material_toon(e) {
+		let t = K.wasmeditor_material_toon(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	model_anim_state(e, t) {
+		let n = K.wasmeditor_model_anim_state(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	model_bone_position(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_model_bone_position(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	model_clear_bones(e, t) {
+		let n = K.wasmeditor_model_clear_bones(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	model_clips(e) {
+		let t = K.wasmeditor_model_clips(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	model_extract_materials(e, t) {
+		let n = K.wasmeditor_model_extract_materials(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	model_info(e, t) {
+		let n = K.wasmeditor_model_info(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	model_is_ragdoll(e, t) {
+		let n = K.wasmeditor_model_is_ragdoll(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return n[0] !== 0;
+	}
+	model_play_anim(e, t, n, r, i, a) {
+		let o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = K.wasmeditor_model_play_anim(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw W(c[1]);
+		return c[0] !== 0;
+	}
+	model_pose(e, t) {
+		let n, r;
+		try {
+			let o = K.wasmeditor_model_pose(this.__wbg_ptr, e, t);
+			var i = o[0], a = o[1];
+			if (o[3]) throw i = 0, a = 0, W(o[2]);
+			return n = i, r = a, R(i, a);
+		} finally {
+			K.__wbindgen_free(n, r, 1);
+		}
+	}
+	model_ragdoll(e, t, n, r, i, a) {
+		let o = K.wasmeditor_model_ragdoll(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[2]) throw W(o[1]);
+		return o[0] !== 0;
+	}
+	model_ragdoll_hit(e, t, n, r, i, a) {
+		let o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = K.wasmeditor_model_ragdoll_hit(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw W(c[1]);
+		return c[0] !== 0;
+	}
+	model_reset_springs(e, t) {
+		let n = K.wasmeditor_model_reset_springs(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	model_set_bone(e, t, n, r, i, a) {
+		let o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = K.wasmeditor_model_set_bone(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw W(c[1]);
+		return c[0] !== 0;
+	}
+	model_set_bone_offset(e, t, n, r, i, a) {
+		let o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = K.wasmeditor_model_set_bone_offset(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw W(c[1]);
+		return c[0] !== 0;
+	}
+	model_set_expression(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_model_set_expression(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw W(o[1]);
+		return o[0] !== 0;
+	}
+	model_set_pose(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_model_set_pose(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw W(o[1]);
+		return o[0] !== 0;
+	}
+	move_node_forward(e, t) {
+		let n = K.wasmeditor_move_node_forward(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	multi_transform_begin(e, t) {
+		let n = K.wasmeditor_multi_transform_begin(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	multi_transform_end(e) {
+		let t = K.wasmeditor_multi_transform_end(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	multi_transform_preview(e, t, n, r, i, a) {
+		let o = K.wasmeditor_multi_transform_preview(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[1]) throw W(o[0]);
+	}
+	node_fields(e, t) {
+		let n = K.wasmeditor_node_fields(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	node_local_bounds(e, t) {
+		let n = K.wasmeditor_node_local_bounds(this.__wbg_ptr, e, t);
+		if (n[3]) throw W(n[2]);
+		var r = N(n[0], n[1]).slice();
+		return K.__wbindgen_free(n[0], n[1] * 4, 4), r;
+	}
+	physics3d_add_force(e, t, n, r, i, a) {
+		let o = K.wasmeditor_physics3d_add_force(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[1]) throw W(o[0]);
+	}
+	physics3d_angular_velocity(e, t) {
+		let n = K.wasmeditor_physics3d_angular_velocity(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	physics3d_raycast(e, t, n, r, i, a, o, s, c) {
+		let l = K.wasmeditor_physics3d_raycast(this.__wbg_ptr, e, t, n, r, i, a, o, s, c);
+		if (l[2]) throw W(l[1]);
+		return W(l[0]);
+	}
+	physics3d_set_velocity(e, t, n, r, i, a) {
+		let o = K.wasmeditor_physics3d_set_velocity(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[1]) throw W(o[0]);
+	}
+	physics3d_velocity(e, t) {
+		let n = K.wasmeditor_physics3d_velocity(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	physics_add_force(e, t, n, r, i) {
+		let a = K.wasmeditor_physics_add_force(this.__wbg_ptr, e, t, n, r, i);
+		if (a[1]) throw W(a[0]);
+	}
+	physics_angular_velocity(e, t) {
+		let n = K.wasmeditor_physics_angular_velocity(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	physics_events(e) {
+		let t = K.wasmeditor_physics_events(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	physics_raycast(e, t, n, r, i, a, o) {
+		let s = K.wasmeditor_physics_raycast(this.__wbg_ptr, e, t, n, r, i, a, o);
+		if (s[2]) throw W(s[1]);
+		return W(s[0]);
+	}
+	physics_set_angular_velocity(e, t, n) {
+		let r = K.wasmeditor_physics_set_angular_velocity(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	physics_set_velocity(e, t, n, r) {
+		let i = K.wasmeditor_physics_set_velocity(this.__wbg_ptr, e, t, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	physics_velocity(e, t) {
+		let n = K.wasmeditor_physics_velocity(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	pick_node_at(e, t, n) {
+		let r = K.wasmeditor_pick_node_at(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	place_drawing(e, t, n, r, i) {
+		let a = K.wasmeditor_place_drawing(this.__wbg_ptr, e, t, n, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	playground_view(e) {
+		let t = K.wasmeditor_playground_view(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	prefab_instance_root(e, t) {
+		let n = K.wasmeditor_prefab_instance_root(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	preview_body_type(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_preview_body_type(this.__wbg_ptr, e, t, i, a, r);
+		if (o[1]) throw W(o[0]);
+	}
+	preview_bone_aim(e, t, n, r) {
+		let i = K.wasmeditor_preview_bone_aim(this.__wbg_ptr, e, t, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	preview_bone_ik(e, t, n, r, i) {
+		let a = K.wasmeditor_preview_bone_ik(this.__wbg_ptr, e, t, n, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	preview_break_joint(e, t) {
+		let n = K.wasmeditor_preview_break_joint(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	preview_component_field(e, t, n, r, i) {
+		let a = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), c = G, l = U(i, K.__wbindgen_malloc, K.__wbindgen_realloc), u = G, d = K.wasmeditor_preview_component_field(this.__wbg_ptr, e, t, a, o, s, c, l, u);
+		if (d[2]) throw W(d[1]);
+		return d[0] !== 0;
+	}
+	preview_fill_color(e, t, n) {
+		let r = K.wasmeditor_preview_fill_color(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	preview_keyframe_time(e, t, n, r, i) {
+		let a = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = K.wasmeditor_preview_keyframe_time(this.__wbg_ptr, e, t, a, o, r, i);
+		if (s[1]) throw W(s[0]);
+	}
+	preview_light(e, t, n, r) {
+		let i = K.wasmeditor_preview_light(this.__wbg_ptr, e, t, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	preview_node3d_animation(e, t, n, r, i) {
+		let a = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = U(i, K.__wbindgen_malloc, K.__wbindgen_realloc), c = G, l = K.wasmeditor_preview_node3d_animation(this.__wbg_ptr, e, t, a, o, r, s, c);
+		if (l[1]) throw W(l[0]);
+	}
+	preview_node3d_transform(e, t, n) {
+		let r = H(n, K.__wbindgen_malloc), i = G, a = K.wasmeditor_preview_node3d_transform(this.__wbg_ptr, e, t, r, i);
+		if (a[1]) throw W(a[0]);
+	}
+	preview_node_anchor(e, t, n, r, i, a) {
+		let o = K.wasmeditor_preview_node_anchor(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[1]) throw W(o[0]);
+	}
+	preview_node_image(e, t, n) {
+		let r = K.wasmeditor_preview_node_image(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	preview_node_path(e, t, n) {
+		let r = K.wasmeditor_preview_node_path(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	preview_node_rotation(e, t, n) {
+		let r = K.wasmeditor_preview_node_rotation(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	preview_node_scale(e, t, n, r, i, a) {
+		let o = K.wasmeditor_preview_node_scale(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[1]) throw W(o[0]);
+	}
+	preview_node_translation(e, t, n, r) {
+		let i = K.wasmeditor_preview_node_translation(this.__wbg_ptr, e, t, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	preview_node_visible(e, t, n) {
+		let r = K.wasmeditor_preview_node_visible(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	preview_node_z_index(e, t, n) {
+		let r = K.wasmeditor_preview_node_z_index(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	preview_shape_path(e, t, n) {
+		let r = K.wasmeditor_preview_shape_path(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	preview_text_content(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_preview_text_content(this.__wbg_ptr, e, t, r, i);
+		if (a[1]) throw W(a[0]);
+	}
+	preview_tilemap_tiles(e, t, n) {
+		let r = Je(n, K.__wbindgen_malloc), i = G, a = K.wasmeditor_preview_tilemap_tiles(this.__wbg_ptr, e, t, r, i);
+		if (a[1]) throw W(a[0]);
+	}
+	preview_vrm_pose_bone(e, t, n, r, i, a, o) {
+		let s = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), c = G, l = U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), u = G, d = K.wasmeditor_preview_vrm_pose_bone(this.__wbg_ptr, e, t, s, c, l, u, i, a, o);
+		if (d[1]) throw W(d[0]);
+	}
+	static project_asset_paths(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G, r = K.wasmeditor_project_asset_paths(t, n);
+		if (r[3]) throw W(r[2]);
+		var i = De(r[0], r[1]);
+		return K.__wbindgen_free(r[0], r[1] * 4, 4), i;
+	}
+	project_file_index(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G, r = K.wasmeditor_project_file_index(this.__wbg_ptr, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	record_keys() {
+		return K.wasmeditor_record_keys(this.__wbg_ptr) !== 0;
+	}
+	redo() {
+		let e = K.wasmeditor_redo(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	remove_keyframe(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_remove_keyframe(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	remove_motion_path_track(e, t) {
+		let n = K.wasmeditor_remove_motion_path_track(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	remove_transition(e, t, n, r, i) {
+		let a = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = K.wasmeditor_remove_transition(this.__wbg_ptr, e, t, a, o, r, i);
+		if (s[2]) throw W(s[1]);
+		return W(s[0]);
+	}
+	rename_animation(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_rename_animation(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	rename_artboard(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_rename_artboard(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	rename_audio(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_rename_audio(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	rename_drawing(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_rename_drawing(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	rename_material(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_rename_material(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	rename_node(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_rename_node(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	rename_prefab(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_rename_prefab(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	rename_state_machine(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_rename_state_machine(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	rename_text_file(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_rename_text_file(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	render(e, t, n, r, i, a, o, s, c, l, u, d) {
+		let f = K.wasmeditor_render(this.__wbg_ptr, e, t, n, r, i, a, o, s, c, l, u, d);
+		if (f[1]) throw W(f[0]);
+	}
+	reparent_node(e, t, n) {
+		let r = K.wasmeditor_reparent_node(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	reparent_node_before(e, t, n, r) {
+		let i = K.wasmeditor_reparent_node_before(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	replay_particle_system(e, t) {
+		let n = K.wasmeditor_replay_particle_system(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
 	}
 	resize(e, t) {
-		q.wasmplayer_resize(this.__wbg_ptr, e, t);
+		K.wasmeditor_resize(this.__wbg_ptr, e, t);
 	}
-	seek(e) {
-		q.wasmplayer_seek(this.__wbg_ptr, e);
+	resize_tilemap(e, t, n, r) {
+		let i = K.wasmeditor_resize_tilemap(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
 	}
-	set_bool_input(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-		q.wasmplayer_set_bool_input(this.__wbg_ptr, n, r, t);
+	revert_prefab_instance(e, t) {
+		let n = K.wasmeditor_revert_prefab_instance(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
 	}
-	set_enum_input(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K;
-		q.wasmplayer_set_enum_input(this.__wbg_ptr, n, r, i, a);
+	save_project(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G, r = K.wasmeditor_save_project(this.__wbg_ptr, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	save_tea() {
+		let e, t;
+		try {
+			let i = K.wasmeditor_save_tea(this.__wbg_ptr);
+			var n = i[0], r = i[1];
+			if (i[3]) throw n = 0, r = 0, W(i[2]);
+			return e = n, t = r, R(n, r);
+		} finally {
+			K.__wbindgen_free(e, t, 1);
+		}
+	}
+	save_teab() {
+		let e = K.wasmeditor_save_teab(this.__wbg_ptr);
+		if (e[3]) throw W(e[2]);
+		var t = I(e[0], e[1]).slice();
+		return K.__wbindgen_free(e[0], e[1] * 1, 1), t;
+	}
+	screen_info_now() {
+		let e = K.wasmeditor_screen_info_now(this.__wbg_ptr);
+		var t = N(e[0], e[1]).slice();
+		return K.__wbindgen_free(e[0], e[1] * 4, 4), t;
+	}
+	script_dynamic(e) {
+		let t = K.wasmeditor_script_dynamic(this.__wbg_ptr, e);
+		if (t[3]) throw W(t[2]);
+		var n = N(t[0], t[1]).slice();
+		return K.__wbindgen_free(t[0], t[1] * 4, 4), n;
+	}
+	script_revision(e) {
+		let t = K.wasmeditor_script_revision(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return t[0] >>> 0;
+	}
+	script_scene(e) {
+		let t = K.wasmeditor_script_scene(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	send_node_backward(e, t) {
+		let n = K.wasmeditor_send_node_backward(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	send_node_to_back(e, t) {
+		let n = K.wasmeditor_send_node_to_back(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_active_animation(e, t) {
+		let n = K.wasmeditor_set_active_animation(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_active_artboard(e) {
+		let t = K.wasmeditor_set_active_artboard(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	set_active_camera(e, t) {
+		let n = K.wasmeditor_set_active_camera(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_active_state_machine(e, t) {
+		let n = K.wasmeditor_set_active_state_machine(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_adaptive_resolution(e, t) {
+		K.wasmeditor_set_adaptive_resolution(this.__wbg_ptr, e, t);
+	}
+	set_animate_mode_active(e) {
+		K.wasmeditor_set_animate_mode_active(this.__wbg_ptr, e);
+	}
+	set_animation_duration(e, t, n) {
+		let r = K.wasmeditor_set_animation_duration(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_artboard_gravity(e, t, n) {
+		let r = K.wasmeditor_set_artboard_gravity(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_artboard_gravity_3d(e, t, n, r) {
+		let i = K.wasmeditor_set_artboard_gravity_3d(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	set_artboard_resolution_scale(e, t) {
+		let n = K.wasmeditor_set_artboard_resolution_scale(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_artboard_screen(e, t) {
+		let n = K.wasmeditor_set_artboard_screen(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_artboard_size(e, t, n) {
+		let r = K.wasmeditor_set_artboard_size(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_audio_file(e, t) {
+		var n = B(t) ? 0 : U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+		let i = K.wasmeditor_set_audio_file(this.__wbg_ptr, e, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	set_bone_length(e, t, n) {
+		let r = K.wasmeditor_set_bone_length(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_camera(e, t, n) {
+		let r = K.wasmeditor_set_camera(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_component_default_fill_color(e, t) {
+		let n = K.wasmeditor_set_component_default_fill_color(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_dynamic_scale(e) {
+		K.wasmeditor_set_dynamic_scale(this.__wbg_ptr, e);
+	}
+	set_environment_3d(e, t, n, r, i, a, o) {
+		K.wasmeditor_set_environment_3d(this.__wbg_ptr, e, t, n, r, i, a, o);
+	}
+	set_export_transparent(e) {
+		K.wasmeditor_set_export_transparent(this.__wbg_ptr, e);
+	}
+	set_exporting(e) {
+		K.wasmeditor_set_exporting(this.__wbg_ptr, e);
+	}
+	set_fill_color(e, t, n) {
+		let r = K.wasmeditor_set_fill_color(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_gradient(e, t, n) {
+		let r = K.wasmeditor_set_gradient(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_group_mask(e, t, n) {
+		let r = K.wasmeditor_set_group_mask(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_group_y_sort(e, t, n) {
+		let r = K.wasmeditor_set_group_y_sort(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_image_file(e, t) {
+		var n = B(t) ? 0 : U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+		let i = K.wasmeditor_set_image_file(this.__wbg_ptr, e, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	set_image_processing(e, t) {
+		return K.wasmeditor_set_image_processing(this.__wbg_ptr, e, t);
+	}
+	set_instance_fill_color_override(e, t, n) {
+		let r = K.wasmeditor_set_instance_fill_color_override(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_instance_variant(e, t, n) {
+		let r = K.wasmeditor_set_instance_variant(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
 	}
 	set_key_down(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-		q.wasmplayer_set_key_down(this.__wbg_ptr, n, r, t);
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+		K.wasmeditor_set_key_down(this.__wbg_ptr, n, r, t);
+	}
+	set_keyframe_easing(e, t, n, r, i) {
+		let a = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = K.wasmeditor_set_keyframe_easing(this.__wbg_ptr, e, t, a, o, r, i);
+		if (s[2]) throw W(s[1]);
+		return W(s[0]);
+	}
+	set_light2d(e, t, n) {
+		let r = K.wasmeditor_set_light2d(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_material_graph(e, t) {
+		let n = K.wasmeditor_set_material_graph(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_material_toon(e, t, n) {
+		let r = K.wasmeditor_set_material_toon(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_mode(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_set_mode(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	set_motion_path_guide(e, t, n) {
+		let r = K.wasmeditor_set_motion_path_guide(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_node3d(e, t, n) {
+		let r = K.wasmeditor_set_node3d(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_node_anchor(e, t, n, r) {
+		let i = K.wasmeditor_set_node_anchor(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	set_node_behaviors(e, t, n) {
+		let r = K.wasmeditor_set_node_behaviors(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_node_classes(e, t, n) {
+		let r = K.wasmeditor_set_node_classes(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_node_clip_children(e, t, n) {
+		let r = K.wasmeditor_set_node_clip_children(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_node_id(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_set_node_id(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	set_node_rotation(e, t, n) {
+		let r = K.wasmeditor_set_node_rotation(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_node_scale(e, t, n, r) {
+		let i = K.wasmeditor_set_node_scale(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	set_node_translation(e, t, n, r) {
+		let i = K.wasmeditor_set_node_translation(this.__wbg_ptr, e, t, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	set_node_unlit(e, t, n) {
+		let r = K.wasmeditor_set_node_unlit(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_node_visible(e, t, n) {
+		let r = K.wasmeditor_set_node_visible(this.__wbg_ptr, e, t, n);
+		if (r[1]) throw W(r[0]);
+	}
+	set_node_z_index(e, t, n) {
+		let r = K.wasmeditor_set_node_z_index(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_particle_system(e, t, n) {
+		let r = K.wasmeditor_set_particle_system(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_post_effects(e, t) {
+		let n = K.wasmeditor_set_post_effects(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_preview_screen(e, t) {
+		K.wasmeditor_set_preview_screen(this.__wbg_ptr, e, t);
+	}
+	set_record_keys(e) {
+		K.wasmeditor_set_record_keys(this.__wbg_ptr, e);
+	}
+	set_script_fields(e, t) {
+		let n = K.wasmeditor_set_script_fields(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_scrub_time(e, t) {
+		let n = K.wasmeditor_set_scrub_time(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	set_selected_node(e) {
+		let t = K.wasmeditor_set_selected_node(this.__wbg_ptr, e);
+		if (t[1]) throw W(t[0]);
+	}
+	set_shadow_caster(e, t, n) {
+		let r = K.wasmeditor_set_shadow_caster(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_shape_blend_mode(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_set_shape_blend_mode(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	set_shape_image(e, t, n) {
+		let r = K.wasmeditor_set_shape_image(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_shape_path(e, t, n) {
+		let r = K.wasmeditor_set_shape_path(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_shape_stroke(e, t, n) {
+		let r = K.wasmeditor_set_shape_stroke(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_sorting_layers(e) {
+		let t = K.wasmeditor_set_sorting_layers(this.__wbg_ptr, e);
+		if (t[2]) throw W(t[1]);
+		return W(t[0]);
+	}
+	set_state_blend(e, t, n, r, i) {
+		let a = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = K.wasmeditor_set_state_blend(this.__wbg_ptr, e, t, a, o, r, i);
+		if (s[2]) throw W(s[1]);
+		return W(s[0]);
+	}
+	set_state_machine_active(e) {
+		K.wasmeditor_set_state_machine_active(this.__wbg_ptr, e);
+	}
+	set_state_machine_bool_input(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+		K.wasmeditor_set_state_machine_bool_input(this.__wbg_ptr, n, r, t);
+	}
+	set_state_machine_enum_input(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G;
+		K.wasmeditor_set_state_machine_enum_input(this.__wbg_ptr, n, r, i, a);
+	}
+	set_state_machine_initial_state(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_set_state_machine_initial_state(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	set_state_machine_layer_initial_state(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = K.wasmeditor_set_state_machine_layer_initial_state(this.__wbg_ptr, e, t, i, a, o, s);
+		if (c[2]) throw W(c[1]);
+		return W(c[0]);
+	}
+	set_state_machine_layer_mask(e, t, n, r) {
+		let i = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = K.wasmeditor_set_state_machine_layer_mask(this.__wbg_ptr, e, t, i, a, r);
+		if (o[2]) throw W(o[1]);
+		return W(o[0]);
+	}
+	set_state_machine_number_input(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+		K.wasmeditor_set_state_machine_number_input(this.__wbg_ptr, n, r, t);
+	}
+	set_state_machine_programs_enabled(e) {
+		K.wasmeditor_set_state_machine_programs_enabled(this.__wbg_ptr, e);
+	}
+	set_state_position(e, t, n, r, i, a) {
+		let o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = K.wasmeditor_set_state_position(this.__wbg_ptr, e, t, o, s, r, i, a);
+		if (c[2]) throw W(c[1]);
+		return W(c[0]);
+	}
+	set_state_program(e, t, n, r, i) {
+		let a = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = K.wasmeditor_set_state_program(this.__wbg_ptr, e, t, a, o, r, i);
+		if (s[2]) throw W(s[1]);
+		return W(s[0]);
+	}
+	set_text_content(e, t, n) {
+		let r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G, a = K.wasmeditor_set_text_content(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	set_text_file_text(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_set_text_file_text(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return i[0] !== 0;
+	}
+	set_text_font(e, t, n) {
+		let r = K.wasmeditor_set_text_font(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_text_size(e, t, n) {
+		let r = K.wasmeditor_set_text_size(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_tile(e, t, n, r, i) {
+		let a = K.wasmeditor_set_tile(this.__wbg_ptr, e, t, n, r, B(i) ? 2 ** 53 - 1 : i >>> 0);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	set_tilemap_cell_size(e, t, n) {
+		let r = K.wasmeditor_set_tilemap_cell_size(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_trail(e, t, n) {
+		let r = K.wasmeditor_set_trail(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	set_transition(e, t, n, r, i, a, o, s, c) {
+		let l = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), u = G, d = U(a, K.__wbindgen_malloc, K.__wbindgen_realloc), f = G, p = K.wasmeditor_set_transition(this.__wbg_ptr, e, t, l, u, r, i, d, f, o, s, c);
+		if (p[2]) throw W(p[1]);
+		return W(p[0]);
+	}
+	shader_node_catalog() {
+		let e = K.wasmeditor_shader_node_catalog(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	slice_image(e, t, n, r, i) {
+		let a = Je(t, K.__wbindgen_malloc), o = G, s = U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), c = G;
+		return K.wasmeditor_slice_image(this.__wbg_ptr, e, a, o, n, s, c, i);
+	}
+	solve_two_bone_ik(e, t, n, r, i) {
+		let a = K.wasmeditor_solve_two_bone_ik(this.__wbg_ptr, e, t, n, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	sorting_layers() {
+		let e = K.wasmeditor_sorting_layers(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	spawn_prefab(e, t, n, r, i) {
+		let a = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), o = G, s = K.wasmeditor_spawn_prefab(this.__wbg_ptr, e, a, o, n, r, i);
+		if (s[2]) throw W(s[1]);
+		return W(s[0]);
+	}
+	state_machine_bool_input(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G;
+		return K.wasmeditor_state_machine_bool_input(this.__wbg_ptr, t, n) !== 0;
+	}
+	state_machine_summary() {
+		let e = K.wasmeditor_state_machine_summary(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	summary_fingerprint() {
+		return K.wasmeditor_summary_fingerprint(this.__wbg_ptr);
+	}
+	take_project_file_bytes(e) {
+		let t = K.wasmeditor_take_project_file_bytes(this.__wbg_ptr, e);
+		var n = I(t[0], t[1]).slice();
+		return K.__wbindgen_free(t[0], t[1] * 1, 1), n;
+	}
+	translate_nodes(e, t, n) {
+		let r = H(n, K.__wbindgen_malloc), i = G, a = K.wasmeditor_translate_nodes(this.__wbg_ptr, e, t, r, i);
+		if (a[2]) throw W(a[1]);
+		return W(a[0]);
+	}
+	tree_regrow(e) {
+		let t = K.wasmeditor_tree_regrow(this.__wbg_ptr, e);
+		if (t[1]) throw W(t[0]);
+	}
+	tree_shake(e, t) {
+		let n = K.wasmeditor_tree_shake(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	undo() {
+		let e = K.wasmeditor_undo(this.__wbg_ptr);
+		if (e[2]) throw W(e[1]);
+		return W(e[0]);
+	}
+	unpack_prefab_instance(e, t) {
+		let n = K.wasmeditor_unpack_prefab_instance(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	update_animated_drawing(e, t) {
+		let n = K.wasmeditor_update_animated_drawing(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	update_bitmap_drawing(e, t) {
+		let n = V(t, K.__wbindgen_malloc), r = G;
+		return K.wasmeditor_update_bitmap_drawing(this.__wbg_ptr, e, n, r);
+	}
+	update_drawing(e, t) {
+		let n = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = K.wasmeditor_update_drawing(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return W(i[0]);
+	}
+	update_property(e, t, n, r) {
+		let i = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G, o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), l = G, u = K.wasmeditor_update_property(this.__wbg_ptr, e, i, a, o, s, c, l);
+		if (u[2]) throw W(u[1]);
+		return W(u[0]);
+	}
+	update_state(e, t, n, r, i, a) {
+		let o = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), s = G, c = U(i, K.__wbindgen_malloc, K.__wbindgen_realloc), l = G, u = K.wasmeditor_update_state(this.__wbg_ptr, e, t, o, s, r, c, l, a);
+		if (u[2]) throw W(u[1]);
+		return W(u[0]);
+	}
+	view3d_align_camera(e, t) {
+		let n = K.wasmeditor_view3d_align_camera(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return W(n[0]);
+	}
+	view3d_bone_drag(e, t, n, r, i, a, o, s) {
+		let c = H(n, K.__wbindgen_malloc), l = G, u = K.wasmeditor_view3d_bone_drag(this.__wbg_ptr, e, t, c, l, r, i, a, o, s);
+		if (u[3]) throw W(u[2]);
+		var d = N(u[0], u[1]).slice();
+		return K.__wbindgen_free(u[0], u[1] * 4, 4), d;
+	}
+	view3d_bone_drag_begin(e, t) {
+		let n = H(t, K.__wbindgen_malloc), r = G, i = K.wasmeditor_view3d_bone_drag_begin(this.__wbg_ptr, e, n, r);
+		if (i[2]) throw W(i[1]);
+		return i[0] !== 0;
+	}
+	view3d_drag_transform(e, t, n, r, i, a, o, s) {
+		let c = H(n, K.__wbindgen_malloc), l = G, u = K.wasmeditor_view3d_drag_transform(this.__wbg_ptr, e, t, c, l, r, i, a, o, s);
+		if (u[3]) throw W(u[2]);
+		var d = N(u[0], u[1]).slice();
+		return K.__wbindgen_free(u[0], u[1] * 4, 4), d;
+	}
+	view3d_fly(e, t, n) {
+		K.wasmeditor_view3d_fly(this.__wbg_ptr, e, t, n);
+	}
+	view3d_frame(e, t) {
+		let n = K.wasmeditor_view3d_frame(this.__wbg_ptr, e, t);
+		if (n[1]) throw W(n[0]);
+	}
+	view3d_hover(e, t, n, r) {
+		let i = K.wasmeditor_view3d_hover(this.__wbg_ptr, e, t, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	view3d_look_through(e, t) {
+		let n = K.wasmeditor_view3d_look_through(this.__wbg_ptr, e, t);
+		if (n[2]) throw W(n[1]);
+		return n[0] !== 0;
+	}
+	view3d_orbit(e, t) {
+		K.wasmeditor_view3d_orbit(this.__wbg_ptr, e, t);
+	}
+	view3d_pan(e, t) {
+		K.wasmeditor_view3d_pan(this.__wbg_ptr, e, t);
+	}
+	view3d_pick(e, t, n) {
+		let r = K.wasmeditor_view3d_pick(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw W(r[1]);
+		return W(r[0]);
+	}
+	view3d_select(e) {
+		let t = K.wasmeditor_view3d_select(this.__wbg_ptr, e);
+		if (t[1]) throw W(t[0]);
+	}
+	view3d_select_bone(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G;
+		K.wasmeditor_view3d_select_bone(this.__wbg_ptr, t, n);
+	}
+	view3d_set_enabled(e) {
+		K.wasmeditor_view3d_set_enabled(this.__wbg_ptr, e);
+	}
+	view3d_set_gizmo_mode(e) {
+		K.wasmeditor_view3d_set_gizmo_mode(this.__wbg_ptr, e);
+	}
+	view3d_view(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G;
+		K.wasmeditor_view3d_view(this.__wbg_ptr, t, n);
+	}
+	view3d_zoom(e) {
+		K.wasmeditor_view3d_zoom(this.__wbg_ptr, e);
+	}
+	view3d_zoom_at(e, t, n) {
+		K.wasmeditor_view3d_zoom_at(this.__wbg_ptr, e, t, n);
+	}
+	voxel_chunk_set(e, t, n, r, i) {
+		let a = V(i, K.__wbindgen_malloc), o = G, s = K.wasmeditor_voxel_chunk_set(this.__wbg_ptr, e, t, n, r, a, o);
+		if (s[1]) throw W(s[0]);
+	}
+	voxel_chunk_unload(e, t, n, r) {
+		let i = K.wasmeditor_voxel_chunk_unload(this.__wbg_ptr, e, t, n, r);
+		if (i[1]) throw W(i[0]);
+	}
+	voxel_set(e, t, n, r, i, a) {
+		let o = K.wasmeditor_voxel_set(this.__wbg_ptr, e, t, n, r, i, a);
+		if (o[2]) throw W(o[1]);
+		return o[0] !== 0;
+	}
+	voxels_set(e, t, n) {
+		let r = V(n, K.__wbindgen_malloc), i = G, a = K.wasmeditor_voxels_set(this.__wbg_ptr, e, t, r, i);
+		if (a[1]) throw W(a[0]);
+	}
+};
+Symbol.dispose && (g.prototype[Symbol.dispose] = g.prototype.free);
+var _ = class e {
+	static __wrap(t) {
+		let n = Object.create(e.prototype);
+		return n.__wbg_ptr = t, j.register(n, n.__wbg_ptr, n), n;
+	}
+	__destroy_into_raw() {
+		let e = this.__wbg_ptr;
+		return this.__wbg_ptr = 0, j.unregister(this), e;
+	}
+	free() {
+		let e = this.__destroy_into_raw();
+		K.__wbg_wasmplayer_free(e, 0);
+	}
+	static create(e, t) {
+		return K.wasmplayer_create(e, t);
+	}
+	fire_trigger(e) {
+		let t = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), n = G;
+		K.wasmplayer_fire_trigger(this.__wbg_ptr, t, n);
+	}
+	load_teab(e) {
+		let t = V(e, K.__wbindgen_malloc), n = G;
+		return K.wasmplayer_load_teab(this.__wbg_ptr, t, n);
+	}
+	pause() {
+		K.wasmplayer_pause(this.__wbg_ptr);
+	}
+	play() {
+		K.wasmplayer_play(this.__wbg_ptr);
+	}
+	render(e) {
+		let t = K.wasmplayer_render(this.__wbg_ptr, e);
+		if (t[1]) throw W(t[0]);
+	}
+	resize(e, t) {
+		K.wasmplayer_resize(this.__wbg_ptr, e, t);
+	}
+	seek(e) {
+		K.wasmplayer_seek(this.__wbg_ptr, e);
+	}
+	set_bool_input(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+		K.wasmplayer_set_bool_input(this.__wbg_ptr, n, r, t);
+	}
+	set_enum_input(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G, i = U(t, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G;
+		K.wasmplayer_set_enum_input(this.__wbg_ptr, n, r, i, a);
+	}
+	set_key_down(e, t) {
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+		K.wasmplayer_set_key_down(this.__wbg_ptr, n, r, t);
 	}
 	set_number_input(e, t) {
-		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-		q.wasmplayer_set_number_input(this.__wbg_ptr, n, r, t);
+		let n = U(e, K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+		K.wasmplayer_set_number_input(this.__wbg_ptr, n, r, t);
 	}
 	state_machine_names() {
-		let e = q.wasmplayer_state_machine_names(this.__wbg_ptr);
+		let e = K.wasmplayer_state_machine_names(this.__wbg_ptr);
 		var t = De(e[0], e[1]);
-		return q.__wbindgen_free(e[0], e[1] * 4, 4), t;
+		return K.__wbindgen_free(e[0], e[1] * 4, 4), t;
 	}
 };
 Symbol.dispose && (_.prototype[Symbol.dispose] = _.prototype.free);
@@ -1846,14 +1866,14 @@ function v() {
 		"./an1mbyt3_wasm_bg.js": {
 			__proto__: null,
 			__wbg_Error_408e67f47ca7b58b: function(e, t) {
-				return Error(B(e, t));
+				return Error(R(e, t));
 			},
 			__wbg_Number_3890faa6d3ff057d: function(e) {
 				return Number(e);
 			},
 			__wbg_String_8564e559799eccda: function(e, t) {
-				let n = W(String(t), q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-				z().setInt32(e + 4, r, !0), z().setInt32(e + 0, n, !0);
+				let n = U(String(t), K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+				L().setInt32(e + 4, r, !0), L().setInt32(e + 0, n, !0);
 			},
 			__wbg_Window_afcc911b2f9c92e2: function(e) {
 				return e.Window;
@@ -1863,15 +1883,15 @@ function v() {
 			},
 			__wbg___wbindgen_bigint_get_as_i64_c4ecf48528083721: function(e, t) {
 				let n = t, r = typeof n == "bigint" ? n : void 0;
-				z().setBigInt64(e + 8, H(r) ? BigInt(0) : r, !0), z().setInt32(e + 0, !H(r), !0);
+				L().setBigInt64(e + 8, B(r) ? BigInt(0) : r, !0), L().setInt32(e + 0, !B(r), !0);
 			},
 			__wbg___wbindgen_boolean_get_c9c83ebd41b34df3: function(e) {
 				let t = e, n = typeof t == "boolean" ? t : void 0;
-				return H(n) ? 16777215 : +!!n;
+				return B(n) ? 16777215 : +!!n;
 			},
 			__wbg___wbindgen_debug_string_a57024b9c6e4a48b: function(e, t) {
-				let n = W(we(t), q.__wbindgen_malloc, q.__wbindgen_realloc), r = K;
-				z().setInt32(e + 4, r, !0), z().setInt32(e + 0, n, !0);
+				let n = U(we(t), K.__wbindgen_malloc, K.__wbindgen_realloc), r = G;
+				L().setInt32(e + 4, r, !0), L().setInt32(e + 0, n, !0);
 			},
 			__wbg___wbindgen_in_ac983077f137f2e6: function(e, t) {
 				return e in t;
@@ -1903,15 +1923,15 @@ function v() {
 			},
 			__wbg___wbindgen_number_get_136b9679cab35cfb: function(e, t) {
 				let n = t, r = typeof n == "number" ? n : void 0;
-				z().setFloat64(e + 8, H(r) ? 0 : r, !0), z().setInt32(e + 0, !H(r), !0);
+				L().setFloat64(e + 8, B(r) ? 0 : r, !0), L().setInt32(e + 0, !B(r), !0);
 			},
 			__wbg___wbindgen_string_get_d154f1e671052120: function(e, t) {
 				let n = t, r = typeof n == "string" ? n : void 0;
-				var i = H(r) ? 0 : W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K;
-				z().setInt32(e + 4, a, !0), z().setInt32(e + 0, i, !0);
+				var i = B(r) ? 0 : U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G;
+				L().setInt32(e + 4, a, !0), L().setInt32(e + 0, i, !0);
 			},
 			__wbg___wbindgen_throw_bb96b2010945f0bc: function(e, t) {
-				throw Error(B(e, t));
+				throw Error(R(e, t));
 			},
 			__wbg__wbg_cb_unref_be22cc64ae6946a0: function(e) {
 				e._wbg_cb_unref();
@@ -1923,8 +1943,8 @@ function v() {
 				e.activeTexture(t >>> 0);
 			},
 			__wbg_addEventListener_3b8edc02c33d9f77: function() {
-				return V(function(e, t, n, r) {
-					e.addEventListener(B(t, n), r);
+				return z(function(e, t, n, r) {
+					e.addEventListener(R(t, n), r);
 				}, arguments);
 			},
 			__wbg_attachShader_26751604f00d1f1b: function(e, t, n) {
@@ -1937,15 +1957,15 @@ function v() {
 				e.beginQuery(t >>> 0, n);
 			},
 			__wbg_beginRenderPass_aa22c432e793359a: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.beginRenderPass(t);
 				}, arguments);
 			},
 			__wbg_bindAttribLocation_1e182a50e1556784: function(e, t, n, r, i) {
-				e.bindAttribLocation(t, n >>> 0, B(r, i));
+				e.bindAttribLocation(t, n >>> 0, R(r, i));
 			},
 			__wbg_bindAttribLocation_9cc5ab15df1d042d: function(e, t, n, r, i) {
-				e.bindAttribLocation(t, n >>> 0, B(r, i));
+				e.bindAttribLocation(t, n >>> 0, R(r, i));
 			},
 			__wbg_bindBufferRange_5a8d28ef662d8746: function(e, t, n, r, i, a) {
 				e.bindBufferRange(t >>> 0, n >>> 0, r, i, a);
@@ -2035,12 +2055,12 @@ function v() {
 				e.bufferSubData(t >>> 0, n, r);
 			},
 			__wbg_call_1c5886ab9c57d1c7: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.call(t);
 				}, arguments);
 			},
 			__wbg_call_35dba3c747ad7521: function() {
-				return V(function(e, t, n) {
+				return z(function(e, t, n) {
 					return e.call(t, n);
 				}, arguments);
 			},
@@ -2051,7 +2071,7 @@ function v() {
 				e.clearBufferiv(t >>> 0, n, P(r, i));
 			},
 			__wbg_clearBufferuiv_cd72147d09d432e8: function(e, t, n, r, i) {
-				e.clearBufferuiv(t >>> 0, n, I(r, i));
+				e.clearBufferuiv(t >>> 0, n, ke(r, i));
 			},
 			__wbg_clearDepth_887000180cc9eb2e: function(e, t) {
 				e.clearDepth(t);
@@ -2108,7 +2128,7 @@ function v() {
 				e.compressedTexSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u);
 			},
 			__wbg_configure_0e4789c0f6b35c8e: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					e.configure(t);
 				}, arguments);
 			},
@@ -2125,12 +2145,12 @@ function v() {
 				e.copyTexSubImage3D(t >>> 0, n, r, i, a, o, s, c, l);
 			},
 			__wbg_copyTextureToBuffer_ed6e67a77ecb768d: function() {
-				return V(function(e, t, n, r) {
+				return z(function(e, t, n, r) {
 					e.copyTextureToBuffer(t, n, r);
 				}, arguments);
 			},
 			__wbg_createBindGroupLayout_49a7e2b3d076afcf: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.createBindGroupLayout(t);
 				}, arguments);
 			},
@@ -2138,98 +2158,98 @@ function v() {
 				return e.createBindGroup(t);
 			},
 			__wbg_createBuffer_0726dd2ab09ea1d2: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.createBuffer(t);
 				}, arguments);
 			},
 			__wbg_createBuffer_44b37c222efbd326: function(e) {
 				let t = e.createBuffer();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createBuffer_af6c411fe2b091f8: function(e) {
 				let t = e.createBuffer();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createCommandEncoder_ec1f40f0cb4d09df: function(e, t) {
 				return e.createCommandEncoder(t);
 			},
 			__wbg_createFramebuffer_4dc2fb6bd93463a5: function(e) {
 				let t = e.createFramebuffer();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createFramebuffer_e6d8917bf9291c65: function(e) {
 				let t = e.createFramebuffer();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createPipelineLayout_2c8cd4528b06c108: function(e, t) {
 				return e.createPipelineLayout(t);
 			},
 			__wbg_createProgram_2ebbd17565e0ede7: function(e) {
 				let t = e.createProgram();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createProgram_81b37242eadef893: function(e) {
 				let t = e.createProgram();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createQuery_5ef5edffbd3a678d: function(e) {
 				let t = e.createQuery();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createRenderPipeline_cf98d4d699bfb03c: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.createRenderPipeline(t);
 				}, arguments);
 			},
 			__wbg_createRenderbuffer_be624f81e06a0cfd: function(e) {
 				let t = e.createRenderbuffer();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createRenderbuffer_cd2638d5dda9c277: function(e) {
 				let t = e.createRenderbuffer();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createSampler_c8ffb3c8d565f704: function(e, t) {
 				return e.createSampler(t);
 			},
 			__wbg_createSampler_f1aedbf47c21745a: function(e) {
 				let t = e.createSampler();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createShaderModule_2e44fc7677c6288b: function(e, t) {
 				return e.createShaderModule(t);
 			},
 			__wbg_createShader_9a8e5f335caac850: function(e, t) {
 				let n = e.createShader(t >>> 0);
-				return H(n) ? 0 : M(n);
+				return B(n) ? 0 : M(n);
 			},
 			__wbg_createShader_f8638cf4c19a1d2d: function(e, t) {
 				let n = e.createShader(t >>> 0);
-				return H(n) ? 0 : M(n);
+				return B(n) ? 0 : M(n);
 			},
 			__wbg_createTexture_1bac74c999b8a48e: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.createTexture(t);
 				}, arguments);
 			},
 			__wbg_createTexture_42c791197006c64a: function(e) {
 				let t = e.createTexture();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createTexture_c74740f68b5c2a93: function(e) {
 				let t = e.createTexture();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createVertexArrayOES_f7e8c94194c4e075: function(e) {
 				let t = e.createVertexArrayOES();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createVertexArray_abd18ded26b75653: function(e) {
 				let t = e.createVertexArray();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_createView_ceaf2f5881adbd34: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.createView(t);
 				}, arguments);
 			},
@@ -2309,8 +2329,8 @@ function v() {
 				e.depthRange(t, n);
 			},
 			__wbg_description_02485704e69b1e7f: function(e, t) {
-				let n = t.description, r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K;
-				z().setInt32(e + 4, i, !0), z().setInt32(e + 0, r, !0);
+				let n = t.description, r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G;
+				L().setInt32(e + 4, i, !0), L().setInt32(e + 0, r, !0);
 			},
 			__wbg_destroy_fe937f756bf8df37: function(e) {
 				e.destroy();
@@ -2329,7 +2349,7 @@ function v() {
 			},
 			__wbg_document_ac38448dbfd31a57: function(e) {
 				let t = e.document;
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_done_669171204c3dcae2: function(e) {
 				return e.done;
@@ -2388,14 +2408,14 @@ function v() {
 			__wbg_error_757e9472f8410341: function(e, t) {
 				let n, r;
 				try {
-					n = e, r = t, console.error(B(e, t));
+					n = e, r = t, console.error(R(e, t));
 				} finally {
-					q.__wbindgen_free(n, r, 1);
+					K.__wbindgen_free(n, r, 1);
 				}
 			},
 			__wbg_fenceSync_57ab30f550e5a5a2: function(e, t, n) {
 				let r = e.fenceSync(t >>> 0, n >>> 0);
-				return H(r) ? 0 : M(r);
+				return B(r) ? 0 : M(r);
 			},
 			__wbg_finish_4d91de5e927dd13f: function(e, t) {
 				return e.finish(t);
@@ -2446,57 +2466,57 @@ function v() {
 				e.getBufferSubData(t >>> 0, n, r);
 			},
 			__wbg_getContext_123ddade3a0fb2f5: function() {
-				return V(function(e, t, n, r) {
-					let i = e.getContext(B(t, n), r);
-					return H(i) ? 0 : M(i);
+				return z(function(e, t, n, r) {
+					let i = e.getContext(R(t, n), r);
+					return B(i) ? 0 : M(i);
 				}, arguments);
 			},
 			__wbg_getContext_53c8c42beb820370: function() {
-				return V(function(e, t, n, r) {
-					let i = e.getContext(B(t, n), r);
-					return H(i) ? 0 : M(i);
+				return z(function(e, t, n, r) {
+					let i = e.getContext(R(t, n), r);
+					return B(i) ? 0 : M(i);
 				}, arguments);
 			},
 			__wbg_getContext_71c33f14b63da593: function() {
-				return V(function(e, t, n) {
-					let r = e.getContext(B(t, n));
-					return H(r) ? 0 : M(r);
+				return z(function(e, t, n) {
+					let r = e.getContext(R(t, n));
+					return B(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_getContext_c5236e0057b35024: function() {
-				return V(function(e, t, n) {
-					let r = e.getContext(B(t, n));
-					return H(r) ? 0 : M(r);
+				return z(function(e, t, n) {
+					let r = e.getContext(R(t, n));
+					return B(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_getCurrentTexture_20714d1bd9051cab: function() {
-				return V(function(e) {
+				return z(function(e) {
 					return e.getCurrentTexture();
 				}, arguments);
 			},
 			__wbg_getExtension_8e8c3be603d4f5ce: function() {
-				return V(function(e, t, n) {
-					let r = e.getExtension(B(t, n));
-					return H(r) ? 0 : M(r);
+				return z(function(e, t, n) {
+					let r = e.getExtension(R(t, n));
+					return B(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_getIndexedParameter_fa6cca29d50de787: function() {
-				return V(function(e, t, n) {
+				return z(function(e, t, n) {
 					return e.getIndexedParameter(t >>> 0, n >>> 0);
 				}, arguments);
 			},
 			__wbg_getMappedRange_d0bf3141224111b6: function() {
-				return V(function(e, t, n) {
+				return z(function(e, t, n) {
 					return e.getMappedRange(t, n);
 				}, arguments);
 			},
 			__wbg_getParameter_19325d4aa1b66856: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.getParameter(t >>> 0);
 				}, arguments);
 			},
 			__wbg_getParameter_7ddbe9f9606f6a80: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return e.getParameter(t >>> 0);
 				}, arguments);
 			},
@@ -2506,13 +2526,13 @@ function v() {
 			},
 			__wbg_getProgramInfoLog_50a07d12dddd0da6: function(e, t, n) {
 				let r = t.getProgramInfoLog(n);
-				var i = H(r) ? 0 : W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K;
-				z().setInt32(e + 4, a, !0), z().setInt32(e + 0, i, !0);
+				var i = B(r) ? 0 : U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G;
+				L().setInt32(e + 4, a, !0), L().setInt32(e + 0, i, !0);
 			},
 			__wbg_getProgramInfoLog_72665662cf78b5a2: function(e, t, n) {
 				let r = t.getProgramInfoLog(n);
-				var i = H(r) ? 0 : W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K;
-				z().setInt32(e + 4, a, !0), z().setInt32(e + 0, i, !0);
+				var i = B(r) ? 0 : U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G;
+				L().setInt32(e + 4, a, !0), L().setInt32(e + 0, i, !0);
 			},
 			__wbg_getProgramParameter_1f5cceb73030e823: function(e, t, n) {
 				return e.getProgramParameter(t, n >>> 0);
@@ -2525,13 +2545,13 @@ function v() {
 			},
 			__wbg_getShaderInfoLog_337a0567e83283d1: function(e, t, n) {
 				let r = t.getShaderInfoLog(n);
-				var i = H(r) ? 0 : W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K;
-				z().setInt32(e + 4, a, !0), z().setInt32(e + 0, i, !0);
+				var i = B(r) ? 0 : U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G;
+				L().setInt32(e + 4, a, !0), L().setInt32(e + 0, i, !0);
 			},
 			__wbg_getShaderInfoLog_663a9b136ab42b32: function(e, t, n) {
 				let r = t.getShaderInfoLog(n);
-				var i = H(r) ? 0 : W(r, q.__wbindgen_malloc, q.__wbindgen_realloc), a = K;
-				z().setInt32(e + 4, a, !0), z().setInt32(e + 0, i, !0);
+				var i = B(r) ? 0 : U(r, K.__wbindgen_malloc, K.__wbindgen_realloc), a = G;
+				L().setInt32(e + 4, a, !0), L().setInt32(e + 0, i, !0);
 			},
 			__wbg_getShaderParameter_95d4ad40668ee798: function(e, t, n) {
 				return e.getShaderParameter(t, n >>> 0);
@@ -2541,35 +2561,35 @@ function v() {
 			},
 			__wbg_getSupportedExtensions_63e3eaba880055c5: function(e) {
 				let t = e.getSupportedExtensions();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_getSupportedProfiles_7cd826b4eff5e8fc: function(e) {
 				let t = e.getSupportedProfiles();
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_getSyncParameter_3eb3ecefa061c5ee: function(e, t, n) {
 				return e.getSyncParameter(t, n >>> 0);
 			},
 			__wbg_getUniformBlockIndex_78264d4d94f8252d: function(e, t, n, r) {
-				return e.getUniformBlockIndex(t, B(n, r));
+				return e.getUniformBlockIndex(t, R(n, r));
 			},
 			__wbg_getUniformLocation_11fd99fee70965dc: function(e, t, n, r) {
-				let i = e.getUniformLocation(t, B(n, r));
-				return H(i) ? 0 : M(i);
+				let i = e.getUniformLocation(t, R(n, r));
+				return B(i) ? 0 : M(i);
 			},
 			__wbg_getUniformLocation_c493d2f5f1a6213d: function(e, t, n, r) {
-				let i = e.getUniformLocation(t, B(n, r));
-				return H(i) ? 0 : M(i);
+				let i = e.getUniformLocation(t, R(n, r));
+				return B(i) ? 0 : M(i);
 			},
 			__wbg_get_36debceb6d43d7a1: function(e, t) {
 				let n = e[t >>> 0];
-				return H(n) ? 0 : M(n);
+				return B(n) ? 0 : M(n);
 			},
 			__wbg_get_c0c8f8d7da0c03dd: function(e, t) {
 				return e[t >>> 0];
 			},
 			__wbg_get_d173c0308df22d37: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return Reflect.get(e, t);
 				}, arguments);
 			},
@@ -2646,7 +2666,7 @@ function v() {
 				return t;
 			},
 			__wbg_invalidateFramebuffer_9a711eeb3940aba0: function() {
-				return V(function(e, t, n) {
+				return z(function(e, t, n) {
 					e.invalidateFramebuffer(t >>> 0, n);
 				}, arguments);
 			},
@@ -2666,8 +2686,8 @@ function v() {
 				return Symbol.iterator;
 			},
 			__wbg_label_7ed42f25f841996b: function(e, t) {
-				let n = t.label, r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K;
-				z().setInt32(e + 4, i, !0), z().setInt32(e + 0, r, !0);
+				let n = t.label, r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G;
+				L().setInt32(e + 4, i, !0), L().setInt32(e + 0, r, !0);
 			},
 			__wbg_left_5acbc01043b87b48: function(e) {
 				return e.left;
@@ -2694,9 +2714,9 @@ function v() {
 				return e.mapAsync(t >>> 0, n, r);
 			},
 			__wbg_matchMedia_0e2963d34f3ddd40: function() {
-				return V(function(e, t, n) {
-					let r = e.matchMedia(B(t, n));
-					return H(r) ? 0 : M(r);
+				return z(function(e, t, n) {
+					let r = e.matchMedia(R(t, n));
+					return B(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_matches_72427e51457a4411: function(e) {
@@ -2808,7 +2828,7 @@ function v() {
 				return /* @__PURE__ */ Error();
 			},
 			__wbg_new_652118cdee90118f: function() {
-				return V(function(e, t) {
+				return z(function(e, t) {
 					return new OffscreenCanvas(e >>> 0, t >>> 0);
 				}, arguments);
 			},
@@ -2834,7 +2854,7 @@ function v() {
 						let r = n.a;
 						n.a = 0;
 						try {
-							return w(r, n.b, e, t);
+							return ee(r, n.b, e, t);
 						} finally {
 							n.a = r;
 						}
@@ -2847,7 +2867,7 @@ function v() {
 				return new Uint8Array(e, t >>> 0, n >>> 0);
 			},
 			__wbg_next_42cf16ee0dafc9e2: function() {
-				return V(function(e) {
+				return z(function(e) {
 					return e.next();
 				}, arguments);
 			},
@@ -2864,13 +2884,13 @@ function v() {
 				return e.onSubmittedWorkDone();
 			},
 			__wbg_parse_817cdcbb0323649b: function() {
-				return V(function(e, t) {
-					return JSON.parse(B(e, t));
+				return z(function(e, t) {
+					return JSON.parse(R(e, t));
 				}, arguments);
 			},
 			__wbg_performance_821a3767f0dce300: function(e) {
 				let t = e.performance;
-				return H(t) ? 0 : M(t);
+				return B(t) ? 0 : M(t);
 			},
 			__wbg_pixelStorei_11bdfb5bc6a39d28: function(e, t, n) {
 				e.pixelStorei(t >>> 0, n);
@@ -2885,7 +2905,7 @@ function v() {
 				e.polygonOffset(t, n);
 			},
 			__wbg_prototypesetcall_de8e0d9553586985: function(e, t, n) {
-				Uint8Array.prototype.set.call(L(e, t), n);
+				Uint8Array.prototype.set.call(I(e, t), n);
 			},
 			__wbg_push_adb0107829f02d75: function(e, t) {
 				return e.push(t);
@@ -2894,14 +2914,14 @@ function v() {
 				e.queryCounterEXT(t, n >>> 0);
 			},
 			__wbg_querySelectorAll_9b6a612499ecb916: function() {
-				return V(function(e, t, n) {
-					return e.querySelectorAll(B(t, n));
+				return z(function(e, t, n) {
+					return e.querySelectorAll(R(t, n));
 				}, arguments);
 			},
 			__wbg_querySelector_2c472eddb417c6b3: function() {
-				return V(function(e, t, n) {
-					let r = e.querySelector(B(t, n));
-					return H(r) ? 0 : M(r);
+				return z(function(e, t, n) {
+					let r = e.querySelector(R(t, n));
+					return B(r) ? 0 : M(r);
 				}, arguments);
 			},
 			__wbg_queueMicrotask_ac694eae12e92dfb: function(e) {
@@ -2917,23 +2937,23 @@ function v() {
 				e.readBuffer(t >>> 0);
 			},
 			__wbg_readPixels_0033d2834b498dda: function() {
-				return V(function(e, t, n, r, i, a, o, s) {
+				return z(function(e, t, n, r, i, a, o, s) {
 					e.readPixels(t, n, r, i, a >>> 0, o >>> 0, s);
 				}, arguments);
 			},
 			__wbg_readPixels_0e3230bf7a891882: function() {
-				return V(function(e, t, n, r, i, a, o, s) {
+				return z(function(e, t, n, r, i, a, o, s) {
 					e.readPixels(t, n, r, i, a >>> 0, o >>> 0, s);
 				}, arguments);
 			},
 			__wbg_readPixels_8f8bde9ee420ba35: function() {
-				return V(function(e, t, n, r, i, a, o, s) {
+				return z(function(e, t, n, r, i, a, o, s) {
 					e.readPixels(t, n, r, i, a >>> 0, o >>> 0, s);
 				}, arguments);
 			},
 			__wbg_removeEventListener_aa653c6b402cc27e: function() {
-				return V(function(e, t, n, r) {
-					e.removeEventListener(B(t, n), r);
+				return z(function(e, t, n, r) {
+					e.removeEventListener(R(t, n), r);
 				}, arguments);
 			},
 			__wbg_renderbufferStorageMultisample_a9f65ef0cc53fb37: function(e, t, n, r, i, a) {
@@ -2970,18 +2990,18 @@ function v() {
 				e.scissor(t, n, r, i);
 			},
 			__wbg_setBindGroup_268fd1714fff0ef5: function() {
-				return V(function(e, t, n, r, i, a, o) {
-					e.setBindGroup(t >>> 0, n, I(r, i), a, o >>> 0);
+				return z(function(e, t, n, r, i, a, o) {
+					e.setBindGroup(t >>> 0, n, ke(r, i), a, o >>> 0);
 				}, arguments);
 			},
 			__wbg_setBindGroup_f0de6cb2c7dbfc2c: function(e, t, n) {
 				e.setBindGroup(t >>> 0, n);
 			},
 			__wbg_setIndexBuffer_2531a9103450445e: function(e, t, n, r) {
-				e.setIndexBuffer(t, ce[n], r);
+				e.setIndexBuffer(t, O[n], r);
 			},
 			__wbg_setIndexBuffer_7f3cf667b4d71566: function(e, t, n, r, i) {
-				e.setIndexBuffer(t, ce[n], r, i);
+				e.setIndexBuffer(t, O[n], r, i);
 			},
 			__wbg_setPipeline_c41bf46790f27f9e: function(e, t) {
 				e.setPipeline(t);
@@ -3002,7 +3022,7 @@ function v() {
 				e[t] = n;
 			},
 			__wbg_set_8155bb79a948541b: function() {
-				return V(function(e, t, n) {
+				return z(function(e, t, n) {
 					return Reflect.set(e, t, n);
 				}, arguments);
 			},
@@ -3016,16 +3036,16 @@ function v() {
 				e.a = t;
 			},
 			__wbg_set_access_9a5092f05dc45fad: function(e, t) {
-				e.access = he[t];
+				e.access = me[t];
 			},
 			__wbg_set_address_mode_u_9e2695575a219e33: function(e, t) {
-				e.addressModeU = T[t];
+				e.addressModeU = w[t];
 			},
 			__wbg_set_address_mode_v_f479b2e6cccbcac4: function(e, t) {
-				e.addressModeV = T[t];
+				e.addressModeV = w[t];
 			},
 			__wbg_set_address_mode_w_46273e153230180d: function(e, t) {
-				e.addressModeW = T[t];
+				e.addressModeW = w[t];
 			},
 			__wbg_set_alpha_bfd2df62e7bc581b: function(e, t) {
 				e.alpha = t;
@@ -3043,10 +3063,10 @@ function v() {
 				e.arrayStride = t;
 			},
 			__wbg_set_aspect_0d453bca3d012f02: function(e, t) {
-				e.aspect = _e[t];
+				e.aspect = ge[t];
 			},
 			__wbg_set_aspect_4962514fe99e68e6: function(e, t) {
-				e.aspect = _e[t];
+				e.aspect = ge[t];
 			},
 			__wbg_set_attributes_7537844a7e6dafdc: function(e, t, n) {
 				e.attributes = F(t, n);
@@ -3097,7 +3117,7 @@ function v() {
 				e.clearValue = t;
 			},
 			__wbg_set_code_b4f37f81f45b5b25: function(e, t, n) {
-				e.code = B(t, n);
+				e.code = R(t, n);
 			},
 			__wbg_set_color_83aa977526e88cbb: function(e, t) {
 				e.color = t;
@@ -3106,16 +3126,16 @@ function v() {
 				e.colorAttachments = F(t, n);
 			},
 			__wbg_set_compare_cd9b62cdb92eb580: function(e, t) {
-				e.compare = D[t];
+				e.compare = ae[t];
 			},
 			__wbg_set_compare_f36b34abfaa08ccb: function(e, t) {
-				e.compare = D[t];
+				e.compare = ae[t];
 			},
 			__wbg_set_count_069a4eac409bac55: function(e, t) {
 				e.count = t >>> 0;
 			},
 			__wbg_set_cull_mode_fc649853947a3d0c: function(e, t) {
-				e.cullMode = ae[t];
+				e.cullMode = D[t];
 			},
 			__wbg_set_depth_bias_clamp_1c0d695df7f092e5: function(e, t) {
 				e.depthBiasClamp = t;
@@ -3130,13 +3150,13 @@ function v() {
 				e.depthClearValue = t;
 			},
 			__wbg_set_depth_compare_0c8631eb2eae98e3: function(e, t) {
-				e.depthCompare = D[t];
+				e.depthCompare = ae[t];
 			},
 			__wbg_set_depth_fail_op_668155ae33d3c06f: function(e, t) {
-				e.depthFailOp = me[t];
+				e.depthFailOp = pe[t];
 			},
 			__wbg_set_depth_load_op_511c513eab4e56a9: function(e, t) {
-				e.depthLoadOp = le[t];
+				e.depthLoadOp = ce[t];
 			},
 			__wbg_set_depth_or_array_layers_89371305ed0bd962: function(e, t) {
 				e.depthOrArrayLayers = t >>> 0;
@@ -3151,7 +3171,7 @@ function v() {
 				e.depthStencilAttachment = t;
 			},
 			__wbg_set_depth_store_op_c89f33b39b43361c: function(e, t) {
-				e.depthStoreOp = ge[t];
+				e.depthStoreOp = he[t];
 			},
 			__wbg_set_depth_write_enabled_ce89750042940350: function(e, t) {
 				e.depthWriteEnabled = t !== 0;
@@ -3160,7 +3180,7 @@ function v() {
 				e.device = t;
 			},
 			__wbg_set_dimension_868eee80f4b90011: function(e, t) {
-				e.dimension = O[t];
+				e.dimension = _e[t];
 			},
 			__wbg_set_dimension_e325282e613ca0a4: function(e, t) {
 				e.dimension = A[t];
@@ -3178,16 +3198,16 @@ function v() {
 				e.entries = F(t, n);
 			},
 			__wbg_set_entry_point_207540f042015ce5: function(e, t, n) {
-				e.entryPoint = B(t, n);
+				e.entryPoint = R(t, n);
 			},
 			__wbg_set_entry_point_e87e79251dd3144f: function(e, t, n) {
-				e.entryPoint = B(t, n);
+				e.entryPoint = R(t, n);
 			},
 			__wbg_set_external_texture_386483d8dd82ab56: function(e, t) {
 				e.externalTexture = t;
 			},
 			__wbg_set_fail_op_92f716dbc88b6973: function(e, t) {
-				e.failOp = me[t];
+				e.failOp = pe[t];
 			},
 			__wbg_set_format_1fcaa7d60546b490: function(e, t) {
 				e.format = k[t];
@@ -3232,43 +3252,43 @@ function v() {
 				e.height = t >>> 0;
 			},
 			__wbg_set_label_08d9be3e4719c226: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_17eb9fe3a02f62b0: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_48e6b787d256f621: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_547d0d4aec39fbe9: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_5ee7427342869829: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_60ad96c811e0d109: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_72bb4f41ef0cb893: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_79387decda299036: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_9556af8b5cda3c9d: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_d010f237b26f2c55: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_e16e2dbe51349c7f: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_e3944e54881b8c50: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_label_e922700240417ab5: function(e, t, n) {
-				e.label = B(t, n);
+				e.label = R(t, n);
 			},
 			__wbg_set_layout_50ab727f44b38f26: function(e, t) {
 				e.layout = t;
@@ -3277,10 +3297,10 @@ function v() {
 				e.layout = t;
 			},
 			__wbg_set_layout_gpu_auto_layout_mode_aeba193938b47882: function(e, t) {
-				e.layout = ee[t];
+				e.layout = T[t];
 			},
 			__wbg_set_load_op_99661da6c4eab9b0: function(e, t) {
-				e.loadOp = le[t];
+				e.loadOp = ce[t];
 			},
 			__wbg_set_lod_max_clamp_dd2d9f9f052f4f44: function(e, t) {
 				e.lodMaxClamp = t;
@@ -3316,7 +3336,7 @@ function v() {
 				e.mipLevel = t >>> 0;
 			},
 			__wbg_set_mipmap_filter_5bf66195a3639700: function(e, t) {
-				e.mipmapFilter = ue[t];
+				e.mipmapFilter = le[t];
 			},
 			__wbg_set_mode_9990b3393ba469ae: function(e, t) {
 				e.mode = ie[t];
@@ -3346,16 +3366,16 @@ function v() {
 				e.offset = t;
 			},
 			__wbg_set_operation_62ce44e1728c4047: function(e, t) {
-				e.operation = E[t];
+				e.operation = ne[t];
 			},
 			__wbg_set_origin_gpu_origin_3d_dict_631c04520718091f: function(e, t) {
 				e.origin = t;
 			},
 			__wbg_set_pass_op_cf02fa088d6352a7: function(e, t) {
-				e.passOp = me[t];
+				e.passOp = pe[t];
 			},
 			__wbg_set_power_preference_8fdca0b7af640d49: function(e, t) {
-				e.powerPreference = de[t];
+				e.powerPreference = ue[t];
 			},
 			__wbg_set_primitive_43c23761a55b4088: function(e, t) {
 				e.primitive = t;
@@ -3424,7 +3444,7 @@ function v() {
 				e.stencilFront = t;
 			},
 			__wbg_set_stencil_load_op_31838c036993098a: function(e, t) {
-				e.stencilLoadOp = le[t];
+				e.stencilLoadOp = ce[t];
 			},
 			__wbg_set_stencil_read_mask_5cc26495e8b3ae82: function(e, t) {
 				e.stencilReadMask = t >>> 0;
@@ -3433,7 +3453,7 @@ function v() {
 				e.stencilReadOnly = t !== 0;
 			},
 			__wbg_set_stencil_store_op_e6be1cbc3a8fc210: function(e, t) {
-				e.stencilStoreOp = ge[t];
+				e.stencilStoreOp = he[t];
 			},
 			__wbg_set_stencil_write_mask_d9cb40ec4b4bee5b: function(e, t) {
 				e.stencilWriteMask = t >>> 0;
@@ -3445,10 +3465,10 @@ function v() {
 				e.storageTexture = t;
 			},
 			__wbg_set_store_op_b5fdf672436f13f3: function(e, t) {
-				e.storeOp = ge[t];
+				e.storeOp = he[t];
 			},
 			__wbg_set_strip_index_format_9f787be6c5fc9e87: function(e, t) {
-				e.stripIndexFormat = ce[t];
+				e.stripIndexFormat = O[t];
 			},
 			__wbg_set_targets_c38bd200c836d66f: function(e, t, n) {
 				e.targets = F(t, n);
@@ -3466,13 +3486,13 @@ function v() {
 				e.toneMapping = t;
 			},
 			__wbg_set_topology_da25f2cc5af203d2: function(e, t) {
-				e.topology = fe[t];
+				e.topology = de[t];
 			},
 			__wbg_set_type_ccf8472d40abcddf: function(e, t) {
-				e.type = pe[t];
+				e.type = fe[t];
 			},
 			__wbg_set_type_d09829f59932a0fc: function(e, t) {
-				e.type = ne[t];
+				e.type = E[t];
 			},
 			__wbg_set_unclipped_depth_04524a2b44e1e3c1: function(e, t) {
 				e.unclippedDepth = t !== 0;
@@ -3535,30 +3555,30 @@ function v() {
 				e.z = t >>> 0;
 			},
 			__wbg_shaderSource_7d3f360b4b626db7: function(e, t, n, r) {
-				e.shaderSource(t, B(n, r));
+				e.shaderSource(t, R(n, r));
 			},
 			__wbg_shaderSource_dcba4cd3379b35bd: function(e, t, n, r) {
-				e.shaderSource(t, B(n, r));
+				e.shaderSource(t, R(n, r));
 			},
 			__wbg_stack_3b0d974bbf31e44f: function(e, t) {
-				let n = t.stack, r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K;
-				z().setInt32(e + 4, i, !0), z().setInt32(e + 0, r, !0);
+				let n = t.stack, r = U(n, K.__wbindgen_malloc, K.__wbindgen_realloc), i = G;
+				L().setInt32(e + 4, i, !0), L().setInt32(e + 0, r, !0);
 			},
 			__wbg_static_accessor_GLOBAL_THIS_466428f93b4eaa76: function() {
 				let e = typeof globalThis > "u" ? null : globalThis;
-				return H(e) ? 0 : M(e);
+				return B(e) ? 0 : M(e);
 			},
 			__wbg_static_accessor_GLOBAL_c7aea38d4de089bc: function() {
 				let e = typeof global > "u" ? null : global;
-				return H(e) ? 0 : M(e);
+				return B(e) ? 0 : M(e);
 			},
 			__wbg_static_accessor_SELF_42d4fae05e59267a: function() {
 				let e = typeof self > "u" ? null : self;
-				return H(e) ? 0 : M(e);
+				return B(e) ? 0 : M(e);
 			},
 			__wbg_static_accessor_WINDOW_e0db14a0eba6a812: function() {
 				let e = typeof window > "u" ? null : window;
-				return H(e) ? 0 : M(e);
+				return B(e) ? 0 : M(e);
 			},
 			__wbg_stencilFuncSeparate_1455ac65895207da: function(e, t, n, r, i) {
 				e.stencilFuncSeparate(t >>> 0, n >>> 0, r, i >>> 0);
@@ -3594,27 +3614,27 @@ function v() {
 				e.submit(F(t, n));
 			},
 			__wbg_texImage2D_053488112c3d702f: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texImage2D_2854247ff7d047a1: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texImage2D_44740302c934daf1: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texImage3D_d23f7d2f9e66b916: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u) {
 					e.texImage3D(t >>> 0, n, r, i, a, o, s, c >>> 0, l >>> 0, u);
 				}, arguments);
 			},
 			__wbg_texImage3D_faae3ea3f2969ecc: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u) {
 					e.texImage3D(t >>> 0, n, r, i, a, o, s, c >>> 0, l >>> 0, u);
 				}, arguments);
 			},
@@ -3631,77 +3651,77 @@ function v() {
 				e.texStorage3D(t >>> 0, n, r >>> 0, i, a, o);
 			},
 			__wbg_texSubImage2D_1b383b66dfe35010: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_205cfbaea80e77e6: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_606540d3e650e0bb: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_62ae3d4b2700f7cd: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_6eb05d8f455f99ba: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_a035d2307e014a73: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_ad5a64d8f68a2d0d: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage2D_cb9ad676165c5da5: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l) {
+				return z(function(e, t, n, r, i, a, o, s, c, l) {
 					e.texSubImage2D(t >>> 0, n, r, i, a, o, s >>> 0, c >>> 0, l);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_09e44c66b4ac6bc6: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_16678785ac62fd6b: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_3ee8764dfdcb6746: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_53489be691cee78d: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_73d365baf8dad003: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_8a2331639ee1ee0e: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
 			__wbg_texSubImage3D_9b0bd9fd73d7bb1c: function() {
-				return V(function(e, t, n, r, i, a, o, s, c, l, u, d) {
+				return z(function(e, t, n, r, i, a, o, s, c, l, u, d) {
 					e.texSubImage3D(t >>> 0, n, r, i, a, o, s, c, l >>> 0, u >>> 0, d);
 				}, arguments);
 			},
@@ -3745,7 +3765,7 @@ function v() {
 				e.uniform2iv(t, P(n, r));
 			},
 			__wbg_uniform2uiv_935dfb31f50dfbe3: function(e, t, n, r) {
-				e.uniform2uiv(t, I(n, r));
+				e.uniform2uiv(t, ke(n, r));
 			},
 			__wbg_uniform3fv_025760367cc4eed3: function(e, t, n, r) {
 				e.uniform3fv(t, N(n, r));
@@ -3760,7 +3780,7 @@ function v() {
 				e.uniform3iv(t, P(n, r));
 			},
 			__wbg_uniform3uiv_ccd86b78a5fb3077: function(e, t, n, r) {
-				e.uniform3uiv(t, I(n, r));
+				e.uniform3uiv(t, ke(n, r));
 			},
 			__wbg_uniform4f_61192d516e9bede4: function(e, t, n, r, i, a) {
 				e.uniform4f(t, n, r, i, a);
@@ -3781,7 +3801,7 @@ function v() {
 				e.uniform4iv(t, P(n, r));
 			},
 			__wbg_uniform4uiv_73fc9e298d02c948: function(e, t, n, r) {
-				e.uniform4uiv(t, I(n, r));
+				e.uniform4uiv(t, ke(n, r));
 			},
 			__wbg_uniformBlockBinding_057177606c8b522f: function(e, t, n, r) {
 				e.uniformBlockBinding(t, n >>> 0, r >>> 0);
@@ -3868,29 +3888,29 @@ function v() {
 				return e.width;
 			},
 			__wbg_writeBuffer_8b5bd251a89198bc: function() {
-				return V(function(e, t, n, r, i, a, o) {
-					e.writeBuffer(t, n, L(r, i), a, o);
+				return z(function(e, t, n, r, i, a, o) {
+					e.writeBuffer(t, n, I(r, i), a, o);
 				}, arguments);
 			},
 			__wbg_writeTexture_53ba204c494b042c: function() {
-				return V(function(e, t, n, r, i, a) {
-					e.writeTexture(t, L(n, r), i, a);
+				return z(function(e, t, n, r, i, a) {
+					e.writeTexture(t, I(n, r), i, a);
 				}, arguments);
 			},
 			__wbindgen_cast_0000000000000001: function(e, t) {
-				return Ge(e, t, b);
+				return qe(e, t, b);
 			},
 			__wbindgen_cast_0000000000000002: function(e, t) {
-				return Ge(e, t, x);
+				return qe(e, t, x);
 			},
 			__wbindgen_cast_0000000000000003: function(e, t) {
-				return Ge(e, t, y);
+				return qe(e, t, y);
 			},
 			__wbindgen_cast_0000000000000004: function(e, t) {
-				return Ge(e, t, S);
+				return qe(e, t, S);
 			},
 			__wbindgen_cast_0000000000000005: function(e, t) {
-				return Ge(e, t, C);
+				return qe(e, t, C);
 			},
 			__wbindgen_cast_0000000000000006: function(e) {
 				return e;
@@ -3914,51 +3934,51 @@ function v() {
 				return Oe(e, t);
 			},
 			__wbindgen_cast_000000000000000d: function(e, t) {
-				return I(e, t);
+				return ke(e, t);
 			},
 			__wbindgen_cast_000000000000000e: function(e, t) {
-				return L(e, t);
+				return I(e, t);
 			},
 			__wbindgen_cast_000000000000000f: function(e, t) {
-				return B(e, t);
+				return R(e, t);
 			},
 			__wbindgen_cast_0000000000000010: function(e) {
 				return BigInt.asUintN(64, e);
 			},
 			__wbindgen_init_externref_table: function() {
-				let e = q.__wbindgen_externrefs, t = e.grow(4);
+				let e = K.__wbindgen_externrefs, t = e.grow(4);
 				e.set(0, void 0), e.set(t + 0, void 0), e.set(t + 1, null), e.set(t + 2, !0), e.set(t + 3, !1);
 			}
 		}
 	};
 }
 function y(e, t, n) {
-	q.wasm_bindgen__convert__closures_____invoke__h2b5d849af46f8913(e, t, n);
+	K.wasm_bindgen__convert__closures_____invoke__h2b5d849af46f8913(e, t, n);
 }
 function b(e, t, n) {
-	let r = q.wasm_bindgen__convert__closures_____invoke__h8a34eac7d22ddaa9(e, t, n);
-	if (r[1]) throw G(r[0]);
+	let r = K.wasm_bindgen__convert__closures_____invoke__h8a34eac7d22ddaa9(e, t, n);
+	if (r[1]) throw W(r[0]);
 }
 function x(e, t, n) {
-	let r = q.wasm_bindgen__convert__closures_____invoke__h38ba885d5c890306(e, t, n);
-	if (r[1]) throw G(r[0]);
+	let r = K.wasm_bindgen__convert__closures_____invoke__h38ba885d5c890306(e, t, n);
+	if (r[1]) throw W(r[0]);
 }
 function S(e, t, n) {
-	let r = q.wasm_bindgen__convert__closures_____invoke__h38ba885d5c890306_3(e, t, n);
-	if (r[1]) throw G(r[0]);
+	let r = K.wasm_bindgen__convert__closures_____invoke__h38ba885d5c890306_3(e, t, n);
+	if (r[1]) throw W(r[0]);
 }
 function C(e, t, n) {
-	let r = q.wasm_bindgen__convert__closures_____invoke__h38ba885d5c890306_4(e, t, n);
-	if (r[1]) throw G(r[0]);
+	let r = K.wasm_bindgen__convert__closures_____invoke__h38ba885d5c890306_4(e, t, n);
+	if (r[1]) throw W(r[0]);
 }
-function w(e, t, n, r) {
-	q.wasm_bindgen__convert__closures_____invoke__h851bff43d8d0d8b2(e, t, n, r);
+function ee(e, t, n, r) {
+	K.wasm_bindgen__convert__closures_____invoke__h851bff43d8d0d8b2(e, t, n, r);
 }
-var T = [
+var w = [
 	"clamp-to-edge",
 	"repeat",
 	"mirror-repeat"
-], ee = ["auto"], te = [
+], T = ["auto"], te = [
 	"zero",
 	"one",
 	"src",
@@ -3976,17 +3996,17 @@ var T = [
 	"one-minus-src1",
 	"src1-alpha",
 	"one-minus-src1-alpha"
-], E = [
+], ne = [
 	"add",
 	"subtract",
 	"reverse-subtract",
 	"min",
 	"max"
-], ne = [
+], E = [
 	"uniform",
 	"storage",
 	"read-only-storage"
-], re = ["opaque", "premultiplied"], ie = ["standard", "extended"], D = [
+], re = ["opaque", "premultiplied"], ie = ["standard", "extended"], ae = [
 	"never",
 	"less",
 	"equal",
@@ -3995,21 +4015,21 @@ var T = [
 	"not-equal",
 	"greater-equal",
 	"always"
-], ae = [
+], D = [
 	"none",
 	"front",
 	"back"
-], oe = ["nearest", "linear"], se = ["ccw", "cw"], ce = ["uint16", "uint32"], le = ["load", "clear"], ue = ["nearest", "linear"], de = ["low-power", "high-performance"], fe = [
+], oe = ["nearest", "linear"], se = ["ccw", "cw"], O = ["uint16", "uint32"], ce = ["load", "clear"], le = ["nearest", "linear"], ue = ["low-power", "high-performance"], de = [
 	"point-list",
 	"line-list",
 	"line-strip",
 	"triangle-list",
 	"triangle-strip"
-], pe = [
+], fe = [
 	"filtering",
 	"non-filtering",
 	"comparison"
-], me = [
+], pe = [
 	"keep",
 	"zero",
 	"replace",
@@ -4018,15 +4038,15 @@ var T = [
 	"decrement-clamp",
 	"increment-wrap",
 	"decrement-wrap"
-], he = [
+], me = [
 	"write-only",
 	"read-only",
 	"read-write"
-], ge = ["store", "discard"], _e = [
+], he = ["store", "discard"], ge = [
 	"all",
 	"stencil-only",
 	"depth-only"
-], O = [
+], _e = [
 	"1d",
 	"2d",
 	"3d"
@@ -4046,21 +4066,21 @@ var T = [
 ], ye = /* @__PURE__ */ "uint8.uint8x2.uint8x4.sint8.sint8x2.sint8x4.unorm8.unorm8x2.unorm8x4.snorm8.snorm8x2.snorm8x4.uint16.uint16x2.uint16x4.sint16.sint16x2.sint16x4.unorm16.unorm16x2.unorm16x4.snorm16.snorm16x2.snorm16x4.float16.float16x2.float16x4.float32.float32x2.float32x3.float32x4.uint32.uint32x2.uint32x3.uint32x4.sint32.sint32x2.sint32x3.sint32x4.unorm10-10-10-2.unorm8x4-bgra".split("."), be = ["vertex", "instance"], xe = typeof FinalizationRegistry > "u" ? {
 	register: () => {},
 	unregister: () => {}
-} : new FinalizationRegistry((e) => q.__wbg_wasmboneik_free(e, 1)), j = typeof FinalizationRegistry > "u" ? {
+} : new FinalizationRegistry((e) => K.__wbg_wasmboneik_free(e, 1)), Se = typeof FinalizationRegistry > "u" ? {
 	register: () => {},
 	unregister: () => {}
-} : new FinalizationRegistry((e) => q.__wbg_wasmeditor_free(e, 1)), Se = typeof FinalizationRegistry > "u" ? {
+} : new FinalizationRegistry((e) => K.__wbg_wasmeditor_free(e, 1)), j = typeof FinalizationRegistry > "u" ? {
 	register: () => {},
 	unregister: () => {}
-} : new FinalizationRegistry((e) => q.__wbg_wasmplayer_free(e, 1));
+} : new FinalizationRegistry((e) => K.__wbg_wasmplayer_free(e, 1));
 function M(e) {
-	let t = q.__externref_table_alloc();
-	return q.__wbindgen_externrefs.set(t, e), t;
+	let t = K.__externref_table_alloc();
+	return K.__wbindgen_externrefs.set(t, e), t;
 }
 var Ce = typeof FinalizationRegistry > "u" ? {
 	register: () => {},
 	unregister: () => {}
-} : new FinalizationRegistry((e) => q.__wbindgen_destroy_closure(e.a, e.b));
+} : new FinalizationRegistry((e) => K.__wbindgen_destroy_closure(e.a, e.b));
 function we(e) {
 	let t = typeof e;
 	if (t == "number" || t == "boolean" || e == null) return `${e}`;
@@ -4090,89 +4110,89 @@ function we(e) {
 	return e instanceof Error ? `${e.name}: ${e.message}\n${e.stack}` : r;
 }
 function N(e, t) {
-	return e >>>= 0, Ae().subarray(e / 4, e / 4 + t);
+	return e >>>= 0, Me().subarray(e / 4, e / 4 + t);
 }
 function Te(e, t) {
-	return e >>>= 0, Pe().subarray(e / 2, e / 2 + t);
+	return e >>>= 0, Ie().subarray(e / 2, e / 2 + t);
 }
 function P(e, t) {
-	return e >>>= 0, Ie().subarray(e / 4, e / 4 + t);
+	return e >>>= 0, Re().subarray(e / 4, e / 4 + t);
 }
 function Ee(e, t) {
-	return e >>>= 0, Re().subarray(e / 1, e / 1 + t);
+	return e >>>= 0, Be().subarray(e / 1, e / 1 + t);
 }
 function De(e, t) {
 	e >>>= 0;
-	let n = z(), r = [];
-	for (let i = e; i < e + 4 * t; i += 4) r.push(q.__wbindgen_externrefs.get(n.getUint32(i, !0)));
-	return q.__externref_drop_slice(e, t), r;
+	let n = L(), r = [];
+	for (let i = e; i < e + 4 * t; i += 4) r.push(K.__wbindgen_externrefs.get(n.getUint32(i, !0)));
+	return K.__externref_drop_slice(e, t), r;
 }
 function F(e, t) {
 	e >>>= 0;
-	let n = z(), r = [];
-	for (let i = e; i < e + 4 * t; i += 4) r.push(q.__wbindgen_externrefs.get(n.getUint32(i, !0)));
+	let n = L(), r = [];
+	for (let i = e; i < e + 4 * t; i += 4) r.push(K.__wbindgen_externrefs.get(n.getUint32(i, !0)));
 	return r;
 }
 function Oe(e, t) {
-	return e >>>= 0, Be().subarray(e / 2, e / 2 + t);
+	return e >>>= 0, He().subarray(e / 2, e / 2 + t);
+}
+function ke(e, t) {
+	return e >>>= 0, We().subarray(e / 4, e / 4 + t);
 }
 function I(e, t) {
-	return e >>>= 0, He().subarray(e / 4, e / 4 + t);
+	return e >>>= 0, Ke().subarray(e / 1, e / 1 + t);
 }
-function L(e, t) {
-	return e >>>= 0, We().subarray(e / 1, e / 1 + t);
-}
-var R = null;
-function z() {
-	return (R === null || R.buffer.detached === !0 || R.buffer.detached === void 0 && R.buffer !== q.memory.buffer) && (R = new DataView(q.memory.buffer)), R;
-}
-var ke = null;
-function Ae() {
-	return (ke === null || ke.byteLength === 0) && (ke = new Float32Array(q.memory.buffer)), ke;
+var Ae = null;
+function L() {
+	return (Ae === null || Ae.buffer.detached === !0 || Ae.buffer.detached === void 0 && Ae.buffer !== K.memory.buffer) && (Ae = new DataView(K.memory.buffer)), Ae;
 }
 var je = null;
 function Me() {
-	return (je === null || je.byteLength === 0) && (je = new Float64Array(q.memory.buffer)), je;
+	return (je === null || je.byteLength === 0) && (je = new Float32Array(K.memory.buffer)), je;
 }
 var Ne = null;
 function Pe() {
-	return (Ne === null || Ne.byteLength === 0) && (Ne = new Int16Array(q.memory.buffer)), Ne;
+	return (Ne === null || Ne.byteLength === 0) && (Ne = new Float64Array(K.memory.buffer)), Ne;
 }
 var Fe = null;
 function Ie() {
-	return (Fe === null || Fe.byteLength === 0) && (Fe = new Int32Array(q.memory.buffer)), Fe;
+	return (Fe === null || Fe.byteLength === 0) && (Fe = new Int16Array(K.memory.buffer)), Fe;
 }
 var Le = null;
 function Re() {
-	return (Le === null || Le.byteLength === 0) && (Le = new Int8Array(q.memory.buffer)), Le;
-}
-function B(e, t) {
-	return $e(e >>> 0, t);
+	return (Le === null || Le.byteLength === 0) && (Le = new Int32Array(K.memory.buffer)), Le;
 }
 var ze = null;
 function Be() {
-	return (ze === null || ze.byteLength === 0) && (ze = new Uint16Array(q.memory.buffer)), ze;
+	return (ze === null || ze.byteLength === 0) && (ze = new Int8Array(K.memory.buffer)), ze;
+}
+function R(e, t) {
+	return et(e >>> 0, t);
 }
 var Ve = null;
 function He() {
-	return (Ve === null || Ve.byteLength === 0) && (Ve = new Uint32Array(q.memory.buffer)), Ve;
+	return (Ve === null || Ve.byteLength === 0) && (Ve = new Uint16Array(K.memory.buffer)), Ve;
 }
 var Ue = null;
 function We() {
-	return (Ue === null || Ue.byteLength === 0) && (Ue = new Uint8Array(q.memory.buffer)), Ue;
+	return (Ue === null || Ue.byteLength === 0) && (Ue = new Uint32Array(K.memory.buffer)), Ue;
 }
-function V(e, t) {
+var Ge = null;
+function Ke() {
+	return (Ge === null || Ge.byteLength === 0) && (Ge = new Uint8Array(K.memory.buffer)), Ge;
+}
+function z(e, t) {
 	try {
 		return e.apply(this, t);
 	} catch (e) {
 		let t = M(e);
-		q.__wbindgen_exn_store(t);
+		K.__wbindgen_exn_store(t);
 	}
 }
-function H(e) {
+function B(e) {
 	return e == null;
 }
-function Ge(e, t, n) {
+function qe(e, t, n) {
 	let r = {
 		a: e,
 		b: t,
@@ -4188,39 +4208,39 @@ function Ge(e, t, n) {
 		}
 	};
 	return i._wbg_cb_unref = () => {
-		--r.cnt === 0 && (q.__wbindgen_destroy_closure(r.a, r.b), r.a = 0, Ce.unregister(r));
+		--r.cnt === 0 && (K.__wbindgen_destroy_closure(r.a, r.b), r.a = 0, Ce.unregister(r));
 	}, Ce.register(i, r, r), i;
 }
-function Ke(e, t) {
-	let n = t(e.length * 4, 4) >>> 0;
-	return He().set(e, n / 4), K = e.length, n;
-}
-function U(e, t) {
-	let n = t(e.length * 1, 1) >>> 0;
-	return We().set(e, n / 1), K = e.length, n;
-}
-function qe(e, t) {
-	let n = t(e.length * 4, 4) >>> 0;
-	return Ae().set(e, n / 4), K = e.length, n;
-}
 function Je(e, t) {
-	let n = t(e.length * 8, 8) >>> 0;
-	return Me().set(e, n / 8), K = e.length, n;
+	let n = t(e.length * 4, 4) >>> 0;
+	return We().set(e, n / 4), G = e.length, n;
+}
+function V(e, t) {
+	let n = t(e.length * 1, 1) >>> 0;
+	return Ke().set(e, n / 1), G = e.length, n;
+}
+function H(e, t) {
+	let n = t(e.length * 4, 4) >>> 0;
+	return Me().set(e, n / 4), G = e.length, n;
 }
 function Ye(e, t) {
+	let n = t(e.length * 8, 8) >>> 0;
+	return Pe().set(e, n / 8), G = e.length, n;
+}
+function Xe(e, t) {
 	let n = t(e.length * 4, 4) >>> 0;
 	for (let t = 0; t < e.length; t++) {
 		let r = M(e[t]);
-		z().setUint32(n + 4 * t, r, !0);
+		L().setUint32(n + 4 * t, r, !0);
 	}
-	return K = e.length, n;
+	return G = e.length, n;
 }
-function W(e, t, n) {
+function U(e, t, n) {
 	if (n === void 0) {
-		let n = et.encode(e), r = t(n.length, 1) >>> 0;
-		return We().subarray(r, r + n.length).set(n), K = n.length, r;
+		let n = tt.encode(e), r = t(n.length, 1) >>> 0;
+		return Ke().subarray(r, r + n.length).set(n), G = n.length, r;
 	}
-	let r = e.length, i = t(r, 1) >>> 0, a = We(), o = 0;
+	let r = e.length, i = t(r, 1) >>> 0, a = Ke(), o = 0;
 	for (; o < r; o++) {
 		let t = e.charCodeAt(o);
 		if (t > 127) break;
@@ -4228,40 +4248,40 @@ function W(e, t, n) {
 	}
 	if (o !== r) {
 		o !== 0 && (e = e.slice(o)), i = n(i, r, r = o + e.length * 3, 1) >>> 0;
-		let t = We().subarray(i + o, i + r), a = et.encodeInto(e, t);
+		let t = Ke().subarray(i + o, i + r), a = tt.encodeInto(e, t);
 		o += a.written, i = n(i, r, o, 1) >>> 0;
 	}
-	return K = o, i;
+	return G = o, i;
 }
-function G(e) {
-	let t = q.__wbindgen_externrefs.get(e);
-	return q.__externref_table_dealloc(e), t;
+function W(e) {
+	let t = K.__wbindgen_externrefs.get(e);
+	return K.__externref_table_dealloc(e), t;
 }
-var Xe = new TextDecoder("utf-8", {
+var Ze = new TextDecoder("utf-8", {
 	ignoreBOM: !0,
 	fatal: !0
 });
-Xe.decode();
-var Ze = 2146435072, Qe = 0;
-function $e(e, t) {
-	return Qe += t, Qe >= Ze && (Xe = new TextDecoder("utf-8", {
+Ze.decode();
+var Qe = 2146435072, $e = 0;
+function et(e, t) {
+	return $e += t, $e >= Qe && (Ze = new TextDecoder("utf-8", {
 		ignoreBOM: !0,
 		fatal: !0
-	}), Xe.decode(), Qe = t), Xe.decode(We().subarray(e, e + t));
+	}), Ze.decode(), $e = t), Ze.decode(Ke().subarray(e, e + t));
 }
-var et = new TextEncoder();
-"encodeInto" in et || (et.encodeInto = function(e, t) {
-	let n = et.encode(e);
+var tt = new TextEncoder();
+"encodeInto" in tt || (tt.encodeInto = function(e, t) {
+	let n = tt.encode(e);
 	return t.set(n), {
 		read: e.length,
 		written: n.length
 	};
 });
-var K = 0, q;
-function tt(e, t) {
-	return q = e.exports, R = null, ke = null, je = null, Ne = null, Fe = null, Le = null, ze = null, Ve = null, Ue = null, q.__wbindgen_start(), q;
+var G = 0, K;
+function nt(e, t) {
+	return K = e.exports, Ae = null, je = null, Ne = null, Fe = null, Le = null, ze = null, Ve = null, Ue = null, Ge = null, K.__wbindgen_start(), K;
 }
-async function nt(e, t) {
+async function rt(e, t) {
 	if (typeof Response == "function" && e instanceof Response) {
 		if (!e.ok) throw Error(`failed to fetch Wasm: ${e.status} ${e.statusText} fetching '${e.url}'`);
 		if (typeof WebAssembly.instantiateStreaming == "function") try {
@@ -4289,108 +4309,108 @@ async function nt(e, t) {
 		return !1;
 	}
 }
-async function rt(e) {
-	if (q !== void 0) return q;
+async function it(e) {
+	if (K !== void 0) return K;
 	e !== void 0 && (Object.getPrototypeOf(e) === Object.prototype ? {module_or_path: e} = e : console.warn("using deprecated parameters for the initialization function; pass a single object instead")), e === void 0 && (e = "an1mbyt3_wasm_bg.wasm");
 	let t = v();
 	(typeof e == "string" || typeof Request == "function" && e instanceof Request || typeof URL == "function" && e instanceof URL) && (e = fetch(e));
-	let { instance: n, module: r } = await nt(await e, t);
-	return tt(n, r);
+	let { instance: n, module: r } = await rt(await e, t);
+	return nt(n, r);
 }
 //#endregion
 //#region src/ipc/wasmEditor.ts
-var it = null, at = null;
-function ot(e) {
-	at = e;
+var at = null, ot = null;
+function st(e) {
+	ot = e;
 }
-function st() {
-	return it ||= (at ? rt({ module_or_path: at }) : rt()).then(() => void 0), it;
+function ct() {
+	return at ||= (ot ? it({ module_or_path: ot }) : it()).then(() => void 0), at;
 }
-async function ct(e) {
-	return await st(), g.create(e);
+async function lt(e) {
+	return await ct(), g.create(e);
 }
-function lt(e, t, n, r) {
+function ut(e, t, n, r) {
 	return e.burst_particles_3d(t, n, r);
 }
-function ut(e, t, n) {
+function dt(e, t, n) {
 	return e.duplicate_nodes(t, n);
 }
-function dt(e, t) {
+function ft(e, t) {
 	return e.set_active_artboard(t);
 }
-function ft(e, t, n) {
+function pt(e, t, n) {
 	return e.physics3d_velocity(t, n);
 }
-function pt(e, t, n) {
+function mt(e, t, n) {
 	return e.physics3d_angular_velocity(t, n);
 }
-function mt(e, t, n, r, i, a, o) {
+function ht(e, t, n, r, i, a, o) {
 	e.physics3d_set_velocity(t, n, r, i, a, o);
 }
-function ht(e, t, n, r, i, a, o) {
+function gt(e, t, n, r, i, a, o) {
 	e.physics3d_add_force(t, n, r, i, a, o);
 }
-function gt(e, t, n, r, i, a) {
+function _t(e, t, n, r, i, a) {
 	return e.physics3d_raycast(t, n[0], n[1], n[2], r[0], r[1], r[2], i, a);
 }
-function _t(e, t, n, r, i, a, o) {
+function vt(e, t, n, r, i, a, o) {
 	return e.glass_shatter(t, n, r[0], r[1], r[2], i[0], i[1], i[2], a, o);
 }
-function vt(e, t, n, r, i) {
+function yt(e, t, n, r, i) {
 	return e.glass_raycast(t, n[0], n[1], n[2], r[0], r[1], r[2], i);
 }
-function yt(e, t, n) {
+function bt(e, t, n) {
 	return e.physics_velocity(t, n);
 }
-function bt(e, t, n, r, i) {
+function xt(e, t, n, r, i) {
 	e.physics_set_velocity(t, n, r, i);
 }
-function xt(e, t, n) {
+function St(e, t, n) {
 	return e.physics_angular_velocity(t, n);
 }
-function St(e, t, n, r) {
+function Ct(e, t, n, r) {
 	e.physics_set_angular_velocity(t, n, r);
 }
-function Ct(e, t, n, r, i, a) {
+function wt(e, t, n, r, i, a) {
 	e.physics_add_force(t, n, r, i, a);
 }
-function wt(e, t, n, r, i, a, o, s) {
+function Tt(e, t, n, r, i, a, o, s) {
 	return e.physics_raycast(t, n, r, i, a, o, s);
 }
-function Tt(e, t) {
+function Et(e, t) {
 	return e.physics_events(t);
 }
-function Et(e, t, n, r) {
+function Dt(e, t, n, r) {
 	e.emit_particles(t, n, r);
 }
-function Dt(e, t) {
+function Ot(e, t) {
 	return e.playground_view(t);
 }
-function Ot(e, t, n, r) {
+function kt(e, t, n, r) {
 	e.preview_tilemap_tiles(t, n, Int32Array.from(r));
 }
-function kt(e, t, n, r, i) {
+function At(e, t, n, r, i) {
 	e.preview_light(t, n, r, i);
 }
-function At(e, t, n, r) {
+function jt(e, t, n, r) {
 	e.preview_text_content(t, n, r);
 }
-function jt(e, t, n, r) {
+function Mt(e, t, n, r) {
 	e.preview_node_path(t, n, r);
 }
-function Mt(e, t, n) {
+function Nt(e, t, n) {
 	return e.delete_node(t, n);
 }
-async function Nt(e, t) {
+async function Pt(e, t) {
 	return await e.load_teab(t);
 }
-function Pt(e, t, n, r, i) {
+function Ft(e, t, n, r, i) {
 	e.preview_node_translation(t, n, r, i);
 }
-function Ft(e, t, n) {
+function It(e, t, n) {
 	return e.set_mode(t, n);
 }
-function It(e) {
+function Lt(e) {
 	let t = e.screen_info_now();
 	return {
 		width: t[0] ?? 0,
@@ -4401,37 +4421,37 @@ function It(e) {
 		portrait: t[5] === 1
 	};
 }
-function Lt(e) {
+function Rt(e) {
 	return e.audio_list();
 }
-function Rt(e, t, n, r, i, a) {
+function zt(e, t, n, r, i, a) {
 	e.preview_node3d_animation(t, n, r, i, a);
 }
-function zt(e, t, n, r) {
+function Bt(e, t, n, r) {
 	e.voxels_set(t, n, r);
 }
-function Bt(e, t, n, r, i, a) {
+function Vt(e, t, n, r, i, a) {
 	e.voxel_chunk_set(t, n, r, i, a);
 }
-function Vt(e, t, n, r, i) {
+function Ht(e, t, n, r, i) {
 	e.voxel_chunk_unload(t, n, r, i);
 }
-function Ht(e, t, n, r, i, a, o) {
+function Ut(e, t, n, r, i, a, o) {
 	return e.voxel_set(t, n, r, i, a, o);
 }
-function Ut(e, t, n, r) {
+function Wt(e, t, n, r) {
 	e.preview_node3d_transform(t, n, Float32Array.from(r));
 }
-function Wt(e, t, n) {
+function Gt(e, t, n) {
 	e.preview_break_joint(t, n);
 }
-function Gt(e, t, n, r, i) {
+function Kt(e, t, n, r, i) {
 	e.preview_body_type(t, n, r, i);
 }
-function Kt(e, t, n, r) {
+function qt(e, t, n, r) {
 	e.preview_node_rotation(t, n, r);
 }
-function qt(e, t, n) {
+function Jt(e, t, n) {
 	let r = e.node_local_bounds(t, n);
 	return [
 		r[0] ?? 0,
@@ -4440,13 +4460,13 @@ function qt(e, t, n) {
 		r[3] ?? 0
 	];
 }
-function Jt(e, t, n, r, i, a, o) {
+function Yt(e, t, n, r, i, a, o) {
 	e.preview_node_scale(t, n, r, i, a, o);
 }
-function Yt(e, t, n, r, i, a, o) {
+function Xt(e, t, n, r, i, a, o) {
 	e.preview_node_anchor(t, n, r, i, a, o);
 }
-function Xt(e, t) {
+function q(e, t) {
 	e.fire_trigger(t);
 }
 function Zt(e) {
@@ -5236,8 +5256,8 @@ var Hn = class {
 			a.steps > 1 && (e = Math.round(e * (a.steps - 1)) / (a.steps - 1)), o.value = e;
 		}
 		if (!n) return;
-		let C = this.stateFor(n), w = s ? n.bounds[3] - n.bounds[1] : n.bounds[2] - n.bounds[0], T = w > 1e-4 ? h / w : 1, ee = y(Ln(o.value)), te = `${T.toFixed(4)}|${ee.toFixed(2)}`;
-		C.layout !== te && (C.layout = te, s ? e.setScale(n.id, C.baseScale.x, C.baseScale.y * T, n.transform.translation.x, ee) : e.setScale(n.id, C.baseScale.x * T, C.baseScale.y, ee, n.transform.translation.y)), this.applyStyle(e, n, C, a.style, a.interactable ? o.pressed ? "pressed" : S ? "highlighted" : "normal" : "disabled", [], !1);
+		let C = this.stateFor(n), ee = s ? n.bounds[3] - n.bounds[1] : n.bounds[2] - n.bounds[0], w = ee > 1e-4 ? h / ee : 1, T = y(Ln(o.value)), te = `${w.toFixed(4)}|${T.toFixed(2)}`;
+		C.layout !== te && (C.layout = te, s ? e.setScale(n.id, C.baseScale.x, C.baseScale.y * w, n.transform.translation.x, T) : e.setScale(n.id, C.baseScale.x * w, C.baseScale.y, T, n.transform.translation.y)), this.applyStyle(e, n, C, a.style, a.interactable ? o.pressed ? "pressed" : S ? "highlighted" : "normal" : "disabled", [], !1);
 	}
 }, Un = (e) => `${e.idx}:${e.version}`, Wn = new class {
 	container = null;
@@ -5521,7 +5541,7 @@ function er(e) {
 	}
 }
 function tr(e) {
-	return e === "ToggleVisible" ? "Toggle visible" : "SetVisible" in e ? e.SetVisible.visible ? "Show" : "Hide" : "SetNodeField" in e ? `Set ${e.SetNodeField.field} = ${e.SetNodeField.value}` : "SetComponentField" in e ? `Set ${e.SetComponentField.component}.${e.SetComponentField.field} = ${e.SetComponentField.value}` : "CallMethod" in e ? `${e.CallMethod.component}.${e.CallMethod.method}(${e.CallMethod.arg})` : "FireTrigger" in e ? `Fire trigger ${e.FireTrigger.input}` : "SetInput" in e ? `Set input ${e.SetInput.input} = ${e.SetInput.value}` : "LoadScene" in e ? `Load scene ${e.LoadScene.scene}` : "PlaySound" in e ? `Play sound ${e.PlaySound.sound}` : "SetProperty" in e ? `Set ${e.SetProperty.property} = ${e.SetProperty.value}` : "CallFunction" in e ? `Call ${e.CallFunction.function}(${e.CallFunction.arg})` : "?";
+	return e === "ToggleVisible" ? "Toggle visible" : "SetVisible" in e ? e.SetVisible.visible ? "Show" : "Hide" : "SetNodeField" in e ? `Set ${e.SetNodeField.field} = ${e.SetNodeField.value}` : "SetComponentField" in e ? `Set ${e.SetComponentField.component}.${e.SetComponentField.field} = ${e.SetComponentField.value}` : "CallMethod" in e ? `${e.CallMethod.component}.${e.CallMethod.method}(${e.CallMethod.arg})` : "FireTrigger" in e ? `Fire trigger ${e.FireTrigger.input}` : "SetInput" in e ? `Set input ${e.SetInput.input} = ${e.SetInput.value}` : "ToggleInput" in e ? `Toggle input ${e.ToggleInput.input}` : "LoadScene" in e ? `Load scene ${e.LoadScene.scene}` : "PlaySound" in e ? `Play sound ${e.PlaySound.sound}` : "SetProperty" in e ? `Set ${e.SetProperty.property} = ${e.SetProperty.value}` : "CallFunction" in e ? `Call ${e.CallFunction.function}(${e.CallFunction.arg})` : "?";
 }
 function nr(e, t, n) {
 	for (let r of e) {
@@ -5530,7 +5550,7 @@ function nr(e, t, n) {
 			kind: "Event"
 		});
 		try {
-			if (i !== "ToggleVisible" && !("FireTrigger" in i) && !("SetInput" in i) && !("LoadScene" in i) && !("PlaySound" in i) && !("SetProperty" in i) && !("CallFunction" in i) && n.nodeName(e) === null) {
+			if (i !== "ToggleVisible" && !("FireTrigger" in i) && !("SetInput" in i) && !("ToggleInput" in i) && !("LoadScene" in i) && !("PlaySound" in i) && !("SetProperty" in i) && !("CallFunction" in i) && n.nodeName(e) === null) {
 				a("its target node no longer exists");
 				continue;
 			}
@@ -5545,6 +5565,7 @@ function nr(e, t, n) {
 				n.callMethod(e, t, r, o) || a(`${n.nodeName(e)} has no ${t} to call ${r} on`);
 			} else if ("FireTrigger" in i) n.fireTrigger(i.FireTrigger.input);
 			else if ("SetInput" in i) n.setInput(i.SetInput.input, i.SetInput.value);
+			else if ("ToggleInput" in i) n.toggleInput(i.ToggleInput.input);
 			else if ("LoadScene" in i) n.loadScene(i.LoadScene.scene);
 			else if ("PlaySound" in i) n.playSound(i.PlaySound.sound);
 			else if ("SetProperty" in i) n.setProperty(i.SetProperty.property, i.SetProperty.value) || a(`this scene has no property "${i.SetProperty.property}"`);
@@ -6407,13 +6428,13 @@ var Ir = class {
 				y: 0
 			},
 			dt: e.deltaSeconds,
-			liveBounds: (e) => qt(n, r.id, e),
+			liveBounds: (e) => Jt(n, r.id, e),
 			setFill: (e, t) => this.writes.push(6, e, t[0], t[1], t[2], t[3]),
 			setImage: (e, t) => this.writes.push(5, e, t.idx, t.version),
 			setVisible: (e, t) => this.writes.push(4, e, +!!t),
 			setTranslation: (e, t, n) => this.writes.push(1, e, t, n),
 			setScale: (e, t, i, a, o) => {
-				this.writes.flush(), Jt(n, r.id, e, a, o, t, i);
+				this.writes.flush(), Yt(n, r.id, e, a, o, t, i);
 			}
 		}, t, e.globals), this.updateHtml(e, t);
 	}
@@ -6432,7 +6453,7 @@ var Ir = class {
 				zIndex: e.zIndex
 			});
 		}
-		let a = Dt(n, r.id), o = a ? {
+		let a = Ot(n, r.id), o = a ? {
 			panX: a[0],
 			panY: a[1],
 			pxPerWorld: a[2] * Wn.cssPerPhysical()
@@ -6450,10 +6471,10 @@ var Ir = class {
 				});
 			},
 			propsVersion: J.version,
-			fireTrigger: (e) => Xt(n, e),
+			fireTrigger: (e) => q(n, e),
 			setInput: (e, t) => {
 				let r = s.get(e);
-				r === "Bool" ? Qt(n, e, !!t) : r === "Number" ? $t(n, e, Number(t)) : r === "Enum" ? en(n, e, String(t)) : r === "Trigger" ? Xt(n, e) : console.warn(`HTML UI: state machine has no input "${e}"`);
+				r === "Bool" ? Qt(n, e, !!t) : r === "Number" ? $t(n, e, Number(t)) : r === "Enum" ? en(n, e, String(t)) : r === "Trigger" ? q(n, e) : console.warn(`HTML UI: state machine has no input "${e}"`);
 			}
 		});
 	}
@@ -6467,7 +6488,7 @@ var Ir = class {
 		}, r = n();
 		if (!r) {
 			this.soundNames = /* @__PURE__ */ new Map();
-			for (let t of Lt(e)) {
+			for (let t of Rt(e)) {
 				let e = t.name.toLowerCase();
 				this.soundNames.set(e, t.id), this.soundNames.set(e.replace(/\.[a-z0-9]+$/, ""), t.id);
 			}
@@ -6492,7 +6513,7 @@ var Ir = class {
 			e.globals === this.audioSession ? Z.stopNodeSounds() : Z.stopAll(), this.audioSession = e.globals, this.audioScene = i, this.soundNames = null;
 			for (let e of t) e.audioSource?.playOnStart && e.audioSource.clip && this.playSource(n, t, e.id);
 		}
-		let a = Dt(n, r.id), o = a ? a[0] : e.camera.panX, s = a ? a[1] : e.camera.panY, c = null;
+		let a = Ot(n, r.id), o = a ? a[0] : e.camera.panX, s = a ? a[1] : e.camera.panY, c = null;
 		Z.update(o, s, (e) => {
 			c ||= new Map(t.map((e) => [`${e.id.idx}:${e.id.version}`, e]));
 			let n = c.get(e)?.worldTransform;
@@ -6527,10 +6548,10 @@ var Ir = class {
 		if (this.applyBindings(t, c), a.length === 0) return this.writes.flush(), l;
 		let u = null, d = this.writes;
 		d.target(n, s);
-		let f = (e) => (d.flush(), e()), p = Tt(n, s), m = new Map((r?.inputs ?? []).map((e) => [e.name, e.kind])), h = (e, t) => {
+		let f = (e) => (d.flush(), e()), p = Et(n, s), m = new Map((r?.inputs ?? []).map((e) => [e.name, e.kind])), h = (e, t) => {
 			let r = m.get(e);
-			r === "Bool" ? Qt(n, e, !!t) : r === "Number" ? $t(n, e, Number(t)) : r === "Enum" ? en(n, e, String(t)) : r === "Trigger" ? t && Xt(n, e) : console.warn(`ctx.setInput: state machine has no input "${e}"`);
-		}, g = It(n);
+			r === "Bool" ? Qt(n, e, !!t) : r === "Number" ? $t(n, e, Number(t)) : r === "Enum" ? en(n, e, String(t)) : r === "Trigger" ? t && q(n, e) : console.warn(`ctx.setInput: state machine has no input "${e}"`);
+		}, g = Lt(n);
 		for (let e of a) {
 			let r = mn(e.source);
 			if (r === null) {
@@ -6579,12 +6600,12 @@ var Ir = class {
 				data: X.data,
 				setTranslation: (e, t, n) => d.push(1, e, t, n),
 				setRotationDegrees: (e, t) => d.push(2, e, t),
-				setScale: (e, t, r, i, a) => f(() => Jt(n, s, e, i, a, t, r)),
-				setAnchor: (e, t, r, i, a) => f(() => Yt(n, s, e, t, r, i, a)),
+				setScale: (e, t, r, i, a) => f(() => Yt(n, s, e, i, a, t, r)),
+				setAnchor: (e, t, r, i, a) => f(() => Xt(n, s, e, t, r, i, a)),
 				setFillColor: (e, t, n, r, i) => d.push(6, e, t, n, r, i),
-				setTextContent: (e, t) => f(() => At(n, s, e, t)),
+				setTextContent: (e, t) => f(() => jt(n, s, e, t)),
 				setImage: (e, t) => d.push(5, e, t.idx, t.version),
-				setPath: (e, t) => f(() => jt(n, s, e, t)),
+				setPath: (e, t) => f(() => Mt(n, s, e, t)),
 				tap: t.gestures.tap,
 				swipe: t.gestures.swipe,
 				mouseDX: t.mouseDelta.x,
@@ -6595,15 +6616,15 @@ var Ir = class {
 				requestPointerLock: t.requestPointerLock,
 				exitPointerLock: t.exitPointerLock,
 				setZIndex: (e, t) => d.push(3, e, t),
-				setTiles: (e, t) => f(() => Ot(n, s, e, t)),
-				setBodyType: (e, t, r) => f(() => Gt(n, s, e, t, r)),
-				breakJoint: (e) => f(() => Wt(n, s, e)),
-				setTransform3D: (e, t) => f(() => Ut(n, s, e, t)),
-				setAnimation3D: (e, t, r, i) => f(() => Rt(n, s, e, t, r, i)),
-				burstParticles3D: (e, t) => f(() => lt(n, s, e, t)),
-				setVoxels: (e, t) => f(() => zt(n, s, e, t)),
-				setVoxel: (e, t, r, i, a) => f(() => Ht(n, s, e, t, r, i, a)),
-				setVoxelChunk: (e, t, r, i) => f(() => Bt(n, s, e, t, r, i)),
+				setTiles: (e, t) => f(() => kt(n, s, e, t)),
+				setBodyType: (e, t, r) => f(() => Kt(n, s, e, t, r)),
+				breakJoint: (e) => f(() => Gt(n, s, e)),
+				setTransform3D: (e, t) => f(() => Wt(n, s, e, t)),
+				setAnimation3D: (e, t, r, i) => f(() => zt(n, s, e, t, r, i)),
+				burstParticles3D: (e, t) => f(() => ut(n, s, e, t)),
+				setVoxels: (e, t) => f(() => Bt(n, s, e, t)),
+				setVoxel: (e, t, r, i, a) => f(() => Ut(n, s, e, t, r, i, a)),
+				setVoxelChunk: (e, t, r, i) => f(() => Vt(n, s, e, t, r, i)),
 				tree: {
 					shake: (e, t) => f(() => n.tree_shake(e, t)),
 					regrow: (e) => f(() => n.tree_regrow(e))
@@ -6616,7 +6637,7 @@ var Ir = class {
 					wind: (e, t) => f(() => n.cloth_wind(e, t ? Float32Array.from(t) : void 0)),
 					reset: (e) => f(() => n.cloth_reset(e))
 				},
-				unloadVoxelChunk: (e, t, r) => f(() => Vt(n, s, e, t, r)),
+				unloadVoxelChunk: (e, t, r) => f(() => Ht(n, s, e, t, r)),
 				camera2: { shake: (e, t) => n.camera_shake(e, t) },
 				model3: {
 					setBone: (e, t, r, i, a) => f(() => n.model_set_bone(s, e, t, r, i, a)),
@@ -6635,8 +6656,8 @@ var Ir = class {
 					ragdollHit: (e, t, r) => f(() => n.model_ragdoll_hit(s, e, t, r[0], r[1], r[2]))
 				},
 				glass: {
-					shatter: (e, t, r, i, a) => f(() => _t(n, s, e, t, r, i, a)),
-					raycast: (e, t, r) => f(() => vt(n, s, e, t, r)),
+					shatter: (e, t, r, i, a) => f(() => vt(n, s, e, t, r, i, a)),
+					raycast: (e, t, r) => f(() => yt(n, s, e, t, r)),
 					reset: (e) => f(() => n.glass_reset(s, e)),
 					intact: (e) => f(() => n.glass_intact(s, e)),
 					crack: (e, t, r, i) => f(() => n.glass_crack(s, e, t[0], t[1], t[2], r, i))
@@ -6666,20 +6687,20 @@ var Ir = class {
 				htmlRoot: (e) => Wn.root(e),
 				setUiState: (e, t) => this.ui.set(e, t),
 				stopAudioSource: (e) => Z.stopNodeSounds(`${e.idx}:${e.version}`),
-				setLight: (e, t, r) => f(() => kt(n, s, e, t, r)),
-				emitParticles: (e, t) => f(() => Et(n, s, e, t)),
+				setLight: (e, t, r) => f(() => At(n, s, e, t, r)),
+				emitParticles: (e, t) => f(() => Dt(n, s, e, t)),
 				physics: {
-					velocity: (e) => f(() => yt(n, s, e)),
-					setVelocity: (e, t, r) => f(() => bt(n, s, e, t, r)),
-					angularVelocity: (e) => f(() => xt(n, s, e)),
-					setAngularVelocity: (e, t) => f(() => St(n, s, e, t)),
-					addForce: (e, t, r, i) => f(() => Ct(n, s, e, t, r, i)),
-					raycast: (e, t, r, i, a, o) => f(() => wt(n, s, e, t, r, i, a, o)),
-					velocity3: (e) => f(() => ft(n, s, e)),
-					angularVelocity3: (e) => f(() => pt(n, s, e)),
-					setVelocity3: (e, t, r, i, a) => f(() => mt(n, s, e, t, r, i, a)),
-					addForce3: (e, t, r, i, a) => f(() => ht(n, s, e, t, r, i, a)),
-					raycast3: (e, t, r, i) => f(() => gt(n, s, e, t, r, i)),
+					velocity: (e) => f(() => bt(n, s, e)),
+					setVelocity: (e, t, r) => f(() => xt(n, s, e, t, r)),
+					angularVelocity: (e) => f(() => St(n, s, e)),
+					setAngularVelocity: (e, t) => f(() => Ct(n, s, e, t)),
+					addForce: (e, t, r, i) => f(() => wt(n, s, e, t, r, i)),
+					raycast: (e, t, r, i, a, o) => f(() => Tt(n, s, e, t, r, i, a, o)),
+					velocity3: (e) => f(() => pt(n, s, e)),
+					angularVelocity3: (e) => f(() => mt(n, s, e)),
+					setVelocity3: (e, t, r, i, a) => f(() => ht(n, s, e, t, r, i, a)),
+					addForce3: (e, t, r, i, a) => f(() => gt(n, s, e, t, r, i, a)),
+					raycast3: (e, t, r, i) => f(() => _t(n, s, e, t, r, i)),
 					events: p
 				},
 				raycast: () => null,
@@ -6687,77 +6708,92 @@ var Ir = class {
 				glassRaycast3: () => null,
 				collisions: [],
 				setVisible: (e, t) => d.push(4, e, +!!t),
-				spawnClone: (e) => f(() => ut(n, s, [e]).newNodes[0] ?? null),
+				spawnClone: (e) => f(() => dt(n, s, [e]).newNodes[0] ?? null),
 				spawn: () => null,
 				spawnPrefab: (e, t, r, i) => f(() => nn(n, s, e, t, r, i)),
 				destroyNode: (e) => f(() => rn(n, s, e)),
 				deleteNode: (e) => {
-					f(() => Mt(n, s, e));
+					f(() => Nt(n, s, e));
 				}
 			});
 		}
 		return d.flush(), u ?? l;
 	}
+	pointerSeen = /* @__PURE__ */ new Map();
 	runEvents(e, t) {
 		let { editor: n, scene: r } = e, i = null, a = new Map(t.map((e) => [`${e.id.idx}.${e.id.version}`, e])), o = (e) => a.get(`${e.idx}.${e.version}`) ?? null, s = new Map((e.machine?.inputs ?? []).map((e) => [e.name, e.kind]));
 		for (let e of t) {
 			if (!e.button) continue;
-			let a = e.behaviors.find((e) => e.enabled && e.behavior.kind === "UiEvents")?.behavior;
-			if (!a || a.onClick.length === 0 || !this.ui.state(e.id).clicked) continue;
-			let c = this.writes, l = (e, t) => e.behaviors.some((e) => e.enabled && e.behavior.kind === t);
-			nr(a.onClick, e.id, {
+			let a = this.ui.state(e.id), c = [], l = e.behaviors.find((e) => e.enabled && e.behavior.kind === "UiListeners")?.behavior, u = `${r.id.idx}:${e.id.idx}.${e.id.version}`, d = this.pointerSeen.get(u) ?? {
+				hovered: !1,
+				pressed: !1
+			};
+			l && (a.hovered && !d.hovered && c.push(...l.onEnter), a.pressed && !d.pressed && c.push(...l.onDown), !a.pressed && d.pressed && c.push(...l.onUp), this.pointerSeen.set(u, {
+				hovered: a.hovered,
+				pressed: a.pressed
+			}));
+			let f = e.behaviors.find((e) => e.enabled && e.behavior.kind === "UiEvents")?.behavior;
+			if (f && a.clicked && c.push(...f.onClick), l && !a.hovered && d.hovered && c.push(...l.onExit), c.length === 0) continue;
+			let p = this.writes, m = (e, t) => e.behaviors.some((e) => e.enabled && e.behavior.kind === t);
+			nr(c, e.id, {
 				origin: {
 					scene: r.name,
 					state: e.name
 				},
 				nodeName: (e) => o(e)?.name ?? null,
 				isVisible: (e) => o(e)?.visible ?? !1,
-				setVisible: (e, t) => c.push(4, e, +!!t),
+				setVisible: (e, t) => p.push(4, e, +!!t),
 				setNodeField: (e, t, i) => {
 					let a = o(e);
 					if (!a) return !1;
-					let s = a.transform, l = Number(i);
-					switch (c.flush(), t) {
-						case "x": return Pt(n, r.id, e, l, s.translation.y), !0;
-						case "y": return Pt(n, r.id, e, s.translation.x, l), !0;
-						case "rotation": return Kt(n, r.id, e, l), !0;
-						case "scaleX": return Jt(n, r.id, e, s.translation.x, s.translation.y, l, s.scale.y), !0;
-						case "scaleY": return Jt(n, r.id, e, s.translation.x, s.translation.y, s.scale.x, l), !0;
-						case "text": return At(n, r.id, e, String(i ?? "")), !0;
+					let s = a.transform, c = Number(i);
+					switch (p.flush(), t) {
+						case "x": return Ft(n, r.id, e, c, s.translation.y), !0;
+						case "y": return Ft(n, r.id, e, s.translation.x, c), !0;
+						case "rotation": return qt(n, r.id, e, c), !0;
+						case "scaleX": return Yt(n, r.id, e, s.translation.x, s.translation.y, c, s.scale.y), !0;
+						case "scaleY": return Yt(n, r.id, e, s.translation.x, s.translation.y, s.scale.x, c), !0;
+						case "text": return jt(n, r.id, e, String(i ?? "")), !0;
 						case "fillColor": {
 							let t = sn("Color", i);
-							return c.push(6, e, t[0], t[1], t[2], t[3]), !0;
+							return p.push(6, e, t[0], t[1], t[2], t[3]), !0;
 						}
-						case "visible": return c.push(4, e, +!!i), !0;
+						case "visible": return p.push(4, e, +!!i), !0;
 					}
 					return !1;
 				},
-				setComponentField: (e, t, i, a) => (c.flush(), n.preview_component_field(r.id, e, t, i, a)),
+				setComponentField: (e, t, i, a) => (p.flush(), n.preview_component_field(r.id, e, t, i, a)),
 				callMethod: (e, i, a, s) => {
-					let u = o(e);
-					if (!u || !l(u, i)) return !1;
-					c.flush();
-					let d = Number(s);
+					let c = o(e);
+					if (!c || !m(c, i)) return !1;
+					p.flush();
+					let l = Number(s);
 					switch (`${i}.${a}`) {
-						case "ParticleSystem.emit": return Et(n, r.id, e, Math.max(1, Math.round(Number.isFinite(d) && d > 0 ? d : 10))), !0;
+						case "ParticleSystem.emit": return Dt(n, r.id, e, Math.max(1, Math.round(Number.isFinite(l) && l > 0 ? l : 10))), !0;
 						case "AudioSource.play": return this.playSource(n, t, e), !0;
 						case "AudioSource.stop": return Z.stopNodeSounds(`${e.idx}:${e.version}`), !0;
-						case "ParticleSystem3D.burst": return lt(n, r.id, e, Math.max(1, Math.round(Number.isFinite(d) && d > 0 ? d : 50))), !0;
-						case "Tree2D.shake": return n.tree_shake(e, Number.isFinite(d) && d > 0 ? d : 1), !0;
+						case "ParticleSystem3D.burst": return ut(n, r.id, e, Math.max(1, Math.round(Number.isFinite(l) && l > 0 ? l : 50))), !0;
+						case "Tree2D.shake": return n.tree_shake(e, Number.isFinite(l) && l > 0 ? l : 1), !0;
 						case "Tree2D.regrow": return n.tree_regrow(e), !0;
 						case "Cloth2D.reset": return n.cloth_reset(e), !0;
 						case "Rigidbody2D.impulse": {
 							let [t, i] = s.split(",").map((e) => Number(e.trim()) || 0);
-							return Ct(n, r.id, e, t ?? 0, i ?? 0, !0), !0;
+							return wt(n, r.id, e, t ?? 0, i ?? 0, !0), !0;
 						}
 						case "UiToggle.toggle": return this.ui.set(e, { isOn: !this.ui.state(e).isOn }), !0;
 					}
 					return !1;
 				},
-				fireTrigger: (e) => Xt(n, e),
+				fireTrigger: (e) => q(n, e),
 				setInput: (e, t) => {
 					let i = s.get(e);
-					i === "Bool" ? Qt(n, e, t === "true" || t === "1") : i === "Number" ? $t(n, e, Number(t)) : i === "Enum" ? en(n, e, t) : i === "Trigger" ? Xt(n, e) : Y.add("warn", `On Click: the state machine has no input "${e}"`, {
+					i === "Bool" ? Qt(n, e, t === "true" || t === "1") : i === "Number" ? $t(n, e, Number(t)) : i === "Enum" ? en(n, e, t) : i === "Trigger" ? q(n, e) : Y.add("warn", `On Click: the state machine has no input "${e}"`, {
+						scene: r.name,
+						kind: "Event"
+					});
+				},
+				toggleInput: (e) => {
+					s.get(e) === "Bool" ? Qt(n, e, !n.state_machine_bool_input(e)) : Y.add("warn", `On Click: "${e}" is not a Bool input, so it can't be toggled`, {
 						scene: r.name,
 						kind: "Event"
 					});
@@ -6790,10 +6826,10 @@ var Ir = class {
 				let t = J.get(c.property), l = Number(t) * (c.scale ?? 1) + (c.offset ?? 0), u = c.target;
 				if (u === "Text") {
 					let i = typeof t == "number" && ((c.scale ?? 1) !== 1 || (c.offset ?? 0) !== 0) ? l : t;
-					o.flush(), At(n, r.id, e.id, ln(i, c.format));
+					o.flush(), jt(n, r.id, e.id, ln(i, c.format));
 				} else if (u === "X") a = [l, (a ?? [i.translation.x, i.translation.y])[1]];
 				else if (u === "Y") a = [(a ?? [i.translation.x, i.translation.y])[0], l];
-				else if (u === "Rotation") o.flush(), Kt(n, r.id, e.id, l);
+				else if (u === "Rotation") o.flush(), qt(n, r.id, e.id, l);
 				else if (u === "ScaleX") s = [l, (s ?? [i.scale.x, i.scale.y])[1]];
 				else if (u === "ScaleY") s = [(s ?? [i.scale.x, i.scale.y])[0], l];
 				else if (u === "Scale") s = [l, l];
@@ -6807,7 +6843,7 @@ var Ir = class {
 					n.preview_component_field(r.id, e.id, u.ComponentField.component, u.ComponentField.field, JSON.stringify(i));
 				}
 			}
-			a && o.push(1, e.id, a[0], a[1]), s && (o.flush(), Jt(n, r.id, e.id, a?.[0] ?? i.translation.x, a?.[1] ?? i.translation.y, s[0], s[1]));
+			a && o.push(1, e.id, a[0], a[1]), s && (o.flush(), Yt(n, r.id, e.id, a?.[0] ?? i.translation.x, a?.[1] ?? i.translation.y, s[0], s[1]));
 		}
 	}
 }, Rr = class {
@@ -6944,13 +6980,13 @@ async function qr(e, t) {
 		}
 		e.dispatchEvent(new CustomEvent(`an1:${t}`, {
 			detail: n,
-			bubbles: !0
+			bubbles: t !== "ready"
 		}));
 	}, c = typeof t.game == "string" || t.game instanceof URL ? new URL(String(t.game), location.href) : null, l = t.wasm ?? (c ? new URL("an1mbyt3_wasm_bg.wasm", c) : null);
 	if (!l) throw Error("an1mbyt3: pass `wasm` (the engine) when `game` is bytes");
 	let [u, d] = await Promise.all([Wr(l), Wr(t.game)]);
-	ot(u);
-	let f = await ct(a), p = await Nt(f, d);
+	st(u);
+	let f = await lt(a), p = await Pt(f, d);
 	dn(p.textFiles), on(p.properties), X.reset();
 	let m = {
 		width: 1,
@@ -6985,32 +7021,32 @@ async function qr(e, t) {
 	y.observe(e), n.push(() => y.disconnect()), An.onChange = v, n.push(() => {
 		An.onChange === v && (An.onChange = null);
 	});
-	let b = /* @__PURE__ */ new Map(), x = /* @__PURE__ */ new Map(), S = !1, C = () => {
+	let b = /* @__PURE__ */ new Map(), x = /* @__PURE__ */ new Map(), S = !1, C = /* @__PURE__ */ new Set(), ee = (e = !1) => {
 		if (g) {
 			J.ensureScene(g);
-			for (let [e, t] of b) J.has(e) && !Kr(J.get(e), t) && J.set(e, t), J.has(e) && x.set(e, J.get(e));
-			S = !1;
+			for (let [t, n] of b) !e && !C.has(t) || (J.has(t) && !Kr(J.get(t), n) && J.set(t, n), J.has(t) && x.set(t, J.get(t)));
+			C.clear(), S = !1;
 		}
 	};
 	for (let [e, n] of Object.entries(t.data ?? {})) b.set(e, n), X.setData(e, n);
-	let w = null, T = null, ee = (e) => {
-		p = dt(f, e), p = Ft(f, e, "Playground"), g = e;
+	let w = null, T = null, te = (e) => {
+		p = ft(f, e), p = It(f, e, "Playground"), g = e;
 		let t = w;
 		w = p.artboards.find((t) => Gr(t.id, e))?.name ?? null, v(), J.ensureScene(e), x.clear();
 		for (let e of J.names()) x.set(e, J.get(e));
-		C(), w !== null && s("scene", {
+		ee(!0), w !== null && s("scene", {
 			scene: w,
 			previous: t
 		});
-	}, te = p.artboards.find((e) => e.name === t.scene) ?? p.artboards[0];
-	if (!te) throw Error("an1mbyt3: this game has no scenes");
-	let E = /* @__PURE__ */ new Set(), ne = {
+	}, ne = p.artboards.find((e) => e.name === t.scene) ?? p.artboards[0];
+	if (!ne) throw Error("an1mbyt3: this game has no scenes");
+	let E = /* @__PURE__ */ new Set(), re = {
 		x: 0,
 		y: 0
-	}, re = {
+	}, ie = {
 		x: 0,
 		y: 0
-	}, ie = !1, D = t.keyboard ?? "focus", ae = (e, t) => {
+	}, ae = !1, D = t.keyboard ?? "focus", oe = (e, t) => {
 		let n = Pr(e.key);
 		[
 			"space",
@@ -7022,30 +7058,30 @@ async function qr(e, t) {
 	};
 	if (D !== "none") {
 		let e = D === "window" ? window : a;
-		r(e, "keydown", (e) => ae(e, !0)), r(e, "keyup", (e) => ae(e, !1)), r(D === "window" ? window : a, "blur", () => {
+		r(e, "keydown", (e) => oe(e, !0)), r(e, "keyup", (e) => oe(e, !1)), r(D === "window" ? window : a, "blur", () => {
 			for (let e of E) tn(f, e, !1);
 			E.clear();
 		});
 	}
-	let oe = new Ir();
+	let se = new Ir();
 	r(window, "pointermove", (e) => {
 		let t = e;
-		re = {
-			x: re.x + t.movementX,
-			y: re.y + t.movementY
-		}, ne = {
+		ie = {
+			x: ie.x + t.movementX,
+			y: ie.y + t.movementY
+		}, re = {
 			x: t.clientX,
 			y: t.clientY
 		}, E.has("mouse") && Fr(E, t);
 	}), r(a, "pointerdown", (e) => {
 		let t = e;
-		ne = {
+		re = {
 			x: t.clientX,
 			y: t.clientY
-		}, oe.down(t), E.add("mouse"), Fr(E, t), D === "focus" && a.focus({ preventScroll: !0 }), ie && document.pointerLockElement !== a && a.requestPointerLock();
+		}, se.down(t), E.add("mouse"), Fr(E, t), D === "focus" && a.focus({ preventScroll: !0 }), ae && document.pointerLockElement !== a && a.requestPointerLock();
 	}), r(window, "pointerup", (e) => {
 		let t = e;
-		E.has("mouse") && oe.up(t), Fr(E, t), t.buttons || E.delete("mouse");
+		E.has("mouse") && se.up(t), Fr(E, t), t.buttons || E.delete("mouse");
 	}), r(window, "pointercancel", () => {
 		for (let e of [
 			"mouse",
@@ -7054,22 +7090,22 @@ async function qr(e, t) {
 			"mousemiddle"
 		]) E.delete(e);
 	}), r(a, "contextmenu", (e) => e.preventDefault());
-	let se = {
+	let O = {
 		x: 0,
 		y: 0
 	};
 	r(a, "wheel", (e) => {
 		let t = e;
-		t.preventDefault(), se = {
-			x: se.x + t.deltaX,
-			y: se.y + t.deltaY
+		t.preventDefault(), O = {
+			x: O.x + t.deltaX,
+			y: O.y + t.deltaY
 		};
 	}, { passive: !1 });
 	let ce = (e, t, n, r, i) => {
-		let a = Dt(f, e), o = a ? {
+		let a = Ot(f, e), o = a ? {
 			x: a[0],
 			y: a[1]
-		} : O.pan, s = a ? h.width / Math.max(1, r) : 1 / Math.max(1e-6, O.zoom * (r / Math.max(1, m.width)));
+		} : k.pan, s = a ? h.width / Math.max(1, r) : 1 / Math.max(1e-6, k.zoom * (r / Math.max(1, m.width)));
 		return {
 			x: o.x + (t - r / 2) * s,
 			y: o.y - (n - i / 2) * s
@@ -7090,25 +7126,25 @@ async function qr(e, t) {
 			y: 0
 		},
 		zoom: Math.min(m.width / Math.max(1, e.width), m.height / Math.max(1, e.height))
-	}), O = {
+	}), k = {
 		pan: {
 			x: 0,
 			y: 0
 		},
 		zoom: 1
-	}, k = !1, ve = null, A = {}, ye = () => {
+	}, ve = !1, A = null, ye = {}, be = () => {
 		let e = Zt(f);
-		if (e.activeState && e.activeState !== ve) {
-			let t = ve;
-			ve = e.activeState, s("state", {
+		if (e.activeState && e.activeState !== A) {
+			let t = A;
+			A = e.activeState, s("state", {
 				layer: null,
-				state: ve,
+				state: A,
 				previous: t
 			});
 		}
-		for (let [t, n] of Object.entries(e.layerActiveStates ?? {})) if (A[t] !== n) {
-			let e = A[t] ?? null;
-			A[t] = n, s("state", {
+		for (let [t, n] of Object.entries(e.layerActiveStates ?? {})) if (ye[t] !== n) {
+			let e = ye[t] ?? null;
+			ye[t] = n, s("state", {
 				layer: t,
 				state: n,
 				previous: e
@@ -7122,17 +7158,17 @@ async function qr(e, t) {
 			}));
 		}
 		return e;
-	}, be = (e) => {
+	}, xe = (e) => {
 		if (!ge) {
-			if (he = requestAnimationFrame(be), me) {
+			if (he = requestAnimationFrame(xe), me) {
 				fe = null;
 				return;
 			}
 			try {
 				let t = fe === null ? 0 : Math.min((e - fe) / 1e3, .1);
-				fe = e, S && C();
+				fe = e, S && ee();
 				let n = jn(), r = _();
-				r && !k && (O = _e(r)), f.render(t, O.pan.x, O.pan.y, O.zoom * n, -1, n, 0, 0, 0, 0, 0, 0);
+				r && !ve && (k = _e(r)), f.render(t, k.pan.x, k.pan.y, k.zoom * n, -1, n, 0, 0, 0, 0, 0, 0);
 				let i = performance.now(), o = Zt(f);
 				le.tick(o, t), ue.add("sync", performance.now() - i);
 				let s = p.artboards.find((e) => g && Gr(e.id, g)), c = null;
@@ -7146,45 +7182,45 @@ async function qr(e, t) {
 							name: s.name
 						},
 						machine: e,
-						mouseWorld: ce(s.id, ne.x - n.left, ne.y - n.top, n.width, n.height),
-						mouseDelta: re,
-						wheel: se,
-						gestures: oe.take(),
+						mouseWorld: ce(s.id, re.x - n.left, re.y - n.top, n.width, n.height),
+						mouseDelta: ie,
+						wheel: O,
+						gestures: se.take(),
 						keysDown: E,
 						pointerLocked: document.pointerLockElement === a,
 						requestPointerLock: () => {
-							ie = !0;
+							ae = !0;
 						},
 						exitPointerLock: () => {
-							ie = !1, document.pointerLockElement && document.exitPointerLock();
+							ae = !1, document.pointerLockElement && document.exitPointerLock();
 						},
 						camera: {
-							panX: O.pan.x,
-							panY: O.pan.y,
-							zoom: O.zoom
+							panX: k.pan.x,
+							panY: k.pan.y,
+							zoom: k.zoom
 						},
 						setCamera: (e, t, n) => {
-							O = {
+							k = {
 								pan: {
 									x: e,
 									y: t
 								},
 								zoom: n
-							}, k = !0;
+							}, ve = !0;
 						},
 						globals: de
 					}), ue.add("scripts", performance.now() - r);
 				}
-				ye();
+				be();
 				let l = T ?? c;
 				if (T = null, l !== null) {
 					let e = p.artboards.find((e) => e.name === l);
-					e ? (k = !1, ee(e.id)) : console.warn(`an1mbyt3: no scene named "${l}"`);
+					e ? (ve = !1, te(e.id)) : console.warn(`an1mbyt3: no scene named "${l}"`);
 				}
-				re = {
+				ie = {
 					x: 0,
 					y: 0
-				}, se = {
+				}, O = {
 					x: 0,
 					y: 0
 				}, ue.endFrame(f, t * 1e3, e), An.update(f, t * 1e3, e, !0);
@@ -7192,7 +7228,7 @@ async function qr(e, t) {
 				pe++, (pe <= 3 || pe % 600 == 0) && (console.error(`an1mbyt3: frame threw (#${pe}) — skipping it`, e), s("error", { error: e }));
 			}
 		}
-	}, xe = (e) => {
+	}, Se = (e) => {
 		let t = _();
 		return (t?.stateMachines.find((e) => t.activeStateMachine && Gr(e.id, t.activeStateMachine)))?.inputs.find((t) => t.name === e)?.kind;
 	}, j = {
@@ -7205,16 +7241,16 @@ async function qr(e, t) {
 			return w;
 		},
 		get state() {
-			return ve;
+			return A;
 		},
 		get layerStates() {
-			return { ...A };
+			return { ...ye };
 		},
 		get paused() {
 			return me;
 		},
 		set(e, t) {
-			b.set(e, t), X.setData(e, t), S = !0;
+			b.set(e, t), X.setData(e, t), C.add(e), S = !0;
 		},
 		setData(e) {
 			for (let [t, n] of Object.entries(e)) j.set(t, n);
@@ -7223,11 +7259,11 @@ async function qr(e, t) {
 			return J.has(e) ? J.get(e) : b.get(e);
 		},
 		setInput(e, t) {
-			let n = xe(e);
-			n === "Bool" ? Qt(f, e, !!t) : n === "Number" ? $t(f, e, Number(t)) : n === "Enum" ? en(f, e, String(t)) : n === "Trigger" ? t && Xt(f, e) : console.warn(`an1mbyt3: the scene's state machine has no input "${e}"`);
+			let n = Se(e);
+			n === "Bool" ? Qt(f, e, !!t) : n === "Number" ? $t(f, e, Number(t)) : n === "Enum" ? en(f, e, String(t)) : n === "Trigger" ? t && q(f, e) : console.warn(`an1mbyt3: the scene's state machine has no input "${e}"`);
 		},
 		fire(e) {
-			Xt(f, e);
+			q(f, e);
 		},
 		loadScene(e) {
 			T = e;
@@ -7244,7 +7280,7 @@ async function qr(e, t) {
 			o.get(e)?.delete(t);
 		},
 		waitForState(e, t = null) {
-			return (t === null ? ve : A[t] ?? null) === e ? Promise.resolve() : new Promise((n) => {
+			return (t === null ? A : ye[t] ?? null) === e ? Promise.resolve() : new Promise((n) => {
 				let r = j.on("state", (i) => {
 					i.state === e && i.layer === t && (r(), n());
 				});
@@ -7265,14 +7301,14 @@ async function qr(e, t) {
 				try {
 					f.free();
 				} catch {}
-				Ur === Se && (Ur = null);
+				Ur === M && (Ur = null);
 			}
 		}
-	}, Se = { destroy: () => j.destroy() };
-	return Ur = Se, ee(te.id), ye(), s("ready", {
+	}, M = { destroy: () => j.destroy() };
+	return Ur = M, te(ne.id), be(), s("ready", {
 		scenes: j.scenes,
-		scene: w ?? te.name
-	}), he = requestAnimationFrame(be), j;
+		scene: w ?? ne.name
+	}), he = requestAnimationFrame(xe), j;
 }
 //#endregion
 export { qr as t };

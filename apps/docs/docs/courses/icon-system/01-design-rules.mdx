@@ -1,0 +1,124 @@
+---
+title: 1. Design rules for an icon set
+sidebar_position: 1
+description: The shared grid, stroke, colour, hit area, hover layer and timing rules that make a set of animated icons feel like one family.
+---
+
+# 1. Design rules for an icon set
+
+An icon set feels consistent when every icon follows the same small set of rules: the same canvas, the same line weight, the same way of reacting to the pointer, and the same timing. This course builds three icons from the shipped Toasty Lite set, each one teaching one technique:
+
+| Icon | Technique | Input |
+|---|---|---|
+| `menu` | Transform animation plus a trim path that collapses to a point | `open` Bool |
+| `theme` | Trim paths that retract, a path morph, and pop-in details | `dark` Bool |
+| `copy` | A Trigger that plays feedback and returns to rest by itself | `copy` Trigger |
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0 24px', flexWrap: 'wrap' }}>
+  <Lite src="menu" ink="auto" label="Menu icon" style={{ width: 72, height: 72 }} />
+  <Lite src="theme" label="Theme icon" style={{ width: 72, height: 72 }} />
+  <Lite src="copy" ink="auto" label="Copy icon" style={{ width: 72, height: 72 }} />
+</div>
+
+Hover and click each one. Notice what they share: each grows slightly on hover, each responds on click, and each uses the same line weight and the same round line ends.
+
+:::tip Compare with the finished versions
+**+ → Templates** has the finished icons: **Lite: Menu ↔ close**, **Lite: Light / dark switch** and **Lite: Copy button**. Each one is added to your project as its own scene, so you can open it from the Scene picker next to your own work.
+:::
+
+**Goal of this lesson:** a starter scene you will duplicate for every icon, and a written set of rules for the family. This course assumes you finished the [like button course](../animated-like-button/01-draw-the-heart.mdx), so steps you already know are summarised.
+
+## The rules
+
+### Canvas
+
+| Rule | Value | Why |
+|---|---|---|
+| Scene size | 96 × 96 | One size for the whole set means one CSS size on the page renders every icon at the same visual weight. |
+| Origin | The scene centre, y up | Rotation and scale animations pivot around the centre without extra setup. |
+| Background | Transparent | Icons sit on buttons, toolbars and cards of any colour. |
+| Live area | About 80 × 80 | Leaves room for hover growth and for overshoot without clipping. |
+
+### Lines
+
+| Rule | Value |
+|---|---|
+| Outline weight | 4.5 for drawn outlines (sheets, bell, heart, sun rays) |
+| Bar weight | 5 for bars and arrows (menu bars, arrow shaft, status ring) |
+| Cap and Join | **Round** and **Round**, always |
+| Stroke Style | On every line that animates, with **Dash (px, 0 = solid)** set to `0` |
+| Path direction | Start each line where it should start drawing |
+
+### Colour
+
+Every line that should follow the page's text colour is bound to one Color property, `ink`, with a **Stroke colour** binding. Accent colours are fixed so they mean the same thing on every theme.
+
+| Name | Hex | `[r, g, b, a]` | Used for |
+|---|---|---|---|
+| Ink (default for `ink`) | `#1C1C21` | `[0.11, 0.11, 0.13, 1]` | Outlines and bars |
+| Red | `#F23B5E` | `[0.95, 0.23, 0.37, 1]` | Like, error, unread badge |
+| Amber | `#F5A624` | `[0.96, 0.65, 0.14, 1]` | Sun, progress, loader |
+| Green | `#21A16B` | `[0.13, 0.63, 0.42, 1]` | Success, copied, done |
+| Moon | `#DBD9F2` | `[0.86, 0.85, 0.95, 1]` | Moon and sparkles |
+| White | `#FFFFFF` | `[1, 1, 1, 1]` | Marks on a coloured disc |
+
+### Interaction
+
+| Rule | Value |
+|---|---|
+| Hit shape | A node named `hit`, on top of everything, fill alpha 0: an 84-unit circle for round icons, an 80 × 80 rounded square (corner radius 16) for square ones |
+| UI Button on `hit` | **Highlighted** and **Pressed** white, **Hover scale** and **Press scale** `1` |
+| Hover | Pointer Listeners: **On Pointer Enter** → **Set input** `hover` = `true`, **On Pointer Exit** → `false` |
+| Click | **On Click (Events)** → the icon's main action (Toggle input or Fire trigger) |
+
+### Motion
+
+| Rule | Value |
+|---|---|
+| Hover layer | A state machine layer named `Hover`, masked to one group, with two one-pose animations of 0.2 s: scale 1 and scale 1.08 to 1.12 |
+| Hover crossfades | 0.16 s in, 0.2 s out (0.15 s in for some icons) |
+| Main change | 0.4 to 0.7 s, crossfade 0 into the "on" state |
+| Return | Crossfade 0.18 to 0.3 s back to the "off" state |
+| Easing | The four presets below |
+
+| Preset | x1, y1, x2, y2 |
+|---|---|
+| Out | 0.22, 1, 0.36, 1 |
+| InOut | 0.65, 0, 0.35, 1 |
+| Back | 0.34, 1.56, 0.64, 1 |
+| In | 0.55, 0, 1, 0.45 |
+
+Remember that in the editor you ease a segment by double-clicking the keyframe at the **end** of it.
+
+## Steps: a starter scene
+
+1. **Scene picker → New Scene**, name it `Icon template`, **Create**. With nothing selected, set **Size** to `96` × `96`.
+2. With nothing selected, add a **+ Color** property, rename it `ink`, and set it to `[0.11, 0.11, 0.13, 1]`.
+3. Save this as `hit-square.svg` and import it with **+ → Import → SVG…**:
+
+```svg title="hit-square.svg"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-48 -48 96 96" width="96" height="96">
+  <path id="hit" fill="#000000" fill-opacity="0"
+    d="M0 -40 L24 -40 C32.84 -40 40 -32.84 40 -24 L40 24 C40 32.84 32.84 40 24 40 L-24 40 C-32.84 40 -40 32.84 -40 24 L-40 -24 C-40 -32.84 -32.84 -40 -24 -40 Z"/>
+</svg>
+```
+
+4. Select `hit`. Add **UI Button** (white looks, scales 1), **On Click (Events)** (leave it empty for now) and **Pointer Listeners (hover / press)** with the two `hover` actions. The `hover` input doesn't exist yet; you will declare it in each icon's state machine, then pick it here.
+
+To start a new icon, open the Scene picker, create a new scene, and copy `hit` across with **Ctrl+C** and **Ctrl+V**. Paste places the copy in the same position.
+
+## How it works
+
+- **One canvas, one weight.** At 24 px on the page, a 96-unit scene is drawn at a quarter of its size, so a 5-unit bar is 1.25 px. Keeping every icon on the same canvas guarantees every icon has that same weight at any size.
+- **Inputs are the icon's API.** A page talks to an icon only through its inputs (`open`, `dark`, `copy`, `hover`) and its `ink` property. Keeping names short, lowercase and identical across the set means one helper function on the page can drive every icon.
+- **The hover layer is separate on purpose.** Because it is its own layer with a mask, hover never interferes with the main animation: an open menu still grows on hover, and a copied icon still grows while it plays its feedback.
+
+## Check your work
+
+- Your template scene is 96 × 96 and has one property, `ink`.
+- `hit` is invisible and is the top row in Layers.
+- In **Playground**, the cursor turns into a pointer over the 80 × 80 square and not in the corners.
+
+## Next
+
+[2. The menu icon](./02-menu-toggle.mdx): bars that fold into a close icon.

@@ -91,6 +91,7 @@ getCompByID('banner').visible = Math.floor(ctx.time * 4) % 2 === 0   // blink
 
 ## Other ways to drive inputs (no code)
 
-- **On Click** actions on a UI Button: *Fire trigger* / *Set input*. See [Events and messages](./events-and-messages.mdx).
+- **On Click** actions on a UI Button: *Fire trigger*, *Set input*, *Toggle input (Bool)*. See [Events and messages](./events-and-messages.mdx).
+- **Pointer Listeners** on a UI Button: the same actions on pointer enter, exit, down and up, typically *Set input* `hover`. See [Pointer Listeners](../components/pointer-listeners.mdx).
 - **HTML UI**: `data-trigger="name"` on a clickable element, `data-input="name"` on an `<input>`. See [UI and DOM](./ui-and-dom.mdx).
-- **The embedding page**: `player.setInput(name, value)` and `player.fire(name)`. See [Embedding](../embedding/overview.mdx).
+- **The page**: `player.setInput(name, value)` and `player.fire(name)`, in both [Toasty Lite](../runtimes/lite.mdx) and the [engine embed](../embedding/overview.mdx).

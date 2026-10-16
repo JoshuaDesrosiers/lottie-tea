@@ -6,19 +6,22 @@ description: Build a game HUD and menus from ordinary shapes and text with UI An
 
 # UI components
 
-Toasty doesn't have a separate "UI system" with its own widgets. A menu or HUD is made of the same **shapes, text and images** as the rest of your scene, plus a few components that give them UI behaviour:
+Toasty has no separate UI system with its own widgets. A menu or HUD is made of the same **shapes, text and images** as the rest of your scene, plus a few components that give them UI behaviour:
 
 | Component | Inspector name | What it does |
 |---|---|---|
 | UI Anchor | **UI Anchor** | Pins a node to a point of the screen (a corner, an edge, the centre) with an offset. |
 | UI Stack | **UI Stack** | Lays its children out in a row or column, with spacing, padding and alignment. |
 | UI Button | **UI Button** | Hover / press feedback and click events your scripts read. |
+| On Click (Events) | **On Click (Events)** | Actions that run when the button is clicked, with no code. |
+| Pointer Listeners | **Pointer Listeners (hover / press)** | Actions that run when the pointer enters, leaves, presses or releases the button, with no code. |
 
-This page covers those three, plus the scene's **Screen** settings. Related pages:
+This page covers these, plus the scene's **Screen** settings. Related pages:
 
 - [UI controls](./ui-controls.mdx): toggles, radio groups, sliders, scrollbars, scroll views, and the full state-style reference.
 - [Responsive layout](./responsive-layout.mdx): flexbox **UI Layout**, **UI Show When**, Fixed vs Responsive screens and `ctx.screen`.
 - [HTML UI](./html-ui.mdx): real HTML + CSS boxes inside your scene.
+- [Pointer Listeners](./pointer-listeners.mdx): hover and press actions, the usual way to drive a `hover` input.
 - [Scripting: UI and DOM](../scripting/ui-and-dom.mdx): the script side of everything here.
 
 All of these components live in the **UI** and **Layout** sections of the **Add Component** menu. A node can carry at most one of each.
@@ -33,7 +36,7 @@ The **+ → UI** menu does this for you: its items (except **Icon**) are placed 
 If your scene has no camera, add one first (a node with a **Camera** component, set as the scene's main camera). Then UI Anchors have a screen to pin to and **+ → UI** puts new items in the right place.
 :::
 
-<Shot id="ui-hud-under-camera" caption="The Layers panel of the UI & Sound Lab demo: title, counter, button stack and settings panel all nested under Main Camera" />
+<Shot id="ui-hud-under-camera" caption="The Layers panel of a HUD: title, counter, button stack and settings panel all nested under Main Camera" />
 
 ## The + → UI menu
 
@@ -70,7 +73,7 @@ Anchors are applied every frame, in Design mode too, so what you see while autho
 | **Point** | The exact screen point, `0..1` on each axis. `(0, 1)` is top-left, `(1, 0)` bottom-right. | `(0.5, 0.5)` |
 | **Offset** | Distance from that point in world units, +y up. For example `(16, -16)` from the top-left corner sits 16 units in and 16 down. | `(0, 0)` |
 
-Typical settings, taken from the UI & Sound Lab demo:
+Typical settings for a game HUD:
 
 | Element | Point | Offset |
 |---|---|---|
@@ -102,7 +105,7 @@ How it places children:
 - Hidden children are skipped and take no space, so hiding a row closes the gap.
 - Like anchors, stacks are applied every frame, Design mode included.
 
-A stack can also carry a **UI Anchor**. In the UI & Sound Lab demo, the column of sound buttons is a group with both: the anchor places the column, and the stack lays out the buttons inside it.
+A stack can also carry a **UI Anchor**. A column of sound buttons, for example, is a group with both: the anchor places the column, and the stack lays out the buttons inside it.
 
 ```text
 Main Camera
@@ -127,7 +130,7 @@ The state look is the same block used by every UI control. Its fields (**Transit
 
 ### What counts as a click
 
-The button's hit area is its own bounds (the shape's box, the text's box). A click is a press **and** release over the button: press, drag off, release, and nothing fires. That's the usual UI behaviour, and it means a player can back out of an accidental press.
+In the engine, the button's hit area is its own bounds (the shape's box, the text's box). [Toasty Lite](../runtimes/lite.mdx) hit-tests the real shape path instead, so a round button only responds inside the circle. A click is a press **and** release over the button: press, drag off, release, and nothing fires. This is standard UI behaviour, and it lets a player back out of an accidental press.
 
 Buttons inside a [Scroll View](./ui-controls.mdx#ui-scroll-view) only respond inside the view's visible area, so rows scrolled out of sight can't be clicked.
 
@@ -152,7 +155,7 @@ const play = getCompByID('play')
 getCompByID('playHint').visible = play.hovered
 ```
 
-The UI & Sound Lab demo reads four buttons the same way:
+A sound board reads its buttons the same way:
 
 ```js
 const c = (id) => getCompByID(id)
@@ -160,9 +163,24 @@ if (c('beep').clicked) ctx.playTone({ freq: 660, duration: 0.15, type: 'square' 
 if (c('laser').clicked) ctx.playTone({ freq: 1400, to: 180, duration: 0.25, type: 'sawtooth', volume: 0.25 })
 ```
 
-:::tip
-To react to clicks without any code, add the **On Click (Events)** component next to the UI Button. It runs a list of actions (set a property, load a scene, play a sound and so on) when the button is clicked. See [Properties and bindings](../editor/properties-and-bindings.mdx).
-:::
+### Buttons without code
+
+Two components sit next to a UI Button and run actions with no script:
+
+| Component | Runs its actions |
+|---|---|
+| **On Click (Events)** | When the button is clicked. Added automatically with a UI Button. |
+| **Pointer Listeners (hover / press)** | On Pointer Enter, On Pointer Exit, On Pointer Down and On Pointer Up. See [Pointer Listeners](./pointer-listeners.mdx). |
+
+Both offer the same actions: show or hide nodes, set node and component fields, **Fire trigger**, **Set input**, **Toggle input (Bool)**, **Set property**, **Load scene**, **Play sound** and **Call script function**. The full list is in [Properties and bindings](../editor/properties-and-bindings.mdx#on-click-events).
+
+The icons below have no scripts. Each has an invisible UI Button over it. The heart's On Click runs **Toggle input** `liked`; the bell's runs **Call script function** `open`, which Toasty Lite delivers to the page as an event, then **Fire trigger** `ring`. Pointer Listeners set a `hover` input on enter and clear it on exit, and a `Hover` layer in each state machine scales the icon up.
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0' }}>
+  <Lite src="heart" ink="auto" label="Like" style={{ width: 72, height: 72 }} />
+  <Lite src="bell" ink="auto" label="Notifications" style={{ width: 72, height: 72 }} />
+  <Lite src="copy" ink="auto" label="Copy" style={{ width: 72, height: 72 }} />
+</div>
 
 Turning a button off from a script is done by hiding it (`ref.visible = false`); hidden controls don't take clicks. **Interactable** itself is an authored setting.
 
@@ -184,6 +202,6 @@ The full story of Responsive screens, breakpoints and flexbox layouts is on the 
 
 ## Try it
 
-Load **+ → Demos → UI & Sound Lab** in the editor. It uses every component on this page plus all of the [UI controls](./ui-controls.mdx), and its Code program is a compact example of reading them. You can also play it right here:
-
-<ToastyDemo game="/games/ui-sound-lab.teab" height={360} caption="UI & Sound Lab: anchored title and counter, a UI Stack of buttons, a slider, toggles and a scroll view" />
+- Build a like button with a UI Button, On Click and Pointer Listeners in the [courses](../courses/index.mdx), then put it on a page with [Toasty Lite](../runtimes/lite.mdx).
+- See the [use cases](../use-cases/index.mdx) for buttons, toggles and icons in real page layouts.
+- For a game HUD, [Toast Catch](../games/toast-catch.mdx) keeps its score and lives in scene properties that the embedding page can read, and updates its on-screen text from a script.

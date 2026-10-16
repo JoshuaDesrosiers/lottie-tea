@@ -22,7 +22,7 @@ const config: Config = {
       tagName: 'link',
       attributes: {
         rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap',
+        href: 'https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap',
       },
     },
   ],
@@ -46,34 +46,35 @@ const config: Config = {
     navbar: {
       title: 'Toasty',
       logo: {alt: 'Toasty', src: 'img/favicon.svg'},
+      hideOnScroll: false,
       items: [
-        {type: 'doc', docId: 'intro', position: 'left', label: 'Start'},
+        {type: 'docSidebar', sidebarId: 'start', position: 'left', label: 'Docs'},
         {type: 'docSidebar', sidebarId: 'editor', position: 'left', label: 'Editor'},
-        {type: 'docSidebar', sidebarId: 'components', position: 'left', label: 'Components'},
         {type: 'docSidebar', sidebarId: 'scripting', position: 'left', label: 'Scripting'},
-        {type: 'docSidebar', sidebarId: 'embedding', position: 'left', label: 'Embedding'},
+        {type: 'docSidebar', sidebarId: 'runtimes', position: 'left', label: 'Runtimes'},
+        {type: 'docSidebar', sidebarId: 'usecases', position: 'left', label: 'Use cases'},
+        {type: 'docSidebar', sidebarId: 'games', position: 'left', label: 'Games'},
         {type: 'docSidebar', sidebarId: 'courses', position: 'left', label: 'Courses'},
-        {to: '/showcase', label: 'Showcase', position: 'left'},
         {href: 'https://toastycreate.web.app/', label: 'Open the editor', position: 'right', target: '_self', className: 'navbar-cta'},
       ],
     },
     footer: {
-      style: 'dark',
+      style: 'light',
       links: [
         {
           title: 'Learn',
           items: [
-            {label: 'Your first project', to: '/getting-started/first-project'},
+            {label: 'Get started', to: '/getting-started/first-project'},
             {label: 'Courses', to: '/courses'},
             {label: 'Scripting cheatsheet', to: '/scripting/cheatsheet'},
           ],
         },
         {
-          title: 'Build for the web',
+          title: 'Ship it',
           items: [
-            {label: 'React embeds', to: '/embedding/react'},
-            {label: 'API reference', to: '/embedding/api-reference'},
-            {label: 'Showcase', to: '/showcase'},
+            {label: 'Toasty Lite runtime', to: '/runtimes/lite'},
+            {label: 'Use cases', to: '/use-cases'},
+            {label: 'Games', to: '/games'},
           ],
         },
         {
@@ -84,8 +85,8 @@ const config: Config = {
       copyright: `ToastyCreate · ${new Date().getFullYear()}`,
     },
     prism: {
-      theme: prismThemes.oneLight,
-      darkTheme: prismThemes.oneDark,
+      theme: prismThemes.github,
+      darkTheme: prismThemes.vsDark,
       additionalLanguages: ['bash', 'json', 'rust'],
     },
   } satisfies Preset.ThemeConfig,

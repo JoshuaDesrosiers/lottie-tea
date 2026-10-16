@@ -8,7 +8,9 @@ description: Use the An1Player component to show a Toasty game in React and stee
 
 The export ships a React component, `<An1Player>`, in `an1mbyt3-react.js`. Its props steer the running game **live**: when a prop changes, only what changed is sent to the game. Nothing remounts, nothing reloads, nothing flickers. Pass fetched data straight in, and the labels, bars and colours bound to it update on the next frame.
 
-Every example on this page is live and editable. Click a card to start it. (Only one game runs at a time on a page, so starting one stops the previous one.)
+Every example on this page is live and editable, using the two example games, [Toast Catch](../games/toast-catch.mdx) and [Hop](../games/hop.mdx). Click a game to start it. (Only one game runs at a time on a page, so starting one stops the previous one.)
+
+This page covers the full engine. For animated icons and buttons in React, use `<ToastyLite>` (see [Toasty Lite for React](../runtimes/react.mdx)).
 
 :::info In these docs
 The live examples use `ToastyPlayer`, the docs site's wrapper around the real `An1Player`. It has exactly the same props and the same `ref`. In your app you import `An1Player` instead, as in the copyable `tsx` blocks.
@@ -61,27 +63,24 @@ The game fits inside the component's box. Without a height (from `style`, `class
 
 ## Sending data: `data`
 
-`data` is an object of values. Each key goes to `ctx.data` in the game's scripts **and** to the scene Property with the same name, so anything bound to that Property updates by itself. Drag the slider:
+`data` is an object of values. Each key reaches `ctx.data` in the game's scripts, and the scene Property with the same name if the scene has one. Toast Catch reads `ctx.data.speed` every frame, so dragging the slider changes the game mid-round:
 
 ```jsx live
-function ProgressDemo() {
-  const [progress, setProgress] = React.useState(0.35)
-  const [label, setLabel] = React.useState('Uploading')
-  const [color, setColor] = React.useState('#7c5cff')
+function SpeedDemo() {
+  const [speed, setSpeed] = React.useState(1)
   return (
     <div>
       <ToastyPlayer
-        game="/games/progress-ring.teab"
-        data={{ progress, label, color }}
-        style={{ height: 260 }}
+        game="/games/toast-catch.teab"
+        data={{ speed }}
+        style={{ height: 300 }}
       />
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginTop: 8 }}>
-        <input type="range" min="0" max="1" step="0.01" value={progress}
-          onChange={(e) => setProgress(Number(e.target.value))} />
-        <span>{Math.round(progress * 100)}%</span>
-        <input value={label} onChange={(e) => setLabel(e.target.value)} />
-        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
-      </div>
+      <label style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
+        Speed
+        <input type="range" min="0.5" max="2.5" step="0.1" value={speed}
+          onChange={(e) => setSpeed(Number(e.target.value))} />
+        <span>{speed.toFixed(1)}×</span>
+      </label>
     </div>
   )
 }
@@ -91,71 +90,53 @@ How the updates work:
 
 - The component keeps the last `data` it sent and compares key by key with `Object.is`. **Only keys whose value changed are sent.** Re-rendering with the same values sends nothing, so it is fine to build the object inline on every render.
 - The diff is **shallow**. If a value is an object or array and you mutate it in place, the change isn't seen. Pass a new object or array for that key.
-- Values are converted to the Property's type: a number for Number, `true`, `1`, `'true'`, `'1'` or `'on'` for Bool, a string for Text, and `'#rrggbb'` or `[r, g, b, a]` (0 to 1) for Color. That's why the colour picker's `'#7c5cff'` string works directly.
+- When a key matches a scene Property, the value is converted to the Property's type: a number for Number, `true`, `1`, `'true'`, `'1'` or `'on'` for Bool, a string for Text, and `'#rrggbb'` or `[r, g, b, a]` (0 to 1) for Color. `ctx.data` keeps the value exactly as you sent it.
 - Data are kept across scene switches: when the game changes scene, your values are applied to the new scene's Properties too.
 
 [Sending data in](./data-binding.mdx) covers this in depth, including what the game side looks like.
 
 ## State machine inputs: `inputs`
 
-`inputs` sets the scene's state machine inputs by name. A Bool, Number or Enum input takes the value you pass. Here the page owns the day/night switch, and the game's own `toggle` event (fired when you click the scene) keeps React in sync:
+`inputs` sets the scene's state machine inputs by name. A Bool, Number or Enum input takes the value you pass:
 
-```jsx live
-function DayNight() {
-  const [isNight, setIsNight] = React.useState(false)
-  return (
-    <div>
-      <ToastyPlayer
-        game="/games/day-night.teab"
-        inputs={{ isNight }}
-        style={{ height: 220 }}
-        onEvent={(e) => e.name === 'toggle' && setIsNight(e.payload.isNight)}
-      />
-      <label style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <input type="checkbox" checked={isNight} onChange={(e) => setIsNight(e.target.checked)} />
-        Night mode (React state: {String(isNight)})
-      </label>
-    </div>
-  )
-}
+```tsx
+const [paused, setPaused] = useState(false)
+
+<An1Player
+  game="/an1mbyt3/game.teab"
+  inputs={{ paused, difficulty: 'hard' }}   // a Bool and an Enum input
+  style={{ height: 400 }}
+/>
 ```
+
+Toast Catch and Hop keep their logic in a script, so their state machines have no inputs. Inputs matter most for state-machine-driven scenes, which on a website are usually UI animation; for those, [Toasty Lite](../runtimes/lite.mdx) has the same `inputs` prop and runs any number per page.
 
 Like `data`, `inputs` is diffed shallowly; only changed keys are sent. An input name the scene doesn't have logs a warning in the browser console (`the scene's state machine has no input "…"`) and does nothing.
 
 :::caution Triggers in `inputs`
-A Trigger input fires when its value **changes to** something truthy. Passing `{ burst: true }` on every render fires it once, not every render. To fire the same trigger again and again, use the player's `fire` method through a `ref` (next section), or flip the value back to `false` between fires.
+A Trigger input fires when its value **changes to** something truthy. Passing `{ restart: true }` on every render fires it once, not every render. To fire the same trigger again and again, use the player's `fire` method through a `ref` (next section), or flip the value back to `false` between fires.
 :::
 
 ## Imperative control: `ref`
 
-Some things are actions, not state: "ring the bell now", "pause", "call this function". For those, take a `ref`. Once the player is ready, `ref.current` is the full player API (the same object [`createPlayer`](./vanilla-js.mdx) returns): `fire`, `setInput`, `set`, `get`, `loadScene`, `call`, `pause`, `play`, `waitForState`, `on`, and read-only `scene`, `state`, `scenes`, `paused`.
+Some things are actions, not state: "pause now", "read the current score", "call this function". For those, take a `ref`. Once the player is ready, `ref.current` is the full player API (the same object [`createPlayer`](./vanilla-js.mdx) returns): `fire`, `setInput`, `set`, `get`, `loadScene`, `call`, `pause`, `play`, `waitForState`, `on`, and read-only `scene`, `state`, `scenes`, `paused`.
 
 ```jsx live
-function Bell() {
+function ScoreProbe() {
   const ref = React.useRef(null)
-  const [unread, setUnread] = React.useState(3)
-  const [opened, setOpened] = React.useState(0)
+  const [out, setOut] = React.useState('Start the game, then try the buttons.')
+  const show = (label, value) => setOut(label + ' → ' + JSON.stringify(value))
   return (
     <div>
-      <ToastyPlayer
-        ref={ref}
-        game="/games/bell.teab"
-        data={{ unread }}
-        style={{ height: 220 }}
-        onEvent={(e) => {
-          if (e.name === 'open') {
-            setOpened((n) => n + 1)
-            setUnread(0)
-          }
-        }}
-      />
+      <ToastyPlayer ref={ref} game="/games/toast-catch.teab" style={{ height: 300 }} />
       <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-        <button onClick={() => { setUnread((n) => n + 1); ref.current?.fire('ring') }}>
-          New message
-        </button>
-        <button onClick={() => ref.current?.fire('ring')}>Just ring</button>
-        <span>Unread: {unread}. Opened {opened} times (click the bell).</span>
+        <button onClick={() => show("get('score')", ref.current?.get('score'))}>get('score')</button>
+        <button onClick={() => show("get('lives')", ref.current?.get('lives'))}>get('lives')</button>
+        <button onClick={() => show('scene', ref.current?.scene)}>scene</button>
+        <button onClick={() => show('state', ref.current?.state)}>state</button>
+        <button onClick={() => (ref.current?.paused ? ref.current?.play() : ref.current?.pause())}>pause / play</button>
       </div>
+      <pre style={{ marginTop: 8 }}>{out}</pre>
     </div>
   )
 }
@@ -175,148 +156,139 @@ function Controls() {
   return (
     <>
       <An1Player ref={ref} game="/an1mbyt3/game.teab" style={{ height: 300 }} />
-      <button disabled={!player} onClick={() => player?.fire('jump')}>Jump</button>
+      <button disabled={!player} onClick={() => player?.pause()}>Pause</button>
     </>
   )
 }
 ```
 
-Under the hood `useAn1Player` is just `useState` used as a callback ref, which you can write yourself. Here it is live with the mood blob:
+Under the hood `useAn1Player` is `useState` used as a callback ref, which you can write yourself. Here it is live with Hop:
 
 ```jsx live
-function MoodControls() {
+function HopControls() {
   // The same thing useAn1Player() does: a state setter as the ref.
   const [player, setPlayer] = React.useState(null)
-  const [mood, setMood] = React.useState(0)
+  const [paused, setPaused] = React.useState(false)
   return (
     <div>
-      <ToastyPlayer ref={setPlayer} game="/games/mood-blob.teab" data={{ mood }} style={{ height: 240 }} />
+      <ToastyPlayer ref={setPlayer} game="/games/hop.teab" style={{ height: 240 }} />
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-        <button disabled={!player} onClick={() => player.fire('jump')}>Jump</button>
-        <input type="range" min="-1" max="1" step="0.05" value={mood}
-          onChange={(e) => setMood(Number(e.target.value))} />
-        <span>{player ? `state: ${player.state}` : 'click the card to start'}</span>
+        <button disabled={!player} onClick={() => {
+          if (player.paused) player.play(); else player.pause()
+          setPaused(player.paused)
+        }}>
+          {paused ? 'Resume' : 'Pause'}
+        </button>
+        <span>{player ? 'Scene: ' + player.scene : 'Start the game to enable the button.'}</span>
       </div>
     </div>
   )
 }
 ```
 
-(`player.state` here is read during render, so it shows the state as of the last re-render. To react to every change, use `onStateChange`, below.)
-
-## Listening: `onEvent`, `onStateChange`, `onPropChange`, `onSceneChange`
+## Listening: `onEvent`, `onPropChange`, `onStateChange`, `onSceneChange`
 
 The handler props are how the game talks back. You can write them inline: the component reads the latest handler through a ref, so a new function on every render doesn't resubscribe anything.
 
 ```jsx live
-function MoodWatcher() {
-  const [mood, setMood] = React.useState(0)
-  const [state, setState] = React.useState('…')
+function CatchLog() {
   const [log, setLog] = React.useState([])
-  const add = (line) => setLog((l) => [line, ...l].slice(0, 6))
+  const add = (line) => setLog((l) => [line, ...l].slice(0, 8))
   return (
     <div>
       <ToastyPlayer
-        game="/games/mood-blob.teab"
-        data={{ mood }}
-        style={{ height: 240 }}
-        onReady={(p) => setState(p.state ?? '(none)')}
-        onStateChange={(e) => { setState(e.state); add(`state ${e.previous} → ${e.state}`) }}
-        onEvent={(e) => add(`event ${e.name} ${JSON.stringify(e.payload)}`)}
-        onPropChange={(e) => add(`prop ${e.name} = ${JSON.stringify(e.value)}`)}
+        game="/games/toast-catch.teab"
+        style={{ height: 300 }}
+        onReady={(p) => add('ready: scene ' + p.scene + ', state ' + p.state)}
+        onEvent={(e) => add('event ' + e.name + ' ' + JSON.stringify(e.payload))}
+        onPropChange={(e) => add('prop ' + e.name + ' = ' + JSON.stringify(e.value))}
+        onStateChange={(e) => add('state ' + e.previous + ' → ' + e.state)}
       />
-      <input type="range" min="-1" max="1" step="0.05" value={mood}
-        onChange={(e) => setMood(Number(e.target.value))} style={{ width: '100%' }} />
-      <p>The blob is <b>{state}</b>. Drag the slider or poke the blob.</p>
-      <pre style={{ fontSize: 12, minHeight: 100 }}>{log.join('\n')}</pre>
+      <pre style={{ fontSize: 12, minHeight: 140 }}>{log.join('\n')}</pre>
     </div>
   )
 }
 ```
 
-A few rules worth knowing:
+Catch a slice and you see an `event score` and a `prop score`. Lose a life and you see `prop lives`. A few rules worth knowing:
 
-- **`onStateChange`** fires for every state machine layer. `layer` is `null` for the base layer, or the layer's name. Filter with `e.layer === null` if you only care about the base layer.
-- **The starting state is not reported as a change.** Read it in `onReady` (`player.state`, `player.layerStates`), as above.
+- **`onEvent`** receives every `ctx.emit(name, payload)`. Toast Catch sends `score` and `gameover`; Hop sends `gameover` with `{ score, best }`.
 - **`onPropChange`** reports changes the *game* made to its Properties. Your own `data` writes are not echoed back.
+- **`onStateChange`** fires for every state machine layer. `layer` is `null` for the base layer, or the layer's name. Filter with `e.layer === null` if you only care about the base layer. Both example games stay in their one state, `Play`, so they never fire it.
+- **The starting state is not reported as a change.** Read it in `onReady` (`player.state`, `player.layerStates`), as above.
 - **`onError`** receives loading errors (a 404, a broken file) and errors thrown while running a frame. A frame that throws is skipped and the game keeps running.
 
 [Listening to the game](./listening.mdx) goes deeper, including `waitForState`.
 
 ## Switching scenes: `scene`
 
-`scene` names the scene to play; change it and the game switches after the current frame. `onSceneChange` tells you about every switch, including the ones the game makes itself (for example walking through a door). The Ninja demo has two scenes, `Village` and `House`:
+`scene` names the scene to play; change it and the game switches after the current frame. `onSceneChange` tells you about every switch, including the ones the game makes itself with `ctx.loadScene`.
 
-```jsx live
-function SceneSwitch() {
-  const [scene, setScene] = React.useState('Village')
-  const [now, setNow] = React.useState('Village')
-  return (
-    <div>
-      <ToastyPlayer
-        game="/games/ninja.teab"
-        scene={scene}
-        style={{ height: 320 }}
-        onSceneChange={(e) => { setNow(e.scene); setScene(e.scene) }}
-      />
-      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        {['Village', 'House'].map((name) => (
-          <button key={name} onClick={() => setScene(name)} disabled={now === name}>{name}</button>
-        ))}
-        <span>Now playing: {now}. Click the game, then use the arrow keys.</span>
-      </div>
-    </div>
-  )
-}
+```tsx
+const [scene, setScene] = useState('Menu')
+
+<An1Player
+  game="/an1mbyt3/game.teab"
+  scene={scene}
+  onSceneChange={(e) => setScene(e.scene)}   // keep React in step with the game
+  style={{ height: 400 }}
+/>
+<button onClick={() => setScene('Level 1')}>Play</button>
 ```
 
-Notice the `onSceneChange` handler also writes the scene back into React state. Without that, if the game switched scene on its own, your `scene` prop would still say the old name, and the next time you set it to that same old name nothing would change (the effect only runs when the prop changes).
+The `onSceneChange` handler writes the scene back into React state. Without that, if the game switched scene on its own, your `scene` prop would still say the old name, and setting it to that same name later would change nothing (the effect only runs when the prop changes).
 
-A name that doesn't exist logs `no scene named "…"` and nothing happens. `player.scenes` lists the valid names.
+A name that doesn't exist logs `no scene named "…"` and nothing happens. `player.scenes` lists the valid names. The two example games each have one scene.
 
 ## Pausing: `paused`
 
-`paused` freezes the game: no simulation, no rendering, no scripts. A common use is pausing while the game is off screen or the tab is hidden.
+`paused` freezes the game: no simulation, no rendering, no scripts. A common use is pausing a game when the visitor opens a dialog or switches tabs.
 
 ```jsx live
-function PauseDemo() {
-  const [paused, setPaused] = React.useState(false)
+function PauseOnHidden() {
+  const [manual, setManual] = React.useState(false)
+  const [hidden, setHidden] = React.useState(false)
+  React.useEffect(() => {
+    const update = () => setHidden(document.visibilityState === 'hidden')
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
   return (
     <div>
-      <ToastyPlayer game="/games/mood-blob.teab" paused={paused} style={{ height: 220 }} />
-      <button onClick={() => setPaused((p) => !p)} style={{ marginTop: 8 }}>
-        {paused ? 'Play' : 'Pause'}
+      <ToastyPlayer game="/games/hop.teab" paused={manual || hidden} style={{ height: 240 }} />
+      <button onClick={() => setManual((p) => !p)} style={{ marginTop: 8 }}>
+        {manual ? 'Resume' : 'Pause'}
       </button>
     </div>
   )
 }
 ```
 
-The same is available imperatively as `ref.current.pause()` / `ref.current.play()`, and `ref.current.paused` tells you which it is.
+The same is available imperatively as `ref.current.pause()` / `ref.current.play()`, and `ref.current.paused` tells you which it is. The first frame after resuming has a zero time step, so nothing jumps.
 
 ## Swapping games: `game`
 
 Changing `game` (or `wasm`, `fit`, `keyboard`, `background`) destroys the player and loads the new one into the same box. Your `data` and `inputs` are applied to the new game as it starts.
 
 ```jsx live
-function Gallery() {
-  const games = ['like-button', 'bell', 'day-night', 'mood-blob']
-  const [i, setI] = React.useState(0)
+function Arcade() {
+  const games = { 'Toast Catch': '/games/toast-catch.teab', Hop: '/games/hop.teab' }
+  const [name, setName] = React.useState('Toast Catch')
   const [status, setStatus] = React.useState('')
   return (
     <div>
       <ToastyPlayer
-        game={`/games/${games[i]}.teab`}
-        style={{ height: 240 }}
-        onReady={(p) => setStatus(`ready: scene ${p.scene}, state ${p.state}`)}
-        onError={(err) => setStatus(`failed: ${err}`)}
+        game={games[name]}
+        style={{ height: 300 }}
+        onReady={(p) => setStatus('ready: ' + p.scene)}
+        onError={(err) => setStatus('failed: ' + err)}
       />
-      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-        {games.map((g, n) => (
-          <button key={g} onClick={() => { setStatus('loading…'); setI(n) }} disabled={n === i}>{g}</button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {Object.keys(games).map((g) => (
+          <button key={g} onClick={() => { setStatus('loading…'); setName(g) }} disabled={g === name}>{g}</button>
         ))}
+        <span>{status}</span>
       </div>
-      <p>{status}</p>
     </div>
   )
 }
@@ -340,12 +312,14 @@ The export ships `an1mbyt3-react.d.ts`, so everything is typed:
 import { useRef } from 'react'
 import { An1Player, type An1PlayerHandle, type PlayerEvents } from './an1mbyt3/an1mbyt3-react.js'
 
-function Game() {
+type GameOver = { score: number }
+
+function Game({ onScore }: { onScore: (score: number) => void }) {
   const ref = useRef<An1PlayerHandle | null>(null)
-  const onState = (e: PlayerEvents['state']) => {
-    if (e.layer === null && e.state === 'Done') ref.current?.fire('confetti')
+  const onEvent = (e: PlayerEvents['event']) => {
+    if (e.name === 'gameover') onScore((e.payload as GameOver).score)
   }
-  return <An1Player ref={ref} game="/an1mbyt3/game.teab" onStateChange={onState} style={{ height: 400 }} />
+  return <An1Player ref={ref} game="/an1mbyt3/game.teab" onEvent={onEvent} style={{ height: 400 }} />
 }
 ```
 
@@ -358,7 +332,7 @@ On React 18, function components can't receive `ref` as a prop, so the `ref` pro
 ```tsx
 const [player, setPlayer] = useState<An1PlayerHandle | null>(null)
 <An1Player game="/an1mbyt3/game.teab" onReady={setPlayer} style={{ height: 400 }} />
-<button disabled={!player} onClick={() => player?.fire('ring')}>Ring</button>
+<button disabled={!player} onClick={() => player?.pause()}>Pause</button>
 ```
 
 The handle is destroyed when the component unmounts or `game` changes, so if `game` can change, also clear it (`setPlayer(null)`) when you change `game`. All the other props work the same on 18 and 19.
@@ -367,10 +341,10 @@ The handle is destroyed when the component unmounts or `game` changes, so if `ga
 
 - **StrictMode is safe.** In development React mounts, unmounts and remounts effects; the component cancels the first load and destroys any player it already made.
 - **Unmounting destroys the player**, freeing the engine and removing the canvas. Mounting again downloads the game and engine again (your browser's HTTP cache usually makes that fast).
-- **Two `<An1Player>`s on one page** don't run side by side: the second to load destroys the first. Show one at a time.
+- **Two `<An1Player>`s on one page** don't run side by side: the second to load destroys the first. Show one at a time, and use [Toasty Lite](../runtimes/lite.mdx) for animated UI around the game.
 
 ## Next
 
 - [Next.js](./nextjs.mdx) for server-rendered React.
-- [Recipes](./recipes.mdx) for fetched data, notification badges, upload progress and more, all live.
+- [Recipes](./recipes.mdx) for leaderboards, pausing off screen, lazy loading and more, all live.
 - [API reference](./api-reference.mdx) for every type.

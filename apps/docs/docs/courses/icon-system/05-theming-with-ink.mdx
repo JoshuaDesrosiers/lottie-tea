@@ -1,0 +1,139 @@
+---
+title: 5. Theme them all with ink
+sidebar_position: 5
+description: Theme a whole icon set from one property, following the page's text colour in light and dark mode or setting brand colours explicitly, in HTML, JavaScript and React.
+---
+
+# 5. Theme them all with ink
+
+**Goal:** every icon in the set matches the page, in light mode, in dark mode and in brand colours, without editing the files. This works because each icon you built binds its line colour to the same property, `ink`.
+
+## Four ways to set `ink`
+
+| Where | How | Follows theme changes |
+|---|---|---|
+| HTML attribute | `<toasty-lite ink="currentColor">` | Yes. Re-read when `<html>` changes its `class`, `data-theme` or `style`, and when the system colour scheme changes. |
+| HTML attribute | `<toasty-lite ink="#2563eb">` (any CSS colour) | No, it is a fixed colour. Change the attribute to change it. |
+| JavaScript | `el.player.set('ink', '#2563eb')` or `player.set('ink', [0.15, 0.39, 0.92, 1])` | No. Call it again when your theme changes. |
+| React | `<ToastyLite ink="#2563eb" />` (any CSS colour string), or `data={{ ink: '#2563eb' }}` | When you pass a new value. |
+
+The `ink` attribute accepts anything CSS accepts as a colour, because the element resolves it through the browser. `player.set` and `data` accept a `#rrggbb` string or an `[r, g, b, a]` array with values from 0 to 1.
+
+## The toolbar
+
+The toolbar below uses five Lite files. The four line icons use `ink="currentColor"`, so they follow the toolbar's text colour. The theme switch changes `data-theme` on `<html>`, and every `currentColor` icon updates by itself. The row underneath uses explicit brand colours instead.
+
+<LiveHTML
+  url="app.northwind.app/docs/q3-launch-plan"
+  height={300}
+  html={`<div class="app">
+  <header class="toolbar">
+    <button class="tool" type="button" aria-label="Menu"><toasty-lite src="/toasty/lite/menu.json" ink="currentColor"></toasty-lite></button>
+    <span class="title">Q3 launch plan</span>
+    <span class="spacer"></span>
+    <button class="tool" type="button" aria-label="Copy link"><toasty-lite src="/toasty/lite/copy.json" ink="currentColor"></toasty-lite></button>
+    <button class="tool" type="button" aria-label="Notifications"><toasty-lite src="/toasty/lite/bell.json" ink="currentColor"></toasty-lite></button>
+    <button class="tool theme-toggle" type="button" aria-label="Dark mode" aria-pressed="false"><toasty-lite src="/toasty/lite/theme.json"></toasty-lite></button>
+  </header>
+  <section class="panel">
+    <label>Brand colour
+      <select id="accent">
+        <option value="#2563eb">Blue</option>
+        <option value="#0f766e">Teal</option>
+        <option value="#9333ea">Violet</option>
+        <option value="currentColor">Text colour</option>
+      </select>
+    </label>
+    <div class="accent">
+      <toasty-lite src="/toasty/lite/heart.json" ink="#2563eb"></toasty-lite>
+      <toasty-lite src="/toasty/lite/download.json" ink="#2563eb"></toasty-lite>
+      <toasty-lite src="/toasty/lite/arrow.json" ink="#2563eb"></toasty-lite>
+    </div>
+  </section>
+</div>`}
+  css={`.app { margin: 20px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--surface); }
+.toolbar { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); color: var(--ink); }
+.title { font-weight: 600; margin-left: 4px; }
+.spacer { flex: 1; }
+.tool { width: 40px; height: 40px; padding: 2px; border: 0; border-radius: 10px; background: transparent; color: inherit; cursor: pointer; }
+.tool:hover { background: var(--page); }
+.tool:focus-visible { outline: 2px solid var(--accent); }
+.tool toasty-lite { width: 36px; height: 36px; }
+.theme-toggle toasty-lite { pointer-events: none; }
+.panel { display: flex; align-items: center; gap: 20px; padding: 20px; flex-wrap: wrap; }
+.panel label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.panel select { font: inherit; color: var(--ink); background: var(--page); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+.accent { display: flex; gap: 12px; color: var(--ink); }
+.accent toasty-lite { width: 48px; height: 48px; }`}
+  js={`const root = document.documentElement
+const themeButton = document.querySelector('.theme-toggle')
+const themeIcon = themeButton.querySelector('toasty-lite')
+let dark = root.dataset.theme === 'dark'
+
+function applyTheme() {
+  root.dataset.theme = dark ? 'dark' : 'light'
+  themeButton.setAttribute('aria-pressed', String(dark))
+  themeIcon.setAttribute('inputs', JSON.stringify({ dark: dark }))
+}
+themeButton.addEventListener('click', () => { dark = !dark; applyTheme() })
+applyTheme()
+
+// Explicit colours: set the attribute on each icon in the group.
+const accent = document.getElementById('accent')
+accent.addEventListener('change', () => {
+  for (const icon of document.querySelectorAll('.accent toasty-lite')) {
+    icon.setAttribute('ink', accent.value)
+  }
+})`}
+  react={`import { useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+const INK = { light: '#18181b', dark: '#ececef' }
+
+export function Toolbar({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => void }) {
+  const ink = dark ? INK.dark : INK.light
+  const icon = { width: 36, height: 36 }
+  return (
+    <header className="toolbar">
+      <button className="tool" aria-label="Menu"><ToastyLite src="/toasty/lite/menu.json" ink={ink} style={icon} /></button>
+      <span className="title">Q3 launch plan</span>
+      <span className="spacer" />
+      <button className="tool" aria-label="Copy link"><ToastyLite src="/toasty/lite/copy.json" ink={ink} style={icon} /></button>
+      <button className="tool" aria-label="Notifications"><ToastyLite src="/toasty/lite/bell.json" ink={ink} style={icon} /></button>
+      <button className="tool" aria-label="Dark mode" aria-pressed={dark} onClick={onToggleTheme}>
+        <ToastyLite src="/toasty/lite/theme.json" inputs={{ dark }} style={{ ...icon, pointerEvents: 'none' }} />
+      </button>
+    </header>
+  )
+}
+
+export function App() {
+  const [dark, setDark] = useState(false)
+  return (
+    <div data-theme={dark ? 'dark' : 'light'}>
+      <Toolbar dark={dark} onToggleTheme={() => setDark(!dark)} />
+    </div>
+  )
+}`}
+  caption="Toggle the theme from the moon icon, or switch the docs theme: the line icons follow either way. The brand colour menu sets explicit colours."
+/>
+
+## How it works
+
+- **One property, every icon.** Because every line icon in the set binds `ink` to its **Stroke colour**, one attribute themes each of them, and one selector can theme the whole page.
+- **`currentColor` is resolved by the browser.** The element measures the CSS colour it inherits, so it respects your CSS cascade: a toolbar can be dark while the page is light, and a pressed button can turn its icon red, as the like button did.
+- **Accent colours stay fixed.** Only the lines bound to `ink` change. The red heart fill, the green checks and the amber progress ring keep their meaning in every theme. The theme icon has no `ink` at all.
+- **Two kinds of icon in one toolbar.** The menu, copy and bell icons here keep their own built-in clicks: they toggle, confirm and ring by themselves. The theme icon has `pointer-events: none`, because the page owns the theme. Choose per icon, depending on whether the page needs to know.
+- **React passes a colour string.** `<ToastyLite>` takes an `ink` prop with any CSS colour. Derive it from your theme state; changing it updates the running icon without a reload. (The prop sets a fixed colour, so pass a new one when the theme changes.)
+
+## Check your work
+
+- Switching the docs between light and dark mode recolours the four toolbar icons.
+- The moon icon in the frame does the same for the frame only, and its own animation plays.
+- Choosing **Text colour** in the brand menu makes the bottom row follow the theme as well.
+
+## Where to go next
+
+- [Theming reference](../../runtimes/theming.mdx)
+- [Mobile menu](../../use-cases/mobile-menu.mdx), [Theme switch](../../use-cases/theme-switch.mdx) and [Copy to clipboard](../../use-cases/copy-to-clipboard.mdx) use cases
+- [Product landing page](../landing-page/01-page-and-mascot.mdx): five components working together on one page

@@ -32,14 +32,14 @@ my-next-app/
 
 import { An1Player } from '../an1mbyt3/an1mbyt3-react.js'
 
-export default function GameBox(props: { count: number; onLike?: (count: number) => void }) {
+export default function GameBox(props: { speed: number; onGameOver?: (score: number) => void }) {
   return (
     <An1Player
       game="/an1mbyt3/game.teab"
-      style={{ width: '100%', height: 320 }}
-      data={{ count: props.count }}
+      style={{ width: '100%', height: 360 }}
+      data={{ speed: props.speed }}
       onEvent={(e) => {
-        if (e.name === 'like') props.onLike?.((e.payload as { count: number }).count)
+        if (e.name === 'gameover') props.onGameOver?.((e.payload as { score: number }).score)
       }}
     />
   )
@@ -55,7 +55,7 @@ import dynamic from 'next/dynamic'
 
 const GameBox = dynamic(() => import('./GameBox'), {
   ssr: false,
-  loading: () => <div style={{ height: 320 }} />, // keeps the layout from jumping
+  loading: () => <div style={{ height: 360 }} />, // keeps the layout from jumping
 })
 
 export default GameBox
@@ -69,26 +69,27 @@ import Game from '../components/Game'
 export default function Home() {
   return (
     <main>
-      <h1>Welcome</h1>
-      <Game count={128} />
+      <h1>Toast Catch</h1>
+      <Game speed={1} />
     </main>
   )
 }
 ```
 
-If you pass event handlers (`onLike` above), the component that passes them must itself be a client component, because functions can't cross from server to client components. Data props like `count` can come straight from a server component.
+If you pass event handlers (`onGameOver` above), the component that passes them must itself be a client component, because functions can't cross from server to client components. Data props like `speed` can come straight from a server component.
 
 ### Server data into the game
 
 Fetch on the server, pass plain values down, and the client component forwards them as `data`:
 
-```tsx title="src/app/stats/page.tsx"
+```tsx title="src/app/play/page.tsx"
 import Game from '../../components/Game'
 
-export default async function Stats() {
-  const res = await fetch('https://api.example.com/likes', { next: { revalidate: 60 } })
-  const { count } = await res.json()
-  return <Game count={count} />
+export default async function Play() {
+  // For example, a difficulty your team tunes without redeploying.
+  const res = await fetch('https://api.example.com/game-config', { next: { revalidate: 60 } })
+  const { speed } = await res.json()
+  return <Game speed={speed} />
 }
 ```
 
@@ -120,17 +121,27 @@ export default function Home() {
 
 `ref` works the same as in React (Next.js 15 and later use React 19). Keep the ref inside the client component; `next/dynamic` components don't forward refs to the inner component, so expose actions as props or callbacks rather than trying to ref the dynamic wrapper.
 
-```tsx title="src/components/BellBox.tsx"
+```tsx title="src/components/GameWithControls.tsx"
 'use client'
 
+import { useState } from 'react'
 import { An1Player, useAn1Player } from '../an1mbyt3/an1mbyt3-react.js'
 
-export default function BellBox({ unread }: { unread: number }) {
+export default function GameWithControls() {
   const [ref, player] = useAn1Player()
+  const [best, setBest] = useState(0)
   return (
     <div>
-      <An1Player ref={ref} game="/an1mbyt3/game.teab" data={{ unread }} style={{ height: 200 }} />
-      <button disabled={!player} onClick={() => player?.fire('ring')}>Ring</button>
+      <An1Player
+        ref={ref}
+        game="/an1mbyt3/game.teab"
+        style={{ height: 360 }}
+        onEvent={(e) => {
+          if (e.name === 'gameover') setBest((b) => Math.max(b, (e.payload as { score: number }).score))
+        }}
+      />
+      <button disabled={!player} onClick={() => (player?.paused ? player.play() : player?.pause())}>Pause / resume</button>
+      <p>Best this visit: {best}</p>
     </div>
   )
 }

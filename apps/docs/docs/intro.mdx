@@ -1,51 +1,53 @@
 ---
-title: Welcome to Toasty
+title: Introduction
 slug: /intro
 sidebar_position: 0
-description: What ToastyCreate is, what you can build with it, and where to start in these docs.
+description: What ToastyCreate is, the two ways to ship what you make, and where to start.
 ---
 
-# Welcome to Toasty
+# Introduction
 
-**ToastyCreate** ("Toasty") is an animation and game engine with a full editor that runs in your browser at [toastycreate.web.app](https://toastycreate.web.app/) — and as a desktop app. You draw or import art, animate it on a timeline, wire it up with state machines, give it behaviour with JavaScript, and ship it: as a GIF or video, as a stand-alone web game, or **as a live component inside your own website or React app** that your page can feed data to and listen to.
+**ToastyCreate** ("Toasty") is an editor for interactive graphics. It runs in the browser at [toastycreate.web.app](https://toastycreate.web.app/) and as a desktop app. You draw vector art or import images, animate them on a timeline, connect the animations with a state machine, and ship the result to the web.
 
-The like button below is a Toasty scene. Press Run, click the heart — the number under it is plain React state, updated by an event the scene sends out.
+<div style={{ display: 'flex', gap: 12, alignItems: 'center', margin: '1.5rem 0' }}>
+  <Lite src="heart" ink="auto" style={{ width: 56, height: 56 }} label="Like" />
+  <Lite src="menu" ink="auto" style={{ width: 56, height: 56 }} label="Menu" />
+  <Lite src="theme" style={{ width: 56, height: 56 }} label="Theme" />
+  <Lite src="copy" ink="auto" style={{ width: 56, height: 56 }} label="Copy" />
+  <Lite src="toasty" style={{ width: 56, height: 56 }} label="Toasty" />
+  <span style={{ color: 'var(--t-muted)', fontSize: '0.9rem' }}>Live Toasty Lite files. Hover and click them.</span>
+</div>
 
-```jsx live
-function LikeCounter() {
-  const [likes, setLikes] = React.useState(128)
-  return (
-    <div>
-      <ToastyPlayer
-        game="/games/like-button.teab"
-        style={{ height: 260 }}
-        label="Run the like button"
-        onEvent={(e) => e.name === 'like' && setLikes(e.payload.count)}
-      />
-      <p style={{ marginTop: 12 }}>React sees <b>{likes}</b> likes.</p>
-    </div>
-  )
-}
-```
+## Two runtimes
 
-## Where to go next
+What you make in the editor can run on the web in one of two ways:
+
+| | Toasty Lite | Toasty engine |
+|---|---|---|
+| For | UI animation: icons, buttons, toggles, loaders, illustrations | Games and rich interactive scenes |
+| What it plays | A JSON file (Export → Animation → Toasty Lite) | A `.teab` game file (Export → Game → Website embed) |
+| Size | About 25 KB of JavaScript | About 25 MB (wasm engine) |
+| Per page | As many as you like | One at a time |
+| Features | Vector shapes, gradients, strokes, trim paths, path morphs, keyframes, state machines, hover and click actions, properties | Everything: scripts, physics, particles, lights, audio, post effects, 3D |
+| Use it from | `<toasty-lite>`, JavaScript, React | `<an1-player>`, JavaScript, React |
+
+Read [Lite or engine?](./runtimes/lite-vs-engine.mdx) for a decision guide.
+
+## The building blocks
+
+- A **project** holds one or more **scenes**. A scene is a tree of **nodes**: shapes, text, images, groups and cameras, plus 3D objects in the engine.
+- **Components** give nodes abilities. Examples: a UI Button, so the pointer can hit-test the node; Pointer Listeners, for hover and press actions; a Stroke Style, for dashes and trim paths; a Rigidbody, a Particle System or a Light, for the engine.
+- **Animations** are keyframes on a timeline. A **state machine** picks which animation plays based on **inputs** (booleans, numbers, enums and triggers), and crossfades between them.
+- **Properties** are a scene's named values. Text, colours and positions can be bound to them, and the page embedding the scene can set them.
+- In the engine, each state can also run a **Code program**: JavaScript that runs every frame with a `ctx` object for input, time, physics, sound and data.
+
+## Where to start
 
 | If you want to… | Read |
 |---|---|
-| Get a feel for the editor in ten minutes | [Your first project](./getting-started/first-project.mdx) |
-| Learn every panel and tool | [Editor guide](./editor/scenes.mdx) |
-| Add physics, particles, goo, lights, UI, 3D… | [Components](./components/overview.mdx) |
-| Write game code — syntax first, no fluff | [Scripting](./scripting/overview.mdx) and the [cheatsheet](./scripting/cheatsheet.mdx) |
-| Put a Toasty scene on your site and drive it from React | [Embedding on the web](./embedding/overview.mdx) |
-| Follow a full build, start to finish | [Courses](./courses/index.mdx) |
-| See what's possible | [Showcase](/showcase) |
-
-## How Toasty is put together (the short version)
-
-- A **project** holds one or more **scenes**. A scene is a tree of **nodes** (shapes, images, text, groups, cameras, 3D objects…).
-- Nodes get abilities from **components** — a Rigidbody, a Particle System, a Light, a UI Button.
-- **Animations** are keyframes on a timeline. A **state machine** decides which animation plays, switching on **inputs** (booleans, numbers, triggers).
-- Each state can run a small **program** — JavaScript (or Blocks) that runs every frame while that state is active, with a `ctx` object for input, time, physics, sound, data and more.
-- **Properties** are a scene's named values (`score`, `userName`, `progress`). Text, colours and positions can be bound to them, scripts read and write them, and a web page embedding the scene can set them.
-
-Everything else in these docs builds on those five ideas.
+| Make something in ten minutes | [Your first project](./getting-started/first-project.mdx) |
+| Put an animated icon or button on your site | [Toasty Lite](./runtimes/lite.mdx), then [Use cases](./use-cases/index.mdx) |
+| Learn every part of the editor | [Using the editor](./editor/scenes.mdx) |
+| Write game code | [Scripting](./scripting/overview.mdx) and the [cheatsheet](./scripting/cheatsheet.mdx) |
+| Embed a game and talk to it from your page | [Engine embed](./embedding/overview.mdx) and [Games](./games/index.mdx) |
+| Follow a complete build | [Courses](./courses/index.mdx) |

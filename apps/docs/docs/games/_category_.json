@@ -1,0 +1,5 @@
+{
+  "label": "Games",
+  "position": 3,
+  "link": { "type": "doc", "id": "games/index" }
+}

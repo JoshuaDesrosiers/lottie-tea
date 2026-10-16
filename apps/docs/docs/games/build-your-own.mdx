@@ -1,0 +1,149 @@
+---
+title: Build your own
+sidebar_position: 4
+description: Turn the Toast Catch and Hop patterns into your own game. A minimal skeleton script, the editor setup it needs, and a checklist from first frame to website embed.
+---
+
+# Build your own game
+
+Toast Catch and Hop share one shape. Once you can see it, most small arcade games are the same skeleton with a different middle. This page gives you that skeleton, the editor setup it expects, and a checklist for getting from an empty scene to a game embedded in your site.
+
+## The shape of a one-program game
+
+Both example games are laid out in the same order:
+
+1. **Constants** that set the feel: speeds, gravity, pool sizes.
+2. **A state object** in `ctx.globals`, created on the first frame and reused on every frame after.
+3. **Helpers**: `get` for refs and `say` for text that only changes sometimes.
+4. **A mode branch**: waiting to start, or playing. Playing is always input, then movement, then collisions, then scoring and the end condition.
+5. **Drawing** that runs in every mode: copy the state onto the nodes and the HUD.
+6. **Events** to the page at the moments that matter.
+
+## The skeleton
+
+Paste this into a state's Code tab, add the nodes and Property listed after it, and press Play. Arrow keys move a node called `player`; the score counts up while you play.
+
+```js title="Game › Play (Code)"
+// My game: one Code program, runs every frame.
+// Page data in:  ctx.data.speed (optional, 1 = normal)
+// Events out:    ctx.emit('gameover', { score })
+
+// 1. Constants
+const SPEED = 300
+
+// 2. State that survives between frames (reset each time you press Play)
+const g = ctx.globals.mygame || (ctx.globals.mygame = {
+  mode: 'ready',   // 'ready' | 'play' | 'over'
+  x: 0,
+  time: 0,
+  text: {},
+})
+
+// 3. Helpers
+const dt = ctx.deltaSeconds
+const get = (id) => getCompByID(id)
+const say = (id, text) => { if (g.text[id] !== text) { g.text[id] = text; get(id).textContent = text } }
+const pressed = ctx.tap || ctx.keysDown.has('space')
+const speed = Number(ctx.data.speed) || 1
+
+function start() {
+  Object.assign(g, { mode: 'play', x: 0, time: 0 })
+  ctx.props.score = 0
+  say('message', '')
+}
+
+function end() {
+  g.mode = 'over'
+  say('message', 'GAME OVER - CLICK TO RETRY')
+  ctx.emit('gameover', { score: ctx.props.score })
+}
+
+// 4. Modes
+if (g.mode !== 'play') {
+  if (pressed && !g.held) start()          // a fresh press, not a held key
+} else {
+  // Input
+  const dir = (ctx.keysDown.has('right') ? 1 : 0) - (ctx.keysDown.has('left') ? 1 : 0)
+  // Movement (always times dt)
+  g.x = Math.max(-280, Math.min(280, g.x + dir * SPEED * speed * dt))
+  g.time += dt
+  // Collisions, scoring, the end condition
+  ctx.props.score = Math.floor(g.time * 10)
+  if (false /* replace with your lose condition */) end()
+}
+g.held = pressed
+
+// 5. Drawing, in every mode
+get('player').x = g.x
+say('scoreText', String(ctx.props.score))
+```
+
+What the scene needs:
+
+| Thing | Setting |
+|---|---|
+| A node with Id `player` | Any shape. |
+| A Text node with Id `scoreText` | The score. |
+| A Text node with Id `message` | Start with "CLICK TO PLAY". |
+| A scene Property `score` | Number, starts as `0`. |
+| A state machine with one state | Programmable State on, Code tab, the script above. |
+
+From here, add your own objects and replace the `if (false …)` line with a real lose condition. The two example games are complete versions of exactly this:
+
+| You need | Copy from |
+|---|---|
+| Things that fall, spawn and get reused | [Toast Catch: the object pool](./toast-catch.mdx#the-object-pool) |
+| Overlap tests without physics | [Toast Catch: collision by distance](./toast-catch.mdx#collision-by-distance), [Hop: the hit test](./hop.mdx#the-hit-test) |
+| Jumping and gravity | [Hop: velocity and gravity](./hop.mdx#velocity-and-gravity) |
+| A press that counts once | [Hop: jumping on a fresh press](./hop.mdx#jumping-on-a-fresh-press) |
+| Obstacles at fair spacing | [Hop: spawning by distance](./hop.mdx#spawning-by-distance) |
+| A best score that survives reloads | [Hop: saving the best score](./hop.mdx#saving-the-best-score-ctxstorage) |
+| Sound without audio files | [Toast Catch: sound with ctx.playTone](./toast-catch.mdx#sound-with-ctxplaytone) |
+
+## Checklist
+
+### Scene
+
+- [ ] Pick a scene size and keep it. Both examples use a 640-wide scene; the embed scales it to fit the box on the page, letterboxed.
+- [ ] Give every node a script touches a meaningful **Id** in the Inspector (`player`, `scoreText`), not the default `shape(0)`.
+- [ ] Build pools up front. Need at most eight coins on screen? Make `coin0` to `coin7`, park them off-screen, and show and hide them. For many objects or objects built at run time, see [Spawning and prefabs](../scripting/spawning-and-prefabs.mdx).
+- [ ] Add a **Property** for each value the page should see: score, lives, level. Click empty canvas, then **+ Number** under Properties in the Inspector. See [Properties and bindings](../editor/properties-and-bindings.mdx).
+
+### Script
+
+- [ ] Create a state machine with one state, turn on **Programmable State**, and write the program in its **Code** tab. See [Scripting overview](../scripting/overview.mdx#where-you-write-code).
+- [ ] Keep everything that must outlive a frame in **one named object** in `ctx.globals` (`ctx.globals.mygame`), not loose keys.
+- [ ] Multiply every speed and every timer by `ctx.deltaSeconds`. See [Time and frames](../scripting/time-and-frames.mdx).
+- [ ] Decide for each input whether it is **held** (moving) or a **press** (jumping, starting). Use edge detection for presses. See [Input](../scripting/input.mdx#detecting-a-press-edge).
+- [ ] Give every `ctx.data` read a default (`Number(ctx.data.speed) || 1`), because `ctx.data` is empty in the editor. See [Props and data](../scripting/props-and-data.mdx).
+- [ ] Only write text when it changes (the `say` helper).
+
+### Talking to the page
+
+- [ ] Emit an event for each moment the page cares about: `ctx.emit('gameover', { score })`, `ctx.emit('levelDone', { level })`. Payloads are plain JSON-like values. See [Events and messages](../scripting/events-and-messages.mdx).
+- [ ] Write event names as plain string literals (`ctx.emit('gameover', …)`). The website embed export scans the script for them and lists them in the generated `AGENTS.md` and `an1mbyt3.json`; names built at run time are not found.
+- [ ] Let the page read values through Properties, and send values through data keys the game only reads. Don't make the page write a Property the game also changes, such as `score`.
+- [ ] If the page needs to start or reset the game, register a function with `ctx.on('reset', fn)` and have the page call `player.call('reset')`.
+
+### Test and ship
+
+- [ ] Press **Play**. Every `ctx.emit` is written to the editor's Console with its payload, so you can check events before any page exists. See [Debugging](../scripting/debugging.mdx).
+- [ ] Press **F3** while playing to check the frame time.
+- [ ] Export with **Export → Game → Website embed (React / JS)** and follow [Exporting for the web](../embedding/export-for-web.mdx).
+- [ ] On the page, read the game's events and Properties as in the [Toast Catch embed example](./toast-catch.mdx#embed-it-on-a-page).
+- [ ] Use [Toasty Lite](../runtimes/lite.mdx) for the animated buttons and icons around the game. The engine runs one player per page; Lite has no such limit.
+
+## Where to read next
+
+| Topic | Page |
+|---|---|
+| The execution model in one page | [How scripts run](../scripting/how-scripts-run.mdx) |
+| Every `ctx` member | [ctx reference](../scripting/ctx-reference.mdx) |
+| Node refs: position, colour, text, visibility | [Nodes and refs](../scripting/nodes-and-refs.mdx) |
+| Keys, mouse, touch, taps and swipes | [Input](../scripting/input.mdx) |
+| Real physics bodies and colliders | [Physics API](../scripting/physics-api.mdx) |
+| Sounds | [Audio API](../scripting/audio-api.mdx) |
+| Saves and high scores | [Storage API](../scripting/storage-api.mdx) |
+| Several scenes, shared state | [Scenes and globals](../scripting/scenes-and-globals.mdx) |
+| Common idioms | [Patterns](../scripting/patterns.mdx), [Cheatsheet](../scripting/cheatsheet.mdx) |
+| The page side | [Engine embed](../embedding/overview.mdx) |

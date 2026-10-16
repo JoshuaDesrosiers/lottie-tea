@@ -605,13 +605,12 @@ pub(crate) fn build_status(document: &mut Document) -> LiteDemo {
             .trim_end(x2, &[(0.0, 0.0, E::Linear)])
             .pos(g, &[(0.0, 0.0, 0.0, E::Linear)])
     };
-    let idle = kit.anim(base("Idle", 0.3).stroke_width(ring, &[(0.0, 5.0, E::Linear)]).trim_end(ring, &[(0.0, 0.0, E::Linear)]).trim_offset(ring, &[(0.0, 0.0, E::Linear)]).rot(ring, &[(0.0, 0.0, E::Linear)]).stroke_color(ring, &[(0.0, INK, E::Linear)]));
+    let idle = kit.anim(base("Idle", 0.3).stroke_width(ring, &[(0.0, 5.0, E::Linear)]).trim_end(ring, &[(0.0, 0.0, E::Linear)]).trim_offset(ring, &[(0.0, 0.0, E::Linear)]).rot(ring, &[(0.0, 0.0, E::Linear)]));
     let loading = kit.anim(
         base("Loading", 1.0)
             .stroke_width(ring, &[(0.0, 5.0, E::Linear)])
             .trim_end(ring, &[(0.0, 0.3, E::Linear)])
-            .rot(ring, &[(0.0, 0.0, E::Linear), (1.0, -360.0, E::Linear)])
-            .stroke_color(ring, &[(0.0, INK, E::Linear)]),
+            .rot(ring, &[(0.0, 0.0, E::Linear), (1.0, -360.0, E::Linear)]),
     );
     let success = kit.anim(
         Anim::new("Success", 0.8)
@@ -844,7 +843,7 @@ pub(crate) fn build_arrow(document: &mut Document) -> LiteDemo {
 pub(crate) fn build_loader(document: &mut Document) -> LiteDemo {
     let mut kit = Kit::new(document, "Loader", 96.0, 96.0);
     kit.property("ink", PropKind::Color, INK_JSON);
-    let track = kit.stroke("track", None, circle_cw(28.0), fade(INK, 0.1), 5.0, Vec2::ZERO, (0.0, 1.0));
+    let track = kit.stroke("track", None, circle_cw(28.0), [0.5, 0.5, 0.55, 0.22], 5.0, Vec2::ZERO, (0.0, 1.0));
     let arc = kit.stroke("arc", None, circle_cw(28.0), AMBER, 5.0, Vec2::ZERO, (0.0, 0.1));
     let _ = track;
     let spin = kit.anim(

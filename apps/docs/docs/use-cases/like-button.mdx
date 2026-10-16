@@ -1,0 +1,304 @@
+---
+title: Like button
+sidebar_position: 2
+description: A heart like button in a real social post, built with the Toasty Lite heart inside an accessible button, a live count and optimistic saving. HTML, JavaScript and React.
+---
+
+# Like button
+
+A like button is the smallest place where motion pays for itself. The heart confirms the tap before the server answers, and the burst makes a one-pixel state change feel deliberate. This page puts the `heart` component inside a real `<button>` in a social post, updates the count immediately, saves in the background and rolls back if the save fails.
+
+<LiveHTML
+  url="northwind.social/maya/posts/8812"
+  height={560}
+  caption="Click the heart, the count or anywhere on the Like button. Keyboard users can Tab to it and press Space."
+  html={`<article class="post">
+  <header class="post-head">
+    <span class="avatar" aria-hidden="true">MC</span>
+    <div class="who">
+      <strong>Maya Chen</strong>
+      <span class="meta">@mayachen · 2h</span>
+    </div>
+    <button class="icon-btn" type="button" aria-label="More options">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+    </button>
+  </header>
+
+  <div class="photo" role="img" aria-label="Sunrise over the headlands"></div>
+
+  <footer class="actions">
+    <button class="like" type="button" aria-pressed="false">
+      <toasty-lite src="/toasty/lite/heart.json" ink="currentColor"></toasty-lite>
+      <span class="visually-hidden">Like</span>
+      <span class="count">1,284</span>
+    </button>
+    <button class="action" type="button">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg>
+      <span>86</span><span class="visually-hidden">comments</span>
+    </button>
+    <button class="action" type="button">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12"/></svg>
+      <span>Share</span>
+    </button>
+  </footer>
+
+  <p class="caption"><strong>Maya Chen</strong> First light over the headlands. Worth every minute of the 5 a.m. alarm.</p>
+  <p class="status" role="status" aria-live="polite"></p>
+</article>`}
+  css={`body { display: grid; place-items: start center; padding: 24px 16px; }
+
+.post {
+  width: min(100%, 440px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04), 0 12px 32px -20px rgb(0 0 0 / .25);
+}
+.post-head { display: flex; align-items: center; gap: 12px; padding: 14px 14px 12px 16px; }
+.avatar {
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b, #e8590c); color: #fff; font-weight: 600; font-size: 13px;
+}
+.who { display: flex; flex-direction: column; line-height: 1.25; flex: 1; }
+.meta { color: var(--muted); font-size: 13px; }
+
+.photo {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background:
+    radial-gradient(circle at 68% 58%, #fff7e0 0 6%, rgb(255 247 224 / 0) 14%),
+    linear-gradient(180deg, #ffd08a 0%, #f79d6b 42%, #8e5b8f 78%, #3e3466 100%);
+}
+.photo::before, .photo::after { content: ""; position: absolute; inset: 0; }
+.photo::before { background: #4b3a6b; clip-path: polygon(0 74%, 18% 62%, 34% 70%, 52% 55%, 70% 68%, 86% 60%, 100% 66%, 100% 100%, 0 100%); }
+.photo::after { background: #2b2445; clip-path: polygon(0 86%, 22% 76%, 44% 84%, 66% 74%, 84% 82%, 100% 78%, 100% 100%, 0 100%); }
+
+.actions { display: flex; align-items: center; gap: 4px; padding: 8px 10px 2px; }
+.actions button {
+  display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 12px;
+  border: 0; border-radius: 999px; background: transparent; color: var(--ink); cursor: pointer;
+  font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums;
+  transition: background-color .15s ease;
+}
+.actions button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The heart's canvas is decoration: the button handles every click. */
+.like toasty-lite { width: 40px; height: 40px; margin: -8px -6px -8px -10px; pointer-events: none; }
+.like[aria-pressed="true"] .count { color: #e11d48; }
+:root[data-theme="dark"] .like[aria-pressed="true"] .count { color: #fb7185; }
+
+.icon-btn { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.icon-btn svg { fill: currentColor; }
+.caption { margin: 4px 16px 0; font-size: 14px; }
+.status { margin: 6px 16px 14px; min-height: 1.2em; font-size: 12.5px; color: var(--muted); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }`}
+  js={`const button = document.querySelector('.like')
+const heart = button.querySelector('toasty-lite')
+const countEl = button.querySelector('.count')
+const statusEl = document.querySelector('.status')
+
+// A stand-in for your API so this example runs anywhere. It answers after
+// 400 ms and fails one save in five so you can see the rollback.
+// Delete these lines and the same code talks to your real server.
+const fetch = (url, init) => new Promise((resolve) => {
+  setTimeout(() => resolve({ ok: Math.random() > 0.2 }), 400)
+})
+
+let liked = false
+let count = 1284
+const format = new Intl.NumberFormat('en-US')
+
+function render() {
+  button.setAttribute('aria-pressed', String(liked))
+  countEl.textContent = format.format(count)
+  // .player exists once the animation has loaded.
+  heart.player?.setInput('liked', liked)
+}
+
+// If someone clicks before the file has loaded, catch up when it's ready.
+heart.addEventListener('toasty:ready', render)
+
+button.addEventListener('click', async () => {
+  // Optimistic: update the UI now, save afterwards.
+  liked = !liked
+  count += liked ? 1 : -1
+  render()
+  statusEl.textContent = ''
+
+  const wanted = liked
+  const res = await fetch('/api/posts/8812/like', { method: wanted ? 'PUT' : 'DELETE' })
+  if (!res.ok && liked === wanted) {
+    liked = !wanted
+    count += liked ? 1 : -1
+    render()
+    statusEl.textContent = 'Could not save your like. Try again.'
+  }
+})
+
+// Forward hover and keyboard focus so the heart grows as it would on its own.
+const hover = (on) => () => heart.player?.setInput('hover', on)
+button.addEventListener('pointerenter', hover(true))
+button.addEventListener('pointerleave', hover(false))
+button.addEventListener('focus', hover(true))
+button.addEventListener('blur', hover(false))`}
+  react={`import { useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function LikeButton({ postId, initialCount, initialLiked = false, ink = '#18181b' }) {
+  const [liked, setLiked] = useState(initialLiked)
+  const [count, setCount] = useState(initialCount)
+  const [hover, setHover] = useState(false)
+
+  async function toggle() {
+    const next = !liked
+    setLiked(next)
+    setCount((c) => c + (next ? 1 : -1))
+    const res = await fetch('/api/posts/' + postId + '/like', { method: next ? 'PUT' : 'DELETE' })
+    if (!res.ok) {
+      setLiked(!next)
+      setCount((c) => c + (next ? -1 : 1))
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="like"
+      aria-pressed={liked}
+      onClick={toggle}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+      onFocus={() => setHover(true)}
+      onBlur={() => setHover(false)}
+    >
+      <ToastyLite
+        src="/toasty/lite/heart.json"
+        inputs={{ liked, hover }}
+        ink={ink}
+        style={{ width: 40, height: 40, margin: '-8px -6px -8px -10px', pointerEvents: 'none' }}
+      />
+      <span className="visually-hidden">Like</span>
+      <span className="count">{count.toLocaleString('en-US')}</span>
+    </button>
+  )
+}`}
+/>
+
+## How it works
+
+### The button is the control, the heart is the picture
+
+```html
+<button class="like" type="button" aria-pressed="false">
+  <toasty-lite src="/toasty/lite/heart.json" ink="currentColor"></toasty-lite>
+  <span class="visually-hidden">Like</span>
+  <span class="count">1,284</span>
+</button>
+```
+
+The `<toasty-lite>` element draws into a `<canvas>`. A canvas has no role, no label and no keyboard behaviour, so it never stands in for the control. Wrapping it in a `<button>` gives you all of that for free:
+
+- **Focus and keys.** Tab reaches it, and Space or Enter clicks it.
+- **State.** `aria-pressed` tells screen readers whether the post is liked. The script keeps it in sync.
+- **A name.** The visually hidden "Like" plus the visible count give the accessible name "Like 1,284".
+- **A bigger target.** The whole pill is clickable, not just the heart's outline.
+
+### Why the canvas has `pointer-events: none`
+
+```css
+.like toasty-lite { width: 40px; height: 40px; margin: -8px -6px -8px -10px; pointer-events: none; }
+```
+
+The `heart` file has its own UI Button with an On Click action, Toggle Input `liked`. That's what makes it work as a standalone icon. Inside your button, though, the page already decides the value of `liked`. If the canvas also received the click, the runtime would toggle `liked` on its next frame, right after your handler set it, and the heart would flip back.
+
+`pointer-events: none` hands every pointer event to the button. The page then owns the value and forwards hover itself:
+
+```js
+button.addEventListener('pointerenter', () => heart.player?.setInput('hover', true))
+button.addEventListener('pointerleave', () => heart.player?.setInput('hover', false))
+```
+
+The negative margin lets the 40 px canvas keep room for the burst rays without pushing the count away.
+
+### Setting the input
+
+```js
+heart.player?.setInput('liked', liked)
+```
+
+`liked` is a Bool input. Setting it to `true` moves the base layer from `Unliked` to `Liked`: the fill scales 0 → 1.22 → 1 and eight trim-path rays and a ring burst out. Setting it to `false` crossfades back to `Unliked` over 0.18 s. Setting the same value twice does nothing, so `render()` is safe to call as often as you like.
+
+`heart.player` is `null` until the file has loaded, which is why the call uses `?.` and why `render()` also runs on `toasty:ready`.
+
+### Optimistic saving
+
+The click handler updates the count and the heart before it calls the server, so the response time never shows. If the save fails, and the user hasn't clicked again in the meantime (`liked === wanted`), it reverses both and says so in a `role="status"` region that screen readers announce.
+
+### The inputs and states used
+
+| Name | Kind | Set by |
+|---|---|---|
+| `liked` | Bool input | The page, on click |
+| `hover` | Bool input | The page, on pointer enter / leave and focus / blur |
+| `ink` | Color Property | `ink="currentColor"`: the button's text colour, so the outline follows the theme |
+| `Unliked`, `Liked` | Base layer states | The `liked` input |
+| `Rest`, `Over` | `Hover` layer states | The `hover` input (the heart scales to 1.12) |
+
+## Alternative: let the heart own the state
+
+For a standalone icon with no count and no button around it, you can let the animation toggle itself and listen for the result. Leave pointer events on, and read the base layer's state:
+
+```html
+<toasty-lite id="save" src="/toasty/lite/heart.json" ink="currentColor"
+  role="img" aria-label="Save to favourites" style="width:48px;height:48px"></toasty-lite>
+
+<script type="module">
+  document.querySelector('#save').addEventListener('toasty:state', (e) => {
+    const { layer, state } = e.detail
+    if (layer !== null) return // ignore the Hover layer
+    if (state === 'Liked') saveFavourite()
+    if (state === 'Unliked') removeFavourite()
+  })
+</script>
+```
+
+This is shorter, but the canvas is not focusable, so keyboard users can't reach it. Prefer the button version for anything a user needs to act on.
+
+## React
+
+The React tab above is the same component with `<ToastyLite>`. Props are diffed, so passing a fresh `inputs={{ liked, hover }}` object on every render only sends the values that changed. Its `ink` prop takes any CSS colour string (`'#18181b'`, `'rgb(24 24 27)'`, a named colour) and sets the file's `ink` Property; changing it recolours the outline live.
+
+Inside these docs the same thing is available as `<Lite>`. Edit the code and the preview updates:
+
+```jsx live
+function LikeButton() {
+  const [liked, setLiked] = React.useState(false)
+  const [hover, setHover] = React.useState(false)
+  const count = 1284 + (liked ? 1 : 0)
+  return (
+    <button
+      type="button"
+      aria-pressed={liked}
+      onClick={() => setLiked(!liked)}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 40, padding: '0 14px', border: '1px solid var(--t-line)', borderRadius: 999, background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer' }}
+    >
+      <Lite src="heart" ink="auto" inputs={{ liked, hover }} style={{ width: 40, height: 40, margin: '-8px -6px -8px -10px', pointerEvents: 'none' }} />
+      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{count.toLocaleString('en-US')}</span>
+    </button>
+  )
+}
+```
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Like heart** opens this exact `heart` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/heart.json` with your file. The page code on this page works unchanged.
+- **Colour.** The outline uses the `ink` Property, so `ink="currentColor"` plus your button's `color` is all you need for brand or theme colours. The red fill and the red and amber rays are fixed colours in the file.
+- **Size.** Size the element with CSS. The scene is 96 by 96 and scales without blurring, because Lite redraws at the device pixel ratio.
+- **A different shape.** To make a star, a bookmark or a thumbs-up with the same behaviour, start from the template and swap the shapes, or build the structure from scratch: a `fill` shape that starts at scale 0, an `outline` stroke bound to `ink` with a Stroke colour binding, ray strokes animated with trim start and trim end, and a state machine with a `liked` Bool and `Unliked` / `Liked` states. Add a `hover` Bool with a second layer, set by Pointer Listeners. Then use **Export → Animation → Toasty Lite (.json)**. The export lists anything Lite can't play. [Authoring for Lite](../runtimes/authoring.mdx) walks through it.
+
+Related: [Theming](../runtimes/theming.mdx) · [The toasty-lite element](../runtimes/html.mdx) · [Notifications](./notifications.mdx)

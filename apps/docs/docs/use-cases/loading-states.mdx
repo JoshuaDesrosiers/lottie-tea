@@ -1,0 +1,380 @@
+---
+title: Loading states
+sidebar_position: 10
+description: The Toasty Lite loader in real loading states, inside Save and Refresh buttons, beside skeleton rows in an invoice list, and as a first-load overlay, with aria-busy and paused when idle.
+---
+
+# Loading states
+
+Waiting is part of every interface. A good loading state shows where the wait is (this button, this list, the whole page), keeps the layout from jumping when the content arrives, and gets out of the way once it does. The `loader` component is a chasing arc: its trim start and trim end chase each other while the arc turns. It has no inputs, so you place it, show it, and hide it. This page uses it at three scales.
+
+## In buttons
+
+The narrowest wait is a single action. The loader takes the place of nothing; it opens a slot next to the label while the request runs, then closes again.
+
+<LiveHTML
+  url="app.northwind.app/settings/store"
+  height={340}
+  caption="Save, sync or refresh. Each button shows its own loader for as long as its simulated request takes."
+  html={`<section class="card">
+  <header>
+    <h1>Pier Street</h1>
+    <p>Store details are shared with your suppliers.</p>
+  </header>
+  <label class="field">
+    <span>Store name</span>
+    <input value="Northwind Pier Street">
+  </label>
+  <footer class="actions">
+    <button class="btn icon-only" type="button" data-ms="900" aria-label="Refresh">
+      <toasty-lite src="/toasty/lite/loader.json" paused></toasty-lite>
+      <svg class="idle-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+    </button>
+    <span class="spacer"></span>
+    <button class="btn secondary" type="button" data-ms="2200" data-busy-label="Syncing">
+      <toasty-lite src="/toasty/lite/loader.json" paused></toasty-lite>
+      <span class="label">Sync inventory</span>
+    </button>
+    <button class="btn primary" type="button" data-ms="1400" data-busy-label="Saving">
+      <toasty-lite src="/toasty/lite/loader.json" paused></toasty-lite>
+      <span class="label">Save changes</span>
+    </button>
+  </footer>
+  <p class="visually-hidden" role="status" aria-live="polite" id="announcer"></p>
+</section>`}
+  css={`body { display: grid; place-items: center; min-height: 100%; padding: 20px 16px; }
+.card { width: min(100%, 560px); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.card header { padding: 18px 20px 4px; }
+.card h1 { margin: 0; font-size: 18px; }
+.card header p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+.field { display: flex; flex-direction: column; gap: 6px; padding: 14px 20px 20px; font-size: 13.5px; font-weight: 500; }
+.field input { height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--page); color: var(--ink); font: inherit; font-weight: 400; }
+.actions { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--surface)); border-radius: 0 0 16px 16px; }
+.spacer { flex: 1; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 0; height: 38px; padding: 0 14px; border-radius: 9px; font-weight: 600; font-size: 14px; cursor: pointer; transition: gap .2s ease, opacity .15s ease; }
+.btn.primary { border: 0; background: var(--ink); color: var(--page); }
+.btn.secondary, .btn.icon-only { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.btn.icon-only { width: 38px; padding: 0; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn[aria-busy="true"] { cursor: progress; gap: 8px; }
+.btn.primary[aria-busy="true"] { opacity: .85; }
+.idle-icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The loader's slot is closed until the button is busy. */
+.btn toasty-lite { width: 0; height: 24px; pointer-events: none; transition: width .2s ease; }
+.btn[aria-busy="true"] toasty-lite { width: 24px; }
+.btn.icon-only[aria-busy="true"] .idle-icon { display: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }`}
+  js={`const announcer = document.querySelector('#announcer')
+
+// A stand-in for a request that takes 'ms' milliseconds.
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+for (const button of document.querySelectorAll('.btn')) {
+  const loader = button.querySelector('toasty-lite')
+  const label = button.querySelector('.label')
+  const idleText = label ? label.textContent : ''
+
+  button.addEventListener('click', async () => {
+    if (button.getAttribute('aria-busy') === 'true') return
+
+    button.setAttribute('aria-busy', 'true')
+    loader.removeAttribute('paused')           // start spinning
+    if (label) label.textContent = button.dataset.busyLabel
+    announcer.textContent = (button.dataset.busyLabel || 'Refreshing') + '...'
+
+    await wait(Number(button.dataset.ms))       // your fetch() goes here
+
+    button.setAttribute('aria-busy', 'false')
+    loader.setAttribute('paused', '')          // stop while hidden
+    if (label) label.textContent = idleText
+    announcer.textContent = 'Done'
+  })
+}`}
+  react={`import { useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function BusyButton({ onClick, children, busyLabel = 'Saving', className = 'btn primary' }) {
+  const [busy, setBusy] = useState(false)
+
+  async function handleClick() {
+    if (busy) return
+    setBusy(true)
+    try {
+      await onClick()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <button type="button" className={className} aria-busy={busy} onClick={handleClick}>
+      <ToastyLite
+        src="/toasty/lite/loader.json"
+        paused={!busy}
+        style={{ width: busy ? 24 : 0, height: 24, transition: 'width .2s', pointerEvents: 'none' }}
+      />
+      <span className="label">{busy ? busyLabel : children}</span>
+    </button>
+  )
+}
+
+// <BusyButton onClick={() => saveStore(form)}>Save changes</BusyButton>`}
+/>
+
+### How the buttons work
+
+- **`aria-busy="true"`** marks the button as busy. The CSS keys off the same attribute to open the loader's slot, so there's one switch for both the look and the semantics.
+- **The label changes** to "Saving" or "Syncing", and a live region announces it. The icon-only Refresh button swaps its arrow icon for the loader and keeps its `aria-label`.
+- **`paused`** stops the loader while its slot is closed. Removing the attribute plays it; adding it back pauses it. The `<toasty-lite>` element applies `paused` changes live without reloading.
+- **Repeat clicks are ignored** while busy, instead of using `disabled`, so the button keeps keyboard focus.
+- **The arc is amber and the track is a faint grey**, both fixed in the file, so the loader reads on light and dark buttons alike.
+
+## Lists and page loads
+
+A list that's loading should look like the list it's about to be. Skeleton rows hold the layout in place, and a loader says the wait is active. On first load, a short overlay covers the whole app until the shell is ready.
+
+<LiveHTML
+  url="app.northwind.app/invoices"
+  height={560}
+  caption="The app shows a first-load overlay, then skeleton rows, then the invoices. Refresh and Load more each show their own loading state. Use Reload in the address bar to see the first load again."
+  html={`<div class="boot" aria-hidden="true">
+  <toasty-lite src="/toasty/lite/loader.json"></toasty-lite>
+  <p>Loading Northwind</p>
+</div>
+
+<main class="page">
+  <header class="page-head">
+    <div>
+      <h1>Invoices</h1>
+      <p class="sub">October · Pier Street</p>
+    </div>
+    <button class="btn refresh" type="button" aria-busy="false">
+      <toasty-lite src="/toasty/lite/loader.json" paused></toasty-lite>
+      <span class="label">Refresh</span>
+    </button>
+  </header>
+
+  <ul class="list" aria-busy="true" aria-describedby="list-status"></ul>
+  <p id="list-status" class="status" role="status" aria-live="polite">Loading invoices...</p>
+
+  <div class="more-wrap">
+    <button class="btn more" type="button" aria-busy="false" hidden>
+      <toasty-lite src="/toasty/lite/loader.json" paused></toasty-lite>
+      <span class="label">Load more</span>
+    </button>
+  </div>
+</main>`}
+  css={`.boot { position: fixed; inset: 0; z-index: 50; display: grid; place-content: center; justify-items: center; gap: 4px; background: var(--page); transition: opacity .35s ease, visibility 0s linear .35s; }
+.boot toasty-lite { width: 64px; height: 64px; }
+.boot p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.boot.is-done { opacity: 0; visibility: hidden; }
+
+.page { max-width: 640px; margin: 0 auto; padding: 24px 16px; }
+.page-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.page-head h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+
+.list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 16px; padding: 13px 16px; }
+.row + .row { border-top: 1px solid var(--line); }
+.row strong { display: block; font-weight: 500; }
+.row small { color: var(--muted); font-size: 12.5px; }
+.amount { font-variant-numeric: tabular-nums; font-weight: 500; }
+.pill { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill.paid { color: #15803d; background: rgb(22 163 74 / .12); }
+.pill.due { color: #b45309; background: rgb(245 158 11 / .15); }
+.pill.overdue { color: #be123c; background: rgb(225 29 72 / .12); }
+:root[data-theme="dark"] .pill.paid { color: #4ade80; }
+:root[data-theme="dark"] .pill.due { color: #fbbf24; }
+:root[data-theme="dark"] .pill.overdue { color: #fb7185; }
+.row.new { animation: fade-in .35s ease both; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* Skeleton rows: same height as real rows, with a soft shimmer. */
+.skeleton .bar { display: block; height: 10px; border-radius: 6px; background: linear-gradient(90deg, var(--line) 0%, color-mix(in srgb, var(--line) 40%, var(--surface)) 50%, var(--line) 100%); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+.skeleton .bar + .bar { margin-top: 8px; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton .bar { animation: none; } }
+
+.status { min-height: 1.4em; margin: 10px 2px 0; color: var(--muted); font-size: 13px; }
+.more-wrap { display: flex; justify-content: center; margin-top: 8px; }
+
+.btn { display: inline-flex; align-items: center; gap: 0; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font-weight: 600; font-size: 13.5px; cursor: pointer; transition: gap .2s ease; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn toasty-lite { width: 0; height: 22px; pointer-events: none; transition: width .2s ease; }
+.btn[hidden] { display: none; }
+.btn[aria-busy="true"] { gap: 8px; cursor: progress; }
+.btn[aria-busy="true"] toasty-lite { width: 22px; }`}
+  js={`const boot = document.querySelector('.boot')
+const list = document.querySelector('.list')
+const status = document.querySelector('#list-status')
+const refresh = document.querySelector('.refresh')
+const more = document.querySelector('.more')
+
+// A stand-in for your API: 14 invoices, served 5 at a time after a delay.
+const customers = ['Harbor Foods', 'Bluebird Bakery', 'Corner Grocer', 'Fern & Co', 'Tidewater Market', 'Oak Lane Deli', 'Saltwind Cafe']
+const statuses = ['paid', 'due', 'paid', 'overdue', 'paid', 'due', 'paid']
+const all = Array.from({ length: 14 }, (_, i) => ({
+  number: 'INV-' + (2291 + i),
+  customer: customers[i % customers.length],
+  date: 'Oct ' + (28 - i * 2 > 0 ? 28 - i * 2 : 1),
+  amount: 180 + ((i * 73) % 640) + 0.5 * (i % 2),
+  status: statuses[i % statuses.length],
+}))
+const fetchInvoices = (offset) => new Promise((resolve) => {
+  setTimeout(() => resolve({ items: all.slice(offset, offset + 5), total: all.length }), 1300)
+})
+
+const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+let loaded = 0
+
+function rowFor(inv) {
+  const li = document.createElement('li')
+  li.className = 'row new'
+  const who = document.createElement('div')
+  const name = document.createElement('strong')
+  name.textContent = inv.customer
+  const meta = document.createElement('small')
+  meta.textContent = inv.number + ' · ' + inv.date
+  who.append(name, meta)
+  const amount = document.createElement('span')
+  amount.className = 'amount'
+  amount.textContent = money.format(inv.amount)
+  const pill = document.createElement('span')
+  pill.className = 'pill ' + inv.status
+  pill.textContent = inv.status.charAt(0).toUpperCase() + inv.status.slice(1)
+  li.append(who, amount, pill)
+  return li
+}
+
+function skeletons(n) {
+  return Array.from({ length: n }, () => {
+    const li = document.createElement('li')
+    li.className = 'row skeleton'
+    li.setAttribute('aria-hidden', 'true')
+    li.innerHTML = '<div><span class="bar" style="width:46%"></span><span class="bar" style="width:30%"></span></div><span class="bar" style="width:64px"></span><span class="bar" style="width:44px"></span>'
+    return li
+  })
+}
+
+function setBusy(button, busy) {
+  button.setAttribute('aria-busy', String(busy))
+  button.querySelector('toasty-lite').toggleAttribute('paused', !busy)
+}
+
+async function loadFirstPage() {
+  list.setAttribute('aria-busy', 'true')
+  list.replaceChildren(...skeletons(5))
+  status.textContent = 'Loading invoices...'
+  const { items, total } = await fetchInvoices(0)
+  loaded = items.length
+  list.replaceChildren(...items.map(rowFor))
+  list.setAttribute('aria-busy', 'false')
+  status.textContent = 'Showing ' + loaded + ' of ' + total + ' invoices'
+  more.hidden = loaded >= total
+}
+
+refresh.addEventListener('click', async () => {
+  if (refresh.getAttribute('aria-busy') === 'true') return
+  setBusy(refresh, true)
+  await loadFirstPage()
+  setBusy(refresh, false)
+})
+
+more.addEventListener('click', async () => {
+  if (more.getAttribute('aria-busy') === 'true') return
+  setBusy(more, true)
+  status.textContent = 'Loading more invoices...'
+  const { items, total } = await fetchInvoices(loaded)
+  loaded += items.length
+  list.append(...items.map(rowFor))
+  status.textContent = 'Showing ' + loaded + ' of ' + total + ' invoices'
+  setBusy(more, false)
+  more.hidden = loaded >= total
+})
+
+// First load: the overlay covers the app shell, then hands over to the
+// skeleton rows, which stay until the data arrives.
+setTimeout(() => {
+  boot.classList.add('is-done')
+  boot.querySelector('toasty-lite').setAttribute('paused', '')
+  loadFirstPage()
+}, 900)`}
+  react={`import { useEffect, useState } from 'react'
+import { ToastyLite } from './toasty/an1mbyt3-lite-react.js'
+
+export function InvoiceList({ fetchInvoices }) {
+  const [items, setItems] = useState(null)   // null = first load
+  const [busy, setBusy] = useState(false)
+
+  async function load() {
+    setBusy(true)
+    try {
+      setItems((await fetchInvoices(0)).items)
+    } finally {
+      setBusy(false)
+    }
+  }
+  useEffect(() => { load() }, [])
+
+  return (
+    <section>
+      <header className="page-head">
+        <h1>Invoices</h1>
+        <button type="button" className="btn refresh" aria-busy={busy && items !== null} onClick={load}>
+          <ToastyLite src="/toasty/lite/loader.json" paused={!busy} style={{ width: busy && items ? 22 : 0, height: 22, pointerEvents: 'none' }} />
+          <span className="label">Refresh</span>
+        </button>
+      </header>
+      <ul className="list" aria-busy={busy}>
+        {items === null || busy
+          ? Array.from({ length: 5 }, (_, i) => <SkeletonRow key={i} />)
+          : items.map((inv) => <InvoiceRow key={inv.number} invoice={inv} />)}
+      </ul>
+    </section>
+  )
+}
+
+// SkeletonRow and InvoiceRow render the same markup as the HTML version.`}
+/>
+
+### How the list works
+
+- **Three scales, three treatments.** The first-load overlay (`.boot`) covers the app for under a second while the shell starts. The list then shows five skeleton rows the same height as real rows, so nothing jumps when the data replaces them. Refresh and Load more each put a loader in their own button, and the rest of the page stays usable.
+- **`aria-busy` on the list** tells assistive technology that the region is updating. The skeleton rows are `aria-hidden`, and a `role="status"` line says "Loading invoices..." and then "Showing 5 of 14 invoices".
+- **Pausing hidden loaders.** Each button's loader starts with `paused` and only plays while its button is busy. The overlay's loader is paused once the overlay fades. A Lite player also stops drawing on its own whenever it's off-screen, because it watches its element with an `IntersectionObserver`.
+- **Motion.** The skeleton shimmer stops under `prefers-reduced-motion`. Toasty Lite doesn't read that setting itself. If you want the loader still for those users, set `paused` from `matchMedia('(prefers-reduced-motion: reduce)')` and rely on the status text.
+
+### Many loaders on one page
+
+There are three loaders in each of the two examples above. Lite players share one animation loop, and a paused or off-screen player costs nothing per frame, so you can put a loader in every button that needs one.
+
+## React
+
+Both React tabs pass `paused={!busy}`; `<ToastyLite>` diffs it like any other prop. In these docs, a loader you can pause:
+
+```jsx live
+function LoaderDemo() {
+  const [busy, setBusy] = React.useState(true)
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <Lite src="loader" paused={!busy} label={busy ? 'Loading' : 'Idle'} style={{ width: 56, height: 56 }} />
+      <button type="button" className="button button--secondary button--sm" onClick={() => setBusy(!busy)}>
+        {busy ? 'Pause' : 'Play'}
+      </button>
+    </div>
+  )
+}
+```
+
+## Make it yours
+
+- **Start from the template.** In the editor, **Add → Templates → Lite: Loader** opens this exact `loader` component as a new scene. Restyle it (colours, stroke widths, timing, shapes), keep the input and Property names, then use **Export → Animation → Toasty Lite (.json)** and replace `/toasty/lite/loader.json` with your file. The page code on this page works unchanged.
+- **Size.** The arc reads from about 16 px up. Inside buttons, 22 to 24 px matches a 14 px label.
+- **Colour.** The amber arc and the grey track are fixed in this file. The `loader` file declares an `ink` Property but nothing is bound to it, so setting `ink` has no visible effect. To recolour it, open the template (above), add a Stroke colour binding from `ink` to the `track` stroke (or change the `arc` colour), and re-export. The arc's colour isn't keyframed, so a binding on it would take effect too.
+- **Speed and shape.** One `Spin` animation, 1.4 s, loops on the base layer: trim end runs ahead, trim start catches up, and trim offset and rotation keep it turning. Shorten the animation for a busier spinner.
+- **Determinate progress.** When you know how far along a task is, use a ring bound to a `progress` Property instead. See [Download progress](./download-progress.mdx).
+
+Related: [Form status](./form-status.mdx) · [Toasty Lite runtime](../runtimes/lite.mdx)

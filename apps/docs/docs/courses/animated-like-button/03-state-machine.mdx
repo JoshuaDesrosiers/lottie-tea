@@ -1,0 +1,97 @@
+---
+title: 3. Build the state machine
+sidebar_position: 3
+description: Switch between the Unliked and Liked animations with a liked Bool input and a crossfade, then add a masked Hover layer driven by a hover input.
+---
+
+# 3. Build the state machine
+
+**Goal:** a state machine named `Machine` with two inputs, `liked` and `hover`. The base layer switches between the two animations from lesson 2. A second layer, `Hover`, grows the heart a little while the pointer is over it, independently of whether it is liked.
+
+<div style={{ display: 'flex', gap: 32, alignItems: 'center', margin: '16px 0 24px' }}>
+  <Lite src="heart" ink="auto" inputs={{ hover: true }} label="Heart with hover on" style={{ width: 96, height: 96 }} />
+</div>
+
+The finished machine, in the shipped file:
+
+| Layer | State | Animation | Loop | Leaves when | Crossfade |
+|---|---|---|---|---|---|
+| Base | `Unliked` (initial) | Unliked | Once | `liked` is true → `Liked` | 0 s |
+| Base | `Liked` | Liked | Once | `liked` is false → `Unliked` | 0.18 s |
+| Hover | `Rest` (initial) | Hover off | Once | `hover` is true → `Over` | 0.16 s |
+| Hover | `Over` | Hover on | Once | `hover` is false → `Rest` | 0.2 s |
+
+:::note State names
+The editor names new states **State 1**, **State 2** and so on, and has no rename for states yet. Your machine will work exactly the same; only the names differ from the shipped `heart.json` (`Unliked`, `Liked`, `Rest`, `Over`). In lesson 6 the page sets `liked` itself, so the page code does not depend on state names.
+:::
+
+## Steps
+
+### 1. Make the two hover animations
+
+The Hover layer needs two more one-pose animations. In the **Animate** tab:
+
+1. **New Animation** (it becomes **Animation 3**, "Hover off"). Set **Dur** to `0.2`. Select `heartGroup`, leave **Scale %** at 100, and press **+** on the **Scale** row at 0 s.
+2. **New Animation** (**Animation 4**, "Hover on"). Set **Dur** to `0.2`. Select `heartGroup`, set **Scale %** to `112`, and press **+** on the **Scale** row at 0 s.
+
+Scaling the group scales `outline` and `fill` together around the scene centre, which is also the heart's centre.
+
+### 2. Create the machine and its inputs
+
+Open the **State Machine** tab (or press **3**).
+
+1. In the left column, open the dropdown that reads **No state machine**, choose **New State Machine**, type `Machine` and click **Create**. It starts with one state, **State 1**, marked ★ as the initial state.
+2. Under **Inputs**, type `liked` in **New input name**, pick **Bool**, and click **Declare Input**.
+3. Do the same for `hover` (**Bool**).
+
+### 3. The base layer
+
+With **Base** selected in the strip above the graph:
+
+1. In the **State 1** box, set the animation to **Animation 1** and the loop mode to **Once**. This is Unliked.
+2. Click **+ Add State**. In the new **State 2** box, set **Animation 2** and **Once**. This is Liked.
+3. Drag from State 1's connect handle onto State 2. Select State 1 and set its outgoing transition:
+
+| Field | Value |
+|---|---|
+| Condition | **Boolean is** |
+| input name | `liked` |
+| **Required value** | ticked |
+| Direction | **Forward** |
+| **Crossfade (s)** | `0` |
+| **Allow exit during transition** | ticked |
+
+4. Drag from State 2's handle back onto State 1, select State 2, and set: **Boolean is**, `liked`, **Required value** unticked, **Forward**, **Crossfade (s)** `0.18`, **Allow exit during transition** ticked.
+
+### 4. The Hover layer
+
+1. Click **+ Layer**, type `Hover` and press Enter. The graph now shows the Hover layer, with one state.
+2. **Set the mask.** With the Hover layer selected, every row in the **Layers** panel shows a checkbox ("In this layer's node mask"). Tick `heartGroup` only.
+3. Set the first state to **Animation 3** (Hover off), **Once**. This is Rest.
+4. **+ Add State**, set it to **Animation 4** (Hover on), **Once**. This is Over.
+5. Rest → Over: **Boolean is**, `hover`, **Required value** ticked, **Crossfade (s)** `0.16`.
+6. Over → Rest: **Boolean is**, `hover`, **Required value** unticked, **Crossfade (s)** `0.2`.
+
+<Shot id="course-heart-machine" caption="The State Machine tab for the Heart scene: the left column with Machine selected and Inputs liked and hover (Bool checkboxes); the Base layer graph with State 1 (starred, Animation 1, Once) and State 2 (Animation 2, Once) and arrows both ways; State 2 selected with its outgoing transition Boolean is, liked, Required value unticked, Crossfade 0.18." />
+
+### 5. Test it in the tab
+
+The checkboxes next to each input in the left column are live controls. Tick `liked`: the canvas plays the pop and the graph highlights State 2. Untick it: the heart crossfades back. Tick `hover` while `liked` is on: the filled heart grows, because the two layers are independent.
+
+## How it works
+
+- **Bool inputs describe a fact, not an event.** `liked` is true or false, and the machine is always in the state that matches. That makes it easy for a page to restore a post that was already liked: set `liked` to true before the first frame and the heart opens in the liked state.
+- **Crossfade 0 into Liked, 0.18 out of it.** Liking should start the pop instantly from the first key. Unliking blends whatever pose the heart is in (even mid-pop) into the rest pose over 0.18 s, so it never snaps.
+- **Allow exit during transition** lets a quick second click interrupt that 0.18 s blend and go straight back to Liked. Without it, fast double clicks would feel ignored.
+- **The layer mask is what makes layers safe.** The Hover layer may only animate `heartGroup`, so it can never fight the base layer over the fill's scale or the rays. Layers apply in order: Base first, then Hover on top.
+- **Two Hover animations at a single pose each** turn the crossfade into the motion itself: the 0.16 s blend from scale 1.0 to 1.12 is the hover animation.
+
+## Check your work
+
+- In the State Machine tab, ticking and unticking `liked` five times in a row never leaves the heart stuck halfway.
+- With `hover` ticked, the outline (unliked) or the fill (liked) is visibly larger; the ring and rays are not affected.
+- The ★ is on State 1 in Base and on the Hover off state in the Hover layer.
+
+## Next
+
+[4. Pointer and click](./04-pointer-and-click.mdx): make the heart respond to the mouse with no code.
