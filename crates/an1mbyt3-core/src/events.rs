@@ -55,6 +55,9 @@ pub enum ActionKind {
     SetProperty { property: String, value: String },
     /// Calls a script function registered with `ctx.on(name, fn)`.
     CallFunction { function: String, arg: String },
+    /// Flips a Bool state machine input (Rive's toggle listener): a click
+    /// on a heart likes it, a second click unlikes it. (Appended last.)
+    ToggleInput { input: String },
 }
 
 /// One step of an event: an action on a target node (`None` = the node
@@ -72,6 +75,20 @@ pub struct EventAction {
 #[serde(rename_all = "camelCase", default)]
 pub struct UiEvents {
     pub on_click: Vec<EventAction>,
+}
+
+/// **Pointer Listeners** (Rive's *listeners*): actions run when the pointer
+/// enters, leaves, presses or releases the node. The node needs a UI Button
+/// (that's what hit-tests it). The usual use is driving a state machine
+/// from the pointer with no code: On Enter → Set Input `hover` = `true`,
+/// On Exit → `false`, On Down → Fire Trigger `press`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UiListeners {
+    pub on_enter: Vec<EventAction>,
+    pub on_exit: Vec<EventAction>,
+    pub on_down: Vec<EventAction>,
+    pub on_up: Vec<EventAction>,
 }
 
 /// A property's type.

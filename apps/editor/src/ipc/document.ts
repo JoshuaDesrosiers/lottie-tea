@@ -1257,6 +1257,7 @@ export type ActionKind =
   | { CallMethod: { component: string; method: string; arg: string } }
   | { FireTrigger: { input: string } }
   | { SetInput: { input: string; value: string } }
+  | { ToggleInput: { input: string } }
   | { LoadScene: { scene: string } }
   | { PlaySound: { sound: string } }
   | { SetProperty: { property: string; value: string } }
@@ -1269,6 +1270,13 @@ export interface EventAction {
 /** `an1mbyt3_core::UiEvents` — a node's On Click list. */
 export interface UiEventsConfig {
   onClick: EventAction[]
+}
+/** `an1mbyt3_core::UiListeners` — pointer enter / exit / down / up actions. */
+export interface UiListenersConfig {
+  onEnter: EventAction[]
+  onExit: EventAction[]
+  onDown: EventAction[]
+  onUp: EventAction[]
 }
 /** What a property binding drives. */
 export type BindTarget = 'Text' | 'X' | 'Y' | 'Rotation' | 'ScaleX' | 'ScaleY' | 'Scale' | 'Visible' | 'FillColor' | { ComponentField: { component: string; field: string } }
@@ -1589,6 +1597,7 @@ export type NodeBehavior =
   | ({ kind: 'Cloth2D' } & Cloth2DConfig)
   | ({ kind: 'Tree2D' } & Tree2DConfig)
   | ({ kind: 'UiEvents' } & UiEventsConfig)
+  | ({ kind: 'UiListeners' } & UiListenersConfig)
   | ({ kind: 'PropertyBindings' } & PropertyBindingsConfig)
   | ({ kind: 'ParticleSystem3D' } & ParticleSystem3DConfig)
   | ({ kind: 'ParticleFluid2D' } & ParticleFluid2DConfig)

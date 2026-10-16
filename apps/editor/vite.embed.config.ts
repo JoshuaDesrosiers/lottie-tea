@@ -45,7 +45,7 @@ export default defineConfig({
     copyPublicDir: false,
     assetsInlineLimit: 0,
     lib: {
-      entry: { 'an1mbyt3-embed': 'src/embed/index.ts', 'an1mbyt3-react': 'src/embed/react.tsx' },
+      entry: { 'an1mbyt3-embed': 'src/embed/index.ts', 'an1mbyt3-react': 'src/embed/react.tsx', 'an1mbyt3-lite': 'src/lite/index.ts', 'an1mbyt3-lite-react': 'src/lite/react.tsx' },
       formats: ['es'],
     },
     rollupOptions: {

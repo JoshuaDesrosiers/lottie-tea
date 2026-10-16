@@ -384,7 +384,7 @@ function FileMenu({ actions, onSave }: { actions: FileMenuActions; onSave: () =>
  * transparent), a transparent WebM or an MP4 video; or the whole game as
  * a web page or a desktop app.
  */
-function ExportMenu({ onExportAnimation, onExportGame, onExportDesktopGame, onExportEmbed }: { onExportAnimation: (options: AnimationExportOptions) => void; onExportGame: () => void; onExportDesktopGame: () => void; onExportEmbed: () => void }) {
+function ExportMenu({ onExportAnimation, onExportLite, onExportGame, onExportDesktopGame, onExportEmbed }: { onExportAnimation: (options: AnimationExportOptions) => void; onExportLite: () => void; onExportGame: () => void; onExportDesktopGame: () => void; onExportEmbed: () => void }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -399,6 +399,7 @@ function ExportMenu({ onExportAnimation, onExportGame, onExportDesktopGame, onEx
     { kind: 'item', label: 'Animation → GIF (transparent)', icon: <GifExportIcon />, onSelect: () => onExportAnimation({ format: 'gif', transparent: true }), hint: '1-bit transparency: pixels are fully clear or fully solid' },
     { kind: 'item', label: 'Animation → WebM (transparent)', icon: <GifExportIcon />, onSelect: () => onExportAnimation({ format: 'webm', transparent: true }), hint: 'VP9 video with a real alpha channel — overlays for OBS, video editors, the web' },
     { kind: 'item', label: 'Animation → MP4', icon: <GifExportIcon />, onSelect: () => onExportAnimation({ format: 'mp4', transparent: false }), hint: 'H.264 video (MP4 has no transparency)' },
+    { kind: 'item', label: 'Animation → Toasty Lite (.json)', icon: <GifExportIcon />, onSelect: onExportLite, hint: 'Interactive vector animation for websites: tiny, instant, many per page (shapes, trim paths, state machine, hover / click)' },
     { kind: 'separator' },
     { kind: 'item', label: 'Game → Web page (.html)', icon: <GameExportIcon />, onSelect: onExportGame, hint: 'One self-contained page — runs in any browser' },
     { kind: 'item', label: 'Game → Desktop app (.exe)', icon: <DesktopExportIcon />, onSelect: onExportDesktopGame, hint: 'One file, double-click to play, F11 for fullscreen' },
@@ -495,6 +496,7 @@ export function TopToolbar({
   fileMenu,
   onSave,
   onExportAnimation,
+  onExportLite,
   onExportGame,
   onExportDesktopGame,
   onExportEmbed,
@@ -552,6 +554,8 @@ export function TopToolbar({
   onSave: () => void
   /** Export menu → an animation as GIF / WebM / MP4. */
   onExportAnimation: (options: AnimationExportOptions) => void
+  /** Export menu → the current scene as Toasty Lite JSON. */
+  onExportLite: () => void
   /** Exports the document as one self-contained, playable `.html`. */
   onExportGame: () => void
   onExportDesktopGame: () => void
@@ -735,7 +739,7 @@ export function TopToolbar({
               <SaveIcon />
               {fileMenu.dirty && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-accent" />}
             </button>
-            <ExportMenu onExportAnimation={onExportAnimation} onExportGame={onExportGame} onExportDesktopGame={onExportDesktopGame} onExportEmbed={onExportEmbed} />
+            <ExportMenu onExportAnimation={onExportAnimation} onExportLite={onExportLite} onExportGame={onExportGame} onExportDesktopGame={onExportDesktopGame} onExportEmbed={onExportEmbed} />
             <div className="mx-1 h-4 w-px bg-overlay/10" />
             <button
               onClick={onUndo}

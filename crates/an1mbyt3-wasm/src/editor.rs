@@ -6943,6 +6943,16 @@ impl WasmEditor {
         let node_id: NodeId = parse_id(node)?;
         let parsed: serde_json::Value = serde_json::from_str(value).unwrap_or_else(|_| serde_json::Value::String(value.to_string()));
         let Some(target) = self.document.artboard_mut(artboard_id).and_then(|a| a.node_mut(node_id)) else { return Ok(false) };
+        // A shape's stroke colour isn't a component, but Property Bindings
+        // (and On Click "Set field") address it as `Shape.strokeColor` so a
+        // theme colour property can drive line icons.
+        if component == "Shape" && field == "strokeColor" {
+            let NodeKind::Shape(shape) = &mut target.kind else { return Ok(false) };
+            let Some(stroke) = shape.stroke.as_mut() else { return Ok(false) };
+            let Ok(color) = serde_json::from_value::<[f32; 4]>(parsed) else { return Ok(false) };
+            stroke.color = color;
+            return Ok(true);
+        }
         for entry in target.behaviors.iter_mut().filter(|e| e.enabled) {
             let dto = crate::dto::NodeBehaviorDto::from(&entry.behavior);
             let Ok(mut json) = serde_json::to_value(&dto) else { continue };
@@ -7777,6 +7787,7 @@ impl WasmEditor {
             "Cloth2D" => B::Cloth2D(an1mbyt3_core::Cloth2D::default()),
             "Tree2D" => B::Tree2D(an1mbyt3_core::Tree2D::default()),
             "UiEvents" => B::UiEvents(an1mbyt3_core::UiEvents::default()),
+            "UiListeners" => B::UiListeners(an1mbyt3_core::UiListeners::default()),
             "PropertyBindings" => B::PropertyBindings(an1mbyt3_core::PropertyBindings::default()),
             "ParticleSystem3D" => B::ParticleSystem3D(an1mbyt3_core::ParticleSystem3D::default()),
             "ParticleFluid2D" => B::ParticleFluid2D(an1mbyt3_core::ParticleFluid2D::default()),
@@ -12581,6 +12592,11 @@ impl WasmEditor {
     }
 
     /// Sets a named numeric input — same timing as `set_state_machine_bool_input`.
+    /// A Bool input's current value (`false` when it was never set).
+    pub fn state_machine_bool_input(&self, name: &str) -> bool {
+        self.state_machine.inputs.bool(name)
+    }
+
     pub fn set_state_machine_number_input(&mut self, name: &str, value: f32) {
         self.state_machine.inputs.set_number(name, value);
     }
@@ -12698,19 +12714,18 @@ impl WasmEditor {
         self.document_summary()
     }
 
-    /// The docs site's showcase components (`demo_docs`): `kind` is one of
-    /// `like-button`, `progress-ring`, `day-night`, `mood-blob`,
-    /// `weather-card`, `bell`. Adds that scene and returns its id.
-    pub fn load_docs_showcase(&mut self, kind: &str) -> Result<JsValue, JsValue> {
-        let demo = match kind {
-            "like-button" => crate::demo_docs::build_like_button(&mut self.document),
-            "progress-ring" => crate::demo_docs::build_progress_ring(&mut self.document),
-            "day-night" => crate::demo_docs::build_day_night(&mut self.document),
-            "mood-blob" => crate::demo_docs::build_mood_blob(&mut self.document),
-            "weather-card" => crate::demo_docs::build_weather_card(&mut self.document),
-            "bell" => crate::demo_docs::build_bell(&mut self.document),
-            other => return Err(JsValue::from_str(&format!("unknown showcase \"{other}\""))),
-        };
+    /// The Toasty Lite components (`demo_lite`): `kind` is one of
+    /// `heart`, `menu`, `theme`, `status`, `bell`, `download`, `copy`,
+    /// `arrow`, `loader`, `toasty`. Adds that scene; returns its id.
+    pub fn load_lite_component(&mut self, kind: &str) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_lite::build(&mut self.document, kind).ok_or_else(|| JsValue::from_str(&format!("unknown Lite component \"{kind}\"")))?;
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
+    /// The docs' small original games (`demo_games`): `toast-catch`, `hop`.
+    pub fn load_docs_game(&mut self, kind: &str) -> Result<JsValue, JsValue> {
+        let demo = crate::demo_games::build(&mut self.document, kind).ok_or_else(|| JsValue::from_str(&format!("unknown game \"{kind}\"")))?;
         migrate_document(&mut self.document);
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
@@ -13535,6 +13550,15 @@ impl WasmEditor {
 
     /// Encodes the current document to `.teab` (postcard + DEFLATE) — see
     /// `an1mbyt3_format::save_teab`. `Vec<u8>` bridges to JS as a `Uint8Array`.
+    /// Exports one scene (`artboard`, or the first) as **Toasty Lite** JSON
+    /// — the small Canvas 2D runtime's format for UI animation (see
+    /// `an1mbyt3_format::lite`). Export → Animation → Toasty Lite.
+    pub fn export_lite(&self, artboard: JsValue) -> Result<String, JsValue> {
+        let id: Option<ArtboardId> = if artboard.is_null() || artboard.is_undefined() { None } else { Some(parse_id(artboard)?) };
+        let value = an1mbyt3_format::lite::export_lite(&self.document, id).ok_or_else(|| JsValue::from_str("no such scene"))?;
+        serde_json::to_string(&value).map_err(|err| JsValue::from_str(&err.to_string()))
+    }
+
     pub fn save_teab(&self) -> Result<Vec<u8>, JsValue> {
         an1mbyt3_format::save_teab(&self.document)
             .map_err(|err| JsValue::from_str(&format!("failed to save .teab: {err}")))

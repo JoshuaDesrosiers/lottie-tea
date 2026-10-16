@@ -3724,6 +3724,33 @@ function App() {
     }
   }
 
+  /** Export menu → Toasty Lite: the current scene as the Lite runtime's
+   * JSON (`an1mbyt3_format::lite`), for icons and UI animation on websites.
+   * Anything Lite can't draw (scripts, physics, particles…) is listed. */
+  const handleExportLite = () => {
+    const artboard = artboards[0]
+    const editor = editorRef.current
+    if (!editor || !artboard) return
+    ;(async () => {
+      const json = editor.export_lite(artboard.id)
+      const stem = (artboard.name || 'untitled').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'untitled'
+      const path = await pickSaveFilePath(`${stem}.json`, 'Toasty Lite', ['json'])
+      if (!path) return
+      await writeTextFile(path, json)
+      const skipped = (JSON.parse(json) as { skipped: string[] }).skipped
+      if (skipped.length) {
+        const list = skipped.slice(0, 12).map((s) => `• ${s}`).join('\n')
+        const more = skipped.length > 12 ? `\n…and ${skipped.length - 12} more` : ''
+        window.alert(`Exported. Toasty Lite left out what needs the full engine:
+
+${list}${more}`)
+      }
+    })().catch((err) => {
+      console.error('Toasty Lite export failed', err)
+      window.alert(`Toasty Lite export failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }
+
   /** Export menu → GIF / transparent GIF / WebM (transparent) / MP4. */
   const handleExportAnimation = (options: AnimationExportOptions) => {
     const artboard = artboards[0]
@@ -4681,6 +4708,7 @@ function App() {
         fileMenu={project.fileMenu}
         onSave={handleSave}
         onExportAnimation={handleExportAnimation}
+        onExportLite={handleExportLite}
         onExportGame={() => void handleExportGame()}
         onExportDesktopGame={() => void handleExportGame('desktop')}
         onExportEmbed={() => void handleExportEmbed()}

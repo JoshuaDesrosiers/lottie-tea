@@ -84,7 +84,7 @@ import {
   Tree2DFields,
   ScreenFields,
 } from './ComponentFields'
-import { PropertyBindingsFields, ScenePropertiesFields, UiEventsFields } from './EventFields'
+import { PropertyBindingsFields, ScenePropertiesFields, UiEventsFields, UiListenersFields } from './EventFields'
 import { FontPicker, IconPicker } from './FontPicker'
 import { iconFamily, isIconFamily, type IconStyle } from '../game/googleFonts'
 import { AntialiasFields, Goo2DFields } from './GooFields'
@@ -839,6 +839,10 @@ function BehaviorsFields({
       case 'UiEvents': {
         const { kind: _k, ...config } = behavior
         return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
+      }
+      case 'UiListeners': {
+        const { kind: _k, ...config } = behavior
+        return <UiListenersFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiListeners', ...c })} />
       }
       case 'GroupFill':
         return <p className="text-[10px] leading-snug text-ink-dim">This group&apos;s fill, painted onto every shape and text inside it. Edit it with the Fill field above (or its gradient handles on the canvas).</p>

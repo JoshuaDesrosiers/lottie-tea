@@ -118,7 +118,7 @@ pub fn revision(document: &Document, artboard: &Artboard) -> u32 {
         for entry in &node.behaviors {
             mix(entry.enabled as u32);
             match &entry.behavior {
-                an1mbyt3_core::NodeBehavior::UiEvents(_) | an1mbyt3_core::NodeBehavior::PropertyBindings(_) => {
+                an1mbyt3_core::NodeBehavior::UiEvents(_) | an1mbyt3_core::NodeBehavior::UiListeners(_) | an1mbyt3_core::NodeBehavior::PropertyBindings(_) => {
                     for b in format!("{:?}", entry.behavior).bytes() {
                         mix(b as u32);
                     }

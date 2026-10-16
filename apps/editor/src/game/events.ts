@@ -45,6 +45,8 @@ export interface ActionEnv {
   callMethod(node: OpaqueId, component: string, method: string, arg: string): boolean
   fireTrigger(input: string): void
   setInput(input: string, value: string): void
+  /** Flips a Bool input. */
+  toggleInput(input: string): void
   loadScene(scene: string): void
   playSound(sound: string): void
   setProperty(property: string, value: string): boolean
@@ -90,6 +92,7 @@ export function describeAction(a: ActionKind): string {
   if ('CallMethod' in a) return `${a.CallMethod.component}.${a.CallMethod.method}(${a.CallMethod.arg})`
   if ('FireTrigger' in a) return `Fire trigger ${a.FireTrigger.input}`
   if ('SetInput' in a) return `Set input ${a.SetInput.input} = ${a.SetInput.value}`
+  if ('ToggleInput' in a) return `Toggle input ${a.ToggleInput.input}`
   if ('LoadScene' in a) return `Load scene ${a.LoadScene.scene}`
   if ('PlaySound' in a) return `Play sound ${a.PlaySound.sound}`
   if ('SetProperty' in a) return `Set ${a.SetProperty.property} = ${a.SetProperty.value}`
@@ -104,7 +107,7 @@ export function runActions(actions: readonly EventAction[], self: OpaqueId, env:
     const a = step.action
     const fail = (why: string) => gameConsole.add('warn', `On Click: ${describeAction(a)} — ${why}`, { ...env.origin, kind: 'Event' })
     try {
-      if (a !== 'ToggleVisible' && !('FireTrigger' in a) && !('SetInput' in a) && !('LoadScene' in a) && !('PlaySound' in a) && !('SetProperty' in a) && !('CallFunction' in a) && env.nodeName(target) === null) {
+      if (a !== 'ToggleVisible' && !('FireTrigger' in a) && !('SetInput' in a) && !('ToggleInput' in a) && !('LoadScene' in a) && !('PlaySound' in a) && !('SetProperty' in a) && !('CallFunction' in a) && env.nodeName(target) === null) {
         fail('its target node no longer exists')
         continue
       }
@@ -120,6 +123,7 @@ export function runActions(actions: readonly EventAction[], self: OpaqueId, env:
         if (!env.callMethod(target, component, method, arg)) fail(`${env.nodeName(target)} has no ${component} to call ${method} on`)
       } else if ('FireTrigger' in a) env.fireTrigger(a.FireTrigger.input)
       else if ('SetInput' in a) env.setInput(a.SetInput.input, a.SetInput.value)
+      else if ('ToggleInput' in a) env.toggleInput(a.ToggleInput.input)
       else if ('LoadScene' in a) env.loadScene(a.LoadScene.scene)
       else if ('PlaySound' in a) env.playSound(a.PlaySound.sound)
       else if ('SetProperty' in a) {

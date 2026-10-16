@@ -192,6 +192,9 @@ pub enum NodeBehavior {
     AntiGoo2D(crate::AntiGoo2D),
     /// [`crate::GooGloss2D`]: a goo group's shine. (Appended last.)
     GooGloss2D(crate::GooGloss2D),
+    /// [`crate::UiListeners`]: pointer enter / exit / down / up actions.
+    /// (Appended last.)
+    UiListeners(crate::UiListeners),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

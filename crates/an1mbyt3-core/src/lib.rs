@@ -110,7 +110,7 @@ pub use easing::Easing;
 pub use font_asset::FontAsset;
 pub use gradient::{GradientDef, GradientKind, GradientStop, GroupFill};
 pub use ids::{AnimationId, ArtboardId, ComponentId, DrawingId, FontId, ImageId, AudioId, MaterialId, ModelId, NodeId, PrefabId, ScriptId, SpriteGroupId, StateMachineId, TextFileId, PropertyId};
-pub use events::{ActionKind, BindTarget, Binding, EventAction, PropertyBindings, PropertyDef, PropKind, UiEvents};
+pub use events::{ActionKind, BindTarget, Binding, EventAction, PropertyBindings, PropertyDef, PropKind, UiEvents, UiListeners};
 pub use text_file::{TextFile, FILE_REF_PREFIX};
 pub use cloth::{Cloth2D, ClothPatternKind, ClothPin};
 pub use tree::{Tree2D, TreeSpecies};

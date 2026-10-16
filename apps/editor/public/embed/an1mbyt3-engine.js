@@ -589,6 +589,17 @@ var g = class e {
 		let r = q.wasmeditor_emit_particles(this.__wbg_ptr, e, t, n);
 		if (r[1]) throw G(r[0]);
 	}
+	export_lite(e) {
+		let t, n;
+		try {
+			let a = q.wasmeditor_export_lite(this.__wbg_ptr, e);
+			var r = a[0], i = a[1];
+			if (a[3]) throw r = 0, i = 0, G(a[2]);
+			return t = r, n = i, B(r, i);
+		} finally {
+			q.__wbindgen_free(t, n, 1);
+		}
+	}
 	fill_nodes(e, t, n, r) {
 		let i = q.wasmeditor_fill_nodes(this.__wbg_ptr, e, t, n, r);
 		if (i[2]) throw G(i[1]);
@@ -680,8 +691,8 @@ var g = class e {
 	load_cloth_demo() {
 		return q.wasmeditor_load_cloth_demo(this.__wbg_ptr);
 	}
-	load_docs_showcase(e) {
-		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_load_docs_showcase(this.__wbg_ptr, t, n);
+	load_docs_game(e) {
+		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_load_docs_game(this.__wbg_ptr, t, n);
 		if (r[2]) throw G(r[1]);
 		return G(r[0]);
 	}
@@ -717,6 +728,11 @@ var g = class e {
 	}
 	load_liquid_demo() {
 		return q.wasmeditor_load_liquid_demo(this.__wbg_ptr);
+	}
+	load_lite_component(e) {
+		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_load_lite_component(this.__wbg_ptr, t, n);
+		if (r[2]) throw G(r[1]);
+		return G(r[0]);
 	}
 	load_match3_demo() {
 		return q.wasmeditor_load_match3_demo(this.__wbg_ptr);
@@ -1624,6 +1640,10 @@ var g = class e {
 		let a = W(t, q.__wbindgen_malloc, q.__wbindgen_realloc), o = K, s = q.wasmeditor_spawn_prefab(this.__wbg_ptr, e, a, o, n, r, i);
 		if (s[2]) throw G(s[1]);
 		return G(s[0]);
+	}
+	state_machine_bool_input(e) {
+		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K;
+		return q.wasmeditor_state_machine_bool_input(this.__wbg_ptr, t, n) !== 0;
 	}
 	state_machine_summary() {
 		let e = q.wasmeditor_state_machine_summary(this.__wbg_ptr);
@@ -5521,7 +5541,7 @@ function er(e) {
 	}
 }
 function tr(e) {
-	return e === "ToggleVisible" ? "Toggle visible" : "SetVisible" in e ? e.SetVisible.visible ? "Show" : "Hide" : "SetNodeField" in e ? `Set ${e.SetNodeField.field} = ${e.SetNodeField.value}` : "SetComponentField" in e ? `Set ${e.SetComponentField.component}.${e.SetComponentField.field} = ${e.SetComponentField.value}` : "CallMethod" in e ? `${e.CallMethod.component}.${e.CallMethod.method}(${e.CallMethod.arg})` : "FireTrigger" in e ? `Fire trigger ${e.FireTrigger.input}` : "SetInput" in e ? `Set input ${e.SetInput.input} = ${e.SetInput.value}` : "LoadScene" in e ? `Load scene ${e.LoadScene.scene}` : "PlaySound" in e ? `Play sound ${e.PlaySound.sound}` : "SetProperty" in e ? `Set ${e.SetProperty.property} = ${e.SetProperty.value}` : "CallFunction" in e ? `Call ${e.CallFunction.function}(${e.CallFunction.arg})` : "?";
+	return e === "ToggleVisible" ? "Toggle visible" : "SetVisible" in e ? e.SetVisible.visible ? "Show" : "Hide" : "SetNodeField" in e ? `Set ${e.SetNodeField.field} = ${e.SetNodeField.value}` : "SetComponentField" in e ? `Set ${e.SetComponentField.component}.${e.SetComponentField.field} = ${e.SetComponentField.value}` : "CallMethod" in e ? `${e.CallMethod.component}.${e.CallMethod.method}(${e.CallMethod.arg})` : "FireTrigger" in e ? `Fire trigger ${e.FireTrigger.input}` : "SetInput" in e ? `Set input ${e.SetInput.input} = ${e.SetInput.value}` : "ToggleInput" in e ? `Toggle input ${e.ToggleInput.input}` : "LoadScene" in e ? `Load scene ${e.LoadScene.scene}` : "PlaySound" in e ? `Play sound ${e.PlaySound.sound}` : "SetProperty" in e ? `Set ${e.SetProperty.property} = ${e.SetProperty.value}` : "CallFunction" in e ? `Call ${e.CallFunction.function}(${e.CallFunction.arg})` : "?";
 }
 function nr(e, t, n) {
 	for (let r of e) {
@@ -5530,7 +5550,7 @@ function nr(e, t, n) {
 			kind: "Event"
 		});
 		try {
-			if (i !== "ToggleVisible" && !("FireTrigger" in i) && !("SetInput" in i) && !("LoadScene" in i) && !("PlaySound" in i) && !("SetProperty" in i) && !("CallFunction" in i) && n.nodeName(e) === null) {
+			if (i !== "ToggleVisible" && !("FireTrigger" in i) && !("SetInput" in i) && !("ToggleInput" in i) && !("LoadScene" in i) && !("PlaySound" in i) && !("SetProperty" in i) && !("CallFunction" in i) && n.nodeName(e) === null) {
 				a("its target node no longer exists");
 				continue;
 			}
@@ -5545,6 +5565,7 @@ function nr(e, t, n) {
 				n.callMethod(e, t, r, o) || a(`${n.nodeName(e)} has no ${t} to call ${r} on`);
 			} else if ("FireTrigger" in i) n.fireTrigger(i.FireTrigger.input);
 			else if ("SetInput" in i) n.setInput(i.SetInput.input, i.SetInput.value);
+			else if ("ToggleInput" in i) n.toggleInput(i.ToggleInput.input);
 			else if ("LoadScene" in i) n.loadScene(i.LoadScene.scene);
 			else if ("PlaySound" in i) n.playSound(i.PlaySound.sound);
 			else if ("SetProperty" in i) n.setProperty(i.SetProperty.property, i.SetProperty.value) || a(`this scene has no property "${i.SetProperty.property}"`);
@@ -6698,52 +6719,61 @@ var Ir = class {
 		}
 		return d.flush(), u ?? l;
 	}
+	pointerSeen = /* @__PURE__ */ new Map();
 	runEvents(e, t) {
 		let { editor: n, scene: r } = e, i = null, a = new Map(t.map((e) => [`${e.id.idx}.${e.id.version}`, e])), o = (e) => a.get(`${e.idx}.${e.version}`) ?? null, s = new Map((e.machine?.inputs ?? []).map((e) => [e.name, e.kind]));
 		for (let e of t) {
 			if (!e.button) continue;
-			let a = e.behaviors.find((e) => e.enabled && e.behavior.kind === "UiEvents")?.behavior;
-			if (!a || a.onClick.length === 0 || !this.ui.state(e.id).clicked) continue;
-			let c = this.writes, l = (e, t) => e.behaviors.some((e) => e.enabled && e.behavior.kind === t);
-			nr(a.onClick, e.id, {
+			let a = this.ui.state(e.id), c = [], l = e.behaviors.find((e) => e.enabled && e.behavior.kind === "UiListeners")?.behavior, u = `${r.id.idx}:${e.id.idx}.${e.id.version}`, d = this.pointerSeen.get(u) ?? {
+				hovered: !1,
+				pressed: !1
+			};
+			l && (a.hovered && !d.hovered && c.push(...l.onEnter), a.pressed && !d.pressed && c.push(...l.onDown), !a.pressed && d.pressed && c.push(...l.onUp), this.pointerSeen.set(u, {
+				hovered: a.hovered,
+				pressed: a.pressed
+			}));
+			let f = e.behaviors.find((e) => e.enabled && e.behavior.kind === "UiEvents")?.behavior;
+			if (f && a.clicked && c.push(...f.onClick), l && !a.hovered && d.hovered && c.push(...l.onExit), c.length === 0) continue;
+			let p = this.writes, m = (e, t) => e.behaviors.some((e) => e.enabled && e.behavior.kind === t);
+			nr(c, e.id, {
 				origin: {
 					scene: r.name,
 					state: e.name
 				},
 				nodeName: (e) => o(e)?.name ?? null,
 				isVisible: (e) => o(e)?.visible ?? !1,
-				setVisible: (e, t) => c.push(4, e, +!!t),
+				setVisible: (e, t) => p.push(4, e, +!!t),
 				setNodeField: (e, t, i) => {
 					let a = o(e);
 					if (!a) return !1;
-					let s = a.transform, l = Number(i);
-					switch (c.flush(), t) {
-						case "x": return Pt(n, r.id, e, l, s.translation.y), !0;
-						case "y": return Pt(n, r.id, e, s.translation.x, l), !0;
-						case "rotation": return Kt(n, r.id, e, l), !0;
-						case "scaleX": return Jt(n, r.id, e, s.translation.x, s.translation.y, l, s.scale.y), !0;
-						case "scaleY": return Jt(n, r.id, e, s.translation.x, s.translation.y, s.scale.x, l), !0;
+					let s = a.transform, c = Number(i);
+					switch (p.flush(), t) {
+						case "x": return Pt(n, r.id, e, c, s.translation.y), !0;
+						case "y": return Pt(n, r.id, e, s.translation.x, c), !0;
+						case "rotation": return Kt(n, r.id, e, c), !0;
+						case "scaleX": return Jt(n, r.id, e, s.translation.x, s.translation.y, c, s.scale.y), !0;
+						case "scaleY": return Jt(n, r.id, e, s.translation.x, s.translation.y, s.scale.x, c), !0;
 						case "text": return At(n, r.id, e, String(i ?? "")), !0;
 						case "fillColor": {
 							let t = sn("Color", i);
-							return c.push(6, e, t[0], t[1], t[2], t[3]), !0;
+							return p.push(6, e, t[0], t[1], t[2], t[3]), !0;
 						}
-						case "visible": return c.push(4, e, +!!i), !0;
+						case "visible": return p.push(4, e, +!!i), !0;
 					}
 					return !1;
 				},
-				setComponentField: (e, t, i, a) => (c.flush(), n.preview_component_field(r.id, e, t, i, a)),
+				setComponentField: (e, t, i, a) => (p.flush(), n.preview_component_field(r.id, e, t, i, a)),
 				callMethod: (e, i, a, s) => {
-					let u = o(e);
-					if (!u || !l(u, i)) return !1;
-					c.flush();
-					let d = Number(s);
+					let c = o(e);
+					if (!c || !m(c, i)) return !1;
+					p.flush();
+					let l = Number(s);
 					switch (`${i}.${a}`) {
-						case "ParticleSystem.emit": return Et(n, r.id, e, Math.max(1, Math.round(Number.isFinite(d) && d > 0 ? d : 10))), !0;
+						case "ParticleSystem.emit": return Et(n, r.id, e, Math.max(1, Math.round(Number.isFinite(l) && l > 0 ? l : 10))), !0;
 						case "AudioSource.play": return this.playSource(n, t, e), !0;
 						case "AudioSource.stop": return Z.stopNodeSounds(`${e.idx}:${e.version}`), !0;
-						case "ParticleSystem3D.burst": return lt(n, r.id, e, Math.max(1, Math.round(Number.isFinite(d) && d > 0 ? d : 50))), !0;
-						case "Tree2D.shake": return n.tree_shake(e, Number.isFinite(d) && d > 0 ? d : 1), !0;
+						case "ParticleSystem3D.burst": return lt(n, r.id, e, Math.max(1, Math.round(Number.isFinite(l) && l > 0 ? l : 50))), !0;
+						case "Tree2D.shake": return n.tree_shake(e, Number.isFinite(l) && l > 0 ? l : 1), !0;
 						case "Tree2D.regrow": return n.tree_regrow(e), !0;
 						case "Cloth2D.reset": return n.cloth_reset(e), !0;
 						case "Rigidbody2D.impulse": {
@@ -6758,6 +6788,12 @@ var Ir = class {
 				setInput: (e, t) => {
 					let i = s.get(e);
 					i === "Bool" ? Qt(n, e, t === "true" || t === "1") : i === "Number" ? $t(n, e, Number(t)) : i === "Enum" ? en(n, e, t) : i === "Trigger" ? Xt(n, e) : Y.add("warn", `On Click: the state machine has no input "${e}"`, {
+						scene: r.name,
+						kind: "Event"
+					});
+				},
+				toggleInput: (e) => {
+					s.get(e) === "Bool" ? Qt(n, e, !n.state_machine_bool_input(e)) : Y.add("warn", `On Click: "${e}" is not a Bool input, so it can't be toggled`, {
 						scene: r.name,
 						kind: "Event"
 					});

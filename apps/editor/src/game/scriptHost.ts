@@ -28,7 +28,7 @@ import { resolveFileRef } from './projectFiles'
 import { gameConsole } from './console'
 import { coerce, formatProp, sceneProps } from './props'
 import { registerFunction, runActions } from './events'
-import type { PropertyBindingsConfig, UiEventsConfig } from '../ipc/document'
+import type { EventAction, PropertyBindingsConfig, UiEventsConfig, UiListenersConfig } from '../ipc/document'
 import {
   deleteNode,
   duplicateNodes,
@@ -569,6 +569,9 @@ export class ScriptHost {
     return pendingScene ?? eventScene
   }
 
+  /** Last pointer state per listener node (`UiListeners` edges). */
+  private pointerSeen = new Map<string, { hovered: boolean; pressed: boolean }>()
+
   /** On Click: runs the events of every UI Button clicked this frame
    * (`game/events.ts`). Returns a scene an action asked to load. */
   private runEvents(frame: ScriptFrame, nodes: ScriptNode[]): string | null {
@@ -579,11 +582,26 @@ export class ScriptHost {
     const kinds = new Map((frame.machine?.inputs ?? []).map((i) => [i.name, i.kind]))
     for (const n of nodes) {
       if (!n.button) continue
+      const st = this.ui.state(n.id)
+      const steps: EventAction[] = []
+      // Pointer Listeners: run on the frame the pointer state changes
+      // (enter, down, up, then On Click, then exit — the order they happen).
+      const listeners = n.behaviors.find((e) => e.enabled && e.behavior.kind === 'UiListeners')?.behavior as (UiListenersConfig & { kind: 'UiListeners' }) | undefined
+      const key = `${scene.id.idx}:${n.id.idx}.${n.id.version}`
+      const prev = this.pointerSeen.get(key) ?? { hovered: false, pressed: false }
+      if (listeners) {
+        if (st.hovered && !prev.hovered) steps.push(...listeners.onEnter)
+        if (st.pressed && !prev.pressed) steps.push(...listeners.onDown)
+        if (!st.pressed && prev.pressed) steps.push(...listeners.onUp)
+        this.pointerSeen.set(key, { hovered: st.hovered, pressed: st.pressed })
+      }
       const events = n.behaviors.find((e) => e.enabled && e.behavior.kind === 'UiEvents')?.behavior as (UiEventsConfig & { kind: 'UiEvents' }) | undefined
-      if (!events || events.onClick.length === 0 || !this.ui.state(n.id).clicked) continue
+      if (events && st.clicked) steps.push(...events.onClick)
+      if (listeners && !st.hovered && prev.hovered) steps.push(...listeners.onExit)
+      if (steps.length === 0) continue
       const writes = this.writes
       const has = (node: ScriptNode, component: string) => node.behaviors.some((e) => e.enabled && e.behavior.kind === component)
-      runActions(events.onClick, n.id, {
+      runActions(steps, n.id, {
         origin: { scene: scene.name, state: n.name },
         nodeName: (id) => find(id)?.name ?? null,
         isVisible: (id) => find(id)?.visible ?? false,
@@ -674,6 +692,10 @@ export class ScriptHost {
           else if (kind === 'Enum') setStateMachineEnumInput(editor, input, value)
           else if (kind === 'Trigger') fireTrigger(editor, input)
           else gameConsole.add('warn', `On Click: the state machine has no input "${input}"`, { scene: scene.name, kind: 'Event' })
+        },
+        toggleInput: (input) => {
+          if (kinds.get(input) === 'Bool') setStateMachineBoolInput(editor, input, !editor.state_machine_bool_input(input))
+          else gameConsole.add('warn', `On Click: "${input}" is not a Bool input, so it can't be toggled`, { scene: scene.name, kind: 'Event' })
         },
         loadScene: (name) => {
           loadScene = name

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ActionKind, ArtboardSummary, BindTarget, DocumentSummary, EventAction, NodeSummary, OpaqueId, PropertyBinding, PropertyBindingsConfig, PropertySummary, UiEventsConfig } from '../ipc/document'
+import type { UiListenersConfig, ActionKind, ArtboardSummary, BindTarget, DocumentSummary, EventAction, NodeSummary, OpaqueId, PropertyBinding, PropertyBindingsConfig, PropertySummary, UiEventsConfig } from '../ipc/document'
 import { addProperty, deleteProperty, updateProperty, type WasmEditor } from '../ipc/wasmEditor'
 import { COMPONENT_METHODS, describeAction } from '../game/events'
 
@@ -40,7 +40,7 @@ function actionChoices(target: NodeSummary | null | undefined, artboard: Artboar
   ]
   for (const entry of target?.behaviors ?? []) {
     const kind = entry.behavior.kind
-    if (kind === 'UiEvents' || kind === 'PropertyBindings' || kind === 'Script' || kind === 'SpriteRenderer') continue
+    if (kind === 'UiEvents' || kind === 'UiListeners' || kind === 'PropertyBindings' || kind === 'Script' || kind === 'SpriteRenderer') continue
     for (const m of COMPONENT_METHODS[kind] ?? []) out.push({ group: kind, value: `call:${kind}:${m.method}`, label: m.label })
     for (const f of componentFields(target, kind)) out.push({ group: kind, value: `field:${kind}:${f}`, label: `Set ${f}` })
   }
@@ -48,6 +48,7 @@ function actionChoices(target: NodeSummary | null | undefined, artboard: Artboar
   if (inputs.length) {
     out.push({ group: 'State machine', value: 'trigger', label: 'Fire trigger' })
     out.push({ group: 'State machine', value: 'input', label: 'Set input' })
+    out.push({ group: 'State machine', value: 'toggleInput', label: 'Toggle input (Bool)' })
   }
   out.push({ group: 'Scene', value: 'property', label: 'Set property' })
   out.push({ group: 'Scene', value: 'scene', label: 'Load scene' })
@@ -65,6 +66,7 @@ function choiceOf(a: ActionKind): string {
   if ('CallMethod' in a) return `call:${a.CallMethod.component}:${a.CallMethod.method}`
   if ('FireTrigger' in a) return 'trigger'
   if ('SetInput' in a) return 'input'
+  if ('ToggleInput' in a) return 'toggleInput'
   if ('LoadScene' in a) return 'scene'
   if ('PlaySound' in a) return 'sound'
   if ('SetProperty' in a) return 'property'
@@ -91,6 +93,8 @@ function actionFor(choice: string): ActionKind {
       return { FireTrigger: { input: '' } }
     case 'input':
       return { SetInput: { input: '', value: '' } }
+    case 'toggleInput':
+      return { ToggleInput: { input: '' } }
     case 'scene':
       return { LoadScene: { scene: '' } }
     case 'sound':
@@ -146,6 +150,7 @@ function ActionArgs({ action, onChange, ctx }: { action: ActionKind; onChange: (
     return arg ? text(f.arg, (value) => onChange({ CallMethod: { ...f, arg: value } }), arg) : null
   }
   if ('FireTrigger' in action) return pick(action.FireTrigger.input, triggers, (input) => onChange({ FireTrigger: { input } }), 'Trigger…')
+  if ('ToggleInput' in action) return pick(action.ToggleInput.input, inputs, (input) => onChange({ ToggleInput: { input } }), 'Bool input…')
   if ('SetInput' in action) {
     const f = action.SetInput
     return (
@@ -181,23 +186,24 @@ function ActionArgs({ action, onChange, ctx }: { action: ActionKind; onChange: (
   )
 }
 
-/** On Click — see the module docs. */
-export function UiEventsFields({ config, onChange, ctx }: { config: UiEventsConfig; onChange: (value: UiEventsConfig) => void; ctx: EventContext }) {
+/** One editable list of actions (On Click, and each Pointer Listeners
+ * list): pick a target and an action per step, reorder, remove. */
+function ActionListFields({ title, empty, list, onChange, ctx }: { title: string; empty: string; list: EventAction[]; onChange: (value: EventAction[]) => void; ctx: EventContext }) {
   const nodes = ctx.artboard?.nodes ?? []
-  const setAt = (i: number, step: EventAction) => onChange({ onClick: config.onClick.map((s, k) => (k === i ? step : s)) })
-  const remove = (i: number) => onChange({ onClick: config.onClick.filter((_, k) => k !== i) })
+  const setAt = (i: number, step: EventAction) => onChange(list.map((s, k) => (k === i ? step : s)))
+  const remove = (i: number) => onChange(list.filter((_, k) => k !== i))
   const move = (i: number, d: number) => {
-    const list = [...config.onClick]
+    const next = [...list]
     const j = i + d
-    if (j < 0 || j >= list.length) return
-    ;[list[i], list[j]] = [list[j], list[i]]
-    onChange({ onClick: list })
+    if (j < 0 || j >= next.length) return
+    ;[next[i], next[j]] = [next[j], next[i]]
+    onChange(next)
   }
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="text-[11px] font-medium text-ink">On Click ()</div>
-      {config.onClick.length === 0 && <div className="text-[10px] text-ink-dim">Nothing happens yet — add an action. (Runs when this node's UI Button is clicked.)</div>}
-      {config.onClick.map((step, i) => {
+      <div className="text-[11px] font-medium text-ink">{title}</div>
+      {list.length === 0 && <div className="text-[10px] text-ink-dim">{empty}</div>}
+      {list.map((step, i) => {
         const target = step.target ? nodes.find((n) => sameId(n.id, step.target!)) : ctx.self
         const choices = actionChoices(target, ctx.artboard)
         const groups = [...new Set(choices.map((c) => c.group))]
@@ -257,9 +263,32 @@ export function UiEventsFields({ config, onChange, ctx }: { config: UiEventsConf
           </div>
         )
       })}
-      <button onClick={() => onChange({ onClick: [...config.onClick, { target: null, action: { SetVisible: { visible: false } } }] })} className="rounded-md border border-dashed border-panel-border px-2 py-1 text-[11px] text-ink-dim hover:border-accent hover:text-ink">
+      <button onClick={() => onChange([...list, { target: null, action: { SetVisible: { visible: false } } }])} className="rounded-md border border-dashed border-panel-border px-2 py-1 text-[11px] text-ink-dim hover:border-accent hover:text-ink">
         + Add action
       </button>
+    </div>
+  )
+}
+
+/** On Click — see the module docs. */
+export function UiEventsFields({ config, onChange, ctx }: { config: UiEventsConfig; onChange: (value: UiEventsConfig) => void; ctx: EventContext }) {
+  return <ActionListFields title="On Click ()" empty="Nothing happens yet — add an action. (Runs when this node's UI Button is clicked.)" list={config.onClick} onChange={(onClick) => onChange({ onClick })} ctx={ctx} />
+}
+
+/** Pointer Listeners (Rive's listeners): four action lists. */
+export function UiListenersFields({ config, onChange, ctx }: { config: UiListenersConfig; onChange: (value: UiListenersConfig) => void; ctx: EventContext }) {
+  const lists: [keyof UiListenersConfig, string, string][] = [
+    ['onEnter', 'On Pointer Enter', 'When the pointer moves onto this node (e.g. Set Input hover = true).'],
+    ['onExit', 'On Pointer Exit', 'When the pointer leaves it (e.g. Set Input hover = false).'],
+    ['onDown', 'On Pointer Down', 'When it is pressed.'],
+    ['onUp', 'On Pointer Up', 'When the press is released over it.'],
+  ]
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[10px] leading-snug text-ink-dim">Needs a UI Button on this node (that is what detects the pointer). Typical use: drive state machine inputs from hover and press with no code.</p>
+      {lists.map(([key, title, empty]) => (
+        <ActionListFields key={key} title={title} empty={empty} list={config[key]} onChange={(list) => onChange({ ...config, [key]: list })} ctx={ctx} />
+      ))}
     </div>
   )
 }
@@ -274,6 +303,7 @@ const BIND_TARGETS: { value: string; label: string }[] = [
   { value: 'ScaleY', label: 'Scale Y' },
   { value: 'Visible', label: 'Visible' },
   { value: 'FillColor', label: 'Fill colour' },
+  { value: 'field:Shape:strokeColor', label: 'Stroke colour' },
 ]
 const targetKey = (t: BindTarget) => (typeof t === 'string' ? t : `field:${t.ComponentField.component}:${t.ComponentField.field}`)
 const targetOf = (key: string): BindTarget => {
@@ -287,7 +317,7 @@ export function PropertyBindingsFields({ config, onChange, ctx }: { config: Prop
   const props = ctx.properties.filter((p) => ctx.artboard && sameId(p.artboard, ctx.artboard.id))
   const setAt = (i: number, patch: Partial<PropertyBinding>) => onChange({ bindings: config.bindings.map((b, k) => (k === i ? { ...b, ...patch } : b)) })
   const componentTargets = ctx.self.behaviors.flatMap((e) =>
-    e.behavior.kind === 'PropertyBindings' || e.behavior.kind === 'UiEvents' ? [] : componentFields(ctx.self, e.behavior.kind).map((f) => ({ value: `field:${e.behavior.kind}:${f}`, label: `${e.behavior.kind} › ${f}` })),
+    e.behavior.kind === 'PropertyBindings' || e.behavior.kind === 'UiEvents' || e.behavior.kind === 'UiListeners' ? [] : componentFields(ctx.self, e.behavior.kind).map((f) => ({ value: `field:${e.behavior.kind}:${f}`, label: `${e.behavior.kind} › ${f}` })),
   )
   return (
     <div className="flex flex-col gap-1.5">
