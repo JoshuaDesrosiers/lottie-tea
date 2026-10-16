@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { screenToWorld, worldToScreen } from './camera'
 import { DEMO_SVG } from './demoScene'
 import { CanvasArea } from './components/CanvasArea'
@@ -12,6 +12,7 @@ import { ResourcesPanel } from './components/ResourcesPanel'
 import { ComponentsPanel } from './components/ComponentsPanel'
 import { EffectsPanel } from './components/EffectsPanel'
 import { TestAreaPanel } from './components/TestAreaPanel'
+import { testAreaStore } from './game/testAreaStore'
 import { CameraKindIcon, CloseIcon, LightKindIcon, TrailKindIcon, ZoomInIcon, ZoomOutIcon } from './components/icons'
 import { FloatingPanel } from './components/FloatingPanel'
 import { GradientHandle } from './components/GradientHandle'
@@ -1869,6 +1870,7 @@ function App() {
     return { node: { ...owner, gradient }, commit }
   })()
 
+  const testArea = useSyncExternalStore(testAreaStore.subscribe, testAreaStore.get)
   // Whether camera frames + icons are drawn on the canvas (zoom bar toggle),
   // remembered across sessions.
   const [showCameraGizmos, setShowCameraGizmos] = useState<boolean>(() => {
@@ -4831,7 +4833,7 @@ ${list}${more}`)
         </div>
       )}
 
-      {mode !== 'Playground' && mode !== 'Paint' && mode !== 'Code' && (() => {
+      {(mode !== 'Playground' || (testArea.showInPlayground && panelVisible.testArea)) && mode !== 'Paint' && mode !== 'Code' && (() => {
         const panelContent: Record<PanelKey, { title: string; content: React.ReactNode }> = {
           layers: {
             title: 'Layers',
@@ -5016,12 +5018,14 @@ ${list}${more}`)
 
         const groupedKeys: PanelKey[] = (['left', 'right'] as const).flatMap((region) => (dock.groups[region] ? groupMemberKeys(dock.groups[region]!) : []))
         // Resources lives in the bottom dock now (see `bottomDockTab`).
-        const soloKeys = (['layers', 'inspector', 'tilePalette', 'components', 'effects', 'testArea'] as const).filter((key) => !groupedKeys.includes(key) && panelVisible[key])
+        // In Playground only the Test Area shows (when asked), floating.
+        const playing = mode === 'Playground'
+        const soloKeys = playing ? (['testArea'] as const).filter((key) => panelVisible[key]) : (['layers', 'inspector', 'tilePalette', 'components', 'effects', 'testArea'] as const).filter((key) => !groupedKeys.includes(key) && panelVisible[key])
 
         return (
           <>
             {(['left', 'right'] as const).map((region) =>
-              dock.groups[region] ? (
+              dock.groups[region] && !playing ? (
                 <DockGroup
                   key={region}
                   group={dock.groups[region]!}

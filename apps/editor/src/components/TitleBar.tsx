@@ -2,6 +2,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { Theme } from '../theme'
 import { CloseIcon, MaximizeIcon, MinimizeIcon, MoonIcon, SunIcon } from './icons'
 import { TITLE_BAR_HEIGHT } from '../layoutConstants'
+import { useState, useSyncExternalStore } from 'react'
+import { testAreaStore } from '../game/testAreaStore'
+import { LiteLive } from './LiteLive'
 
 /**
  * Custom title bar replacing the OS-native one (`decorations: false` in
@@ -43,6 +46,7 @@ export function TitleBar({ theme, onToggleTheme }: { theme: Theme; onToggleTheme
       </div>
 
       <div className="flex items-center gap-1">
+        <TitleBarTestSlot theme={theme} />
         {/* The docs site (apps/docs) is deployed next to the web editor at
             /docs/; the desktop app links to the hosted copy. */}
         <a
@@ -89,6 +93,26 @@ export function TitleBar({ theme, onToggleTheme }: { theme: Theme; onToggleTheme
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+/** The Test Area's "Nav bar" mode: the scene being edited, live as Toasty
+ * Lite, sitting in this real title bar at the chosen size. */
+function TitleBarTestSlot({ theme }: { theme: Theme }) {
+  const state = useSyncExternalStore(testAreaStore.subscribe, testAreaStore.get)
+  const [hover, setHover] = useState(false)
+  if (!state.nav.active || !state.file) return null
+  const size = state.nav.size
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title="Test Area: your scene, live in this nav bar"
+      className="flex items-center justify-center rounded-md outline outline-1 outline-dashed outline-accent/50 hover:bg-overlay/5"
+      style={{ height: Math.max(TITLE_BAR_HEIGHT - 6, size + 2), minWidth: size + 8 }}
+    >
+      <LiteLive file={state.file} width={size} height={size} ink={theme === 'dark' ? [0.92, 0.92, 0.94, 1] : [0.1, 0.1, 0.12, 1]} hover={hover} />
     </div>
   )
 }
