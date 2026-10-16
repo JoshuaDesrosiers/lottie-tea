@@ -12,6 +12,7 @@ import { ResourcesPanel } from './components/ResourcesPanel'
 import { ComponentsPanel } from './components/ComponentsPanel'
 import { EffectsPanel } from './components/EffectsPanel'
 import { TestAreaPanel } from './components/TestAreaPanel'
+import { DrawPathOverlay, pointsToPath } from './components/DrawPathOverlay'
 import { testAreaStore } from './game/testAreaStore'
 import { CameraKindIcon, CloseIcon, LightKindIcon, TrailKindIcon, ZoomInIcon, ZoomOutIcon } from './components/icons'
 import { FloatingPanel } from './components/FloatingPanel'
@@ -91,6 +92,7 @@ import { pickOpenAudioPath, pickOpenImagePath, pickOpenModelPath, pickOpenSvgPat
 import { exportActiveAnimation, EXPORT_FORMAT_INFO, GifExportError, type AnimationExportOptions } from './exportGif'
 import {
   addAnimation,
+  addBlankShapeNode,
   addBoneNode,
   addComponent,
   addComponentVariant,
@@ -1871,6 +1873,65 @@ function App() {
   })()
 
   const testArea = useSyncExternalStore(testAreaStore.subscribe, testAreaStore.get)
+  // ---- Draw path tool (canvas) ----
+  // Sketch a path on the canvas; it becomes a trim-path stroke (optionally
+  // with a draw-on animation) or the motion path of the selected node.
+  const [drawPath, setDrawPath] = useState<null | { mode: 'freehand' | 'points'; smooth: boolean; make: 'trim' | 'motion'; animate: boolean; width: number }>(null)
+  const drawPathTarget = useRef<{ artboardId: OpaqueId; nodeId: OpaqueId } | null>(null)
+  const finishDrawnPath = (points: { x: number; y: number }[], closed: boolean) => {
+    const editor = editorRef.current
+    const art = activeArtboard
+    const tool = drawPath
+    if (!editor || !art || !tool) return
+    const cx = points.reduce((a, p) => a + p.x, 0) / points.length
+    const cy = points.reduce((a, p) => a + p.y, 0) / points.length
+    const local = points.map((p) => ({ x: p.x - cx, y: p.y - cy }))
+    const path = pointsToPath(local, closed, tool.mode === 'freehand' || tool.smooth)
+    try {
+      const made = addBlankShapeNode(editor, art.id)
+      const id = made.newNode
+      let d = setShapePath(editor, art.id, id, path)
+      d = setNodeTranslation(editor, art.id, id, cx, cy)
+      d = setFillColor(editor, art.id, id, [0, 0, 0, 0])
+      const motion = tool.make === 'motion'
+      const color: [number, number, number, number] = motion ? [0.22, 0.74, 0.97, 0.75] : theme === 'dark' ? [0.95, 0.95, 0.97, 1] : [0.1, 0.1, 0.12, 1]
+      d = setShapeStroke(editor, art.id, id, { width: motion ? 2 : tool.width, color, gradient: null, image: null, cap: 'Round', join: 'Round' })
+      d = renameNode(editor, art.id, id, motion ? 'Motion path' : 'Trim path')
+      if (!motion) {
+        const style = (trimEnd: number) => ({ behavior: { kind: 'StrokeStyle2D' as const, dash: 0, gap: 0, dashOffset: 0, trimStart: 0, trimEnd, trimOffset: 0 }, enabled: true })
+        d = setNodeBehaviors(editor, art.id, id, [style(1)])
+        if (tool.animate) {
+          const artNow = d.artboards.find((a) => idsEqual(a.id, art.id))
+          if (!artNow?.activeAnimation) d = addAnimation(editor, art.id, 'Draw on').document
+          d = setNodeBehaviors(editor, art.id, id, [style(0)])
+          d = addKeyframe(editor, art.id, id, 'Field:behavior/StrokeStyle2D/trimEnd', 0)
+          d = setNodeBehaviors(editor, art.id, id, [style(1)])
+          d = addKeyframe(editor, art.id, id, 'Field:behavior/StrokeStyle2D/trimEnd', 1)
+        }
+        setDoc(d)
+        setSelection({ artboardId: art.id, nodeId: id })
+      } else {
+        const target = drawPathTarget.current
+        if (target && idsEqual(target.artboardId, art.id)) {
+          d = setMotionPathGuide(editor, art.id, target.nodeId, id)
+          if (tool.animate) {
+            const artNow = d.artboards.find((a) => idsEqual(a.id, art.id))
+            if (!artNow?.activeAnimation) d = addAnimation(editor, art.id, 'Move along path').document
+            d = addMotionPathKeyframe(editor, art.id, target.nodeId, 0, 0)
+            d = addMotionPathKeyframe(editor, art.id, target.nodeId, 1.5, 1)
+          }
+          setDoc(d)
+          setSelection(target)
+        } else {
+          setDoc(d)
+          setSelection({ artboardId: art.id, nodeId: id })
+        }
+      }
+    } catch (err) {
+      console.error('Draw path failed', err)
+    }
+  }
+
   // Whether camera frames + icons are drawn on the canvas (zoom bar toggle),
   // remembered across sessions.
   const [showCameraGizmos, setShowCameraGizmos] = useState<boolean>(() => {
@@ -4490,6 +4551,20 @@ ${list}${more}`)
         </button>
         <span className="mx-1 h-4 w-px bg-overlay/15" />
         <button
+          onClick={() => {
+            drawPathTarget.current = selection
+            setDrawPath((t) => (t ? null : { mode: 'freehand', smooth: true, make: 'trim', animate: true, width: 4 }))
+          }}
+          title="Draw a path on the canvas: a trim-path stroke or a motion path"
+          aria-pressed={!!drawPath}
+          className={`rounded-md p-1 hover:bg-overlay/5 hover:text-ink ${drawPath ? 'bg-overlay/15 text-ink' : ''}`}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 13c2.5-1 3-6 5.5-6S9 11 11 10s2-5 3-7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            <circle cx="2" cy="13" r="1.3" fill="currentColor" />
+          </svg>
+        </button>
+        <button
           onClick={toggleCameraGizmos}
           title={showCameraGizmos ? 'Hide camera frames on the canvas' : 'Show camera frames on the canvas'}
           aria-pressed={showCameraGizmos}
@@ -4518,6 +4593,67 @@ ${list}${more}`)
           ))}
         </select>
       </FloatingPanel>
+      )}
+      {drawPath && mode !== 'Playground' && (
+        <DrawPathOverlay
+          options={drawPath}
+          toWorld={(x, y) => toArtboardPoint(x, y)}
+          toScreen={(p) => worldToScreen(p.x, p.y, camera, canvasSize)}
+          zoom={camera.zoom}
+          onFinish={finishDrawnPath}
+          onCancel={() => setDrawPath(null)}
+        />
+      )}
+      {drawPath && mode !== 'Playground' && (
+        <FloatingPanel
+          className="pointer-events-auto absolute z-40 flex flex-wrap items-center gap-2 px-2 py-1.5 text-[11px] text-ink-dim"
+          style={{ left: '50%', transform: 'translateX(-50%)', top: TOP_CLEARANCE + 8 }}
+        >
+          <span className="font-medium text-ink">Draw path</span>
+          {(['freehand', 'points'] as const).map((m) => (
+            <button key={m} onClick={() => setDrawPath({ ...drawPath, mode: m })} className={`rounded px-1.5 py-0.5 ${drawPath.mode === m ? 'bg-overlay/15 text-ink' : 'hover:text-ink'}`}>
+              {m === 'freehand' ? 'Freehand' : 'Points'}
+            </button>
+          ))}
+          {drawPath.mode === 'points' && (
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={drawPath.smooth} onChange={(e) => setDrawPath({ ...drawPath, smooth: e.target.checked })} />
+              Smooth
+            </label>
+          )}
+          <span className="h-4 w-px bg-overlay/15" />
+          <select
+            value={drawPath.make}
+            onChange={(e) => {
+              const make = e.target.value as 'trim' | 'motion'
+              if (make === 'motion') drawPathTarget.current = selection
+              setDrawPath({ ...drawPath, make })
+            }}
+            className="rounded bg-transparent px-1 py-0.5 text-ink hover:bg-overlay/5"
+            title="What the drawn path becomes"
+          >
+            <option value="trim" className="bg-solid-panel">
+              Trim path stroke
+            </option>
+            <option value="motion" className="bg-solid-panel">
+              Motion path for {selectedNode && drawPath.make !== 'motion' ? selectedNode.name : drawPathTarget.current ? 'the selected node' : 'selected node'}
+            </option>
+          </select>
+          {drawPath.make === 'trim' && (
+            <label className="flex items-center gap-1" title="Stroke width">
+              W
+              <input type="range" min={1} max={16} value={drawPath.width} onChange={(e) => setDrawPath({ ...drawPath, width: Number(e.target.value) })} className="w-16" />
+            </label>
+          )}
+          <label className="flex items-center gap-1" title={drawPath.make === 'trim' ? 'Key trim end 0 → 1 over a second (draw-on)' : 'Key progress 0 → 1 over 1.5 s'}>
+            <input type="checkbox" checked={drawPath.animate} onChange={(e) => setDrawPath({ ...drawPath, animate: e.target.checked })} />
+            Animate
+          </label>
+          <span className="opacity-70">{drawPath.mode === 'freehand' ? 'Drag to draw.' : 'Click points; Enter or double-click to finish.'} Esc to stop.</span>
+          <button onClick={() => setDrawPath(null)} className="rounded px-1.5 py-0.5 hover:bg-overlay/10 hover:text-ink">
+            Done
+          </button>
+        </FloatingPanel>
       )}
       {cameraFrames.map((frame) => (
         <div
