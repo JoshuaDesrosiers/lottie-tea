@@ -24,6 +24,7 @@ import type { WasmEditor } from '../ipc/wasmEditor'
 import type { DocumentSummary, OpaqueId } from '../ipc/document'
 import type { LiteFile, LitePlayer } from '../lite/runtime'
 import { LiteLive } from './LiteLive'
+import { TestStage } from './TestStage'
 import { testAreaStore } from '../game/testAreaStore'
 
 type Mock = 'nav' | 'sidebar' | 'post' | 'phone'
@@ -327,11 +328,7 @@ export function TestAreaPanel({ editor, doc, artboardId, variant = 'panel' }: { 
   }
 
   if (stage) {
-    const zoom = s.mock === 'phone' ? 1.25 : s.mock === 'nav' ? 1 : 1.8
-    return (
-      <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-auto p-6" style={{ background: c.page }}>
-        <div style={{ zoom, width: s.mock === 'sidebar' ? 420 : undefined }}>{mock}</div>
-        {inputs.length > 0 && (
+    const inputsBar = inputs.length > 0 && (
           <div className="flex flex-wrap items-center justify-center gap-3 rounded-lg border px-3 py-2 text-[12px]" style={{ borderColor: c.line, color: c.muted, background: c.surface }}>
             {inputs.map((i) => {
               const v = first()?.getInput?.(i.name)
@@ -367,7 +364,27 @@ export function TestAreaPanel({ editor, doc, artboardId, variant = 'panel' }: { 
               )
             })}
           </div>
-        )}
+    )
+    if (s.mock !== 'post')
+      return (
+        <TestStage
+          mock={s.mock}
+          slot={selected}
+          dark={s.dark}
+          label={s.label}
+          size={s.size}
+          count={s.count}
+          navSlot={Math.min(1, Math.max(0, s.count - 1))}
+          cover={s.cover}
+          live={(hv, w, h, fit) => live(hv, w, h, fit)}
+          controls={inputsBar}
+        />
+      )
+    // The post stage stays a single, scaled-up post card.
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-4 overflow-auto p-6" style={{ background: c.page }}>
+        <div style={{ zoom: 1.8 }}>{mock}</div>
+        {inputsBar}
       </div>
     )
   }
