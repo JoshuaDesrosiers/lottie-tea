@@ -52,6 +52,15 @@
             "value": "public, max-age=3600"
           }
         ]
+      },
+      {
+        "source": "/docs/toasty/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
       }
     ],
     "cleanUrls": true

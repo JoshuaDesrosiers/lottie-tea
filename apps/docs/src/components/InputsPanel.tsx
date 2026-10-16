@@ -49,6 +49,7 @@ export function LiteCard({ src, title, blurb, extra, size = 140 }: { src: string
     setStates(initial)
     const offs = [
       player.on('input', () => bump((n) => n + 1)),
+      player.on('state', () => bump((n) => n + 1)),
       player.on('prop', () => bump((n) => n + 1)),
       player.on('state', (e) => setStates((s) => ({ ...s, [e.layer ?? 'Base']: e.state }))),
       player.on('event', (e) => setLog((l) => [`event "${e.name}"`, ...l].slice(0, 3))),
@@ -75,7 +76,8 @@ export function LiteCard({ src, title, blurb, extra, size = 140 }: { src: string
       </div>
       <div className={styles.panel}>
         {inputs.map((i) => {
-          const value = player?.getInput(i.name)
+          // Guard: a browser may still hold an older cached runtime.
+          const value = typeof player?.getInput === 'function' ? player.getInput(i.name) : undefined
           if (i.kind === 'bool')
             return (
               <label key={i.name} className={styles.row}>
