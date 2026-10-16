@@ -7,6 +7,10 @@ import { FloatingPanel } from './FloatingPanel'
 import { BoneIcon, CameraKindIcon, EffectsIcon, EllipsePresetIcon, GameExportIcon,
   DesktopExportIcon, GifExportIcon, ImageIcon, LightKindIcon, OpenIcon, PlusIcon, RedoIcon, SaveIcon, ShapeKindIcon, SparkleIcon, StarPresetIcon, TextKindIcon, TileGridIcon, TrailKindIcon, TrianglePresetIcon, UndoIcon } from './icons'
 
+/** The built-in demos (Add → Demos) are for experimenting in the desktop
+ * app and local dev; the hosted web editor offers Templates only. */
+const SHOW_DEMOS = import.meta.env.DEV || (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window)
+
 
 
 const SHAPE_PRESETS: { kind: ShapePreset; label: string; icon: () => ReactElement }[] = [
@@ -262,6 +266,8 @@ function ShapesMenu({
         { kind: 'item', label: 'Audio…', icon: <SparkleIcon />, onSelect: onImportAudio },
       ],
     },
+    ...(SHOW_DEMOS
+      ? ([
     {
       kind: 'submenu',
       label: 'Demos',
@@ -296,6 +302,8 @@ function ShapesMenu({
         { kind: 'item', label: 'Stress Test', icon: <SparkleIcon />, onSelect: onLoadStressDemo },
       ],
     },
+        ] satisfies AddMenuEntry[])
+      : []),
     {
       kind: 'submenu',
       label: 'Templates',
