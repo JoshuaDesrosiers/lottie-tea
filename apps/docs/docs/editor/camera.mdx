@@ -1,0 +1,82 @@
+---
+title: Camera
+sidebar_position: 12
+description: Set up the 2D camera Playground and exported games view a scene through — zoom, background, follow, vignette, pixel-perfect rendering and shake.
+---
+
+# Camera
+
+A **Camera** decides what part of the scene the player sees. In Design you can pan and zoom freely; in **Playground** and in exported games, the scene is shown through its **Main Camera**.
+
+Every new document starts with a **Main Camera** node already set as the scene's camera, so most of the time you only adjust it.
+
+:::note 3D scenes
+This page is about 2D cameras. 3D scenes use **Camera 3D** nodes (+ → 3D → Camera 3D); see [3D basics](../components/3d-basics.mdx).
+:::
+
+## The camera frame
+
+A camera's frame is the scene's **Size** (see [Scenes](./scenes.mdx)) divided by its **Zoom**, centred on the camera's position. The frame is drawn on the canvas in Design so you can see exactly what Playground will show. At zoom 1 the frame is the whole design size; at zoom 2 it shows half the width and half the height, twice as big.
+
+The scene size acts as the game's reference resolution: whatever window the game is played in, that frame is fitted into it.
+
+## Adding a camera
+
+**+ → Camera** adds a new Camera node (zoom 1). It is *not* automatically the one Playground uses. Make it the main camera in either place:
+
+- tick **Main Camera (Playground views through this)** in the camera's Inspector section, or
+- with nothing selected, choose it in the Canvas section's **Main Camera** dropdown.
+
+Only one camera per scene can be the main camera. **None (free view)** in that dropdown means Playground uses the editor's own pan and zoom.
+
+## Camera settings
+
+Select the camera node. Its position and rotation are the usual transform fields; the **Camera** section holds the rest.
+
+<Shot id="camera-inspector" caption="A selected Main Camera: the Camera section with Main Camera ticked, Zoom, Background swatch, Follow set to a Player node with Smoothing 5, Vignette and Pixel Perfect expanded." />
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Main Camera (Playground views through this)** | | Makes this the scene's main camera. |
+| **Zoom** | 1 | Bigger zooms in. Minimum 0.01. |
+| **Background** | dark grey | The colour the whole canvas clears to while this camera is in use. |
+| **Follow** | None (fixed) | A node the camera tracks in Playground, usually the player. |
+| **Smoothing** | 0 | How quickly it catches up with the Follow target. **0** snaps instantly; about **5** trails gently; higher is tighter. Frame-rate independent. Shown once Follow is set. |
+| **Vignette** | Off | Darkens or tints the frame's edges, with **Intensity**, **Radius** and **Blur**. Shows in Playground. |
+| **Pixel Perfect** | Off | Unity-style pixel-perfect camera: whole-pixel scaling, the scene size as reference resolution, 1 world unit = 1 art pixel. |
+| **Grid Snap** (Pixel Perfect) | Pixel Snapping | **None**: only integer scaling. **Pixel Snapping**: the camera moves in whole pixels, so nothing sits between pixels while scrolling. **Upscale Render Texture**: render at the reference size, then upscale with hard edges (everything stays on the pixel grid, even rotated sprites). |
+| **Crop Frame** (Pixel Perfect) | None | What fills the window outside the scaled frame: **None** (show extra world), **Pillarbox** (bars left and right), **Letterbox** (bars top and bottom), **Windowbox** (bars on all sides), **Stretch Fill** (crop and stretch to fill, giving up pixel perfection). |
+
+Follow only moves the camera while playing. When you leave Playground, the camera goes back to where you placed it.
+
+## Camera shake
+
+Add **Add Component → Motion → Camera Shake** to the camera for trauma-style screen shake. Kick it from a script:
+
+```js
+const cam = getCompByID('camera')   // the camera's Id in the Inspector
+cam.shake2(0.6)                     // 0..1, adds up; strength is squared
+```
+
+The component's own settings (amplitude, frequency, recovery, constant shake) are described in [Effects 2D](../components/effects-2d.mdx).
+
+## Moving the camera from a script
+
+A camera is a node, so a script can move it like any other node:
+
+```js
+const cam = getCompByID('camera')
+cam.x += 120 * ctx.deltaSeconds   // auto-scroll to the right
+```
+
+Use **Follow** for the common case, and a script when you need something special (look-ahead, room-by-room snapping, cutscene pans). See [Nodes and refs](../scripting/nodes-and-refs.mdx).
+
+## UI that stays on screen
+
+UI items added from **+ → UI** are placed under the active camera, so they move with it and stay on screen as a HUD. See [UI components](../components/ui-components.mdx).
+
+## Related
+
+- [Scenes](./scenes.mdx)
+- [Effects 2D](../components/effects-2d.mdx)
+- [Responsive layout](../components/responsive-layout.mdx)

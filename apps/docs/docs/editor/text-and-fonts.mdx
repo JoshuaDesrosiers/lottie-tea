@@ -1,0 +1,84 @@
+---
+title: Text and fonts
+sidebar_position: 7
+description: Add text nodes, pick from the full Google Fonts catalogue, use Material Symbols icons, and change text from scripts and properties.
+---
+
+# Text and fonts
+
+Text in Toasty is a real node: it scales without blurring, takes fills and gradients, animates, and can be changed live by scripts and [properties](./properties-and-bindings.mdx). Any **Google Font** can be used, and Google's **Material Symbols** icon set works as a font too.
+
+## Adding text
+
+**+ → 2D Object → Text** adds a text node using the document's first font (a bundled UI font is added the first time). It's selected, ready to edit in the Inspector.
+
+## The Text section
+
+| Field | What it does |
+|---|---|
+| Text box | The text itself. Multi-line. The change applies when you click out of the box. |
+| **Font** | Opens the font picker (below). |
+| **Size** | Font size. Default 16. |
+
+The rest of the Inspector is the same as for any node: **Fill** (solid or gradient, see [Shapes and paths](./shapes-and-paths.mdx#fill)), transform, Z Index, Material and components. Effects such as **Outline** and **Drop Shadow** work on text; see [Effects 2D](../components/effects-2d.mdx).
+
+## Choosing a font
+
+Click the font field to open the picker:
+
+- A **Search** box over the whole Google Fonts catalogue (around two thousand families). Popular fonts are listed first.
+- Each name is drawn in its own typeface so you can see it before choosing.
+- Fonts already in your document are offered too.
+
+<Shot id="font-picker" caption="The font picker open from a selected Text node: search box, popular families each previewed in their own face." />
+
+When you pick a font, Toasty downloads it once (as a TTF) and **stores it inside your document**. That means:
+
+- a saved project and an exported game carry their fonts with them and never need the internet to draw text;
+- each font you use adds its file size to the project, so don't sample dozens and leave them all in.
+
+:::note Offline
+Without an internet connection the picker falls back to a smaller built-in list of popular fonts. The full catalogue is fetched on first use and cached.
+:::
+
+## Icons (Material Symbols)
+
+**+ → 2D Object → Icon (Material Symbols)** (also in **+ → UI → Icon**) adds a text node that shows an icon: it starts as a **star** at size 96 in the **Rounded** style.
+
+Material Symbols is a font where each icon's *name* draws the icon, so a text node with that font and the text `home` shows a house. For an icon node, the Inspector shows an **icon picker** instead of a text box:
+
+- a searchable grid of the icon set (around four thousand icons once the full list is loaded);
+- a style switch: **Rounded**, **Outlined** or **Sharp**.
+
+Because an icon is text, it takes fills, gradients, outlines and animation like any other text, and scripts can change it by setting the text to another icon name.
+
+## Text from scripts
+
+A text node's ref has a `textContent` property:
+
+```js
+const label = getCompByID('scoreLabel')
+label.textContent = 'Score: ' + ctx.props.score
+```
+
+It's `null` on nodes that aren't text. See [Nodes and refs](../scripting/nodes-and-refs.mdx).
+
+## Text from properties (no code)
+
+To show a scene property in a text node without writing a script, add **Add Component → Events & Data → Property Binding** to the text node, pick the property, choose **Text** as the target, and set a format such as `Score: {}`. The text updates whenever the property changes. See [Properties and bindings](./properties-and-bindings.mdx).
+
+## Fonts in HTML UI
+
+The [HTML UI](../components/html-ui.mdx) component draws real HTML, which loads Google Fonts through the browser instead. The same family names work in both.
+
+## Tips
+
+- Prefer one or two families per project; each one you pick is stored in the document.
+- For crisp pixel-style text, choose a pixel font from Google Fonts (for example search "pixel") and use the scene's **Resolution** setting.
+- Large headings look best with a slight **Outline** or **Drop Shadow** when they sit on busy backgrounds.
+
+## Related
+
+- [Shapes and paths](./shapes-and-paths.mdx)
+- [Properties and bindings](./properties-and-bindings.mdx)
+- [UI components](../components/ui-components.mdx)

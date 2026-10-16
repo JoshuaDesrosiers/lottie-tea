@@ -1,0 +1,137 @@
+---
+title: Cheatsheet
+sidebar_position: 22
+description: The whole Toasty scripting API on one dense page.
+---
+
+# Cheatsheet
+
+```js
+// ───────── The model ─────────
+// A Code program belongs to a state; it runs top-to-bottom every frame while
+// that state is active (every SM layer runs its own, base first).
+// Locals reset each frame. Keep state on ctx.globals.
+const g = ctx.globals.game || (ctx.globals.game = { score: 0 })
+if (!g.init) { g.init = true /* one-time setup */ }
+if (!getCompByID('player')) return            // top-level return is allowed
+
+// ───────── Finding nodes ─────────
+const p = getCompByID('player')               // by Inspector Id, or null
+const coins = getCompByClass('coin')          // array (new refs each call)
+const n = ctx.nodes.find((n) => n.name === 'Door'); const door = n && getCompByID(n.elementId)
+ctx.images                                    // [{ id, name }]  ('sheet 3' = frame 3)
+
+// ───────── 2D ref ─────────
+p.x += 100 * ctx.deltaSeconds; p.y = 0        // local, +y up
+p.rotation = 45                               // DEGREES
+p.scaleX = p.scaleY = 1.2; p.anchorX = 0
+p.visible = false; p.zIndex = 5
+p.fillColor = [1, 0.5, 0, 1]                  // RGBA 0..1
+label.textContent = 'Score ' + g.score        // Text nodes
+sprite.image = imgId                          // Image nodes
+shape.path = { commands: [{ kind: 'MoveTo', value: { x: 0, y: 0 } }, { kind: 'Close' }] }
+p.worldX; p.worldY; p.worldRotation; p.worldPoint(10, 0)
+p.id; p.name; p.classes
+
+// ───────── Input ─────────
+ctx.keysDown.has('space')   // 'up' 'down' 'left' 'right' 'a'..'z' '0'..'9' 'enter' 'escape' 'shift'
+ctx.keysDown.has('mouse')   // also 'mouseleft' 'mouseright' 'mousemiddle'
+ctx.mouseX; ctx.mouseY      // world
+ctx.mouseDX; ctx.mouseDY    // px since last frame (works pointer-locked)
+ctx.wheelX; ctx.wheelY      // +y = scrolled down
+ctx.tap                     // one frame after a click/tap
+ctx.swipe                   // { dir: 'left'|'right'|'up'|'down', dx, dy } or null
+ctx.requestPointerLock(); ctx.exitPointerLock(); ctx.pointerLocked
+const d = ctx.keysDown.has('j'); if (d && !g.jWas) attack(); g.jWas = d   // press edge
+
+// ───────── Time ─────────
+ctx.deltaSeconds            // s since last frame (clamp: Math.min(dt, 1/20))
+ctx.time                    // s since this layer's state began
+ctx.screen                  // { width, height, screenWidth, screenHeight, compact, portrait }
+g.t -= ctx.deltaSeconds; if (g.t <= 0) { g.t = 1; tick() }               // timer
+
+// ───────── State machine ─────────
+ctx.setInput('speed', 3); ctx.setInput('grounded', true); ctx.setInput('mode', 'boss')
+ctx.fireTrigger('jump')
+ctx.state; ctx.layer        // where this program runs (layer null = base)
+
+// ───────── Data ─────────
+ctx.props.score += 1        // scene Properties (typed, reset per scene/Play)
+ctx.data.userName           // from the embedding page, read-only
+ctx.storage.set('save', obj); ctx.storage.get('save'); ctx.storage.remove('save'); ctx.storage.keys()
+
+// ───────── Events ─────────
+ctx.on('buy', (item) => true)                 // On Click "Call function" / player.call
+ctx.emit('like', { count: 3 })                // to the page
+
+// ───────── Scenes ─────────
+ctx.scene; ctx.loadScene('Level 2')           // switch after this frame
+ctx.camera; ctx.setCamera(x, y, zoom)         // view camera (no camera node)
+
+// ───────── Spawning ─────────
+const e = ctx.spawn('Enemy', 100, 0, parentRef)   // prefab; null if unknown
+e.part('HP'); e.destroy()                         // child by name; remove
+spawnClone(ref); deleteNode(ref)                  // document edits (undoable)
+
+// ───────── Physics 2D ─────────
+p.velocity = { x: 0, y: 300 }; p.velocity       // null without a body
+p.angularVelocity = 90                           // deg/s
+p.addForce(0, 500); p.addImpulse(0, 340)
+p.bodyType = 'Dynamic'; rig.ragdoll(true); limb.breakJoint()
+const hit = ctx.raycast(p.x, p.y, 0, -1, 20, p)  // { ref, x, y, normalX, normalY, distance }
+for (const c of ctx.collisions) if (c.started && c.trigger) { c.a; c.b }
+
+// ───────── Components ─────────
+fx.emit(30)                                      // Particle System
+map.setTiles(tilesArray)                         // Tilemap (-1 = empty)
+torch.lightIntensity = 1.2; torch.lightRadius = 200
+cam.shake2(0.5)                                  // Camera Shake
+tree.shakeTree(1); tree.regrowTree()
+cloth.grabCloth(x, y); cloth.dragCloth(x, y); cloth.releaseCloth(); cloth.tearCloth(x, y)
+cloth.setClothWind(30, 0); cloth.resetCloth()
+
+// ───────── Audio ─────────
+const h = ctx.playSound('jump', { volume: 0.8, pitch: 1.1, loop: false, pan: 0 })
+ctx.playTone({ freq: 880, to: 220, type: 'square', duration: 0.2, volume: 0.3 })
+h.stop(); h.setVolume(0.5); h.setPitch(1.2); h.playing
+ctx.stopAllSounds(); ctx.setMasterVolume(0.5)
+node.playAudio({ volume: 1 }); node.stopAudio()  // Audio Source
+
+// ───────── UI ─────────
+btn.clicked; btn.hovered; btn.pressed
+slider.value; slider.changed; toggle.isOn; scrollView.scroll  // value/isOn/scroll writable
+const dom = hud.dom                                // HTML UI ShadowRoot or null
+if (dom && g.wired !== dom) { g.wired = dom; dom.querySelector('#b').addEventListener('click', () => {}) }
+// HTML attrs: data-trigger="t" data-input="i" data-bind="prop" data-format="{} pts" data-prop="prop"
+
+// ───────── 3D ─────────
+m.position3 = { x: 0, y: 1, z: -3 }; m.rotation3 = { x: 0, y: 90, z: 0 }; m.scale3 = { x: 1, y: 1, z: 1 }
+m.lookAt3(0, 0, 0)
+m.velocity3 = [0, 5, 0]; m.angularVelocity3; m.addForce3(0, 10, 0); m.addImpulse3(0, 5, 0); m.addTorque3(0, 1, 0)
+ctx.raycast3([0, 1, 0], [0, 0, -1], 50, m)        // { ref, x, y, z, normalX/Y/Z, distance }
+model.playAnimation3('walk', { loop: true, overlay: '' })
+avatar.playAnim3('punch', { loop: false, speed: 1, blend: 0.1 }); avatar.anim3
+avatar.setBone3('head', { x: 0, y: 30, z: 0 }); avatar.setBoneOffset3('hips', [0, -0.2, 0]); avatar.clearBones3()
+avatar.setExpression3('happy', 1); avatar.bone3('rightHand'); avatar.resetSprings3(); avatar.modelInfo3
+avatar.setPose3('Guard', { blend: 0.2 }); avatar.pose3
+avatar.ragdoll3(true, { velocity: [0, 2, -5] }); avatar.isRagdoll3; avatar.ragdollHit3('head', [0, 0, -20])
+fx3.burst3(50)
+world.setVoxels(bytes); world.setVoxel(x, y, z, 1); world.setVoxelChunk(cx, cz, bytes); world.unloadVoxelChunk(cx, cz)
+const gh = ctx.glassRaycast3(o, d, 10); gh?.ref.shatter3([gh.x, gh.y, gh.z], vel, { radius: 0.3, floor: 0 })
+pane.crack3(point, { radius: 0.35, amount: 0.5 }); pane.resetGlass(); pane.glassIntact
+ctx.setEnvironment3({ fog: [0.6, 0.7, 0.9], fogDensity: 0.02, ambient: [0.3, 0.33, 0.4] })
+
+// ───────── Network ─────────
+ctx.net.host({ port: 7777, name: 'Ada' }); ctx.net.join('192.168.1.20:7777', { name: 'Bob' }); ctx.net.leave()
+ctx.net.send({ k: 'pos', x, y }); ctx.net.send(data, playerId)
+for (const m of ctx.net.messages) { m.from; m.data }
+for (const e of ctx.net.events) { e.type }       // connected disconnected join leave host
+ctx.net.status; ctx.net.me; ctx.net.isHost; ctx.net.hostId; ctx.net.players; ctx.net.canHost; ctx.net.nameOf(id)
+
+// ───────── Debug & helpers ─────────
+print('x', p.x); console.warn('hmm'); console.error('bad')   // game Console; F3 = profiler
+lerp(a, b, t); clamp(v, lo, hi); random(seed)                 // + add subtract multiply divide
+                                                              //   greaterThan lessThan equals and or not select
+```
+
+See the [ctx reference](./ctx-reference.mdx) for the full table, and [Patterns](./patterns.mdx) for idioms.

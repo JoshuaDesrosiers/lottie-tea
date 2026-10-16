@@ -1,0 +1,122 @@
+---
+title: Nodes and layers
+sidebar_position: 2
+description: The node tree behind every scene — node kinds, selecting and transforming on the canvas, and organising everything in the Layers panel.
+---
+
+# Nodes and layers
+
+Everything you see in a scene is a **node**. Nodes form a tree: a group contains shapes, a character contains its limbs, a UI page contains its buttons. The **Layers** panel shows that tree; the **canvas** lets you grab nodes directly; the **Inspector** edits the selected one.
+
+## Node kinds
+
+| Kind | Made with | What it is |
+|---|---|---|
+| **Shape** | + → 2D Object → Rectangle / Ellipse / Triangle / Star, SVG import, Paint | A vector outline with fill and stroke. See [Shapes and paths](./shapes-and-paths.mdx). |
+| **Group** | Ctrl+G, SVG import, placed drawings | A container. Moving it moves everything inside. |
+| **Text** | + → 2D Object → Text, or Icon (Material Symbols) | Text in any Google Font, or an icon. See [Text and fonts](./text-and-fonts.mdx). |
+| **Image** | Imports, drag from Resources | A raster sprite. See [Images and sprites](./images-and-sprites.mdx). |
+| **Tilemap** | + → 2D Object → Tilemap… | A painted grid of tiles. |
+| **Bone** | + → 2D Object → Bone, or the bone button in the toolbar | A rig bone for skeletal animation and IK. |
+| **Camera** | + → Camera | What Playground shows. See [Camera](./camera.mdx). |
+| **Light 2D** | + → Light 2D | Global, Spot, Freeform or Sprite light. See [Lighting 2D](../components/lighting-2d.mdx). |
+| **Particle System** | + → Effects → Particle System | An emitter. See [Particles 2D](../components/particles-2d.mdx). |
+| **Trail** | + → Effects → Trail Renderer (attaches to the selected node) | A trail behind a moving node. See [Trails](../components/trails.mdx). |
+| **Instance** | Components panel | A placed copy of a reusable drawing component. |
+| **3D node** | + → 3D, Import → 3D Model | Primitives, models, 3D cameras and lights. See [3D basics](../components/3d-basics.mdx). |
+| UI nodes | + → UI | Pages, layouts, buttons, sliders and more, built from ordinary nodes plus UI components. See [UI components](../components/ui-components.mdx). |
+
+Whatever its kind, a node can carry **components** (Add Component in the Inspector) that give it more behaviour. See [Components overview](../components/overview.mdx).
+
+## Selecting on the canvas
+
+Toasty selects the way Figma does:
+
+- **Click** selects the outermost group under the cursor (or the shape itself, if it isn't in a group).
+- **Double-click** goes one level deeper into that group and selects the child under the cursor. Keep double-clicking to dig further.
+- **Double-click** a shape that has nothing further to enter starts editing its points.
+- **Click empty canvas** to clear the selection (and drag empty canvas to pan).
+- **Ctrl+click** or **Shift+click** adds or removes nodes from a multi-selection.
+
+You can always select anything directly by clicking its row in the Layers panel.
+
+## Moving, scaling, rotating
+
+With a node selected, the canvas shows **transform handles**.
+
+| Action | How |
+|---|---|
+| Move | Drag the node. It snaps to the scene's edges and to other objects' edges and centres, with a guide line while snapped. |
+| Scale | Drag a corner or edge handle. Hold **Shift** to keep proportions. |
+| Rotate | Drag the rotation handle. Rotation is gently pulled toward common angles (0°, 15°, 30°, 45°…). |
+| Move the pivot | Drag the anchor point. |
+| Leave children where they are | Hold **Alt** when you release a scale or rotate drag. |
+
+For exact numbers, use the Inspector:
+
+| Field | Meaning |
+|---|---|
+| **Position** X / Y | Where the node is, relative to its parent. +Y is up. |
+| **Anchor** X / Y | The pivot it scales and rotates around. |
+| **Rotation** ° | In degrees. |
+| **Scale %** X / Y | 100 is the original size; negative values flip. |
+| **Z Index** | Draw order among siblings (higher draws in front). |
+
+Number fields accept typed values, and you can scroll over them to nudge.
+
+:::info Design vs. Animate
+When the timeline (Animate tab) is open and the node already has keyframes, moving it edits the keyframe at the playhead instead of its base position. In Design with the timeline closed, moving an animated node shifts its whole animation along with it. See [Animation timeline](./animation-timeline.mdx).
+:::
+
+## The Layers panel
+
+<Shot id="layers-panel" caption="The Layers panel for a character rig: the scene pill at the top, nested groups expanded, kind icons on each row, a prefab instance name in accent colour, a clip badge on one group, and the Group selection button in the header." />
+
+### Reading it
+
+- The **scene** itself is the top pill. Collapse it to hide everything.
+- Rows are listed **frontmost first**: the row at the top of a group draws in front of the ones below it.
+- Each row shows an icon for its kind (a light, a camera, a particle system, a trail…) and its name.
+- **Prefab instances** show their name in the accent colour. See [Prefabs](./prefabs.mdx).
+- Small badges flag special roles: a **sorting layer** name, a **clip** badge on a node that clips its children (click to turn clipping off), and a **mask** badge (click to clear).
+
+### Working with it
+
+| Action | How |
+|---|---|
+| Select | Click a row. Ctrl/Shift+click for several. |
+| Rename | Double-click the name. Enter commits, Escape cancels. |
+| Expand / collapse | The chevron button on a row with children. |
+| Add a child shape | The **Add child** button on a row that can hold children: it adds a rectangle inside it. |
+| Reorder | Drag a row onto the **top half** of another row: it becomes a sibling, placed in front of that row. |
+| Put inside | Drag a row onto the **bottom half** of another row: it becomes a child, and the new parent starts **clipping** its children to its own shape. Hold **Alt** while dropping to skip the clipping. |
+| Group | Select nodes and click the **Group selection** button in the panel header, or press **Ctrl+G**. |
+| Bring forward / back | **Ctrl+]** / **Ctrl+[**, or **Ctrl+Shift+]** / **Ctrl+Shift+[** for all the way. |
+| Delete | **Delete** / **Backspace**, or the Inspector's **Delete** button. |
+
+### State machine layer masks
+
+When the State Machine tab has a non-base layer selected, each row in Layers gets a checkbox ("In this layer's node mask"). Tick the nodes that layer is allowed to animate. See [State machines](./state-machines.mdx#layers).
+
+## Copy, paste and grouping
+
+- **Ctrl+C** copies the selection, **Ctrl+V** pastes it **in place**: the copy lands exactly on top of the original, ready to drag away.
+- **Ctrl+G** groups the selection.
+- Undo anything with **Ctrl+Z**.
+
+## Clipping and masks
+
+Any node, not just a group, can clip its children to its own shape: tick **Clip children to this shape** in the Inspector (or drop a child onto it). The options are covered in [Shapes and paths](./shapes-and-paths.mdx#other-shape-settings).
+
+## Draw order in short
+
+1. Within one parent, later siblings (higher in Layers) draw in front; **Z Index** overrides that.
+2. A group with **Y Sort** turned on orders its children by their Y position instead (lower on screen draws in front), the classic top-down RPG look.
+3. **Sorting layers** pull a node and its children into a named layer that draws above or below others, wherever they sit in the tree. See [Sorting layers](../components/sorting-layers.mdx).
+
+## Related
+
+- [Shapes and paths](./shapes-and-paths.mdx)
+- [Scenes](./scenes.mdx)
+- [Prefabs](./prefabs.mdx)
+- [Nodes and refs (scripting)](../scripting/nodes-and-refs.mdx)

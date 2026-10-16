@@ -1,0 +1,215 @@
+---
+title: ctx reference
+sidebar_position: 4
+description: Alphabetical index of every ctx member, every node ref property and method, and every global available to Toasty scripts.
+---
+
+# ctx reference
+
+The complete list, alphabetical, with one-line descriptions and a link to the page with details, parameters and examples. "Low-level" members take internal node ids (`ctx.nodes[i].id`) and exist so refs can be built; use the ref form instead.
+
+## Globals in scope
+
+| Name | Signature | Details |
+|---|---|---|
+| `getCompByID` | `(id: string) => Ref \| null` | [Nodes and refs](./nodes-and-refs.mdx) |
+| `getCompByClass` | `(className: string) => Ref[]` | [Nodes and refs](./nodes-and-refs.mdx) |
+| `spawnClone` | `(ref: Ref) => Ref \| null` (document edit) | [Spawning](./spawning-and-prefabs.mdx) |
+| `deleteNode` | `(ref: Ref) => void` (document edit) | [Spawning](./spawning-and-prefabs.mdx) |
+| `console` | `log`, `info`, `debug`, `warn`, `error` | [Debugging](./debugging.mdx) |
+| `print` | `(...values) => void`, same as `console.log` | [Debugging](./debugging.mdx) |
+| `ctx` | this frame's context (below) | [How scripts run](./how-scripts-run.mdx) |
+
+Plus the standard JavaScript built-ins (`Math`, `JSON`, `performance`, `setTimeout`, ...): scripts are ordinary JS on the page.
+
+## Helpers
+
+Always in scope as bare names. They also form the vocabulary that Nodes-to-Code conversion emits (see [Blocks](./blocks.mdx)).
+
+| Helper | Returns |
+|---|---|
+| `add(a, b)`, `subtract(a, b)`, `multiply(a, b)` | the arithmetic result |
+| `divide(a, b)` | `a / b`, or `0` when `b` is `0` |
+| `greaterThan(a, b)`, `lessThan(a, b)`, `equals(a, b)` | `1` or `0` |
+| `and(a, b)`, `or(a, b)` | `1` or `0` (non-zero = true) |
+| `not(a)` | `1` if `a` is `0`, else `0` |
+| `select(cond, a, b)` | `a` if `cond` is non-zero, else `b` |
+| `lerp(a, b, t)` | `a + (b - a) * t`, with `t` clamped to 0..1 |
+| `clamp(v, min, max)` | `v` limited to the range (min/max may be given in either order) |
+| `random(seed)` | a repeatable value in 0..1 for an integer seed (same hash as the Nodes Random node) |
+
+## ctx members
+
+| Member | Kind | Description | Details |
+|---|---|---|---|
+| `ctx.breakJoint(id)` | low-level | Break a Hinge Joint 2D | `ref.breakJoint()` |
+| `ctx.burstParticles3D(id, n)` | low-level | 3D particle burst | `ref.burst3()` |
+| `ctx.camera` | `{ panX, panY, zoom }` | The view camera | [Scenes and globals](./scenes-and-globals.mdx) |
+| `ctx.camera2.shake(id, amount)` | low-level | 2D camera shake | `ref.shake2()` |
+| `ctx.cloth.*` | low-level | `grab`, `drag`, `release`, `tear`, `wind`, `reset` | Cloth helpers on refs |
+| `ctx.collisions` | array | Contacts begun/ended this frame: `{ a, b, started, trigger }` | [Physics API](./physics-api.mdx) |
+| `ctx.data` | object, read-only | Values from the embedding page | [Props and data](./props-and-data.mdx) |
+| `ctx.deleteNode(id)` | low-level | Delete a node | `deleteNode(ref)` |
+| `ctx.deltaSeconds` | number | Seconds since last frame | [Time and frames](./time-and-frames.mdx) |
+| `ctx.destroyNode(id)` | low-level | Remove a spawned node / hide an authored one | `ref.destroy()` |
+| `ctx.emit(name, payload?)` | function | Send an event to the embedding page | [Events and messages](./events-and-messages.mdx) |
+| `ctx.emitParticles(id, n)` | low-level | Particle System emit | `ref.emit()` |
+| `ctx.exitPointerLock()` | function | Disarm / release pointer lock | [Input](./input.mdx) |
+| `ctx.fireTrigger(name)` | function | Fire a Trigger input | [State machine control](./state-machine-control.mdx) |
+| `ctx.glass.*` | low-level | `shatter`, `raycast`, `reset`, `intact`, `crack` | Glass members on refs |
+| `ctx.glassRaycast3(origin, dir, max?)` | function | Nearest standing glass pane along a ray | [3D API](./3d-api.mdx) |
+| `ctx.globals` | object | Session state shared by every program and scene | [Scenes and globals](./scenes-and-globals.mdx) |
+| `ctx.htmlRoot(id)` | low-level | HTML UI shadow root | `ref.dom` |
+| `ctx.images` | array | Every image asset `{ id, name }` | [Nodes and refs](./nodes-and-refs.mdx) |
+| `ctx.keysDown` | `Set<string>` | Keys and mouse buttons held | [Input](./input.mdx) |
+| `ctx.layer` | string or `null` | This program's state machine layer | [State machine control](./state-machine-control.mdx) |
+| `ctx.loadScene(name)` | function | Switch scene after this frame | [Scenes and globals](./scenes-and-globals.mdx) |
+| `ctx.model3.*` | low-level | Model/VRM bones, expressions, poses, ragdoll, clips | Model members on refs |
+| `ctx.mouseDX`, `ctx.mouseDY` | number | Mouse movement since last frame, CSS px | [Input](./input.mdx) |
+| `ctx.mouseX`, `ctx.mouseY` | number | Pointer in world units | [Input](./input.mdx) |
+| `ctx.net` | object | Multiplayer | [Network API](./network-api.mdx) |
+| `ctx.nodes` | array | Every node in the scene (snapshot data) | [Nodes and refs](./nodes-and-refs.mdx) |
+| `ctx.on(name, fn)` | function | Register a function for On Click / `player.call` | [Events and messages](./events-and-messages.mdx) |
+| `ctx.physics.*` | low-level | Velocity, forces, raycasts, contact events (2D and 3D) | [Physics API](./physics-api.mdx) |
+| `ctx.playAudioSource(id, opts?)` | low-level | Play an Audio Source | `ref.playAudio()` |
+| `ctx.playSound(name, opts?)` | function | Play an imported sound | [Audio API](./audio-api.mdx) |
+| `ctx.playTone(opts?)` | function | Play a synthesized sound | [Audio API](./audio-api.mdx) |
+| `ctx.pointerLocked` | boolean | Pointer lock held | [Input](./input.mdx) |
+| `ctx.props` | object | Scene Properties, read/write | [Props and data](./props-and-data.mdx) |
+| `ctx.raycast(ox, oy, dx, dy, max?, ignore?)` | function | 2D raycast | [Physics API](./physics-api.mdx) |
+| `ctx.raycast3(origin, dir, max?, ignore?)` | function | 3D raycast | [Physics API](./physics-api.mdx) |
+| `ctx.requestPointerLock()` | function | Lock the pointer on the next click | [Input](./input.mdx) |
+| `ctx.scene` | string | Running scene's name | [Scenes and globals](./scenes-and-globals.mdx) |
+| `ctx.screen` | object | `width`, `height`, `screenWidth`, `screenHeight`, `compact`, `portrait` | [Time and frames](./time-and-frames.mdx) |
+| `ctx.setAnchor(id, ax, ay, x, y)` | low-level | Anchor (and position) | `ref.anchorX/Y` |
+| `ctx.setAnimation3D(id, clip, loop, overlay)` | low-level | Model clip | `ref.playAnimation3()` |
+| `ctx.setBodyType(id, type, deep)` | low-level | Rigidbody 2D type | `ref.bodyType`, `ref.ragdoll()` |
+| `ctx.setCamera(panX, panY, zoom)` | function | Move the view camera | [Scenes and globals](./scenes-and-globals.mdx) |
+| `ctx.setEnvironment3(opts)` | function | 3D fog and ambient light | [3D API](./3d-api.mdx) |
+| `ctx.setFillColor(id, r, g, b, a)` | low-level | Fill colour | `ref.fillColor` |
+| `ctx.setImage(id, imageId)` | low-level | Image swap | `ref.image` |
+| `ctx.setInput(name, value)` | function | Set a state machine input | [State machine control](./state-machine-control.mdx) |
+| `ctx.setLight(id, intensity, radius)` | low-level | Light 2D | `ref.lightIntensity/lightRadius` |
+| `ctx.setMasterVolume(v)` | function | Overall volume | [Audio API](./audio-api.mdx) |
+| `ctx.setPath(id, path)` | low-level | Shape path | `ref.path` |
+| `ctx.setRotationDegrees(id, deg)` | low-level | Rotation | `ref.rotation` |
+| `ctx.setScale(id, sx, sy, x, y)` | low-level | Scale (and position) | `ref.scaleX/Y` |
+| `ctx.setTextContent(id, text)` | low-level | Text | `ref.textContent` |
+| `ctx.setTiles(id, tiles)` | low-level | Tilemap grid | `ref.setTiles()` |
+| `ctx.setTransform3D(id, [9 numbers])` | low-level | 3D transform | `ref.position3` etc. |
+| `ctx.setTranslation(id, x, y)` | low-level | Position | `ref.x/y` |
+| `ctx.setUiState(id, patch)` | low-level | UI value/isOn/scroll | `ref.value` etc. |
+| `ctx.setVisible(id, bool)` | low-level | Visibility | `ref.visible` |
+| `ctx.setVoxel(id, x, y, z, b)`, `ctx.setVoxels(id, blocks)`, `ctx.setVoxelChunk(id, cx, cz, blocks)`, `ctx.unloadVoxelChunk(id, cx, cz)` | low-level | Block worlds | Voxel members on refs |
+| `ctx.setZIndex(id, z)` | low-level | Draw order | `ref.zIndex` |
+| `ctx.spawn(prefab, x, y, parent?)` | function | Instantiate a prefab | [Spawning](./spawning-and-prefabs.mdx) |
+| `ctx.spawnClone(id)`, `ctx.spawnPrefab(name, parentId, x, y)` | low-level | Clone / spawn | `spawnClone(ref)`, `ctx.spawn` |
+| `ctx.state` | string | This program's state | [State machine control](./state-machine-control.mdx) |
+| `ctx.stopAllSounds()` | function | Stop every sound | [Audio API](./audio-api.mdx) |
+| `ctx.stopAudioSource(id)` | low-level | Stop an Audio Source | `ref.stopAudio()` |
+| `ctx.storage` | object | `get`, `set`, `remove`, `keys` | [Storage API](./storage-api.mdx) |
+| `ctx.swipe` | object or `null` | `{ dir, dx, dy }` this frame | [Input](./input.mdx) |
+| `ctx.tap` | boolean | Tap/click this frame | [Input](./input.mdx) |
+| `ctx.time` | number | Seconds in the current state (per layer) | [Time and frames](./time-and-frames.mdx) |
+| `ctx.tree.shake(id, s)`, `ctx.tree.regrow(id)` | low-level | Tree 2D | `ref.shakeTree()`, `ref.regrowTree()` |
+| `ctx.uiState(id)` | low-level | UI control state | `ref.clicked` etc. |
+| `ctx.wheelX`, `ctx.wheelY` | number | Wheel movement this frame | [Input](./input.mdx) |
+
+## Ref members
+
+`R` = readable, `W` = writable, `fn` = method.
+
+| Member | | Type / signature | Applies to | Details |
+|---|---|---|---|---|
+| `addForce(x, y)` | fn | push over next frame | Rigidbody 2D | [Physics](./physics-api.mdx) |
+| `addForce3(x, y, z)` | fn | force | Rigidbody 3D | [Physics](./physics-api.mdx) |
+| `addImpulse(x, y)` | fn | instant kick | Rigidbody 2D | [Physics](./physics-api.mdx) |
+| `addImpulse3(x, y, z)` | fn | instant impulse | Rigidbody 3D | [Physics](./physics-api.mdx) |
+| `addTorque3(x, y, z)` | fn | instant spin | Rigidbody 3D | [Physics](./physics-api.mdx) |
+| `anchorX`, `anchorY` | R W | number | 2D nodes | [Nodes and refs](./nodes-and-refs.mdx) |
+| `angularVelocity` | R W | degrees/s or `null` | Rigidbody 2D | [Physics](./physics-api.mdx) |
+| `angularVelocity3` | R W | `{x,y,z}` degrees/s or `null` | Rigidbody 3D | [Physics](./physics-api.mdx) |
+| `anim3` | R | `{ clip, time }` or `null` | Humanoid Animator | [3D API](./3d-api.mdx) |
+| `bodyType` | R W | `'Dynamic'`, `'Kinematic'`, `'Static'`, `null` | Rigidbody 2D | [Physics](./physics-api.mdx) |
+| `bone3(bone)` | fn | `{x,y,z}` or `null` | Models, VRM | [3D API](./3d-api.mdx) |
+| `breakJoint()` | fn | | Hinge Joint 2D | [Physics](./physics-api.mdx) |
+| `burst3(count?)` | fn | default 50 | Particle System 3D | [3D API](./3d-api.mdx) |
+| `changed` | R | boolean | UI Slider, Toggle, Scrollbar, Scroll View | [UI and DOM](./ui-and-dom.mdx) |
+| `classes` | R | string[] | all | [Nodes and refs](./nodes-and-refs.mdx) |
+| `clearBones3()` | fn | | Models, VRM | [3D API](./3d-api.mdx) |
+| `clicked` | R | boolean | UI controls | [UI and DOM](./ui-and-dom.mdx) |
+| `crack3(point, opts?)` | fn | pieces touched | Glass | [3D API](./3d-api.mdx) |
+| `destroy()` | fn | | all | [Spawning](./spawning-and-prefabs.mdx) |
+| `dom` | R | `ShadowRoot` or `null` | HTML UI | [UI and DOM](./ui-and-dom.mdx) |
+| `dragCloth(x, y)` | fn | | Cloth 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `emit(count)` | fn | | Particle System | [Nodes and refs](./nodes-and-refs.mdx) |
+| `fillColor` | R W | `[r,g,b,a]` or `null` | filled nodes | [Nodes and refs](./nodes-and-refs.mdx) |
+| `glassIntact` | R | 0..1 | Glass | [3D API](./3d-api.mdx) |
+| `grabCloth(x, y, radius?)` | fn | boolean | Cloth 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `hovered` | R | boolean | UI controls | [UI and DOM](./ui-and-dom.mdx) |
+| `id` | R | string | all | [Nodes and refs](./nodes-and-refs.mdx) |
+| `image` | R W | image id or `null` | Image | [Nodes and refs](./nodes-and-refs.mdx) |
+| `isOn` | R W | boolean | UI Toggle | [UI and DOM](./ui-and-dom.mdx) |
+| `isRagdoll3` | R | boolean | VRM | [3D API](./3d-api.mdx) |
+| `lightIntensity`, `lightRadius` | W (R = last written) | number or `null` | Light 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `lookAt3(x, y, z)` | fn | | 3D nodes | [3D API](./3d-api.mdx) |
+| `modelInfo3` | R | object or `null` | Models, VRM | [3D API](./3d-api.mdx) |
+| `name` | R | string | all | [Nodes and refs](./nodes-and-refs.mdx) |
+| `part(name)` | fn | Ref or `null` | `ctx.spawn` roots | [Spawning](./spawning-and-prefabs.mdx) |
+| `path` | R W | `{ commands }` or `null` | Shape | [Nodes and refs](./nodes-and-refs.mdx) |
+| `playAnim3(name, opts?)` | fn | boolean | Humanoid Animator | [3D API](./3d-api.mdx) |
+| `playAnimation3(name, opts?)` | fn | | Model meshes | [3D API](./3d-api.mdx) |
+| `playAudio(opts?)` | fn | SoundHandle or `null` | Audio Source | [Audio API](./audio-api.mdx) |
+| `pose3` | R | string | VRM Poses | [3D API](./3d-api.mdx) |
+| `position3` | R W | `{x,y,z}` or `null` | 3D nodes | [3D API](./3d-api.mdx) |
+| `pressed` | R | boolean | UI controls | [UI and DOM](./ui-and-dom.mdx) |
+| `ragdoll(on)` | fn | | Make Ragdoll rigs | [Physics](./physics-api.mdx) |
+| `ragdoll3(on, opts?)` | fn | boolean | VRM | [3D API](./3d-api.mdx) |
+| `ragdollHit3(bone, impulse)` | fn | boolean | VRM | [3D API](./3d-api.mdx) |
+| `regrowTree()` | fn | | Tree 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `releaseCloth()` | fn | | Cloth 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `resetCloth()` | fn | | Cloth 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `resetGlass()` | fn | | Glass | [3D API](./3d-api.mdx) |
+| `resetSprings3()` | fn | | Models, VRM | [3D API](./3d-api.mdx) |
+| `rotation` | R W | degrees | 2D nodes | [Nodes and refs](./nodes-and-refs.mdx) |
+| `rotation3` | R W | `{x,y,z}` degrees or `null` | 3D nodes | [3D API](./3d-api.mdx) |
+| `scale3` | R W | `{x,y,z}` or `null` | 3D nodes | [3D API](./3d-api.mdx) |
+| `scaleX`, `scaleY` | R W | number | 2D nodes | [Nodes and refs](./nodes-and-refs.mdx) |
+| `scroll` | R W | world units | UI Scroll View | [UI and DOM](./ui-and-dom.mdx) |
+| `setBone3(bone, rot)` | fn | boolean | Models, VRM | [3D API](./3d-api.mdx) |
+| `setBoneOffset3(bone, offset)` | fn | boolean | Models, VRM | [3D API](./3d-api.mdx) |
+| `setClothWind(x, y?)` | fn | | Cloth 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `setExpression3(name, w)` | fn | boolean | VRM | [3D API](./3d-api.mdx) |
+| `setPose3(name, opts?)` | fn | boolean | VRM Poses | [3D API](./3d-api.mdx) |
+| `setTiles(tiles)` | fn | | Tilemap | [Nodes and refs](./nodes-and-refs.mdx) |
+| `setVoxel(x, y, z, block)` | fn | boolean | Voxels | [3D API](./3d-api.mdx) |
+| `setVoxelChunk(cx, cz, blocks)` | fn | | Voxels (streamed) | [3D API](./3d-api.mdx) |
+| `setVoxels(blocks)` | fn | | Voxels | [3D API](./3d-api.mdx) |
+| `shake2(amount?)` | fn | default 0.5 | Camera Shake | [Nodes and refs](./nodes-and-refs.mdx) |
+| `shakeTree(strength?)` | fn | default 1 | Tree 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `shatter3(point, velocity, opts?)` | fn | `{ broken, loose }` | Glass | [3D API](./3d-api.mdx) |
+| `stopAudio()` | fn | | Audio Source | [Audio API](./audio-api.mdx) |
+| `tearCloth(x, y, radius?)` | fn | threads cut | Cloth 2D | [Nodes and refs](./nodes-and-refs.mdx) |
+| `textContent` | R W | string or `null` | Text | [Nodes and refs](./nodes-and-refs.mdx) |
+| `unloadVoxelChunk(cx, cz)` | fn | | Voxels (streamed) | [3D API](./3d-api.mdx) |
+| `value` | R W | number | UI Slider, Scrollbar, Scroll View | [UI and DOM](./ui-and-dom.mdx) |
+| `velocity` | R W | `{x,y}` or `null` | Rigidbody 2D | [Physics](./physics-api.mdx) |
+| `velocity3` | R W | `{x,y,z}` or `null` | Rigidbody 3D | [Physics](./physics-api.mdx) |
+| `visible` | R W | boolean | all | [Nodes and refs](./nodes-and-refs.mdx) |
+| `worldPoint(lx, ly)` | fn | `{ x, y }` | 2D nodes | [Nodes and refs](./nodes-and-refs.mdx) |
+| `worldRotation` | R | degrees | 2D nodes | [Nodes and refs](./nodes-and-refs.mdx) |
+| `worldX`, `worldY` | R | number | 2D nodes | [Nodes and refs](./nodes-and-refs.mdx) |
+| `x`, `y` | R W | number | 2D nodes | [Nodes and refs](./nodes-and-refs.mdx) |
+| `zIndex` | R W | number | all | [Nodes and refs](./nodes-and-refs.mdx) |
+
+## Value types
+
+| Type | Shape |
+|---|---|
+| Colour | `[r, g, b, a]`, each 0..1 |
+| 2D vector | `{ x, y }` (velocity also accepts `[x, y]`) |
+| 3D vector (`Vec3`) | `{ x, y, z }` or `[x, y, z]` as an argument; reads return `{ x, y, z }` |
+| SoundHandle | `{ stop(), setVolume(v), setPitch(p), playing }` |
+| RaycastHit (2D) | `{ ref, x, y, normalX, normalY, distance }` |
+| RaycastHit (3D) | `{ ref, x, y, z, normalX, normalY, normalZ, distance }` |
+| Collision | `{ a, b, started, trigger }` |

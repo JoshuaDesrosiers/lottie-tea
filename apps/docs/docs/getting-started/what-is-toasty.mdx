@@ -1,0 +1,64 @@
+---
+title: What is Toasty?
+sidebar_position: 1
+description: A plain-language overview of ToastyCreate, the 2D/3D animation and game editor, and what you can build with it.
+---
+
+# What is Toasty?
+
+**ToastyCreate** ("Toasty" for short) is an editor for making **animated, interactive things**: animated graphics, UI widgets, web embeds, and full 2D and 3D games. You draw or import art, animate it on a timeline, wire it up with state machines and scripts, press **Playground** to try it, and export the result.
+
+It runs in your browser at [toastycreate.web.app](https://toastycreate.web.app), and as a desktop app with a few extra powers (see [Web and desktop](./web-and-desktop.mdx)).
+
+:::note Toasty vs. an1mbyt3
+The engine underneath Toasty is called **an1mbyt3**. You will see that name in file names and code: the game file format is `.teab`, the embed library is `an1mbyt3-embed.js`, the React component is `An1Player`. Those identifiers are real and you should type them exactly as written. Everywhere else, these docs say "Toasty".
+:::
+
+## What you can make
+
+| You want to... | Toasty gives you |
+|---|---|
+| Animate a logo, an icon or a character | Vector shapes, images, bones and IK, a keyframe [timeline](../editor/animation-timeline.mdx) with easing curves, and export to GIF, WebM (with transparency) or MP4 |
+| Draw your own art | [Paint mode](../editor/paint-mode.mdx): vector and bitmap tools, frames and layers, onion skin |
+| Use a sprite sheet | Import it, then cut it into frames with the [Sprite Editor](../editor/sprite-editor.mdx) |
+| Make an interactive widget for a website | [State machines](../editor/state-machines.mdx), [scene properties](../editor/properties-and-bindings.mdx), and the [website embed](../embedding/overview.mdx) for plain JS or React |
+| Build a game | Scenes, cameras, 2D and 3D physics, particles, lighting, audio, UI, [JavaScript scripting](../scripting/overview.mdx), [prefabs](../editor/prefabs.mdx), even LAN multiplayer |
+| Ship it | One-file web page, a desktop `.exe`, or a drop-in folder for your web project ([Exporting](../editor/exporting.mdx)) |
+
+## The big ideas
+
+A handful of concepts carry through the whole editor. Once these click, everything else is detail.
+
+### Scenes
+
+A **scene** is one screen, level or area: its own canvas size, its own objects, animations and state machines. A project can have many scenes, and scripts switch between them. See [Scenes](../editor/scenes.mdx).
+
+### Nodes and components
+
+Everything in a scene is a **node**: a shape, a group, a text, an image, a camera, a light, a 3D object. Nodes nest in a tree (the [Layers panel](../editor/nodes-and-layers.mdx)). You give a node extra abilities by adding **components** from the Inspector's **Add Component** menu: a Rigidbody 2D to make it fall, a Particle System to make it emit, a Flipbook to make it flip through frames, an On Click list to make it a button. The [Components](../components/overview.mdx) section covers each one.
+
+### Animations and state machines
+
+An **animation** is a set of keyframes over time. A **state machine** decides *which* animation plays *when*: "Idle until the `hover` input is true, then crossfade to Hover". This is the same model Rive and Unity use. See [Animation timeline](../editor/animation-timeline.mdx) and [State machines](../editor/state-machines.mdx).
+
+### Scripts
+
+When you need logic, a state can run **code**: plain JavaScript with a `ctx` object for input, time, physics, sound, scenes and more. See [Scripting](../scripting/overview.mdx).
+
+### Properties
+
+**Scene properties** are named, typed values (`score`, `isNight`, `label`) that the whole scene shares. Buttons set them, scripts read them, bindings show them, and a web page embedding your game can write them. See [Properties and bindings](../editor/properties-and-bindings.mdx).
+
+## See it running
+
+Here is a tiny Toasty widget embedded in this page: a day/night toggle driven by a state machine. Click it.
+
+<ToastyDemo game="/games/day-night.teab" height={320} caption="day-night.teab: one Bool input, two states (Day and Night), and an event sent to the page on every click." />
+
+## Where to go next
+
+1. [Web and desktop](./web-and-desktop.mdx): which version to use.
+2. [Your first project](./first-project.mdx): a 15-minute walkthrough from blank canvas to exported game.
+3. [Interface tour](./interface-tour.mdx): what every panel and button is.
+4. [Projects and saving](./projects-and-saving.mdx): how your work is stored and how not to lose it.
+5. [Keyboard shortcuts](./keyboard-shortcuts.mdx).

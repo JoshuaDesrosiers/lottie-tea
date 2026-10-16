@@ -1,0 +1,138 @@
+---
+title: Time and frames
+sidebar_position: 7
+description: ctx.time and ctx.deltaSeconds, frame-rate independent movement, timers, and the screen object.
+---
+
+# Time and frames
+
+Your script runs once per displayed frame. Frame rates vary (60, 120, 144 Hz, or slower on a busy laptop), so anything that moves or counts down should be scaled by the time that actually passed.
+
+| Member | Type | Description |
+|---|---|---|
+| `ctx.deltaSeconds` | number | Seconds since the previous frame |
+| `ctx.time` | number | Seconds since **this layer's** current state became active |
+| `ctx.screen` | object | The size and shape of the screen this frame was laid out for |
+
+## ctx.deltaSeconds
+
+```ts
+ctx.deltaSeconds: number
+```
+
+Seconds since the last frame, about `0.0167` at 60 fps. Multiply speeds by it.
+
+```js
+const SPEED = 240                                    // units per second
+getCompByID('car').x += SPEED * ctx.deltaSeconds
+```
+
+**Gotchas**
+- It is `0` on the very first frame.
+- After a hitch (a tab switch, a breakpoint) it can be large. The exported player caps it at `0.1`; the editor does not. Clamp it yourself for physics-like code, as every demo does:
+
+```js
+const dt = Math.min(ctx.deltaSeconds, 1 / 20)
+```
+
+## ctx.time
+
+```ts
+ctx.time: number
+```
+
+Seconds since the current state became active on this program's layer. Restarts at `0` every time that layer changes state. Great for "since this state began" logic and for smooth looping motion.
+
+```js
+const ufo = getCompByID('ufo')
+ufo.y = 120 + Math.sin(ctx.time * 2) * 10      // bob forever
+if (ctx.time > 3) ctx.fireTrigger('timeUp')    // leave this state after 3 s
+```
+
+If you need a clock that runs across state changes, keep your own:
+
+```js
+const g = ctx.globals.clock || (ctx.globals.clock = { t: 0 })
+g.t += ctx.deltaSeconds
+```
+
+or use `performance.now() / 1000` (wall-clock seconds, keeps running while paused).
+
+## Timers
+
+Timers are just numbers in `ctx.globals` that you count down or compare against.
+
+**Count down:**
+
+```js
+const g = ctx.globals.spawner || (ctx.globals.spawner = { next: 1 })
+g.next -= ctx.deltaSeconds
+if (g.next <= 0) {
+  g.next = 0.8                        // every 0.8 s
+  ctx.spawn('Enemy', 300, Math.random() * 200 - 100)
+}
+```
+
+**Schedule for later (compare with `ctx.time`):**
+
+```js
+// play a second note 0.08 s after the first
+if (coinClicked) { ctx.playTone({ freq: 988, duration: 0.08 }); g.coinAt = ctx.time + 0.08 }
+if (g.coinAt && ctx.time >= g.coinAt) { ctx.playTone({ freq: 1319, duration: 0.25 }); g.coinAt = 0 }
+```
+
+`setTimeout` also works (scripts are normal JS), but the callback runs outside the frame, with no fresh `ctx` and no pause awareness. Prefer frame-based timers.
+
+## Smooth motion
+
+**Ease towards a target**, frame-rate independent:
+
+```js
+const k = 1 - Math.exp(-10 * ctx.deltaSeconds)     // 10 = how snappy
+cam.x += (player.x - cam.x) * k
+```
+
+**Linear interpolation** with the built-in `lerp(a, b, t)` (t clamped to 0..1):
+
+```js
+const t = Math.min(1, ctx.time / 0.5)              // 0 -> 1 over half a second
+panel.y = lerp(-400, 0, t * t * (3 - 2 * t))       // smoothstep ease
+```
+
+## Running something once when a state starts
+
+`ctx.time` is `0` on a state's first frame, but a robust check stores the state you last saw (per layer):
+
+```js
+const g = ctx.globals.flow || (ctx.globals.flow = { cur: {} })
+function entered() {
+  const key = ctx.layer || 'base'
+  if (g.cur[key] === ctx.state) return false
+  g.cur[key] = ctx.state
+  return true
+}
+if (entered()) { ctx.playSound('whoosh'); ctx.props.timer = 30 }
+```
+
+## ctx.screen
+
+```ts
+ctx.screen: {
+  width: number         // visible world area, world units
+  height: number
+  screenWidth: number   // CSS pixels
+  screenHeight: number
+  compact: boolean      // narrower than the scene's breakpoint (phones)
+  portrait: boolean     // taller than wide
+}
+```
+
+What the current frame was laid out for. Use it to adapt layout from code.
+
+```js
+const hud = getCompByID('hud')
+hud.x = -ctx.screen.width / 2 + 20                  // pin to the left edge
+hud.scaleX = hud.scaleY = ctx.screen.compact ? 0.8 : 1
+```
+
+For layout without code, see [Responsive layout](../components/responsive-layout.mdx).

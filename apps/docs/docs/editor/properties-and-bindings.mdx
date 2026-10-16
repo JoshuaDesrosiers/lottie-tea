@@ -1,0 +1,145 @@
+---
+title: Properties and bindings
+sidebar_position: 10
+description: Give a scene named, typed properties, show them on nodes with Property Binding, change them with On Click actions, and share them with scripts, HTML UI and the embedding web page.
+---
+
+# Properties and bindings
+
+**Scene properties** are a scene's named, typed values: `score`, `health`, `isNight`, `label`, `accent`. They're one shared source of truth that everything can read and write:
+
+| Who | Reads with | Writes with |
+|---|---|---|
+| The Inspector | Shows each property's starting value | Edits the starting value |
+| Scripts | `ctx.props.score` | `ctx.props.score += 1` |
+| Buttons (no code) | | an **On Click** action: **Set property** |
+| Nodes (no code) | a **Property Binding** component | |
+| HTML UI | `data-bind="score"` | `data-prop="volume"` on an input, checkbox or select |
+| A web page embedding the game | `player.on('prop', …)` / React `onPropChange` | `player.set('score', 10)` / React `data={{ score: 10 }}` |
+
+The idea is Rive's "view model": design the data once, then wire the visuals to it.
+
+Try it: this button's `count` and `liked` are scene properties, bound to its text and look. The page can set them too.
+
+<ToastyDemo game="/games/like-button.teab" height={260} data={{ count: 128 }} caption="like-button.teab: count (Number) and liked (Bool) are scene properties; clicking toggles liked and sends a like event with both values." />
+
+## Adding properties
+
+1. Click empty canvas so **nothing is selected**. The Inspector shows the scene's Canvas section.
+2. At the bottom, under **Properties**, click **+ Number**, **+ Bool**, **+ Text** or **+ Color**.
+
+<Shot id="scene-properties" caption="The Inspector's Properties section with four properties (score Number 0, isNight Bool, label Text, accent Color) and the + Number / + Bool / + Text / + Color buttons." />
+
+Each property row has:
+
+| Field | What it does |
+|---|---|
+| Name | How everything refers to it. Rename by editing the field and clicking away. |
+| Type | **Number**, **Bool**, **Text** or **Color**. Changing the type resets the starting value to that type's zero (0, false, empty text, white). |
+| Starts as | The value the property has when the game starts: a checkbox for Bool, a text field otherwise. Colours are written as `[r, g, b, a]` with values from 0 to 1. |
+| ✕ | Deletes the property. |
+
+Properties belong to the scene they're defined in.
+
+### How values behave at runtime
+
+- Every **Play**, and every **scene switch**, starts each property again from its starting value.
+- Values keep their type: writing `"3"` to a Number property stores the number `3`. That's what makes HTML inputs and page data "just work".
+- Writing to a property that doesn't exist is reported in the Console.
+
+## Property Binding: showing properties on nodes
+
+Add **Add Component → Events & Data → Property Binding** to a node, then click **+ Bind a property**. Each binding row links one property to one thing on the node:
+
+| Field | What it does |
+|---|---|
+| **Property…** | Which scene property. |
+| Target | What it drives: **Text**, **Position X**, **Position Y**, **Rotation**, **Scale**, **Scale X**, **Scale Y**, **Visible**, **Fill colour**, or any field of the node's components (for example a light's intensity). |
+| Format | For Text: how to show the value, `{}` standing for it, e.g. `Score: {}`. Empty shows just the value. |
+| × and + | For numbers: multiply by, then add, before applying. For example, health 0–100 → a bar's **Scale X** with × `0.01`. |
+
+Bindings apply every frame while the game runs. A **Visible** binding shows the node while the value is truthy. A node can have many bindings.
+
+```text
+score (Number)   → Text        format "Score: {}"
+health (Number)  → Scale X     × 0.01  + 0
+isNight (Bool)   → Visible
+accent (Color)   → Fill colour
+```
+
+## On Click events
+
+**Add Component → Events & Data → On Click (Events)** gives a node a list of actions that run, in order, when it's clicked. The node also needs a **UI Button** component (added automatically on items from **+ → UI → Button**), which is what detects the click.
+
+Click **+ Add action** to add a step. Each step has a **target** (**This node** or any other node in the scene) and an **action**:
+
+| Group | Actions |
+|---|---|
+| Node | **Show**, **Hide**, **Toggle visible**, **Set x**, **Set y**, **Set rotation**, **Set scaleX**, **Set scaleY**, **Set text**, **Set fillColor** |
+| A component on the target | Its methods (**Emit particles**, **Burst particles**, **Play** / **Stop** a sound, **Shake** / **Regrow** a tree, **Mend (reset)** a cloth, **Add impulse** to a rigidbody, **Toggle** a UI toggle…) and **Set** any of its fields |
+| State machine | **Fire trigger**, **Set input** (shown when the scene's state machines have inputs) |
+| Scene | **Set property**, **Load scene**, **Play sound**, **Call script function** |
+
+Rows can be reordered with the up/down arrows and removed with ×.
+
+### Values
+
+| Action | Value format |
+|---|---|
+| Set fillColor | `[1, 0.5, 0, 1]` or `#ff8800` |
+| Set text | the new text |
+| Set a component field | JSON: `3`, `true`, `"text"`, `[1,0,0,1]` |
+| Set input | `true`, `3`, `Run` |
+| **Set property**, Number | `5` sets it; `+1` or `-1` adds to it |
+| **Set property**, Bool | `true`, `false`, or `!` to flip it |
+| **Call script function** | the function name, plus an optional argument |
+
+If a step fails (a missing node, a field that doesn't exist), the Console says why and the remaining steps still run.
+
+### Calling script functions
+
+**Call script function** runs a function a script registered with `ctx.on`:
+
+```js
+// In any running script:
+ctx.on('openShop', (arg) => {
+  ctx.props.coins -= 10
+  ctx.loadScene('Shop')
+})
+```
+
+The embedding page can call the same functions with `player.call('openShop', arg)`. When the game is embedded and no script registered that name, the click is forwarded to the page as an event instead.
+
+## Properties in scripts
+
+```js
+// Read and write like plain object fields.
+ctx.props.score += 10
+if (ctx.props.health <= 0) ctx.fireTrigger('die')
+
+// Data the embedding page passed in (read-only).
+const name = ctx.data.userName ?? 'Player'
+```
+
+See [Props and data](../scripting/props-and-data.mdx).
+
+## Properties and the web page
+
+When your game is embedded, page data flows straight into properties: `player.set('count', 5)` (or React `data={{ count: 5 }}`) writes `ctx.data.count` **and** the scene property named `count`. Changes the game makes are reported back with `prop` events. That's what lets a React app and a Toasty widget share state without glue code. See [Data binding](../embedding/data-binding.mdx).
+
+## Choosing between properties, inputs and globals
+
+| Use | When |
+|---|---|
+| **Scene property** | A value the scene shows or that the page should see or set: score, label, colour, a flag. |
+| **State machine input** | A value that should change which *animation state* plays. (A button or script can set both.) |
+| `ctx.globals` | Script-only state that must survive a scene switch. |
+| `ctx.storage` | Data that must survive closing the game (saves, high scores). |
+
+## Related
+
+- [State machines](./state-machines.mdx)
+- [Props and data (scripting)](../scripting/props-and-data.mdx)
+- [HTML UI](../components/html-ui.mdx)
+- [UI components](../components/ui-components.mdx)
+- [Data binding (embedding)](../embedding/data-binding.mdx)

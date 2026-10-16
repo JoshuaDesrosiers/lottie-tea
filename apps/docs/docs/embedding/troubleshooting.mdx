@@ -1,0 +1,98 @@
+---
+title: Troubleshooting
+sidebar_position: 12
+description: Fixes for embedded Toasty games that don't show, don't load, don't respond to the page, or interfere with the page around them.
+---
+
+# Troubleshooting
+
+Open the browser's developer tools first. The player logs everything it ignores to the **Console**, prefixed with `an1mbyt3:`, and failed downloads show up in the **Network** tab.
+
+## Nothing shows
+
+**The box has no height.** The game fits inside its container; an empty `div` is 0 px tall. Give the container (or `style` on `<An1Player>`, or the `<an1-player>` element) a height. Check in the Elements panel that the box really has a size.
+
+**The game file 404s.** Look in the Network tab for `game.teab`. Remember that `public/` is the site root: the URL is `/an1mbyt3/game.teab`, not `/public/an1mbyt3/game.teab`. The error is `couldn't load /an1mbyt3/game.teab (404)`.
+
+**The engine 404s.** By default the player loads `an1mbyt3_wasm_bg.wasm` from the **same folder as the game**. Put it there, or pass its URL as `wasm`.
+
+**You opened the page from disk.** Browsers refuse to load the engine from a `file://` address. Serve the folder over HTTP, for example `npx serve .`.
+
+**Server rendering.** In Next.js and similar frameworks, `window is not defined` means the player was rendered on the server. See [Next.js](./nextjs.mdx).
+
+**No GPU support.** The engine needs WebGPU or WebGL2. Very old browsers, some locked-down corporate machines and browsers with hardware acceleration disabled can't run it. Listen to `onError` / catch the `createPlayer` rejection and show a fallback (an image or a video of the animation).
+
+## A second game replaced the first
+
+Only one player runs per page. Creating a new one (another `<An1Player>`, another `createPlayer`, another `<an1-player>`) destroys the previous one. Show one at a time, or combine the widgets into one scene (see [Recipes](./recipes.mdx#several-widgets-one-player)).
+
+## The page's data doesn't show up in the game
+
+- **Name mismatch.** Data reaches a Property only if a scene Property has exactly that name (case-sensitive). Check `an1mbyt3.json` or the end of `AGENTS.md` in your export for the real names.
+- **Wrong scene.** Properties belong to a scene. If the current scene has no Property with that name, the value only reaches `ctx.data` (it will be applied when you enter a scene that has it).
+- **Nothing bound to it.** A Property only changes what you see if something is bound to it (a Property Binding, an HTML `data-bind`, or a script). See [Properties and bindings](../editor/properties-and-bindings.mdx).
+- **Colours turn white.** Only `'#rrggbb'` (or `'rrggbb'`) and `[r, g, b]` / `[r, g, b, a]` arrays (0 to 1) are understood. `'#fff'`, `'red'` and `rgb(...)` become white.
+- **React: mutated in place.** `data` and `inputs` are compared shallowly. `data.user.name = 'Ada'` on the same object isn't seen; pass new values.
+- **Sending the same value again does nothing.** Data are values, not pulses. For "do it now", use a trigger (`fire`) or a function (`call`).
+- **The game overwrote it.** If the game changes the Property afterwards, the game's value wins until you send a *different* value. Use `onPropChange` to keep your state in sync (see [Listening](./listening.mdx#property-changes)).
+
+## Inputs, triggers and functions do nothing
+
+The console tells you:
+
+| Console message | Meaning |
+|---|---|
+| `an1mbyt3: the scene's state machine has no input "…"` | The current scene's active state machine has no input with that name (check spelling and the scene). |
+| `an1mbyt3: no script function "…" (register it with ctx.on('…', fn))` | No script registered that function yet. Scripts register functions when they first run, so calling right at startup can be too early: call it after `onReady` and a frame, or after a state change. |
+| `an1mbyt3: no scene named "…"` | `loadScene` or the `scene` prop used a name that doesn't exist. Check `player.scenes`. |
+
+`fire` on a name that isn't a Trigger logs nothing; check the names in your export's `AGENTS.md`.
+
+**React: a trigger in `inputs` fires only once.** It fires when the value *changes* to truthy. Use `ref.current?.fire(name)` for repeated firing.
+
+**React: `ref.current` is `null`.** The player isn't ready yet (or was destroyed). Use `ref.current?.…`, or `useAn1Player()` to re-render once it's ready. On React 18 the `ref` prop doesn't work at all; use `onReady`.
+
+## I don't get events
+
+- **Starting values aren't events.** The first scene and the starting state are not reported as changes. Read `player.scene` and `player.state` in `onReady` (or right after `await createPlayer`).
+- **`on('ready')` never fires.** `ready` is sent before `createPlayer` resolves. Use the resolved player, `onReady`, or the element's `an1:ready`.
+- **`<an1-player>`: `an1:state` never arrives.** Only `an1:ready` and `an1:error` are dispatched on the element. Use `el.player.on('state', …)` after `an1:ready` (see [Custom element](./custom-element.mdx#events)).
+- **DOM `an1:*` events on a parent.** They don't bubble. Listen on `player.container` itself.
+- **`prop` doesn't fire for my own `set`.** That's by design: only changes made by the game are reported.
+- **No `event` from a button.** An On Click "Call script function" only reaches the page if *no* script registered a function with that name. If a script handles it, the script runs instead (it can `ctx.emit` to tell the page).
+
+## Keyboard and mouse
+
+**Keys don't reach the game.** With the default `keyboard: 'focus'`, the game only hears keys while its canvas has focus. Clicking the game focuses it. For a game that should always hear keys, use `keyboard: 'window'`.
+
+:::caution `keyboard: 'window'` and text fields
+With `'window'`, the player listens to every key on the page, and it calls `preventDefault()` on Space and the arrow keys and on F3 and the backtick key (which toggle the profiler). On a page with text inputs, that means users can't type spaces or backticks and arrow keys stop moving the cursor. Keep `'focus'` on pages with forms, or only switch to `'window'` while the game is "active".
+:::
+
+**The page doesn't scroll over the game.** The canvas takes mouse-wheel events (for games that zoom or scroll) and has `touch-action: none` (for touch controls), so wheel and touch scrolling over the canvas don't scroll the page. If your embed is purely decorative, put the game in a wrapper with `pointer-events: none`, or leave margins around it so users can scroll past.
+
+**Right-click menu is gone over the game.** The canvas suppresses the context menu so games can use the right mouse button.
+
+**A profiler overlay appeared.** F3 or the backtick key toggles it while the game receives keys, and a `?stats` parameter in the page URL turns it on at start. Press F3 again to hide it.
+
+## Performance
+
+- **Slow first load.** The engine is about 25 MB uncompressed. Enable gzip/Brotli for `.wasm`, set long cache headers, preload it, or create the player only when it scrolls into view. See [Exporting for the web](./export-for-web.mdx#serving-it-well).
+- **Fans spin on a static page.** The game renders every frame while it plays. Pause it when it's off screen or finished (`paused` / `pause()`). See [Recipes](./recipes.mdx#pause-when-off-screen).
+- **Blurry on high-DPI screens or under load.** The player renders at the device pixel ratio and can lower its internal resolution when frames are slow, so the game stays smooth. Pixel-art scenes with a pixel-perfect camera are scaled in whole steps and stay crisp.
+
+## Errors while running
+
+`on('error')` / `onError` receives errors thrown during a frame (usually a script bug). The frame is skipped and the game continues. Only the first three errors and then every 600th are reported, so one bug doesn't flood the console. Fix it in the editor: the same error appears in the editor's Console when you press Play. See [Debugging](../scripting/debugging.mdx).
+
+## After re-exporting
+
+**Replace every file.** The `.js` files, the `.teab` and the `.wasm` come from the same engine version. Mixing an old engine with a new game (or the reverse) can fail to load or misbehave. If visitors still see the old version, it's caching: change the folder name per release or use shorter cache times.
+
+**Names changed.** If you renamed a Property, input, state, scene or event in the editor, your page still uses the old name. Search for it, and check the new `AGENTS.md`.
+
+## Exporting from the browser editor
+
+If **Export → Game → Website embed** asks you for a project name instead of opening a folder picker, you are in a browser without folder access (Firefox, Safari), and the export lands in the browser's private storage. Use Chrome, Edge or the desktop app to export. See [Exporting for the web](./export-for-web.mdx).
+
+If the export fails with `embed bundle missing`, the editor build is missing its embed files; this is an editor installation problem, not something in your project.

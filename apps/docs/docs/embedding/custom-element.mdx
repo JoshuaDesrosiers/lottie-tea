@@ -1,0 +1,161 @@
+---
+title: The an1-player element
+sidebar_position: 6
+description: Register the an1-player custom element and drop a Toasty game into any HTML page, CMS or framework with one tag.
+---
+
+# The `<an1-player>` element
+
+If you'd rather write HTML than JavaScript (a CMS page, a static site, a framework without a wrapper), register the custom element once and use the tag anywhere:
+
+```html
+<script type="module">
+  import { defineAn1PlayerElement } from '/an1mbyt3/an1mbyt3-embed.js'
+  defineAn1PlayerElement()
+</script>
+
+<an1-player
+  game="/an1mbyt3/game.teab"
+  data='{"isNight": false}'
+  style="height: 240px">
+</an1-player>
+```
+
+This is what that tag shows for the day/night toggle:
+
+<ToastyDemo game="/games/day-night.teab" height={240} caption="day-night.teab: click the scene to toggle" />
+
+## Registering
+
+`defineAn1PlayerElement(tag?)` registers the element. Call it once, before or after the tags appear in the page; tags already in the page start as soon as it is registered.
+
+- The default tag name is `an1-player`. Pass another name to use your own, for example `defineAn1PlayerElement('hero-animation')` (custom element names must contain a dash).
+- Calling it again with a name that's already registered does nothing, so it's safe to call from several scripts.
+
+## Attributes
+
+| Attribute | Value | Changing it |
+|---|---|---|
+| `game` | URL of the `.teab`. **Required**; nothing loads without it. | reloads the player |
+| `wasm` | URL of the engine. Default: `an1mbyt3_wasm_bg.wasm` next to `game`. | reloads |
+| `scene` | Scene name to show. Default: the first scene. | switches scene (live) |
+| `data` | A JSON object of data, e.g. `'{"count": 3, "label": "Hi"}'`. | sends every key in it (live) |
+| `paused` | Boolean attribute: present means paused. | pauses / plays (live) |
+| `fit` | `contain` (default) or `cover`. | reloads |
+| `keyboard` | `focus` (default), `window` or `none`. | reloads |
+
+What each value means is the same as the [`createPlayer` options](./api-reference.mdx#createplayer-options). Two options aren't available as attributes: `background` (style the element instead, for example `style="background:#000"`) and `stats`.
+
+:::caution `data` must be valid JSON
+Use double quotes inside and single quotes around the attribute: `data='{"name": "Ada"}'`. If it doesn't parse, the console shows ``<an1-player>: `data` must be JSON`` and the data is ignored.
+:::
+
+### Sizing
+
+The element makes itself `display: block` unless you set a `display` yourself, and the game fills it (letterboxed). **Give it a height**, inline or from your stylesheet:
+
+```css
+an1-player { display: block; height: 320px; border-radius: 12px; overflow: hidden; }
+```
+
+## Changing attributes from code
+
+Set attributes and the running game follows:
+
+```js
+const el = document.querySelector('an1-player')
+
+el.setAttribute('data', JSON.stringify({ isNight: true }))  // live
+el.setAttribute('scene', 'House')                          // live
+el.toggleAttribute('paused', true)                         // live
+el.setAttribute('game', '/an1mbyt3/other.teab')            // reloads
+```
+
+When `data` changes, every key in the new JSON is sent (keys that kept their value change nothing in the game, so that's cheap). Removing the `data` or `scene` attribute doesn't undo anything; set new values instead.
+
+:::note Wait for `an1:ready` before changing `scene`, `data` or `paused`
+Attribute changes made while the game is still loading are not applied to it (the load reads the attributes when it starts). Set your starting values in the HTML, and make later changes after `an1:ready`.
+:::
+
+## The full API: `element.player`
+
+After the game is ready, `element.player` is the same player object `createPlayer` returns, with every method: `set`, `setData`, `get`, `setInput`, `fire`, `loadScene`, `call`, `on`, `off`, `waitForState`, `pause`, `play`. Before that, and after the element is removed, it is `null`.
+
+```js
+const el = document.querySelector('an1-player')
+el.addEventListener('an1:ready', () => {
+  el.player.fire('ring')
+  el.player.setInput('isNight', true)
+})
+```
+
+## Events
+
+The element dispatches two events on itself, and they bubble:
+
+| Event | `detail` | When |
+|---|---|---|
+| `an1:ready` | `{ scenes, scene }` | the game is loaded and running; `el.player` is set |
+| `an1:error` | `{ error }` | the game failed to load |
+
+For everything else (`state`, `event`, `prop`, `scene`, and errors while running), subscribe through `el.player.on(...)` once it's ready:
+
+```html
+<an1-player id="bell" game="/an1mbyt3/game.teab" data='{"unread": 3}' style="height: 200px"></an1-player>
+<span id="badge"></span>
+
+<script type="module">
+  import { defineAn1PlayerElement } from '/an1mbyt3/an1mbyt3-embed.js'
+  defineAn1PlayerElement()
+
+  const bell = document.getElementById('bell')
+  bell.addEventListener('an1:ready', () => {
+    bell.player.on('event', ({ name, payload }) => {
+      if (name === 'open') document.getElementById('badge').textContent = `opened with ${payload.unread} unread`
+    })
+    bell.player.on('state', ({ state }) => console.log('bell is', state))
+  })
+  bell.addEventListener('an1:error', (e) => console.error('bell failed', e.detail.error))
+</script>
+```
+
+:::info About the `an1:state`, `an1:event`, … DOM events
+The player also dispatches `an1:state`, `an1:scene`, `an1:prop`, `an1:event` and `an1:error` as DOM events, but on the element's **inner box** (the `div` the element creates to hold the canvas), and they don't bubble. So `el.addEventListener('an1:state', …)` on the `<an1-player>` itself won't hear them. Either use `el.player.on(...)` as above, or listen on the inner box: `el.player.container.addEventListener('an1:state', …)`.
+:::
+
+## Lifecycle
+
+- **Added to the page:** loads the game.
+- **Removed from the page:** destroys the player and frees the engine. Moving the element (removing and re-inserting it) loads it again.
+- **One player per page:** a second `<an1-player>` that loads destroys the first one's game. Show one at a time, for example by setting `game` only on the visible one.
+
+## In frameworks
+
+The element works anywhere HTML does.
+
+**Svelte** supports custom elements natively:
+
+```svelte
+<script>
+  import { defineAn1PlayerElement } from './an1mbyt3/an1mbyt3-embed.js'
+  defineAn1PlayerElement()
+  let night = $state(false)
+</script>
+
+<an1-player game="/an1mbyt3/game.teab" data={JSON.stringify({ isNight: night })} style="height: 220px"></an1-player>
+<label><input type="checkbox" bind:checked={night}> Night</label>
+```
+
+**Vue** needs to be told that `an1-player` isn't a Vue component, in `vite.config`:
+
+```js
+vue({ template: { compilerOptions: { isCustomElement: (tag) => tag === 'an1-player' } } })
+```
+
+```vue
+<an1-player game="/an1mbyt3/game.teab" :data="JSON.stringify({ isNight })" style="height: 220px" />
+```
+
+**WordPress, Webflow, Squarespace and other CMSs:** upload the three `.js` files, `game.teab` and the `.wasm` to one folder on your host (or media library, if it allows `.wasm` and `.teab` files), then add a custom HTML block with the `<script type="module">` and the tag, using the uploaded URLs.
+
+**React:** prefer [`<An1Player>`](./react.mdx). It diffs props and gives you typed handlers.

@@ -1,0 +1,230 @@
+---
+title: "6. The plain-HTML version"
+sidebar_position: 6
+description: Build the same landing page hero without React - the an1-player custom element, data as a JSON attribute, an1:state and an1:event DOM events, and element.player for triggers and waitForState.
+---
+
+# 6. The plain-HTML version
+
+**Goal:** the theme toggle and the form-driven blob on a page with no framework at all: HTML, CSS and a little JavaScript.
+
+**What you'll learn**
+
+- Registering and using the `<an1-player>` custom element.
+- Its attributes: `game`, `scene`, `data`, `paused`, `fit`, `keyboard`, `wasm`.
+- Listening with DOM events: `an1:ready`, `an1:state`, `an1:event`, `an1:prop`, `an1:scene`, `an1:error`.
+- `element.player` for everything else (`fire`, `waitForState`).
+
+## Step 1: the files
+
+Export each scene with **Export → Game → Website embed (React / JS)**. For a plain site, copy the export's `src/an1mbyt3/` folder to `/an1mbyt3/js/` and its `public/an1mbyt3/` to `/an1mbyt3/`, so the page can load `/an1mbyt3/js/an1mbyt3-embed.js`, and the game and engine sit side by side. With two scenes as two exports, keep each export's `game.teab` under its own name (for example `/an1mbyt3/day-night.teab` and `/an1mbyt3/mood-blob.teab`) and one copy of the engine and scripts, **if both exports came from the same version of Toasty**. If in doubt, keep two folders.
+
+:::note Simplest option
+Put both scenes in one Toasty project and export once. Then there's one `game.teab`, and the `scene` attribute picks `Toggle` or `Mood`.
+:::
+
+## Step 2: the page
+
+Only one player can run on a page, so the page keeps each scene in a **slot**: a box holding a poster image, into which the script puts a live `<an1-player>` when the slot scrolls into view (and puts the poster back in the other slot, which destroys that player). Take the posters as screenshots of each scene.
+
+```html title="index.html"
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alive — landing page</title>
+  <script>
+    // Before first paint: the saved theme, else the OS preference.
+    (function () {
+      var saved = null
+      try { saved = localStorage.getItem('theme') } catch (e) {}
+      var dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+    })()
+  </script>
+  <style>
+    :root { --bg: #f7f7fa; --fg: #16161d; }
+    :root[data-theme='dark'] { --bg: #101018; --fg: #ececf4; }
+    body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--fg); transition: background .4s, color .4s; }
+    main { max-width: 880px; margin: 0 auto; padding: 32px 16px; }
+    /* Slots and players need a size; a custom element is inline by default. */
+    .slot img, .slot an1-player { display: block; width: 100%; height: 100%; }
+    #toggleSlot { width: 320px; height: 200px; }
+    #blobSlot { width: 240px; height: 240px; }
+    .reveal { opacity: 0; transition: opacity .6s; }
+    .reveal.shown { opacity: 1; }
+    .signup { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; margin-top: 120vh; }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Build things that feel alive</h1>
+    <div id="toggleSlot" class="slot" data-game="/an1mbyt3/day-night.teab">
+      <img src="/img/day-night-poster.png" alt="">
+    </div>
+    <button id="themeButton" type="button" aria-pressed="false">Light mode</button>
+    <p id="nightLine" class="reveal">Night owl? We ship dark mode on every plan.</p>
+  </header>
+
+  <section class="signup">
+    <div id="blobSlot" class="slot" data-game="/an1mbyt3/mood-blob.teab">
+      <img src="/img/mood-blob-poster.png" alt="">
+    </div>
+    <form id="form">
+      <input id="email" type="email" required placeholder="you@example.com">
+      <input id="password" type="password" required placeholder="Password">
+      <button id="submit" disabled>Make the blob happy first</button>
+      <p id="message" role="status"></p>
+    </form>
+  </section>
+</main>
+
+<script type="module">
+  import { defineAn1PlayerElement } from '/an1mbyt3/js/an1mbyt3-embed.js'
+  defineAn1PlayerElement() // registers <an1-player>
+
+  const toggleSlot = document.getElementById('toggleSlot')
+  const blobSlot = document.getElementById('blobSlot')
+  const themeButton = document.getElementById('themeButton')
+  const password = document.getElementById('password')
+  const submit = document.getElementById('submit')
+
+  // The live element in a slot, or null while the slot shows its poster.
+  const live = (slot) => slot.querySelector('an1-player')
+
+  // ---------- theme: one source of truth, on <html data-theme> ----------
+  function isNight() { return document.documentElement.dataset.theme === 'dark' }
+  function setTheme(night) {
+    document.documentElement.dataset.theme = night ? 'dark' : 'light'
+    try { localStorage.setItem('theme', night ? 'dark' : 'light') } catch (e) {}
+    themeButton.textContent = night ? 'Dark mode' : 'Light mode'
+    themeButton.setAttribute('aria-pressed', String(night))
+    // The scene's Property and its state machine input, if the scene is live.
+    const player = live(toggleSlot)?.player
+    if (player) {
+      player.set('isNight', night)
+      player.setInput('isNight', night)
+    }
+  }
+  themeButton.addEventListener('click', () => setTheme(!isNight()))
+
+  // ---------- the blob's mood from the password ----------
+  function score(pw) {
+    if (!pw) return 0
+    let s = 0
+    if (pw.length >= 8) s++
+    if (pw.length >= 12) s++
+    if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++
+    if (/\d/.test(pw)) s++
+    if (/[^A-Za-z0-9]/.test(pw)) s++
+    return s
+  }
+  const currentMood = () => (password.value ? -1 + (score(password.value) / 5) * 2 : 0)
+  password.addEventListener('input', () => {
+    // Cheap enough for every keystroke.
+    live(blobSlot)?.player?.set('mood', currentMood())
+  })
+  document.getElementById('form').addEventListener('submit', (e) => {
+    e.preventDefault()
+    document.getElementById('message').textContent = 'Welcome aboard!'
+    live(blobSlot)?.player?.fire('jump') // a moment: a trigger
+  })
+
+  // ---------- wiring each scene when it goes live ----------
+  function wireToggle(el) {
+    // Ready: give it the current theme.
+    el.addEventListener('an1:ready', () => setTheme(isNight()))
+    // A click on the scene asks for a theme.
+    el.addEventListener('an1:event', (e) => {
+      if (e.detail.name === 'toggle') setTheme(e.detail.payload.isNight)
+    })
+    // Cue: reveal the line the first time night falls.
+    el.addEventListener('an1:state', (e) => {
+      if (e.detail.layer === null && e.detail.state === 'Night') document.getElementById('nightLine').classList.add('shown')
+    })
+  }
+  function wireBlob(el) {
+    // Starting data goes in the `data` attribute (JSON).
+    el.setAttribute('data', JSON.stringify({ mood: currentMood() }))
+    // Cue: the button unlocks while the blob is Happy.
+    el.addEventListener('an1:state', (e) => {
+      if (e.detail.layer !== null) return
+      const happy = e.detail.state === 'Happy'
+      submit.disabled = !happy
+      submit.textContent = happy ? 'Sign up' : 'Make the blob happy first'
+    })
+  }
+
+  // ---------- one live scene at a time ----------
+  const posters = new Map([toggleSlot, blobSlot].map((slot) => [slot, slot.innerHTML]))
+  function activate(slot) {
+    if (live(slot)) return
+    // Put the poster back in every other slot: removing an <an1-player>
+    // from the page destroys its player.
+    for (const other of posters.keys()) if (other !== slot && live(other)) other.innerHTML = posters.get(other)
+    const el = document.createElement('an1-player')
+    if (slot === toggleSlot) wireToggle(el)
+    else wireBlob(el)
+    el.setAttribute('game', slot.dataset.game) // the element starts when it's on the page with a game
+    slot.replaceChildren(el)
+  }
+  const io = new IntersectionObserver((entries) => {
+    for (const entry of entries) if (entry.isIntersecting) activate(entry.target)
+  }, { threshold: 0.6 })
+  io.observe(toggleSlot)
+  io.observe(blobSlot)
+</script>
+</body>
+</html>
+```
+
+:::tip Why not two `<an1-player>` tags in the HTML?
+Each one creates a player as soon as it's on the page with a `game`, and the second destroys the first. Slots make the "one at a time" rule explicit. If both scenes live in one Toasty project, you can instead keep a single `<an1-player>` and change its `scene` attribute as the visitor scrolls.
+:::
+
+Serve the folder over HTTP (for example `npx serve .`): the engine can't load from `file://`.
+
+## How it works
+
+### Attributes
+
+| Attribute | Effect | Live? |
+|---|---|---|
+| `game` | The `.teab` URL. Required. | Changing it reloads. |
+| `wasm` | The engine URL, if it isn't next to the game. | Reloads. |
+| `scene` | Scene to show. | Switches scene. |
+| `data` | JSON object of data, like `player.setData`. | Applied. |
+| `paused` | Present = paused. | Pauses / resumes. |
+| `fit` | `contain` (default) or `cover`. | Reloads. |
+| `keyboard` | `focus` (default), `window` or `none`. | Reloads. |
+
+### Events
+
+The element dispatches bubbling DOM `CustomEvent`s; the payload is in `event.detail`:
+
+| Event | `detail` |
+|---|---|
+| `an1:ready` | `{ scenes, scene }`. `element.player` is now set. |
+| `an1:state` | `{ layer, state, previous }` |
+| `an1:event` | `{ name, payload }` from `ctx.emit` |
+| `an1:prop` | `{ name, value }` when the scene changes a Property |
+| `an1:scene` | `{ scene, previous }` |
+| `an1:error` | `{ error }` |
+
+### `element.player`
+
+After `an1:ready`, `element.player` is the full JavaScript API: `set`, `setData`, `setInput`, `fire`, `loadScene`, `call`, `waitForState`, `pause`, `play` and the rest. Use it for anything attributes can't express, such as firing a trigger. Before it's ready, it's `null`, hence the `?.`.
+
+See [Custom element](../../embedding/custom-element.mdx) and the [API reference](../../embedding/api-reference.mdx).
+
+## Check your work
+
+- The page starts in your saved or OS theme, and the scene matches it.
+- Clicking the scene or the button switches the whole page; the hidden line appears the first time night falls.
+- Typing a strong password unlocks the button, and submitting makes the blob jump.
+
+## Where to go next
+
+You've built a hero that treats animation as interface: it takes values (theme, mood, scroll), reports moments (toggle, poke), and cues the page through its states. The same ideas power the [like button](../react-like-button/01-plan-the-button.mdx) and the [widget kit](../data-dashboard/01-properties-and-bindings.mdx). To make your own scenes like these, start with [State machines](../../editor/state-machines.mdx) and [Properties and bindings](../../editor/properties-and-bindings.mdx).

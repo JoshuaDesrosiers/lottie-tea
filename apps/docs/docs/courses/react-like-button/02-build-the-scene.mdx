@@ -1,0 +1,135 @@
+---
+title: "2. Build the scene"
+sidebar_position: 2
+description: Build the like button's scene in the editor - the heart icon, a bound count label, a spark burst, two Properties and a two-state state machine.
+---
+
+# 2. Build the scene
+
+**Goal:** a scene with everything the like button needs, wired up as far as it can go without code.
+
+**What you'll learn**
+
+- Setting up a small scene: canvas size, a Main Camera, a background.
+- Adding a Material Symbols **icon** and a **Text** node.
+- Giving nodes an **Id** so scripts can find them.
+- Creating scene **Properties** and showing one with a **Property Binding** (no code).
+- A one-shot **Particle System** for the spark burst.
+- A state machine with two states, a Trigger input and transitions.
+
+## Step 1: a small scene
+
+1. Open the editor and start a new project (**File → New Project…**, or just use the empty scene you get on first launch).
+2. Rename the scene: open the **Scene** dropdown in the top toolbar and use the pencil (**Rename scene**). Call it `Like`.
+3. Click an empty part of the canvas so **nothing is selected**. The Inspector now shows the **Canvas** section.
+4. Under **Size**, set **W** to `240` and **H** to `240`. A like button is small.
+
+## Step 2: a Main Camera
+
+Playground and exported games look at the scene through a Camera node.
+
+1. Click **+** (the **Add** button in the toolbar) → **Camera**.
+2. With the camera selected, find its **Camera** component in the Inspector and tick **Main Camera (Playground views through this)**. (The Canvas section's **Main Camera** picker does the same thing.)
+3. Set the camera's **Background** to the colour of the page you'll embed into. A near-white `#f7f7fa` works for most light sites. The heart will sit on this colour.
+
+## Step 3: the heart
+
+1. **+** → **2D Object** → **Icon (Material Symbols)**. A Text node appears, drawn with Google's Material Symbols icon font. It starts as a `star` at 96 px.
+2. In the Inspector's text section, change the icon to **`favorite`** (pick it from the icon grid, or type `favorite` as the text: Material Symbols draws an icon from its name).
+3. Set its position to **X** `0`, **Y** `20`.
+4. Set its fill colour to a soft grey, `[0.55, 0.57, 0.65, 1]` (`#8c91a6`). The script will turn it red when liked.
+5. In the **Id** field, type `heart`. Scripts find nodes by this Id with `getCompByID('heart')`.
+
+<Shot id="like-heart-inspector" caption="The heart icon selected, with its Id set to heart." />
+
+:::info Why an icon font?
+An icon is a Text node, so it has a fill colour a script can change, scales crisply at any size, and costs nothing to download beyond the one font (which is stored inside your project). You could equally draw the heart with the pen tool; nothing else in this course would change.
+:::
+
+## Step 4: the count label
+
+1. **+** → **2D Object** → **Text**.
+2. Type `128` as its text, set the size to around `28` px and the fill to a dark grey.
+3. Position it at **X** `0`, **Y** `-62`, under the heart.
+4. Set its **Id** to `countLabel`.
+
+You won't write code for this label. A Property Binding will drive it in step 6.
+
+## Step 5: the spark burst
+
+1. **+** → **Effects** → **Particle System**.
+2. Set its **Id** to `sparks` and its position to the heart's (`0`, `20`).
+3. In its **Main** settings:
+   - untick **Looping**, so it doesn't keep emitting on its own;
+   - **Lifetime** about `0.3`–`0.6` s, **Speed** about `60`–`160`, **Size** about `2`–`5`;
+   - **Color** a warm red-pink, like `#ff4d6d`.
+4. Under **Emission**, set **Rate/sec** to `0`. The script will fire bursts with `sparks.emit(24)` instead.
+
+Now the system is silent until the script asks for sparks.
+
+## Step 6: Properties and a binding
+
+Properties are the scene's named values: scripts read them as `ctx.props.name`, the page writes them with `player.set(name, value)` or React's `data` prop, and Property Bindings show them on nodes.
+
+1. Click empty canvas so nothing is selected. Scroll the Inspector to **Properties** (inside the Canvas section).
+2. Click **+ Number**. A property named `value` appears. Rename it to `count` and set its starting value (the **Starts as** field) to `128`.
+3. Click **+ Bool**. Rename the new `flag` to `liked` and leave its box unticked (`false`).
+
+<Shot id="like-properties" caption="The Like scene's Properties: count (Number, 128) and liked (Bool, false)." />
+
+Now bind `count` to the label:
+
+1. Select `countLabel`.
+2. **Add Component** → **Events & Data** → **Property Binding**.
+3. Click **+ Bind a property**. Pick `count (Number)` on the left and **Text** on the right.
+4. In **Format**, type `{}`. (The `{}` is replaced by the value. `{} likes` would show "128 likes".)
+
+That's it: whenever `count` changes, from a script or from the page, the label updates on the next frame.
+
+## Step 7: the state machine
+
+A state machine needs at least one animation to exist, even if (as here) its states are driven by code.
+
+1. Open the **Timeline** (left icon rail). If the scene has no animation yet, open the animation dropdown and pick **New Animation**. You won't keyframe anything in it.
+2. Open the **State Machine** panel (left icon rail).
+3. In the **State Machine** dropdown pick **New State Machine**, name it `Like`, and press **Create**. It starts with one state, `State 1`, which is the initial state (marked with a star).
+4. Click **+ Add State**. You now have `State 1` and `State 2`.
+
+:::note About the state names
+The finished `like-button.teab` on this page names its states `Idle` and `Liked`. The State Machine panel names new states `State 1`, `State 2`, … and doesn't offer a rename, so in your copy **`State 1` plays Idle** and **`State 2` plays Liked**. The script in the next lesson keeps both names in two constants at the top, so this is a one-line difference.
+:::
+
+Add the Trigger input:
+
+1. Under **Inputs**, type `burst` in **New input name**, choose **Trigger**, and click **Declare Input**.
+
+Add the transitions:
+
+1. Drag from the small handle at the bottom-right corner of `State 1`'s box onto `State 2`. A transition appears.
+2. Select `State 1`. Under **Outgoing Transitions**, set the condition to **Trigger** with input `burst`.
+3. Do the same from `State 2` back to `State 1`, also on **Trigger** `burst`.
+
+So firing `burst` always flips the heart to the other state. The script decides *when* to fire it.
+
+Finally, make both states programmable:
+
+1. Select `State 1`. Under **Program**, tick **Programmable State**.
+2. Select `State 2` and tick **Programmable State** too.
+
+Each box gets a small ▸ badge. Double-clicking a box opens its program; you'll fill them in the next lesson.
+
+<Shot id="like-state-machine" caption="The Like state machine: two programmable states with burst transitions both ways, and the burst Trigger input." />
+
+:::info Why programmable states and not keyframed animations?
+A Programmable State runs its program *instead of* playing an animation clip. Here that's what we want: the pop is a few lines of maths on `ctx.time` (the seconds since the state was entered), the colour depends on data, and both states share one script. For a hand-animated look, you'd keyframe two clips on the Timeline and run the script from an extra state machine layer instead. See [State machines](../../editor/state-machines.mdx).
+:::
+
+## Check your work
+
+- With nothing selected, the Inspector's Properties list shows `count` (Number, `128`) and `liked` (Bool, unticked).
+- `countLabel` shows `128` and has a Property Binding: `count` → Text, format `{}`.
+- Nodes with Ids `heart`, `countLabel` and `sparks` exist.
+- The State Machine panel shows two programmable states, a `burst` Trigger, and a transition each way on `burst`.
+- Press **Playground**. Nothing moves yet (the programs are empty), and that's expected.
+
+**Next:** [3. The click script](./03-the-click-script.mdx)

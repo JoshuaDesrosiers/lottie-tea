@@ -1,0 +1,102 @@
+---
+title: Projects and saving
+sidebar_position: 5
+description: How Toasty stores your work as a project folder, how autosave and crash recovery work, and when to use single .tea and .teab files instead.
+---
+
+# Projects and saving
+
+Toasty keeps your work as a **project folder**: a normal folder of files, the way Unity does. This page explains what is in that folder, when Toasty writes to it, and how to get work back if something goes wrong.
+
+## The short version
+
+- Use **File → New Project…** once, to give your work a folder. After that, Toasty **autosaves** for you.
+- **Ctrl+S** (or the Save button) saves immediately.
+- Toasty **reopens your last project** when it starts.
+- Unsaved work that isn't in a project yet is **snapshotted every 30 seconds**, and offered back to you next time.
+- **Export .tea / .teab…** writes the whole document as one file: handy for sharing, backups and embedding.
+
+## Inside a project folder
+
+```text
+MyGame/
+  MyGame.an1proj            the manifest: settings and small things
+  Assets/
+    Scenes/*.scene          one file per scene
+    Prefabs/*.prefab        one file per prefab
+    Images/*.png …          the image files themselves
+    Sounds/…                imported sounds
+    Code/…                  HTML, CSS and JS files from Code mode
+```
+
+New Project creates `Assets`, `Assets/Scenes`, `Assets/Prefabs` and `Assets/Images`; the other folders appear when you first put something in them. The manifest's name is the project's name.
+
+Because each scene and prefab is its own file, a project works well with version control (Git), and you can see exactly which scene changed.
+
+## The File menu
+
+| Item | What it does |
+|---|---|
+| **New Project…** | Pick an empty folder. Toasty creates the standard layout and writes the current document into it. If the folder already holds a project, nothing is overwritten: Toasty opens that project instead and tells you so. |
+| **Open Project…** (Ctrl+O) | Pick a project folder and load it. |
+| **Open Recent** | The last eight projects opened on this machine. |
+| **Save (Ctrl+S)** | Shown once a project is open. Writes now. |
+| **Save as Project…** | Shown instead of Save when the document has no folder yet. Same as New Project. |
+| **Show in Explorer** | Opens the project folder in your file manager (desktop app). |
+| **Import .tea / .teab…** | Opens a single-file document. It **replaces** the current document, and the open project is closed (not overwritten). |
+| **Export .tea / .teab…** | Writes the whole document to one file. Choose the `.teab` extension for the compact binary format or `.tea` for readable JSON. |
+
+The File button in the toolbar shows the open project's name, and the Save button shows a dot whenever there are unsaved changes.
+
+## Autosave
+
+While a project is open, any change is written to the folder about **1.5 seconds after you stop editing**. Saving writes only what changed: scene and prefab files, new or resized images, and the manifest last (so an interrupted save never leaves a half-written project). Files Toasty wrote before but no longer needs (a deleted or renamed scene) are removed; files Toasty didn't write are never touched.
+
+Closing the desktop window finishes any pending save before it closes. In a browser tab, closing with unsaved changes triggers a save and the browser's "Leave site?" prompt.
+
+:::caution Nothing saves during Playground
+Autosave pauses while **Playground** is running, and pressing Save there shows "Stop Playground to save — play-time changes aren't part of the project." Everything a game changes while it runs (positions, spawned objects, property values) is thrown away when you return to Design. That's on purpose: your authored scene is never polluted by a test run.
+:::
+
+## Drop-in assets
+
+You can add images to a project from outside Toasty: save or copy a `.png`, `.jpg`, `.gif` or `.webp` into the project's `Assets` folder (any subfolder) with another program. The next time the Toasty window gets focus, it imports the new files and shows "Imported new files from Assets/". Sounds dropped in are imported too. The **Refresh** button in the Resources tab rescans on demand.
+
+Images you import through Toasty while a project is open are **copied into `Assets/Images/`** (with a numbered name if that name is already used by a different file) and linked to that copy. A linked image's file on disk is its source: Toasty never overwrites it.
+
+## Working without a project
+
+You can work without ever creating a project. In that case:
+
+- Toasty snapshots your document every **30 seconds** to a recovery file (`recovery/unsaved.teab` in the app's data folder, or inside the browser's private storage on the web).
+- Next launch, a banner says "Unsaved work from your last session was recovered." with **Restore** and **Discard**. Restored work is still unsaved: save it as a project to keep it.
+- Closing the desktop app with such work asks **Save your work before closing?** with **Cancel**, **Don't Save** and **Save as Project…**.
+
+:::tip
+Recovery is a safety net, not storage. As soon as something is worth keeping, use **File → New Project…**.
+:::
+
+## Replacing the document
+
+Two actions replace the whole document in memory: **Import .tea / .teab…** and loading a saved recovery. When that happens, the project that was open is **closed, not overwritten**, so your project folder stays exactly as it was.
+
+Loading a **demo** from **+ → Demos** is different: it *adds* the demo's scene to the document you have open. If a project is open, that new scene will be autosaved into it like any other scene. If you just want to look at a demo, use a separate project for exploring, or delete the demo's scenes afterwards. See [Demos](../editor/demos.mdx).
+
+## .tea and .teab files
+
+| Format | What it is | Use it for |
+|---|---|---|
+| `.teab` | The whole document in one compact binary file (compressed). | Sharing a game, backups, the [website embed](../embedding/overview.mdx) and the player. Exports produce this format internally. |
+| `.tea` | The same document as pretty-printed JSON. | Reading or diffing a document by eye. Larger. |
+
+Both contain *everything*: scenes, images, fonts, sounds, code. The project folder is the better day-to-day format; `.teab` is the better shipping format.
+
+## Recent projects in the browser
+
+On the web, **Open Recent** remembers folders you opened in Chrome or Edge. When you reopen one, the browser asks once more for permission to edit it. Projects stored inside Firefox or Safari reopen without asking. See [Web and desktop](./web-and-desktop.mdx).
+
+## Related
+
+- [Web and desktop](./web-and-desktop.mdx)
+- [Exporting](../editor/exporting.mdx)
+- [Prefabs](../editor/prefabs.mdx)

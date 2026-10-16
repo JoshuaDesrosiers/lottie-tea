@@ -1,0 +1,200 @@
+---
+title: Next.js
+sidebar_position: 4
+description: Render a Toasty game in Next.js (App Router or Pages Router) as a client-only component, with the static files in public/.
+---
+
+# Next.js
+
+The Toasty player touches `window`, `document` and the GPU, so it can only run in the browser. In Next.js that means two things: the component that renders `<An1Player>` must be a **client component**, and it must be loaded with **server rendering turned off**. Everything else is the same as [React](./react.mdx).
+
+## Files
+
+```text
+my-next-app/
+  public/an1mbyt3/game.teab
+  public/an1mbyt3/an1mbyt3_wasm_bg.wasm
+  src/an1mbyt3/            (or app/an1mbyt3/, components/an1mbyt3/ …)
+    an1mbyt3-react.js  an1mbyt3-react.d.ts
+    an1mbyt3-embed.js  an1mbyt3-embed.d.ts
+    an1mbyt3-engine.js
+  src/components/GameBox.tsx
+```
+
+`public/an1mbyt3/game.teab` is served at `/an1mbyt3/game.teab`. See [Exporting for the web](./export-for-web.mdx) for what each file is.
+
+## App Router
+
+**1. A client component that renders the player.**
+
+```tsx title="src/components/GameBox.tsx"
+'use client'
+
+import { An1Player } from '../an1mbyt3/an1mbyt3-react.js'
+
+export default function GameBox(props: { count: number; onLike?: (count: number) => void }) {
+  return (
+    <An1Player
+      game="/an1mbyt3/game.teab"
+      style={{ width: '100%', height: 320 }}
+      data={{ count: props.count }}
+      onEvent={(e) => {
+        if (e.name === 'like') props.onLike?.((e.payload as { count: number }).count)
+      }}
+    />
+  )
+}
+```
+
+**2. Load it with `ssr: false`.** In the App Router, `dynamic(..., { ssr: false })` is only allowed inside a client component, so put the dynamic import in a small client wrapper:
+
+```tsx title="src/components/Game.tsx"
+'use client'
+
+import dynamic from 'next/dynamic'
+
+const GameBox = dynamic(() => import('./GameBox'), {
+  ssr: false,
+  loading: () => <div style={{ height: 320 }} />, // keeps the layout from jumping
+})
+
+export default GameBox
+```
+
+**3. Use it from any page**, server component or not:
+
+```tsx title="src/app/page.tsx"
+import Game from '../components/Game'
+
+export default function Home() {
+  return (
+    <main>
+      <h1>Welcome</h1>
+      <Game count={128} />
+    </main>
+  )
+}
+```
+
+If you pass event handlers (`onLike` above), the component that passes them must itself be a client component, because functions can't cross from server to client components. Data props like `count` can come straight from a server component.
+
+### Server data into the game
+
+Fetch on the server, pass plain values down, and the client component forwards them as `data`:
+
+```tsx title="src/app/stats/page.tsx"
+import Game from '../../components/Game'
+
+export default async function Stats() {
+  const res = await fetch('https://api.example.com/likes', { next: { revalidate: 60 } })
+  const { count } = await res.json()
+  return <Game count={count} />
+}
+```
+
+For data that changes while the page is open (polling, websockets, user input), keep it in client state inside a client component and pass it as `data`. Only the changed keys are sent to the game.
+
+## Pages Router
+
+The same idea; `dynamic` can be called from any module:
+
+```tsx title="components/GameBox.tsx"
+import { An1Player } from '../an1mbyt3/an1mbyt3-react.js'
+
+export default function GameBox() {
+  return <An1Player game="/an1mbyt3/game.teab" style={{ height: 400 }} />
+}
+```
+
+```tsx title="pages/index.tsx"
+import dynamic from 'next/dynamic'
+
+const GameBox = dynamic(() => import('../components/GameBox'), { ssr: false })
+
+export default function Home() {
+  return <GameBox />
+}
+```
+
+## Imperative control in Next.js
+
+`ref` works the same as in React (Next.js 15 and later use React 19). Keep the ref inside the client component; `next/dynamic` components don't forward refs to the inner component, so expose actions as props or callbacks rather than trying to ref the dynamic wrapper.
+
+```tsx title="src/components/BellBox.tsx"
+'use client'
+
+import { An1Player, useAn1Player } from '../an1mbyt3/an1mbyt3-react.js'
+
+export default function BellBox({ unread }: { unread: number }) {
+  const [ref, player] = useAn1Player()
+  return (
+    <div>
+      <An1Player ref={ref} game="/an1mbyt3/game.teab" data={{ unread }} style={{ height: 200 }} />
+      <button disabled={!player} onClick={() => player?.fire('ring')}>Ring</button>
+    </div>
+  )
+}
+```
+
+## Not using `next/dynamic`
+
+You can also create the player yourself in a client component with `createPlayer` inside `useEffect`, which never runs on the server:
+
+```tsx title="src/components/RawPlayer.tsx"
+'use client'
+
+import { useEffect, useRef } from 'react'
+
+export default function RawPlayer() {
+  const box = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    let player: { destroy(): void } | undefined
+    let cancelled = false
+    // Imported inside the effect so it is never evaluated on the server.
+    import('../an1mbyt3/an1mbyt3-embed.js').then(async ({ createPlayer }) => {
+      if (cancelled || !box.current) return
+      const p = await createPlayer(box.current, { game: '/an1mbyt3/game.teab' })
+      if (cancelled) p.destroy()
+      else player = p
+    })
+    return () => {
+      cancelled = true
+      player?.destroy()
+    }
+  }, [])
+  return <div ref={box} style={{ height: 400 }} />
+}
+```
+
+`<An1Player>` does all of this for you, so prefer it unless you have a reason not to.
+
+## Common Next.js errors
+
+| Error | Fix |
+|---|---|
+| `window is not defined` or `document is not defined` during build or render | The player was rendered on the server. Load the component with `dynamic(() => import('./GameBox'), { ssr: false })` and put `'use client'` at the top of the file that imports `an1mbyt3-react.js`. |
+| `` `ssr: false` is not allowed with `next/dynamic` in Server Components `` | Move the `dynamic(...)` call into a file that starts with `'use client'` (step 2 above). |
+| `404` for `/an1mbyt3/game.teab` | The file isn't in `public/an1mbyt3/`, or you passed a path with `public` in it. `public/` is the site root: use `/an1mbyt3/game.teab`. |
+| Module not found when importing from `public/` | Static files aren't modules. Import the `.js` files from the copy in your source folder. |
+| Hydration warnings around the game box | Make sure the server and client render the same placeholder: use the `loading` option of `dynamic` for a same-sized empty box. |
+
+More in [Troubleshooting](./troubleshooting.mdx).
+
+## Serving the engine from Next.js
+
+Next.js serves `public/` as-is. If you host on Vercel or behind a CDN, `.wasm` is usually compressed automatically. To set long cache headers on the engine, add a `headers()` rule:
+
+```js title="next.config.js"
+module.exports = {
+  async headers() {
+    return [
+      {
+        source: '/an1mbyt3/:file*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+    ]
+  },
+}
+```
+
+Only use `immutable` if you re-export into a new folder name (for example `/an1mbyt3-v2/`) when the game changes; otherwise use a shorter `max-age` so visitors get the new version.

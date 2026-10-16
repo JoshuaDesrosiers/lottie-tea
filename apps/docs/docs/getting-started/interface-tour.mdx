@@ -1,0 +1,125 @@
+---
+title: Interface tour
+sidebar_position: 4
+description: A guided tour of every part of the Toasty editor window — title bar, toolbar, modes, icon rail, panels, canvas and bottom dock.
+---
+
+# Interface tour
+
+This page walks around the editor window and names every part, so the rest of the docs can say "open the Resources tab" or "click + in the toolbar" and you know exactly where to look.
+
+<Shot id="interface-overview" caption="The whole editor in Design mode with a demo open: title bar, top toolbar, icon rail on the left, Layers and Inspector panels, the canvas, and the bottom dock on its Animate tab." />
+
+## The four modes
+
+The segmented buttons at the left of the top toolbar switch between the editor's four **modes**. Only one is active at a time.
+
+| Mode | What it is for |
+|---|---|
+| **Design** | Building scenes: adding and arranging nodes, editing them in the Inspector, animating on the timeline, wiring state machines. This is where you spend most of your time. |
+| **Playground** | Running the game. Scripts, physics, state machines and input all go live. The editor chrome hides so the game fills the window. Leaving Playground puts every node back exactly as you designed it. |
+| **Paint** | A full drawing program for making your own art, with frames and layers. See [Paint mode](../editor/paint-mode.mdx). |
+| **Code** | An IDE for your project's code: every script and code file, with a Monaco editor and the Console. See [Scripting overview](../scripting/overview.mdx). |
+
+:::info Animate and State Machine are not modes
+The timeline and the state machine graph live in the **bottom dock** of Design mode, so you can keep the canvas visible while animating. The keys **2** and **3** jump straight to them.
+:::
+
+## Title bar
+
+The thin strip at the very top shows the word **toasty** and a **sun/moon** button that switches between dark and light theme. In the desktop app it also has minimize, maximize and close buttons (and you drag the window by the title).
+
+## Top toolbar
+
+From left to right:
+
+| Control | What it does |
+|---|---|
+| **Design / Playground / Paint / Code** | The mode switch (above). |
+| **Scene:** picker | Shows the open scene. Click to switch scenes, create one (**New Scene**), rename (pencil, or double-click a name) or delete (trash; disabled on the last scene). Hidden in Paint and Code. See [Scenes](../editor/scenes.mdx). |
+| **+** (Add) | The add menu: **2D Object** (Rectangle, Ellipse, Triangle, Star, Text, Icon (Material Symbols), Sprite (Image)…, Tilemap…, Bone), **Effects** (Particle System, Trail Renderer), **Light 2D** (Global, Spot, Freeform, Sprite), **Camera**, **UI** (Responsive Page, Row Layout, Column Layout, HTML + CSS, Button, Toggle, Slider, Scrollbar, Scroll View, Panel, Label, Stack, Icon), **3D** (Cube, Sphere, Plane, Cylinder, Cone, Torus, Camera 3D, Sun (Directional Light), Point Light, Empty (Pivot)), **Import** (SVG…, Image…, 3D Model (glTF / GLB / VRM)…, Audio…) and **Demos**. Hover a row with an arrow to open its submenu. |
+| Bone button | Adds a bone (same as + → 2D Object → Bone). |
+| **File** menu | Shows your project's name once you have one. New Project…, Open Project…, Open Recent, Save (Ctrl+S) / Save as Project…, Show in Explorer, Import .tea / .teab…, Export .tea / .teab…. See [Projects and saving](./projects-and-saving.mdx). |
+| Save button | Saves now. A small dot on it means there are unsaved changes. |
+| **Export** menu | Animation → GIF, GIF (transparent), WebM (transparent), MP4; Game → Web page (.html), Desktop app (.exe), Website embed (React / JS). See [Exporting](../editor/exporting.mdx). |
+| Undo / Redo | Same as Ctrl+Z / Ctrl+Shift+Z. |
+
+In Paint mode the right half of the toolbar is replaced by Paint's own controls, a **New** button and a **Save** button.
+
+## Icon rail
+
+The slim column down the left edge toggles panels. A highlighted icon means that panel is open.
+
+| Icon (tooltip) | Opens |
+|---|---|
+| **Layers** | The node tree of the current scene. See [Nodes and layers](../editor/nodes-and-layers.mdx). |
+| **Inspector** | Settings for whatever is selected (or the scene's **Canvas** settings when nothing is). |
+| **Resources** | The bottom dock's Resources tab: your project's files and assets. |
+| **Tile Palette** | Tiles for painting a Tilemap. |
+| **Components** | The reusable drawing-component library. |
+| **Effects** | Post effects for the scene. See [Post effects](../components/post-effects.mdx). |
+| **Timeline** | The bottom dock's Animate tab. |
+| **State Machine** | The bottom dock's State Machine tab. |
+
+At the bottom of the rail are two style toggles: **solid vs. floating (glass) panels**, and **dark vs. light** theme.
+
+In Paint mode the rail shows Paint's drawing tools instead.
+
+## Panels
+
+Layers, Inspector, Tile Palette, Components and Effects are **dockable panels**:
+
+- Drag a panel by its title to float it, or drop it against the left or right edge to dock it.
+- Drop one panel onto another's title to combine them as **tabs**; drop it onto the body to **split** the space between them.
+- Close a panel with its own close button, and bring it back from the icon rail.
+
+Your layout is remembered between sessions.
+
+### The Inspector
+
+The Inspector changes with the selection:
+
+- **Nothing selected**: the scene's **Canvas** settings (size, resolution, gravity, screen mode, main camera) and its **Properties**. See [Scenes](../editor/scenes.mdx).
+- **A node**: its prefab strip, its kind-specific section (for example **Shape** with Fill, Stroke and points), Id, Classes, transform, then its components and an **Add Component** button, and **Delete** at the bottom.
+- **An image asset** (clicked in Resources): its import settings and the **Sprite Editor…** button. See [Images and sprites](../editor/images-and-sprites.mdx).
+
+## The canvas
+
+The middle of the window is the live scene, rendered by the engine.
+
+- **Scroll** to pan, **Ctrl+scroll** (or pinch) to zoom toward the cursor.
+- The floating bar at the bottom centre has **Zoom out**, the zoom percentage (click it to reset to 100%), **Zoom in**, and a **screen preview** dropdown: **Design size** or a preset (Phone portrait/landscape, Tablet portrait/landscape, Laptop, Desktop) to preview responsive layouts. See [Responsive layout](../components/responsive-layout.mdx).
+- Click to select, drag to move, use the handles to scale and rotate. Double-click a shape to edit its points.
+- Drag images, prefabs and drawings from the Resources tab straight onto the canvas.
+
+## Bottom dock
+
+In Design mode, the bottom dock has five tabs. Drag its top edge to resize it; the **×** closes it.
+
+| Tab | What it holds |
+|---|---|
+| **Animate** | The keyframe [timeline](../editor/animation-timeline.mdx). |
+| **State Machine** | The [state machine](../editor/state-machines.mdx) graph and inputs. |
+| **Resources** | The project browser: a folder tree on the left (Assets/Scenes, Prefabs, Images, Drawings, Sounds, Code…), tiles on the right, a **Search** box, **Import…** (copies an image into Assets/Images), **Refresh**, **Open Folder** (or **Save as Project…** when the document has no project yet). Double-click to open or place, right-click for more. |
+| **Shader** | The [shader graph](../components/shader-graph.mdx) editor. |
+| **Console** | Script output and errors, with a badge counting new errors. Click an error's location to jump to that line. See [Debugging](../scripting/debugging.mdx). |
+
+In **Playground** the dock is replaced by a single **Console** tab in the corner (with its error badge), which opens a console docked under the game.
+
+## Code mode at a glance
+
+Code mode has three parts:
+
+- **Explorer** (left): your project's code files (HTML, CSS, JS) with New / Rename / Delete, and every **scene script** (each Programmable State's code) grouped by scene, state machine and layer.
+- **Editor** (centre): tabs, one per open file or script, with syntax highlighting and completions for the scripting API. Edits apply as you type.
+- **Console** (bottom). A **Play** button runs the game.
+
+## The profiler
+
+Press **F3** (or the **`** backtick key) in any mode to show or hide the frame profiler overlay. See [Debugging](../scripting/debugging.mdx).
+
+## Related
+
+- [Keyboard shortcuts](./keyboard-shortcuts.mdx)
+- [Projects and saving](./projects-and-saving.mdx)
+- [Your first project](./first-project.mdx)

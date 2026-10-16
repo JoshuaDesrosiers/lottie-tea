@@ -1,0 +1,126 @@
+---
+title: Spawning and prefabs
+sidebar_position: 12
+description: Creating and removing objects at runtime with ctx.spawn, ref.part and ref.destroy, plus spawnClone and deleteNode.
+---
+
+# Spawning and prefabs
+
+| Member | Description |
+|---|---|
+| `ctx.spawn(prefab, x, y, parent?)` | Instantiate a prefab; returns a ref to its root |
+| `ref.part(name)` | On a spawned root: find a part of that prefab by name |
+| `ref.destroy()` | Remove a spawned object (or hide an authored one) |
+| `spawnClone(ref)` | Copy an existing node (a document edit) |
+| `deleteNode(ref)` | Delete a node (a document edit) |
+
+Use **`ctx.spawn` + `ref.destroy`** for anything a game creates and removes while playing: bullets, enemies, pickups, particles-as-nodes. It's the Unity `Instantiate` / `Destroy` pair and cleans up after itself when play stops. See [Prefabs](../editor/prefabs.mdx) for making prefabs.
+
+## ctx.spawn
+
+```ts
+ctx.spawn(prefabName: string, x: number, y: number, parent?: Ref | null): Ref | null
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `prefabName` | string | The prefab's name |
+| `x`, `y` | number | Where the prefab's root goes, in `parent`'s space (or the scene's) |
+| `parent` | ref or `null` | Optional node to spawn under (e.g. a "world" group) |
+
+**Returns** a ref to the new root, or `null` if no prefab has that name.
+
+```js
+const g = ctx.globals.arena || (ctx.globals.arena = { units: [] })
+const unit = ctx.spawn('Unit', 120, -40, getCompByID('world'))
+if (unit) g.units.push({ ref: unit, hp: 10, bar: unit.part('HP') })
+```
+
+**Notes**
+- **Playground only** in the editor's sense: not an undoable edit, and everything spawned is removed when play stops. (Exported games and embeds behave the same.)
+- The object is fully live: physics, lights, particles and its own state machines run.
+- The returned ref is usable **immediately**, the same frame. The new nodes appear in `ctx.nodes` and `getCompByClass` from the **next** frame.
+- Spawned refs have an empty `id` and no classes. Keep the ref yourself (in an array on `ctx.globals`) rather than looking it up again.
+
+## ref.part
+
+```ts
+ref.part(name: string): Ref | null
+```
+
+On a ref returned by `ctx.spawn`: the first node named `name` anywhere in that spawned prefab, or `null`. Works the same frame. On any other ref it returns `null`.
+
+```js
+const castle = ctx.spawn('Castle', 0, 0)
+const fill = castle.part('HP')            // the health bar fill inside the prefab
+fill.scaleX = hp / maxHp
+```
+
+## ref.destroy
+
+```ts
+ref.destroy(): void
+```
+
+Unity's `Destroy`. On something `ctx.spawn` created, removes it for real, children and all. On a node that's part of the authored scene, **hides** it instead; it comes back when play stops.
+
+```js
+for (let i = g.bullets.length - 1; i >= 0; i--) {
+  const b = g.bullets[i]
+  b.ref.x += b.vx * ctx.deltaSeconds
+  if (Math.abs(b.ref.x) > 600) { b.ref.destroy(); g.bullets.splice(i, 1) }
+}
+```
+
+Don't use a ref after destroying it; drop it from your lists.
+
+## spawnClone and deleteNode
+
+```ts
+spawnClone(ref: Ref): Ref | null
+deleteNode(ref: Ref): void
+```
+
+The older pair. `spawnClone` duplicates a node already in the scene (same parent, classes, kind) and returns a ref to the copy immediately; `deleteNode` removes any node.
+
+```js
+const template = getCompByID('ball')
+const ball = template && spawnClone(template)
+if (ball) { ball.x = ctx.mouseX; ball.y = ctx.mouseY; g.balls.push(ball) }
+if (g.balls.length > 25) deleteNode(g.balls.shift())
+```
+
+:::caution These are document edits
+`spawnClone` and `deleteNode` change the document itself, each as an undoable edit, exactly like duplicating or deleting in the editor. Call them for discrete events, never every frame. For runtime objects prefer `ctx.spawn` and `ref.destroy`, which leave your scene untouched when play stops.
+:::
+
+The low-level `ctx.spawnClone(id)`, `ctx.deleteNode(id)`, `ctx.spawnPrefab(name, parentId, x, y)` and `ctx.destroyNode(id)` take internal ids; use the ref forms above.
+
+## Pools: spawn once, reuse
+
+Spawning and destroying dozens of objects per second works, but a pool avoids the churn. Spawn a fixed set up front, then show/hide them.
+
+```js
+const g = ctx.globals.pool || (ctx.globals.pool = {})
+if (!g.bullets) {
+  g.bullets = []
+  for (let i = 0; i < 40; i++) {
+    const r = ctx.spawn('Bullet', 0, -10000)
+    r.visible = false
+    g.bullets.push({ ref: r, alive: false, vx: 0 })
+  }
+}
+function fire(x, y, vx) {
+  const b = g.bullets.find((b) => !b.alive)
+  if (!b) return                     // pool exhausted: skip this shot
+  b.alive = true; b.vx = vx
+  b.ref.x = x; b.ref.y = y; b.ref.visible = true
+}
+for (const b of g.bullets) {
+  if (!b.alive) continue
+  b.ref.x += b.vx * ctx.deltaSeconds
+  if (Math.abs(b.ref.x) > 600) { b.alive = false; b.ref.visible = false }
+}
+```
+
+More in [Patterns](./patterns.mdx).

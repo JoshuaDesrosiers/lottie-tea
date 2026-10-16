@@ -1,0 +1,119 @@
+---
+title: Embedding overview
+sidebar_position: 1
+description: What a Toasty website embed is, how the page and the game talk to each other, and which page of this section to read next.
+---
+
+# Embedding Toasty on your website
+
+Anything you build in Toasty, from a tiny animated like button to a whole platformer, can run **inside your own website** and be steered by your site's code. It is not a video and not an iframe: it is the real engine running in a box on your page, and your page can talk to it while it plays.
+
+That makes Toasty a good fit for the bits of a product that should feel alive: a like button that bursts, an upload ring that celebrates when it fills, a weather card that rains when your API says it is raining, a notification bell that wiggles when a message arrives, an onboarding mascot that reacts to what the user types.
+
+Click the card below to start it, then click the heart.
+
+```jsx live
+function FirstLook() {
+  const [count, setCount] = React.useState(128)
+  const [liked, setLiked] = React.useState(false)
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/like-button.teab"
+        data={{ count, liked }}
+        style={{ height: 240 }}
+        onEvent={(e) => {
+          if (e.name === 'like') {
+            setCount(e.payload.count)
+            setLiked(e.payload.liked)
+          }
+        }}
+      />
+      <p>
+        React state: <b>{count}</b> likes, {liked ? 'liked' : 'not liked'}.{' '}
+        <button onClick={() => setCount((c) => c + 100)}>+100 from the page</button>
+      </p>
+    </div>
+  )
+}
+```
+
+Edit the code and the card re-runs. Two things happened there: the **page sent data in** (`data={{ count, liked }}`, so "+100 from the page" updates the number drawn inside the game), and the **game sent an event out** (`ctx.emit('like', …)` in the game's script, received by `onEvent`). That two-way link is what this whole section is about.
+
+## The three ways to embed
+
+All three wrap the same player and have the same powers. Pick the one that matches your site.
+
+| You have | Use | Read |
+|---|---|---|
+| A React app (Vite, CRA, Remix, Next.js) | `<An1Player>` from `an1mbyt3-react.js`. Props steer the game live. | [React](./react.mdx), [Next.js](./nextjs.mdx) |
+| Any page with JavaScript (Vue, Svelte, Angular, plain HTML) | `createPlayer(element, options)` from `an1mbyt3-embed.js`. Returns a player object. | [Plain JavaScript](./vanilla-js.mdx) |
+| HTML you can't script much (a CMS, a static site) | The `<an1-player>` tag, registered with `defineAn1PlayerElement()`. | [Custom element](./custom-element.mdx) |
+
+## How the page and the game talk
+
+```text
+             your page                                        the Toasty game
+ ┌────────────────────────────────┐                 ┌──────────────────────────────────┐
+ │ player.set('count', 129)       │ ─── data ─────▶ │ ctx.data.count + Property "count"│
+ │ player.setInput('isNight', on) │ ─── inputs ───▶ │ state machine inputs             │
+ │ player.fire('burst')           │ ─── triggers ─▶ │ state machine triggers           │
+ │ player.loadScene('Shop')       │ ─── scenes ───▶ │ scene switch                     │
+ │ player.call('reset', arg)      │ ─── calls ────▶ │ ctx.on('reset', fn)              │
+ │                                │                 │                                  │
+ │ on('event')   ◀── ctx.emit('like', { … }) ───────│ scripts, On Click actions        │
+ │ on('state')   ◀── "entered state Liked" ─────────│ state machine                    │
+ │ on('prop')    ◀── "Property count is now 130" ───│ scene Properties                 │
+ │ on('scene')   ◀── "switched to Shop" ────────────│ scene switches                   │
+ └────────────────────────────────┘                 └──────────────────────────────────┘
+```
+
+**Into the game:**
+
+- **Data** is for *values*: a user name, a price, a percentage, a colour. Each value lands in two places: the scene **Property** with the same name (so any text, bar or colour bound to that Property updates with no code at all) and `ctx.data` for scripts. See [Sending data in](./data-binding.mdx).
+- **Inputs and triggers** drive the scene's [state machine](../editor/state-machines.mdx): a Bool, Number or Enum input changes which state it is in; a Trigger is a one-shot "do this now".
+- **Scenes** can be switched from the page, and **functions** a script registered with `ctx.on` can be called.
+
+**Out of the game:**
+
+- **Events** are messages the game sends on purpose with `ctx.emit(name, payload)`, or from a button's On Click "Call script function" action.
+- **State changes** tell you every time the state machine enters a state. Because of this, an animation can *be* the message: when the ring reaches `Done`, show a toast; when the mascot reaches `Sad`, open the help chat.
+- **Property changes** tell you when the game changed one of its own Properties.
+
+See [Listening to the game](./listening.mdx).
+
+## What ships
+
+You don't install an npm package. **Export → Game → Website embed (React / JS)** in the editor writes a folder with:
+
+- three small prebuilt JavaScript files you import from your code (`an1mbyt3-embed.js`, `an1mbyt3-react.js`, `an1mbyt3-engine.js`) plus TypeScript declarations;
+- two static files your site serves: `game.teab` (your game) and `an1mbyt3_wasm_bg.wasm` (the engine, about 25 MB uncompressed, much smaller gzipped);
+- a README, a step-by-step GUIDE, an AGENTS.md for AI coding assistants, a machine-readable `an1mbyt3.json` describing your game's inputs and events, and a working `example.html`.
+
+[Exporting for the web](./export-for-web.mdx) walks through it.
+
+## Things to know up front
+
+:::caution One player per page
+Only one Toasty player runs on a page at a time. Creating a second one destroys the first (the engine's HTML overlay, scene Properties and script state are page-wide). If you need several animated widgets on one page, build them as one scene, or start them one at a time. The live examples in these docs follow the same rule: starting one puts the previous one back to its poster.
+:::
+
+:::note Give the box a height
+The game fits inside its container like a video (letterboxed). An empty `div` is 0 px tall, so you would see nothing. Always give the container a height.
+:::
+
+:::tip Build it first, embed it second
+The embedded player runs the same engine as the editor's Playground, so a game behaves exactly as it does when you press Play. When the game is not embedded, every `ctx.emit` is written to the editor's Console instead (`ctx.emit("like", {...}) — reaches the page when this game is embedded`), so you can build and test the game side completely before you write a line of website code.
+:::
+
+## Where to go next
+
+- [Exporting for the web](./export-for-web.mdx): the export and where each file goes.
+- [React](./react.mdx): the component, with live examples for every prop.
+- [Next.js](./nextjs.mdx): client-only rendering, App Router and Pages Router.
+- [Plain JavaScript](./vanilla-js.mdx): `createPlayer`, plus Vue and Svelte.
+- [Custom element](./custom-element.mdx): `<an1-player>` in any HTML.
+- [Sending data in](./data-binding.mdx) and [Listening to the game](./listening.mdx): the two directions in depth.
+- [API reference](./api-reference.mdx): every option, method, event and prop with types.
+- [Recipes](./recipes.mdx): live, copyable patterns (fetched weather, notification bell, upload progress, theme toggle and more).
+- [For AI assistants](./for-ai-assistants.mdx) and [Troubleshooting](./troubleshooting.mdx).

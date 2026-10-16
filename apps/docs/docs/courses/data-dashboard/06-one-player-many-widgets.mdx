@@ -1,0 +1,141 @@
+---
+title: "6. One player, many widgets"
+sidebar_position: 6
+description: Put several Toasty widgets on one dashboard despite the one-player-per-page rule - one scene with every widget, scenes switched by prop, or one animated widget at a time with static fallbacks.
+---
+
+# 6. One player, many widgets
+
+**Goal:** a dashboard page with the ring, the weather and the bell, built in a way that works with Toasty's one-player-per-page rule.
+
+**What you'll learn**
+
+- Why a page runs one player at a time.
+- Three layouts that work: one dashboard scene, scene switching, and "one animated, the rest static".
+- Sending all widgets' data through one `data` object.
+
+## The rule
+
+A page runs **one** Toasty player at a time. Creating a second one destroys the first: the engine's canvas overlay, scene Properties and script state are page-wide. So three `An1Player`s side by side won't give you three live widgets. Plan for it from the start; any of these three layouts works.
+
+## Layout 1: one dashboard scene (recommended)
+
+Build the widgets **in one scene**, side by side, inside one project. One player draws them all in one canvas, and one `data` object feeds them all.
+
+1. In the editor, make a scene `Dashboard` sized to your dashboard row (for example `960` × `240`).
+2. Rebuild or paste each widget's nodes into it, side by side. Prefabs help: make each widget a prefab in its own scene, then place all three here. See [Prefabs](../../editor/prefabs.mdx).
+3. Give every Property a **unique name** across widgets: `progress`, `label`, `color`, `city`, `temp`, `condition`, `unread`. Bindings and scripts refer to them by name, so collisions would cross the wires.
+4. Each widget's logic needs its own state machine **layer** (the State Machine panel's **+ Layer**), because every layer runs its own active state's program. Base layer: the ring. Layer `Weather`: the card. Layer `Bell`: the bell. Each programmable state runs its widget's script.
+5. Make each widget's events distinct (`done`, `open` are already distinct).
+
+The page then looks like this:
+
+```tsx title="src/Dashboard.tsx"
+import { useState } from 'react'
+import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
+import { useUpload } from './useUpload'      // lesson 3
+import { useWeather } from './useWeather'    // lesson 4's effect, moved into a hook
+import { useNotifications } from './useNotifications' // lesson 5's feed, moved into a hook
+
+export function Dashboard() {
+  const upload = useUpload('/api/upload')
+  const weather = useWeather({ name: 'Lisbon', latitude: 38.72, longitude: -9.14 })
+  const notes = useNotifications('/api/notifications/stream')
+  const [panel, setPanel] = useState<'none' | 'notes'>('none')
+
+  return (
+    <An1Player
+      game="/an1mbyt3/game.teab"
+      scene="Dashboard"
+      style={{ width: '100%', aspectRatio: '4 / 1' }}
+      // One object feeds every widget's Properties.
+      data={{
+        progress: upload.status === 'done' ? 1 : Math.min(upload.progress, 0.99),
+        label: upload.status === 'error' ? 'Upload failed' : 'Uploading',
+        ...(weather ?? {}),
+        unread: notes.unread,
+      }}
+      onReady={(p) => notes.onNew(() => p.fire('ring'))}
+      onEvent={(e) => {
+        if (e.name === 'open') setPanel((x) => (x === 'notes' ? 'none' : 'notes'))
+        if (e.name === 'done') console.log('upload animation finished')
+      }}
+      // Several layers report states: tell them apart by layer.
+      onStateChange={(e) => console.log(e.layer ?? 'base', '->', e.state)}
+    />
+  )
+}
+```
+
+`useWeather` and `useNotifications` are the code from lessons 4 and 5 moved into hooks: `useWeather` returns `{ city, temp, condition }` or `null`, and `useNotifications` returns `{ unread, onNew(callback) }`.
+
+## Layout 2: one widget at a time, by scene
+
+If the widgets live in one project as separate **scenes** (`Progress`, `Weather`, `Bell`), one player can show one at a time and switch instantly with the `scene` prop. Data you've set stays put across switches and is re-applied to each scene's same-named Properties, so you can keep sending everything:
+
+```tsx
+<An1Player
+  game="/an1mbyt3/game.teab"
+  scene={tab}   // 'Progress' | 'Weather' | 'Bell' - switching is instant, no reload
+  data={{ progress, label, ...weather, unread }}
+/>
+```
+
+Good for a tabbed widget panel or a carousel.
+
+## Layout 3: one animated, the rest static
+
+Keep separate exports, but only one runs. The others show a plain HTML version (or a screenshot) until the user points at them. The live example below does this with the three files from this course. Changing the `game` prop loads a different file, which takes a moment, so this suits "hover to bring alive" rather than rapid switching.
+
+```jsx live
+function ActiveWidget() {
+  const [active, setActive] = React.useState('weather')
+  const [progress, setProgress] = React.useState(0.62)
+  const [unread, setUnread] = React.useState(3)
+  const weather = { city: 'Lisbon', temp: 22, condition: 'cloud' }
+  const widgets = {
+    ring: { game: '/games/progress-ring.teab', data: { progress, label: 'Uploading' }, text: Math.round(progress * 100) + '% uploaded' },
+    weather: { game: '/games/weather-card.teab', data: weather, text: weather.city + ' ' + weather.temp + '° ' + weather.condition },
+    bell: { game: '/games/bell.teab', data: { unread }, text: unread + ' unread' },
+  }
+  const card = { width: 220, height: 160, borderRadius: 12, border: '1px solid #8884', display: 'grid', placeItems: 'center', cursor: 'pointer' }
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {Object.entries(widgets).map(([key, w]) => (
+          <div key={key} style={card} onClick={() => setActive(key)}>
+            {active === key ? (
+              <ToastyPlayer key={key} game={w.game} data={w.data} style={{ width: 220, height: 160 }} />
+            ) : (
+              <span>{w.text}<br /><small>click to animate</small></span>
+            )}
+          </div>
+        ))}
+      </div>
+      <p>
+        <button onClick={() => setProgress((p) => Math.min(1, p + 0.1))}>+10% upload</button>{' '}
+        <button onClick={() => setUnread((u) => u + 1)}>+1 unread</button>
+      </p>
+    </div>
+  )
+}
+```
+
+Notice the static versions still show live values: the data lives in React, and both the animated and the static card render from it.
+
+## Which to choose
+
+| Layout | Live widgets | Switching | Best for |
+|---|---|---|---|
+| One dashboard scene | all at once | none needed | a fixed row of widgets |
+| Scenes + `scene` prop | one | instant | tabs, carousels, steps |
+| One animated + static | one | loads a file | many widgets spread over a page |
+
+## Check your work
+
+- In the live example, clicking a card animates it and turns the previous one back into text, and the buttons update both kinds.
+- You can explain why two `An1Player`s side by side would leave only one running.
+
+## Where to go next
+
+You've built the whole data path: Properties and bindings in the editor, a little script for logic, and React feeding real data (an upload, a live API, a push feed). For more patterns see [Data binding](../../embedding/data-binding.mdx), [Listening to the game](../../embedding/listening.mdx) and [Recipes](../../embedding/recipes.mdx). The [interactive landing page hero](../interactive-hero/01-the-hero-plan.mdx) course applies the same ideas to marketing pages.

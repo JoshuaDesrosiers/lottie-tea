@@ -2,17 +2,18 @@
   "name": "@an1mbyt3/editor",
   "private": true,
   "version": "0.1.0",
-  "description": "Tauri 2 + React/TypeScript desktop editor. See AN1MBYT3_BUILD_PLAN.md §10 Phase 4 and §15 (design direction).",
+  "description": "Tauri 2 + React/TypeScript desktop editor. See AN1MBYT3_BUILD_PLAN.md \u00a710 Phase 4 and \u00a715 (design direction).",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && npm run build:player && vite build",
     "build:player": "vite build --config vite.player.config.ts && vite build --config vite.embed.config.ts",
     "build:embed": "vite build --config vite.embed.config.ts",
-    "deploy:web": "vite build && firebase deploy --only hosting --project toastycreate",
+    "deploy:web": "vite build && npm run build:docs && firebase deploy --only hosting --project toastycreate",
     "build:runner": "cargo build -p an1mbyt3-runner --release",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:docs": "node -e \"const fs=require('fs');for(const f of fs.readdirSync('public/embed'))fs.copyFileSync('public/embed/'+f,'../docs/static/toasty/'+f);fs.copyFileSync('src/wasm-pkg/an1mbyt3_wasm_bg.wasm','../docs/static/toasty/an1mbyt3_wasm_bg.wasm')\" && npm --prefix ../docs run build && node -e \"const fs=require('fs');fs.rmSync('dist/docs',{recursive:true,force:true});fs.cpSync('../docs/build','dist/docs',{recursive:true})\""
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

@@ -1,0 +1,260 @@
+---
+title: Listening to the game
+sidebar_position: 8
+description: React to what a Toasty game does with events, state changes, Property changes, scene changes, errors and waitForState.
+---
+
+# Listening to the game
+
+The game talks back in four ways, plus errors:
+
+| Event | Payload | Fires when | React prop |
+|---|---|---|---|
+| `event` | `{ name, payload }` | a script calls `ctx.emit(name, payload)`, or an On Click "Call script function" names a function no script registered | `onEvent` |
+| `state` | `{ layer, state, previous }` | a state machine layer enters a new state | `onStateChange` |
+| `prop` | `{ name, value }` | the **game** changed one of its scene Properties | `onPropChange` |
+| `scene` | `{ scene, previous }` | the scene switched (by the page or by the game) | `onSceneChange` |
+| `error` | `{ error }` | a frame threw (the game keeps running) | `onError` |
+
+```js
+player.on('event', ({ name, payload }) => { /* … */ })
+player.on('state', ({ layer, state, previous }) => { /* … */ })
+player.on('prop',  ({ name, value }) => { /* … */ })
+player.on('scene', ({ scene, previous }) => { /* … */ })
+player.on('error', ({ error }) => { /* … */ })
+```
+
+`on` returns a function that unsubscribes. `off(type, fn)` does the same for a named function. A listener that throws is caught and logged, and the other listeners still run.
+
+## Events: messages on purpose
+
+Events are the game saying something deliberately: "the user liked this", "level finished", "buy this item". The game's script sends them:
+
+```js title="in the game"
+ctx.emit('like', { liked: ctx.props.liked, count: ctx.props.count })
+```
+
+and your page receives them:
+
+```jsx live
+function LikeToasts() {
+  const [toasts, setToasts] = React.useState([])
+  const [total, setTotal] = React.useState(0)
+  const toast = (text) => {
+    const id = Math.random()
+    setToasts((t) => [...t, { id, text }])
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2200)
+  }
+  return (
+    <div style={{ position: 'relative' }}>
+      <ToastyPlayer
+        game="/games/like-button.teab"
+        style={{ height: 240 }}
+        onEvent={(e) => {
+          if (e.name !== 'like') return
+          setTotal((n) => n + 1)
+          toast(e.payload.liked ? `Liked! ${e.payload.count} people like this` : 'Like removed')
+        }}
+      />
+      <p>Like events received: {total}</p>
+      <div style={{ position: 'absolute', top: 8, right: 8, display: 'grid', gap: 6 }}>
+        {toasts.map((t) => (
+          <div key={t.id} style={{ background: '#222', color: '#fff', padding: '6px 10px', borderRadius: 8, fontSize: 13 }}>
+            {t.text}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+The payload is whatever the script passed (any JSON-like value, or `undefined`). Events are delivered straight away, during the frame that sent them.
+
+### Events from buttons, without code
+
+A UI Button's **On Click** can run a **Call script function** action. If no script registered a function with that name (`ctx.on`) and the game is embedded, the click reaches your page as an `event` with that name, and the action's argument as the payload (parsed as JSON if it is valid JSON, otherwise the raw text). So a designer can wire "Buy" to a `buy` event with argument `{"sku": "pro"}` and never write a script. See [UI components](../components/ui-components.mdx).
+
+When the game runs in the editor rather than embedded, these clicks report a missing function in the Console instead, and `ctx.emit` calls are written to the Console so you can see what the page would receive.
+
+## State changes: the animation as a message
+
+Every time the state machine enters a state, you hear about it:
+
+```js
+player.on('state', ({ layer, state, previous }) => {
+  if (layer === null && state === 'Done') showConfetti()
+})
+```
+
+- `layer` is `null` for the base layer, or the name of an extra state machine layer. Each layer reports its own changes.
+- `previous` is the state it left.
+- The starting state is **not** reported as a change. Read `player.state` and `player.layerStates` when the player is ready.
+
+This lets the animation itself carry meaning, with no event code in the game. The progress ring enters `Done` when `progress` reaches 1:
+
+```jsx live
+function UploadDone() {
+  const [progress, setProgress] = React.useState(0)
+  const [running, setRunning] = React.useState(false)
+  const [message, setMessage] = React.useState('')
+  React.useEffect(() => {
+    if (!running) return
+    const id = setInterval(() => {
+      setProgress((p) => {
+        const next = Math.min(1, p + 0.04 + Math.random() * 0.05)
+        if (next >= 1) setRunning(false)
+        return next
+      })
+    }, 200)
+    return () => clearInterval(id)
+  }, [running])
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/progress-ring.teab"
+        data={{ progress, label: progress >= 1 ? 'Done' : 'Uploading' }}
+        style={{ height: 240 }}
+        onStateChange={(e) => {
+          if (e.layer === null && e.state === 'Done') setMessage('The ring says the upload finished.')
+          if (e.layer === null && e.state === 'Loading') setMessage('')
+        }}
+      />
+      <button onClick={() => { setProgress(0); setMessage(''); setRunning(true) }} disabled={running}>
+        Upload a file
+      </button>
+      <p>{Math.round(progress * 100)}% {message && <b>{message}</b>}</p>
+    </div>
+  )
+}
+```
+
+## `waitForState`: await a moment
+
+`waitForState(state, layer = null)` returns a promise that resolves the next time the base layer (or the named layer) **enters** `state`, or straight away if it is already in it. It reads well in async code:
+
+```js
+await player.waitForState('Idle')       // the intro animation finished
+startButton.disabled = false
+
+player.fire('open')
+await player.waitForState('Open')       // the door animation reached Open
+showMenu()
+```
+
+Here a button sets the ring to 100% and waits for the game to confirm:
+
+```jsx live
+function WaitDemo() {
+  const ref = React.useRef(null)
+  const [log, setLog] = React.useState([])
+  const add = (line) => setLog((l) => [...l, `${new Date().toLocaleTimeString()}  ${line}`])
+  const finish = async () => {
+    const player = ref.current
+    if (!player) return add('click the card first')
+    player.set('progress', 1)
+    add('set progress = 1, waiting for Done…')
+    await player.waitForState('Done')
+    add('state is Done: enable the Next button')
+  }
+  const reset = () => ref.current?.set('progress', 0.2)
+  return (
+    <div>
+      <ToastyPlayer ref={ref} game="/games/progress-ring.teab" style={{ height: 220 }} />
+      <button onClick={finish}>Finish upload</button> <button onClick={reset}>Reset to 20%</button>
+      <pre style={{ fontSize: 12, minHeight: 60 }}>{log.join('\n')}</pre>
+    </div>
+  )
+}
+```
+
+`waitForState` never rejects and has no timeout. If the state might never come (the user leaves, the player is destroyed), race it against your own timeout:
+
+```js
+const timeout = new Promise((resolve) => setTimeout(resolve, 5000, 'timeout'))
+const result = await Promise.race([player.waitForState('Done').then(() => 'done'), timeout])
+```
+
+## Property changes
+
+When the game changes one of its scene Properties (a script writes `ctx.props.score`, an On Click action sets a Property, a slider in the HTML UI writes one), you get a `prop` event with the new value:
+
+```js
+player.on('prop', ({ name, value }) => {
+  if (name === 'score') scoreboard.textContent = value
+})
+```
+
+- Your own `set` / `data` writes are **not** echoed back as `prop` events. Only changes the game made.
+- Changes are checked once per frame. If the game changes a Property several times in one frame, you get the final value once.
+- Color Properties arrive as `[r, g, b, a]` arrays with channels from 0 to 1.
+
+This makes it easy to keep React state and a game Property in sync both ways:
+
+```jsx live
+function TwoWay() {
+  const [count, setCount] = React.useState(128)
+  const [changes, setChanges] = React.useState(0)
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/like-button.teab"
+        data={{ count }}
+        style={{ height: 220 }}
+        onPropChange={(e) => {
+          setChanges((n) => n + 1)
+          if (e.name === 'count') setCount(e.value)
+        }}
+      />
+      <p>
+        <button onClick={() => setCount((c) => c - 10)}>-10</button>{' '}
+        <button onClick={() => setCount((c) => c + 10)}>+10</button>{' '}
+        count = {count}, game-side Property changes seen: {changes}
+      </p>
+    </div>
+  )
+}
+```
+
+## Scene changes
+
+```js
+player.on('scene', ({ scene, previous }) => {
+  analytics.track('scene', { scene, from: previous })
+})
+```
+
+Fires for every switch, whether your page asked for it (`loadScene`, the `scene` prop) or the game did (a script's `ctx.loadScene`, an On Click "Load scene" action). The start scene is announced before `createPlayer` resolves, so your listeners won't hear it; read `player.scene` when ready.
+
+## Errors
+
+```js
+player.on('error', ({ error }) => reportToSentry(error))
+```
+
+A frame that throws is skipped and the next frame runs as usual. To keep the console readable the player reports the first three errors and then one in every 600. In React, `onError` receives both these and loading errors (bad URL, broken file). With plain JS, loading errors reject the `createPlayer` promise instead.
+
+## The `ready` event
+
+`ready` (`{ scenes, scene }`) is dispatched *before* `createPlayer` resolves, so subscribing with `player.on('ready', …)` is too late to hear it. Use the resolved player (or React's `onReady`, or the `<an1-player>` element's `an1:ready`). If you need it as a DOM event on the container, add the listener before calling `createPlayer`:
+
+```js
+box.addEventListener('an1:ready', (e) => console.log('scenes', e.detail.scenes), { once: true })
+const player = await createPlayer(box, { game: '/an1mbyt3/game.teab' })
+```
+
+## What the game side looks like
+
+```js title="in the game"
+ctx.emit('levelDone', { level: 3, stars: 2 })  // → 'event'
+ctx.props.score = 1200                          // → 'prop'
+ctx.loadScene('Results')                        // → 'scene'
+// state changes need no code: the state machine reports them
+```
+
+See [Events and messages](../scripting/events-and-messages.mdx) and [Properties and data](../scripting/props-and-data.mdx) for the scripting side.
+
+## Next
+
+- [Recipes](./recipes.mdx): complete live patterns.
+- [API reference](./api-reference.mdx#events): every event type.

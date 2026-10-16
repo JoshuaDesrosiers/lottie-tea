@@ -1,0 +1,188 @@
+---
+title: "6. Events, states and polish"
+sidebar_position: 6
+description: React to the like button's state changes, add a keyboard-accessible control, pause it off-screen, and get it production-ready.
+---
+
+# 6. Events, states and polish
+
+**Goal:** a like button you'd ship: the page reacts to its animation states, keyboard and screen-reader users can use it, it sleeps when off-screen, and it loads fast.
+
+**What you'll learn**
+
+- `onStateChange`: turning animation states into page behaviour.
+- `onPropChange` for analytics.
+- Driving the button from a real `<button>` for accessibility.
+- `paused` with an `IntersectionObserver`.
+- Production checklist: compression, Next.js, re-exporting.
+
+## Step 1: react to states
+
+Every time the state machine enters a state, `onStateChange` receives `{ layer, state, previous }` (`layer` is `null` for the base layer). That lets the animation itself trigger page UI. Here a small "Thanks!" note appears whenever the heart reaches `Liked`:
+
+```jsx live
+function StateAwareLike() {
+  const [count, setCount] = React.useState(1204)
+  const [liked, setLiked] = React.useState(false)
+  const [thanks, setThanks] = React.useState(false)
+  const [history, setHistory] = React.useState([])
+
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/like-button.teab"
+        style={{ width: 240, height: 240 }}
+        data={{ count, liked }}
+        onEvent={(e) => {
+          if (e.name !== 'like') return
+          setLiked(e.payload.liked)
+          setCount(e.payload.count)
+        }}
+        onStateChange={(e) => {
+          setHistory((h) => [`${e.previous ?? '(start)'} -> ${e.state}`, ...h].slice(0, 5))
+          if (e.layer === null && e.state === 'Liked') {
+            setThanks(true)
+            setTimeout(() => setThanks(false), 1500)
+          }
+        }}
+      />
+      <p style={{ height: 24 }}>{thanks ? 'Thanks for the like!' : ''}</p>
+      <ul>{history.map((h, i) => <li key={i}>{h}</li>)}</ul>
+    </div>
+  )
+}
+```
+
+:::note Your state names
+The finished file calls its states `Idle` and `Liked`. In your own export they're `State 1` and `State 2` (see [lesson 2](./02-build-the-scene.mdx)), so compare with those names, or keep a small map: `const NAMES = { 'State 1': 'Idle', 'State 2': 'Liked' }`.
+:::
+
+States versus events: `onEvent('like')` fires once per **click**. `onStateChange` fires whenever the **look** changes, including when the page sets `liked` or a server rollback flips it. Use the event for "the user did something" (analytics, saving) and the state for "the screen now shows something" (UI that should line up with the animation).
+
+## Step 2: analytics with `onPropChange`
+
+`onPropChange` fires when the *scene* changes a Property (your own `data` writes are not echoed back). Logging it is a cheap way to see exactly what the scene is doing:
+
+```tsx
+<An1Player
+  game="/an1mbyt3/game.teab"
+  data={{ count, liked }}
+  onPropChange={(e) => {
+    // { name: 'liked', value: true } / { name: 'count', value: 1205 }
+    if (e.name === 'liked') analytics.track(e.value ? 'post_liked' : 'post_unliked', { postId })
+  }}
+/>
+```
+
+(`analytics.track` stands for whatever analytics client you use.)
+
+## Step 3: keyboard and screen-reader access
+
+The player draws into a `<canvas>`, which a screen reader can't read and a keyboard can't press. Because the scene follows its Properties, the fix is pleasantly small: put a real `<button>` next to (or over) it that changes the same values.
+
+```tsx title="src/AccessibleLikeButton.tsx"
+import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
+import { useLikes, type LikeState } from './useLikes'
+
+export function AccessibleLikeButton({ postId }: { postId: string }) {
+  const { state, error, onLike } = useLikes(postId)
+  const toggle = () => {
+    if (!state) return
+    // The same shape the scene emits, so one code path handles both.
+    onLike({ liked: !state.liked, count: Math.max(0, state.count + (state.liked ? -1 : 1)) })
+  }
+
+  return (
+    <div style={{ position: 'relative', width: 240, height: 240 }}>
+      <An1Player
+        game="/an1mbyt3/game.teab"
+        style={{ width: '100%', height: '100%' }}
+        data={state ?? {}}
+        keyboard="none" // the real button below handles keys
+        onEvent={(e) => {
+          if (e.name === 'like') onLike(e.payload as LikeState)
+        }}
+      />
+      {/* Invisible to the eye, visible to keyboards and screen readers. */}
+      <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={state?.liked ?? false}
+        aria-label={`Like (${state?.count ?? 0} likes)`}
+        className="visually-hidden-focusable"
+      />
+      {error && <p role="alert">{error}</p>}
+    </div>
+  )
+}
+```
+
+```css
+/* Hidden until focused, then shown as a focus ring over the heart. */
+.visually-hidden-focusable {
+  position: absolute;
+  inset: 40px;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+  pointer-events: none; /* mouse clicks go to the canvas */
+}
+.visually-hidden-focusable:focus-visible {
+  opacity: 1;
+  outline: 3px solid #7c5cff;
+  border-radius: 50%;
+}
+```
+
+When the button changes `liked`, the scene's script sees the new value and fires `burst`: the heart pops exactly as if it had been clicked (minus the sparks and sound, which only the click path plays).
+
+## Step 4: sleep when off-screen
+
+A feed may show dozens of posts. Pause the player when it scrolls out of view so it doesn't use the CPU or GPU:
+
+```tsx title="src/useOnScreen.ts"
+import { useEffect, useRef, useState } from 'react'
+
+/** True while the element is at least partly in the viewport. */
+export function useOnScreen<T extends Element>() {
+  const ref = useRef<T | null>(null)
+  const [visible, setVisible] = useState(true)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting))
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  return [ref, visible] as const
+}
+```
+
+```tsx
+const [boxRef, visible] = useOnScreen<HTMLDivElement>()
+
+<div ref={boxRef} style={{ width: 240, height: 240 }}>
+  <An1Player game="/an1mbyt3/game.teab" style={{ width: '100%', height: '100%' }} paused={!visible} data={state ?? {}} />
+</div>
+```
+
+:::caution One player per page
+A page runs one Toasty player at a time; creating a second one destroys the first. A feed with a like button on every post should use the animated player for **one** post (say, the one in view or being hovered) and a static image of the heart elsewhere. [Recipes](../../embedding/recipes.mdx) has patterns for this.
+:::
+
+## Step 5: production checklist
+
+- **Compress the engine.** `an1mbyt3_wasm_bg.wasm` is the bulk of the download. Serve it with gzip or brotli and long cache headers.
+- **Next.js.** The player needs `window`. Render it client-only: `'use client'` at the top of the component file and load it with `dynamic(() => import('./LikeButton'), { ssr: false })`. See [Next.js](../../embedding/nextjs.mdx).
+- **Re-exporting.** After changing the scene, export again and replace all files in `src/an1mbyt3/` and `public/an1mbyt3/` together.
+- **Names.** Only use Property, input and event names the scene really has. Unknown names only log a warning, so typos fail silently. The export's `AGENTS.md` and `an1mbyt3.json` list them.
+
+## Check your work
+
+- In the live demo, the history list shows each state change and "Thanks for the like!" appears when the heart reaches `Liked`, even when you press nothing but React state changes.
+- Tab to your accessible button, press Space: the heart pops and the count changes.
+- Scroll the player out of view in your app: with the browser's performance monitor open, its frame work stops.
+
+## Where to go next
+
+You've built the whole round trip: a scene with Properties, states and events; a script that keeps animation and data in sync; and a React app that owns the truth. The same pattern drives the [data-driven widget kit](../data-dashboard/01-properties-and-bindings.mdx) and the [interactive landing page hero](../interactive-hero/01-the-hero-plan.mdx). For the full API, see [React](../../embedding/react.mdx) and the [API reference](../../embedding/api-reference.mdx).

@@ -1,0 +1,109 @@
+---
+title: Scenes and globals
+sidebar_position: 11
+description: Switching scenes with ctx.loadScene, sharing state across scenes with ctx.globals, and the editor camera hooks.
+---
+
+# Scenes and globals
+
+| Member | Type | Description |
+|---|---|---|
+| `ctx.scene` | string | Name of the running scene |
+| `ctx.loadScene(name)` | function | Switch to another scene after this frame |
+| `ctx.globals` | object | Plain object shared by every program and scene for the whole play session |
+| `ctx.camera` | `{ panX, panY, zoom }` | The view camera's current pan and zoom |
+| `ctx.setCamera(panX, panY, zoom)` | function | Move the view camera |
+
+## ctx.scene
+
+```ts
+ctx.scene: string
+```
+
+The current scene's name. Lets one shared script branch per scene:
+
+```js
+if (ctx.scene === 'Village') villageLogic()
+else if (ctx.scene === 'House') houseLogic()
+```
+
+## ctx.loadScene
+
+```ts
+ctx.loadScene(name: string): void
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | string | Exact scene name |
+
+Requests a switch to scene `name`. **Deferred**: the rest of this frame (every program on every layer) still runs against the current scene, and the switch happens right after. An unknown name logs a warning and is ignored.
+
+```js
+if (getCompByID('playBtn').clicked) ctx.loadScene('Level 1')
+```
+
+**What happens on a switch**
+
+- The new scene runs its own state machine from its initial state.
+- `ctx.props` resets to the new scene's Property defaults.
+- `ctx.globals`, `ctx.storage`, `ctx.net`, `ctx.data` carry over.
+- Sounds tied to nodes (Audio Sources) stop; other sounds keep playing. The new scene's *play on start* sources start.
+- Refs you cached in `ctx.globals` point at the old scene's nodes: clear them.
+
+```js
+function go(scene) {
+  ctx.globals.screen = {}          // drop cached refs for the old scene
+  ctx.loadScene(scene)
+}
+```
+
+## ctx.globals
+
+```ts
+ctx.globals: Record<string, any>
+```
+
+A plain object that:
+
+- is **shared** by every program (every layer, every scene),
+- **survives** `ctx.loadScene`,
+- is **wiped** to `{}` every time you press Play (and when an exported game starts).
+
+Nothing in the engine reads it. It's your game's memory for this session: score, inventory, spawn point, cached refs, timers.
+
+```js
+const S = ctx.globals.game || (ctx.globals.game = { level: 1, coins: 0, inventory: [] })
+S.coins += pickedUp
+```
+
+:::tip Namespace your globals
+Because every program shares one object, give each game or system its own key: `ctx.globals.match3`, `ctx.globals.hud`. Avoid writing directly onto `ctx.globals.score` from several scripts that don't know about each other.
+:::
+
+A common split is **one key for the session** and **one for the current screen**, the latter reset on every scene change:
+
+```js
+const S = ctx.globals.match3 || (ctx.globals.match3 = {})   // whole session
+const g = ctx.globals.m3scene || (ctx.globals.m3scene = {}) // this screen's cached refs
+```
+
+## ctx.camera and ctx.setCamera
+
+```ts
+ctx.camera: { panX: number; panY: number; zoom: number }
+ctx.setCamera(panX: number, panY: number, zoom: number): void
+```
+
+The **view** camera: the editor's pan/zoom in Playground, the player's camera in an exported game. `setCamera` drives it for camera-follow or screen shake.
+
+```js
+const p = getCompByID('player')
+const c = ctx.camera
+const k = 1 - Math.exp(-6 * ctx.deltaSeconds)
+ctx.setCamera(c.panX + (p.x - c.panX) * k, c.panY + (p.y - c.panY) * k, c.zoom)
+```
+
+:::note Scenes with a camera node
+When the scene has its own **Camera** node (the Main Camera), that camera decides what's shown. Move the camera node with its ref (`getCompByID('Main Camera').x = ...`) and use its components (Camera Shake via [`ref.shake2`](./nodes-and-refs.mdx)). `ctx.setCamera` is for scenes without one. See [Camera](../editor/camera.mdx).
+:::

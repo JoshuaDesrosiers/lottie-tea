@@ -1,0 +1,111 @@
+---
+title: Events and messages
+sidebar_position: 10
+description: ctx.on to expose script functions to On Click actions and the embedding page, and ctx.emit to send events to the page.
+---
+
+# Events and messages
+
+| Member | Direction | Description |
+|---|---|---|
+| `ctx.on(name, fn)` | in | Register a function that On Click actions and the embedding page can call by name |
+| `ctx.emit(name, payload)` | out | Send an event to the web page embedding the game |
+
+## ctx.on
+
+```ts
+ctx.on(name: string, fn: (arg?: unknown) => unknown): void
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | string | The function's public name |
+| `fn` | function | Called with one optional argument; its return value goes back to the caller |
+
+Registers `fn` so that:
+
+- a UI Button's **On Click** action *Call function* `name` (with an optional argument) runs it, and
+- the embedding page's `player.call(name, arg)` runs it and receives its return value.
+
+```js
+const g = ctx.globals.shop || (ctx.globals.shop = { coins: 100 })
+ctx.on('buy', (item) => {
+  if (g.coins < 10) return false
+  g.coins -= 10
+  ctx.playSound('coin')
+  return true
+})
+ctx.on('getCoins', () => g.coins)
+```
+
+```js
+// On the page:
+const ok = player.call('buy', 'sword')    // true / false
+```
+
+**Notes**
+- Calling `ctx.on` every frame with the same name is fine; the latest function replaces the previous one. Registrations are cleared at the start of each play session.
+- The function runs **outside** your frame (when the click or the page call happens). Capture what you need from `ctx.globals`; don't rely on that frame's local variables being current.
+- An On Click argument is parsed as JSON when it can be (`5`, `"text"`, `{"a":1}`), otherwise passed as a string.
+- If a button calls a name no script registered: when the game is embedded, the call becomes a page event (as if you'd used `ctx.emit`); in the editor, a warning appears in the Console.
+
+## ctx.emit
+
+```ts
+ctx.emit(name: string, payload?: unknown): void
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | string | Event name |
+| `payload` | any JSON-like value | Optional data |
+
+Sends an event to the page: it reaches `player.on('event', ...)` listeners and React's `<An1Player onEvent>`.
+
+```js
+if (heart.clicked) {
+  ctx.props.liked = !ctx.props.liked
+  ctx.props.count += ctx.props.liked ? 1 : -1
+  ctx.emit('like', { liked: ctx.props.liked, count: ctx.props.count })
+}
+```
+
+**Notes**
+- In the editor nothing listens: each emit shows in the Console as `ctx.emit("like", {...}) — reaches the page when this game is embedded`, so you can test before embedding.
+- Emit on **changes** (a click, a goal reached), not every frame.
+- A listener that throws on the page is caught and logged; it won't break the game.
+
+See [Listening to the game](../embedding/listening.mdx) for the page side.
+
+## On Click actions (no-code events)
+
+A node with a **UI Button** and an **On Click** (UI Events) component runs a list of actions when clicked, in order. Scripts can sit alongside them; actions are often enough on their own.
+
+| Action | Effect |
+|---|---|
+| Toggle visible / Show / Hide | Visibility of the target node |
+| Set node field | `x`, `y`, `rotation`, `scaleX`, `scaleY`, `text`, `fillColor`, `visible` |
+| Set component field | Any Inspector field of a component |
+| Call method | `ParticleSystem.emit`, `ParticleSystem3D.burst`, `AudioSource.play`/`stop`, `Tree2D.shake`/`regrow`, `Cloth2D.reset`, `Rigidbody2D.impulse` (`"x, y"`), `UiToggle.toggle` |
+| Fire trigger / Set input | State machine inputs |
+| Load scene | Switch scene after the frame |
+| Play sound | By sound name |
+| Set property | `"+1"` / `"-2.5"` add to a Number, `"!"` flips a Bool, anything else is the new value (JSON if it parses) |
+| Call function | A function registered with `ctx.on` (or a page event when embedded) |
+
+A failing action (missing node, unknown property) is reported in the Console and skipped; the rest still run. See [UI components](../components/ui-components.mdx).
+
+## Messages between scripts
+
+Programs on different layers and scenes share `ctx.globals`, so a "message" between scripts is just data on it:
+
+```js
+// writer
+ctx.globals.events = ctx.globals.events || []
+ctx.globals.events.push({ type: 'explode', x, y })
+
+// reader (another layer, later the same frame or next frame)
+for (const e of ctx.globals.events?.splice(0) ?? []) if (e.type === 'explode') boom(e.x, e.y)
+```
+
+For messages between players on different machines, see the [Network API](./network-api.mdx).

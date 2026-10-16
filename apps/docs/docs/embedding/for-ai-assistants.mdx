@@ -1,0 +1,163 @@
+---
+title: For AI assistants
+sidebar_position: 11
+description: The exact rules and API summary for AI coding assistants (Claude Code, Cursor, Copilot) writing code that embeds and drives an exported Toasty game.
+---
+
+# For AI coding assistants
+
+Every website embed export includes an `AGENTS.md` written for AI coding assistants, in the export's root **and** inside `src/an1mbyt3/` (with a `CLAUDE.md` that points Claude Code at it), so it travels into your repository with the code. Assistants such as Claude Code, Cursor and Copilot pick these files up automatically. The exported `AGENTS.md` ends with **this game's** exact scenes, Properties, states, transitions, inputs, events and functions, plus the same as JSON.
+
+This page is the general part of that file, so you can paste it into a prompt or point an assistant at it. The TypeScript declarations (`src/an1mbyt3/*.d.ts`) are the source of truth for signatures.
+
+:::tip Tell your assistant
+"Read `src/an1mbyt3/AGENTS.md` before writing code that touches the game." Then ask for what you want ("show the like count from our API in the game and toast when the user likes").
+:::
+
+## What this is
+
+- A self-contained interactive scene or game (WebGPU, with a WebGL2 fallback) that runs in a container element and is steered by the host page.
+- Shipped as prebuilt ES modules (no npm package, no build step of its own) plus two static binary files.
+- **One player per page.** Creating a second player destroys the first.
+
+## Files and where they belong
+
+| File | Put it in | Notes |
+|---|---|---|
+| `src/an1mbyt3/an1mbyt3-embed.js` (+ `.d.ts`) | source tree | `createPlayer`, `defineAn1PlayerElement` |
+| `src/an1mbyt3/an1mbyt3-react.js` (+ `.d.ts`) | source tree | `An1Player`, `useAn1Player`; imports `react` as a peer (React 19 for `ref`; on React 18 get the player from `onReady`) |
+| `src/an1mbyt3/an1mbyt3-engine.js` | source tree, same folder | shared by both; never import directly |
+| `public/an1mbyt3/game.teab` | static/public folder | the game |
+| `public/an1mbyt3/an1mbyt3_wasm_bg.wasm` | static/public folder, **next to `game.teab`** | the engine (about 25 MB; serve compressed) |
+
+- Keep the three `.js` files in one folder; they import each other relatively.
+- The default engine URL is resolved relative to the `game` URL. Elsewhere: pass `wasm`.
+- Never import from `public/`.
+- `.js`, `.wasm` and `.teab` come from one export and are replaced together.
+
+## Plain JS API
+
+```ts
+import { createPlayer } from './an1mbyt3/an1mbyt3-embed.js'
+
+const player = await createPlayer(container: HTMLElement, {
+  game: string | URL | ArrayBuffer | Uint8Array,   // required
+  wasm?: same,                                       // default: next to `game` (required if `game` is bytes)
+  scene?: string,                                    // start scene name; default first scene
+  fit?: 'contain' | 'cover',                         // default 'contain'
+  keyboard?: 'focus' | 'window' | 'none',            // default 'focus'
+  data?: Record<string, unknown>,                    // initial data, same as set()
+  paused?: boolean,
+  background?: string,                               // letterbox colour
+  stats?: boolean,                                   // profiler overlay
+})
+```
+
+`createPlayer` resolves once the first scene is loaded and running.
+
+| Member | Behaviour |
+|---|---|
+| `set(name, value)` / `setData(obj)` | Writes `ctx.data[name]` AND the current scene's Property `name` if it exists (coerced: Number, Bool, Text, Color = `'#rrggbb'` or `[r,g,b,a]` in 0..1). Applied next frame. Re-applied on every scene entry. Cheap. |
+| `get(name)` | Current scene Property value, else the last `set` value. |
+| `setInput(name, value)` | State machine input: Bool / Number / Enum; a Trigger fires when `value` is truthy. Unknown names only warn. |
+| `fire(trigger)` | Fires a Trigger input. |
+| `loadScene(name)` | Switches scene after the current frame. |
+| `call(name, arg?)` | Synchronously calls a function a script registered with `ctx.on(name, fn)`; returns its result, or `undefined` plus a warning if not registered yet. |
+| `on(type, fn)` returns unsubscribe; `off(type, fn)` | Events below. Also DOM `CustomEvent('an1:<type>')` on the container (non-bubbling). |
+| `waitForState(state, layer = null)` | Resolves when the base layer (or named layer) is in `state`; never rejects. |
+| `pause()` / `play()` / `paused` | Freeze / resume. |
+| `scenes`, `scene`, `state`, `layerStates` | Read-only snapshots. |
+| `destroy()` | Stops and frees everything. Always call on unmount. |
+
+### Events
+
+| Type | Payload | Fires when |
+|---|---|---|
+| `state` | `{ layer: string or null, state, previous }` | a layer enters a state (`layer: null` = base) |
+| `event` | `{ name, payload }` | `ctx.emit(name, payload)`, or an unhandled On Click "Call script function" |
+| `prop` | `{ name, value }` | the GAME changed a scene Property (your own `set` is not echoed) |
+| `scene` | `{ scene, previous }` | the scene switched |
+| `error` | `{ error }` | a frame threw (the loop continues) |
+| `ready` | `{ scenes, scene }` | before `createPlayer` resolves; use the resolved player instead |
+
+Initial values are not replayed as events: after `await createPlayer(...)` read `player.state` / `player.scene`, then subscribe.
+
+## React API
+
+```tsx
+import { An1Player, useAn1Player, type An1PlayerHandle } from './an1mbyt3/an1mbyt3-react.js'
+
+<An1Player
+  game="/an1mbyt3/game.teab"            // changing game / wasm / fit / keyboard / background reloads
+  scene={sceneName}                     // live
+  data={{ price, stock }}               // live: shallow Object.is diff, changed keys only
+  inputs={{ isOpen, speed: 2 }}         // live: shallow diff → setInput
+  paused={!visible}                     // live
+  className="…" style={{ height: 400 }} // the box needs a height
+  ref={ref}                             // Ref<An1PlayerHandle | null> (React 19)
+  onReady={(player) => …}
+  onEvent={(e) => …} onStateChange={(e) => …} onPropChange={(e) => …} onSceneChange={(e) => …} onError={(err) => …}
+/>
+```
+
+- Handlers may be inline; they are read through a ref.
+- Mutating a nested object in `data` / `inputs` is NOT detected; pass a new value.
+- A Trigger in `inputs` fires only when its value changes to truthy; for repeated firing use `ref.current?.fire(name)`.
+- StrictMode double-mount is safe.
+- Next.js / SSR: `'use client'` + `dynamic(() => import('./GameBox'), { ssr: false })` (the `dynamic` call itself inside a client component in the App Router).
+
+## Custom element
+
+```html
+<script type="module">
+  import { defineAn1PlayerElement } from './an1mbyt3/an1mbyt3-embed.js'
+  defineAn1PlayerElement()
+</script>
+<an1-player game="/an1mbyt3/game.teab" scene="Main" data='{"coins":3}' style="display:block;height:400px"></an1-player>
+```
+
+Attributes `game`, `wasm`, `scene`, `data` (JSON), `paused`, `fit`, `keyboard`. `scene` / `data` / `paused` update live; the rest reload. `element.player` is the JS API after `an1:ready`. Only `an1:ready` and `an1:error` are dispatched on the element itself; subscribe to the rest with `element.player.on(...)`.
+
+## Game side (in the Toasty editor)
+
+- `ctx.data`: read-only object of host data (`{}` in the editor).
+- `ctx.emit(name, payload?)`: sends `event` to the host (logged in the editor's Console when not embedded).
+- `ctx.on(name, fn)`: makes `fn` callable by `player.call(name, arg)` and by On Click actions.
+- `ctx.props.<name>`: scene Properties; host `set()` writes them, game writes surface as `prop` events.
+
+## Rules for code you write
+
+1. Create the player once per mount; never recreate it to change data. Use `set` or props.
+2. Always `destroy()` on unmount (the React component does it for you).
+3. Give the container an explicit size.
+4. Only use names that exist in the game's manifest (`an1mbyt3.json` or the end of `AGENTS.md`): scenes, inputs, Properties, events, functions. Unknown input or function names only warn, so they fail silently in production.
+5. The player is `null` until ready. For buttons that need it, use `const [ref, player] = useAn1Player()` with `<An1Player ref={ref}>` and disable controls while `!player`. For one-time initial reads, use `onReady`.
+6. Data and Properties are *values*, not pulses: setting the value it already has changes nothing. For one-shot actions use a Trigger (`fire`) or a script function (`call`).
+7. Don't fetch inside the game for host data; fetch in the page and `set()` it.
+8. Serve the `.wasm` compressed with long cache headers.
+9. Use the listed transitions to know which input reaches which state; `waitForState` / `onStateChange` confirm it happened.
+10. Don't use `keyboard: 'window'` on pages with text inputs unless you accept that Space, arrow keys, F3 and backtick are intercepted page-wide.
+
+## Recipes
+
+```ts
+// live API data → bound labels
+const player = await createPlayer(el, { game: '/an1mbyt3/game.teab' })
+setInterval(async () => player.setData(await (await fetch('/api/stats')).json()), 5000)
+
+// animation as a message: wait for the intro, then enable the CTA
+await player.waitForState('Idle'); button.disabled = false
+
+// game event → app action
+player.on('event', ({ name, payload }) => { if (name === 'purchase') cart.add(payload) })
+
+// step-driven scenes in React
+<An1Player game="/an1mbyt3/game.teab" scene={['Intro', 'Pick', 'Done'][step]}
+  onSceneChange={(e) => setStep(['Intro', 'Pick', 'Done'].indexOf(e.scene))} />
+```
+
+## Where the game-specific part comes from
+
+The export scans the game and appends, for each scene: its Properties (name, type, default), each state machine's states and layers, every transition written as the call that triggers it (for example ``Idle → Liked when trigger `burst` fires — `fire('burst')` ``), and the inputs. Then the `ctx.data` keys, `ctx.emit` event names and `ctx.on` function names found in the scripts (names built at run time can't be found). See [Exporting for the web](./export-for-web.mdx).
+
+Full human documentation: [API reference](./api-reference.mdx), [React](./react.mdx), [Troubleshooting](./troubleshooting.mdx).

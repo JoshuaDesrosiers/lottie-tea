@@ -1,0 +1,246 @@
+---
+title: "5. Optimistic UI and server sync"
+sidebar_position: 5
+description: Save likes to a server with fetch, keep the button instant with optimistic updates, roll back on failure, and sync the real count from the server.
+---
+
+# 5. Optimistic UI and server sync
+
+**Goal:** likes are saved to a server. The button still reacts instantly, failed saves roll back, and the count always ends up matching what the server says.
+
+**What you'll learn**
+
+- The optimistic UI loop: show the change now, confirm or roll back later.
+- Loading the initial `count` / `liked` from an API.
+- Sending a like with `fetch` and reconciling the response.
+- Handling fast double-clicks and out-of-order responses.
+- Polling for other people's likes.
+
+## The loop
+
+The scene is already optimistic: it changes `liked` and `count` the instant you click. The page's job is everything after that:
+
+1. **Load**: fetch the real `{ count, liked }` and pass them in as `data`.
+2. **Click**: the scene flips and emits `like`. The page records the new values and sends the change to the server.
+3. **Confirm**: the server answers with the real count (other people may have liked it too). The page sets it.
+4. **Roll back**: if the request fails, the page puts back the values from before the click.
+
+Because the scene follows its Properties, steps 3 and 4 need no scene code: setting `data` is enough.
+
+## The API this lesson assumes
+
+Any backend works. The examples assume two endpoints:
+
+| Request | Response |
+|---|---|
+| `GET /api/posts/:id/likes` | `{ "count": 1204, "liked": false }` |
+| `PUT /api/posts/:id/like` with body `{ "liked": true }` | `{ "count": 1205, "liked": true }` |
+
+## Step 1: the hook
+
+Put the loop in a hook so any component can use it.
+
+```tsx title="src/useLikes.ts"
+import { useCallback, useEffect, useRef, useState } from 'react'
+
+export interface LikeState {
+  count: number
+  liked: boolean
+}
+
+/**
+ * Optimistic likes for one post.
+ * - `state` is what the button should show (pass it as the player's data).
+ * - `onLike` takes the scene's `like` event payload.
+ */
+export function useLikes(postId: string, pollMs = 15000) {
+  const [state, setState] = useState<LikeState | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  // Every request gets a number; only the newest one may write state.
+  // That makes fast like/unlike/like clicks safe even if responses
+  // come back out of order.
+  const latest = useRef(0)
+  // How many saves are in flight: while > 0, polling must not overwrite
+  // the optimistic value with a stale server value.
+  const pending = useRef(0)
+
+  // ---- 1. load ----
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/posts/${postId}/likes`)
+    if (!res.ok) throw new Error(`load failed: ${res.status}`)
+    return (await res.json()) as LikeState
+  }, [postId])
+
+  useEffect(() => {
+    let alive = true
+    load()
+      .then((s) => alive && setState(s))
+      .catch((e) => alive && setError(String(e)))
+    // ---- 5. poll for other people's likes ----
+    const timer = setInterval(() => {
+      if (pending.current > 0) return
+      load()
+        .then((s) => alive && pending.current === 0 && setState(s))
+        .catch(() => {}) // a failed poll just waits for the next one
+    }, pollMs)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [load, pollMs])
+
+  // ---- 2-4. click, confirm, roll back ----
+  const onLike = useCallback(
+    async (next: LikeState) => {
+      const before = state // what to restore if the save fails
+      const ticket = ++latest.current
+      pending.current++
+      setError(null)
+      // 2. Optimistic: show exactly what the scene already shows.
+      setState(next)
+      try {
+        const res = await fetch(`/api/posts/${postId}/like`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ liked: next.liked }),
+        })
+        if (!res.ok) throw new Error(`save failed: ${res.status}`)
+        const confirmed = (await res.json()) as LikeState
+        // 3. Confirm, unless a newer click has happened since.
+        if (ticket === latest.current) setState(confirmed)
+      } catch (e) {
+        // 4. Roll back, unless a newer click has happened since.
+        if (ticket === latest.current && before) setState(before)
+        setError('Could not save your like. Please try again.')
+      } finally {
+        pending.current--
+      }
+    },
+    [postId, state],
+  )
+
+  return { state, error, onLike }
+}
+```
+
+## Step 2: the component
+
+```tsx title="src/LikeButton.tsx"
+import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
+import { useLikes, type LikeState } from './useLikes'
+
+export function LikeButton({ postId }: { postId: string }) {
+  const { state, error, onLike } = useLikes(postId)
+
+  return (
+    <div style={{ width: 240 }}>
+      <An1Player
+        game="/an1mbyt3/game.teab"
+        style={{ width: 240, height: 240 }}
+        // Until the first load finishes, send nothing: the scene shows
+        // its own defaults. Then the server's values take over.
+        data={state ?? {}}
+        onEvent={(e) => {
+          if (e.name === 'like') onLike(e.payload as LikeState)
+        }}
+      />
+      {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+    </div>
+  )
+}
+```
+
+## Try it live
+
+This version swaps `fetch` for a fake server living in the page, so you can see every path. Use the checkbox to make the "server" fail and watch the heart roll back.
+
+```jsx live
+function OptimisticLikes() {
+  // ---- a fake server (in a real app: your API) ----
+  const server = React.useRef({ count: 1204, liked: false, failNext: false })
+  const fakeFetch = (liked) =>
+    new Promise((resolve, reject) =>
+      setTimeout(() => {
+        const s = server.current
+        if (s.failNext) return reject(new Error('500'))
+        if (liked !== s.liked) s.count += liked ? 1 : -1
+        s.liked = liked
+        s.count += Math.floor(Math.random() * 3) // other people liking it too
+        resolve({ count: s.count, liked: s.liked })
+      }, 900),
+    )
+
+  // ---- the optimistic loop ----
+  const [state, setState] = React.useState({ count: 1204, liked: false })
+  const [log, setLog] = React.useState([])
+  const [fail, setFail] = React.useState(false)
+  const latest = React.useRef(0)
+  const add = (line) => setLog((l) => [line, ...l].slice(0, 6))
+
+  const onLike = async (next) => {
+    const before = state
+    const ticket = ++latest.current
+    setState(next)
+    add(`optimistic: ${next.liked ? 'liked' : 'unliked'}, ${next.count}`)
+    server.current.failNext = fail
+    try {
+      const confirmed = await fakeFetch(next.liked)
+      if (ticket === latest.current) {
+        setState(confirmed)
+        add(`server confirmed: ${confirmed.count}`)
+      }
+    } catch (e) {
+      if (ticket === latest.current) {
+        setState(before)
+        add('server failed: rolled back')
+      }
+    }
+  }
+
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/like-button.teab"
+        style={{ width: 240, height: 240 }}
+        data={state}
+        onEvent={(e) => e.name === 'like' && onLike(e.payload)}
+      />
+      <label>
+        <input type="checkbox" checked={fail} onChange={(e) => setFail(e.target.checked)} /> make the next save fail
+      </label>
+      <ul>{log.map((l, i) => <li key={i}>{l}</li>)}</ul>
+    </div>
+  )
+}
+```
+
+## How it works
+
+### Why `data` is enough for both confirm and roll back
+
+`setState(confirmed)` and `setState(before)` change React state, React passes the new values through `data`, and the scene's `count` / `liked` Properties take them. On a rollback, `liked` goes from `true` back to `false`, so the script from lesson 3 sees the heart is in the wrong state and fires `burst`: the heart turns grey again by itself.
+
+### Out-of-order responses
+
+Suppose someone clicks like, unlike, like within a second. Three requests fly; they can come back in any order. If each response wrote state, the last one to *arrive* would win, not the last one *sent*. The `ticket` / `latest` pair fixes that: only the response for the newest click may write.
+
+### Polling without flicker
+
+The poll skips while a save is pending (`pending.current > 0`), and checks again before writing, because a click could start between sending the poll and receiving it. Otherwise a slow poll response could briefly undo a fresh like.
+
+### Starting before the data arrives
+
+`data={state ?? {}}` sends nothing until the first load completes, so the scene shows its authored defaults (`128`, not liked) for a moment. If that flash bothers you, render a placeholder instead of the player until `state` is ready, or keep the defaults neutral (for example, set `count`'s **Starts as** to `0`).
+
+:::tip Server-side truth
+The server should treat `PUT { liked: true }` as "set", not "toggle", so retrying a request is harmless. That's why the scene sends the *new value* in its event rather than "a click happened".
+:::
+
+## Check your work
+
+- With the live demo: click the heart and watch "optimistic" then "server confirmed" appear about a second later, with the count sometimes jumping by a couple more.
+- Tick "make the next save fail", click, and the heart returns to its previous state after the fake latency.
+- Click like-unlike-like quickly: the final state is liked, whatever order the responses arrive in.
+- In your app, your network tab shows one `PUT` per click and a `GET` every 15 seconds.
+
+**Next:** [6. Events, states and polish](./06-events-and-polish.mdx)

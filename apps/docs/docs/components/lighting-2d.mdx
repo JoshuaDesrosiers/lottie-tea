@@ -1,0 +1,175 @@
+---
+title: Lighting 2D
+sidebar_position: 5
+description: Unity-style 2D lighting in Toasty - Light 2D (Global, Spot, Freeform, Sprite), pixel-art falloff, shadows, volumetric glow, Shadow Caster 2D, Unlit nodes, Light Layers and Light Flicker.
+---
+
+# Lighting 2D
+
+Toasty's 2D lights work like Unity URP's 2D lights. Put a **Light 2D** on a node and it lights the scene around it; give other nodes a **Shadow Caster 2D** and they block light and cast shadows. On top of Unity's model there are pixel-art extras: crisp falloff rings, chunky light pixels, and a **Max** overlap mode so crowded lights merge instead of blowing out.
+
+<Shot id="lighting-2d-scene" caption="A dark dungeon scene with a Global light at low intensity, a torch Spot light with Falloff Steps 3 and shadows from wall blocks; the torch's Light 2D card shown in the Inspector" />
+
+## How lighting works
+
+- A scene with **no** Light 2D renders unlit, exactly as you drew it.
+- As soon as the scene contains **any** Light 2D, every lit node's colour is multiplied by the light reaching its pixels. Areas no light reaches go **dark**. Add a **Global** light to set a base level (ambient light).
+- **Additive** lights add brightness on top instead of being needed to see anything (rim lights, glowing magic).
+- Nodes marked **Unlit** ignore lighting entirely, see below.
+- A hidden node's Light 2D stops lighting.
+
+Lights show in Design as well as in Playground, so you can light a level as you build it.
+
+## Light 2D
+
+One per node. The node's transform places, turns and scales the light. A Spot light points along the node's local up (+Y), so rotating the node aims the cone. The fields shown depend on the **Light Type**.
+
+### Common fields
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Light Type | **Global**: lights everything evenly (ambient); no shape, position or shadows. **Spot**: a radial light with an optional cone. **Freeform**: a polygon of light. **Sprite**: an image's pixels used as the light's shape and colour (a cookie). | | Spot |
+| Color | The light's colour. | | white |
+| Intensity (×) | Multiplies the colour. Above 1 over-brightens. | 0 and up | 1 |
+| Blend Style | **Multiply**: light is what makes things visible. **Additive**: adds light on top. | | Multiply |
+| Overlap | **Additive**: overlapping lights add up. **Alpha Blend**: this light covers earlier ones (by Light Order). **Max (merge)**: the brightest wins, so overlapping lights merge into one pool instead of stacking. | | Additive |
+| Light Order (#) | Lower draws first. Only matters for Alpha Blend overlap. | integer | 0 |
+
+### Spot
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Radius in / out | Full brightness inside **in**; the light ends at **out**. | in 0 to out; out 1 and up | 0 / 120 |
+| Spot Angle in° / out° | Full cone width in degrees, aimed along the node's up. 360 = a point light shining every way. | 0 to 360 | 360 / 360 |
+
+### Freeform
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Falloff (size) | How far past the shape's edge the light fades out. | 0 and up | 20 |
+| Shape Points | The polygon's corners, in the node's own space. **+ Point** adds one halfway along the closing edge; the trash icon removes one. | 3 to 32 points | an 80 x 80 square |
+
+### Sprite
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Sprite | The image used as the light. | any image | none |
+| Size W / H | Drawn size of the sprite light. | 1 and up | 64 x 64 |
+
+### Falloff Look (Spot, Freeform, Sprite)
+
+The pixel-art controls. Not in Unity.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Falloff Steps (#) | Crisp brightness rings, brightest at the centre and faintest at the edge. 0 or 1 = one solid pool. | 0 to 12 | 3 |
+| Blur | 0 = crisp rings (pixel art). 1 = a smooth Unity-style gradient. In between mixes. | 0 to 1 | 0 |
+| Pixel Size (px) | Computes the light in chunky blocks of this many world units. 0 = per pixel. | 0 to 32 | 0 |
+| Falloff Strength | 0 = a soft, lingering light; 1 = holds then drops off sharply. Shown for Spot and Freeform once Falloff Steps is 2 or more, or Blur is above 0. | 0 to 1 | 0.5 |
+
+:::tip
+For the smooth falloff you know from Unity, set **Blur** to 1. For a retro look, keep Blur at 0, use 3 to 5 **Falloff Steps**, and set **Pixel Size** to your art's pixel size.
+:::
+
+### Shadows (Spot, Freeform, Sprite)
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Cast shadows from Shadow Caster 2D | Turns shadows on for this light. Lights only cast shadows when this is on. | on/off | off |
+| Strength | How much a caster blocks this light. 1 = fully black shadow. | 0 to 1 | 1 |
+| Softness | Blurs shadow edges. | 0 to 1 | 0.3 |
+
+### Volumetric (Spot, Freeform, Sprite)
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Glow in the air (visible without a surface) | The light also glows in the air, visible even over empty background: fog, beams, god rays. | on/off | off |
+| Intensity | Strength of the in-air glow. | 0 and up | 0.25 |
+| Volumetric shadows | Shadow casters also cut the in-air glow. | on/off | off |
+| Shadow Strength | How dark those volumetric shadows are. | 0 to 1 | 1 |
+
+### Sorting layers lit and + Flicker
+
+Under the light's fields the card also shows its **Light Layers** checkboxes and a **+ Flicker** button. Both are separate components, described below.
+
+## Shadow Caster 2D
+
+Makes a node block light and cast shadows. Add it from **Add Component → Rendering → Shadow Caster 2D**, or tick **Shadow Caster 2D** in the node's **Rendering** section. Lights only cast shadows when their own **Shadows** option is on.
+
+The caster's outline comes from the node itself: a Shape uses its own outline, sprites and tilemaps use their visible pixels, anything else uses its bounding box.
+
+| Field | Meaning | Default |
+|---|---|---|
+| Casting | **Cast Shadow**: casts a shadow behind itself, its own surface stays lit. **Self Shadow**: does not cast onto others but is darkened by its own shape. **Cast and Self Shadow**: both. | Cast Shadow |
+| Trim Edge | Shrinks the caster outline inward (world units), so shadows start slightly inside the silhouette. | 0 |
+
+## Unlit nodes
+
+Every node except a light has a **Rendering** section in the Inspector with a **Material** dropdown:
+
+| Choice | Meaning |
+|---|---|
+| Sprite-Lit-Default | 2D lights affect it (the default). |
+| Sprite-Unlit-Default | Always full brightness, whatever the lighting. Use it for HUD, UI and things that glow on their own. Children inherit it. |
+
+:::tip
+As soon as you add your first light, put your HUD under the camera and mark its root **Unlit**, or it goes dark with the rest of the scene.
+:::
+
+## Light Layers
+
+Which [sorting layers](./sorting-layers.mdx) a light lights (Unity's Target Sorting Layers). Edit it under the light's card, in **Sorting layers lit**:
+
+| Field | Meaning | Default |
+|---|---|---|
+| Lights every layer | On: the light reaches every layer. Off: tick the layers it should light (at least one stays ticked). | on |
+
+Each sorting layer is lit only by the lights that target it, plus Global lights that target it. Use this to keep a foreground lit differently from a background, or to make a lantern light the characters but not the sky.
+
+## Light Flicker
+
+Makes a light's brightness (and a little of its size) waver: candles, torches, failing neon. Click **+ Flicker** under a Light 2D, or add it from **Lighting 2D → Light Flicker**.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Amount | How deep the dips go. | 0 to 1 | 0.35 |
+| Speed (Hz) | Flickers per second. | 0 to 40 | 8 |
+| Smoothness | 0 = jittery and electric, 1 = a soft candle sway. | 0 to 1 | 0.6 |
+| Radius breathing | How much the radius breathes along with the brightness. | 0 to 1 | 0.1 |
+| Seed | Different seeds keep neighbouring torches out of sync. | 0 to 9999 | 0 |
+
+Recipes from the Inspector: **candle** = smooth and slow, **torch** = medium, **failing neon** = smoothness 0 and fast.
+
+## Scripting lights
+
+| Call | What it does |
+|---|---|
+| `ref.lightIntensity = n` | Sets the Light 2D's intensity. Write-only: reading gives back the last value this ref wrote, or `null`. |
+| `ref.lightRadius = n` | Sets a Spot light's outer radius. Write-only, like intensity. |
+| `ref.fillColor = [r, g, b, a]` | On a node whose only colour is its light, `fillColor` is the light's colour, so scripts (and keyframes) can recolour a light like any fill. |
+| `ref.visible = false` | Hides the node, which switches its light off. |
+
+Flicker and flashes, adapted from the Dungeon Royale demo:
+
+```js
+const T = ctx.time
+// A torch that flickers on two frequencies.
+const torch = getCompByID('torch')
+torch.lightIntensity = 1.3 + Math.sin(T * 13) * 0.08 + Math.sin(T * 7.1) * 0.06
+
+// A muzzle flash: bright and wide for a moment, then fading.
+const g = ctx.globals
+if (ctx.keysDown.has('space')) g.flash = 1
+g.flash = Math.max(0, (g.flash || 0) - ctx.deltaSeconds * 4)
+const flash = getCompByID('flash')
+flash.lightRadius = 40 + g.flash * 60
+flash.lightIntensity = g.flash * 2
+```
+
+For a hands-off flicker, prefer the **Light Flicker** component: it needs no script and stays in sync with the editor preview.
+
+## Related
+
+- [Sorting layers](./sorting-layers.mdx) for the layers lights can target.
+- [Post effects](./post-effects.mdx) for Glow (bloom) and Vignette.
+- [Trails](./trails.mdx), which shipped together with lighting.

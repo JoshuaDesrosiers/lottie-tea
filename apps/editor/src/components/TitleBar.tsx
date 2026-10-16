@@ -43,6 +43,21 @@ export function TitleBar({ theme, onToggleTheme }: { theme: Theme; onToggleTheme
       </div>
 
       <div className="flex items-center gap-1">
+        {/* The docs site (apps/docs) is deployed next to the web editor at
+            /docs/; the desktop app links to the hosted copy. */}
+        <a
+          href={isTauri ? 'https://toastycreate.web.app/docs/' : '/docs/'}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open the Toasty docs: guides, scripting reference, courses and live demos"
+          className="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-ink-dim hover:bg-overlay/5 hover:text-ink"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14z" />
+            <path d="M8 7h8M8 11h6" />
+          </svg>
+          Docs
+        </a>
         <button
           onClick={onToggleTheme}
           title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}

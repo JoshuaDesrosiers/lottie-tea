@@ -1,0 +1,225 @@
+---
+title: UI controls
+sidebar_position: 21
+description: Toggles, radio groups, sliders, scrollbars and scroll views, how they find their parts by child name, how state styles work, and how scripts read and set them.
+---
+
+# UI controls
+
+Beyond the plain [UI Button](./ui-components.mdx#ui-button), Toasty has four interactive controls, all modelled on Unity's built-in UI:
+
+| Component | Unity equivalent | Script reads |
+|---|---|---|
+| **UI Toggle** | Toggle (+ ToggleGroup) | `ref.isOn`, `ref.changed` |
+| **UI Slider** | Slider | `ref.value`, `ref.changed` |
+| **UI Scrollbar** | Scrollbar | `ref.value`, `ref.changed` |
+| **UI Scroll View** | ScrollRect | `ref.scroll`, `ref.value`, `ref.changed` |
+
+Like buttons, they're components you add to ordinary shapes. The pointer handling runs in Playground and in exported games. In Design mode the controls just show their authored state.
+
+Try them all in the UI & Sound Lab demo (volume slider, mute checkbox, a three-way radio group, and a scrolling list of notes with a linked scrollbar):
+
+<ToastyDemo game="/games/ui-sound-lab.teab" height={360} caption="UI & Sound Lab: drag the volume slider, tick Mute, pick a waveform, scroll the notes" />
+
+## Children by name
+
+Controls are made of several shapes: a slider has a track, a coloured fill and a draggable knob. Toasty doesn't need you to wire these up in the Inspector. Each control looks for **direct children with specific names**, the same convention Unity's default UI uses:
+
+| Control (on the parent) | Child name | What the control does with it |
+|---|---|---|
+| UI Toggle | **Checkmark** | Shows it while the toggle is on, hides it while off. |
+| UI Slider | **Fill** | Stretches it from the start edge of the track to the current value. |
+| UI Slider | **Handle** | Moves it along the track to the current value. |
+| UI Scrollbar | **Handle** | Sizes it to **Size** of the track and places it by **Value**. |
+| UI Scroll View | **Content** | Scrolls it (drag, mouse wheel, inertia) inside the viewport. |
+| UI Scroll View | **Scrollbar** | Keeps it in sync both ways. It must carry a **UI Scrollbar** itself. |
+
+Names are matched exactly, including capitals, and only on **direct** children. The **+ → UI** menu builds every control with correctly named children, so the quickest start is to add one from there and restyle it.
+
+:::caution
+Renaming a part breaks the link silently: a slider whose **Fill** was renamed to "Bar" still works, but the bar stops stretching. If a control misbehaves, check the child names in the Layers panel first.
+:::
+
+<Shot id="ui-controls-children" caption="Layers panel showing a Slider with Fill and Handle children, a Toggle with Checkmark, and a Scroll View with Content and Scrollbar (Handle inside)" />
+
+## State styles: how a control looks
+
+Every clickable control has a **state style**, the look it takes in each state:
+
+- **Normal**: idle.
+- **Highlighted**: the pointer is over it.
+- **Pressed**: it's held down.
+- **Disabled**: **Interactable** is off.
+
+The style lives on the node it restyles: the button itself, the toggle's box, the slider's **Handle**, the scrollbar's **Handle**. In the Inspector it appears directly in a UI Button, under **Look** in a UI Toggle, and under **Handle look** in a UI Slider or UI Scrollbar.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Transition** | **Color Tint** multiplies the node's colour by the state's colour. **Sprite Swap** shows a different image per state. **None** shows no change (clicks still work). | Color Tint |
+| **Normal** (Color Tint) | Colour multiplied in while idle. White means "as drawn". | white |
+| **Highlighted** (Color Tint) | Colour while hovered. | `(0.96, 0.96, 0.96)` |
+| **Pressed** (Color Tint) | Colour while held. | `(0.78, 0.78, 0.78)` |
+| **Disabled** (Color Tint) | Colour while Interactable is off. | `(0.78, 0.78, 0.78)` at 50 % alpha |
+| **Multiplier** (Color Tint) | Brightens every state colour (Unity's Color Multiplier), `0..5`. | 1 |
+| **Fade** (Color Tint) | Seconds to blend between state colours, `0..5`. 0 = instant. | 0.1 s |
+| **Tint children (label, icon)** (Color Tint) | Also tints the node's children, each relative to its own colour, so a button's label darkens with it. | Off |
+| **Highlighted** / **Pressed** / **Disabled** (Sprite Swap) | The image to show in that state. A state with no image keeps the normal image. | none |
+| **Hover scale** | Scale while hovered, `0.5..1.5`. A small lift like 1.04 feels good. 1 = none. | 1 |
+| **Press scale** | Scale while held, `0.5..1.5`. Below 1 reads as a "push in". | 0.95 |
+
+How the tint is computed: the node's original colour is multiplied by the state colour, and the RGB by **Multiplier**, then clamped to the `0..1` range. Because it's a multiply, a state colour brighter than white (for example `(1.25, 1.25, 1.35)`, which the demos use for hover) brightens a dark button. Values above 1 only work while the original colour has room to get brighter.
+
+Sprite Swap works on an **Image** node or a shape with an image fill.
+
+The scale fields appear whenever Transition isn't **None**. Scale eases in quickly even with Fade at 0, so a press reads as a push rather than a jump. Scrollbar handles have no scale fields: their scale is their size.
+
+:::tip
+The **Disabled** look only appears when **Interactable** is off in the Inspector. To hide a control at runtime, set `ref.visible = false`; hidden controls take no clicks.
+:::
+
+## UI Toggle
+
+A **UI Toggle** is a checkbox: click it to flip it on and off. Its **Checkmark** child is shown while it's on. Give several toggles the same **Group** number and they become **radio buttons**: turning one on turns the others off.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Is on** | The starting state. | Off (the **+ → UI → Toggle** item starts on) |
+| **Interactable** | Off = Disabled look, no clicks. | On |
+| **Group** | 0 = an independent checkbox. Any other number = a radio group. Toggles sharing the number don't need to be siblings. | 0 |
+| **Allow switching all off** (only when Group isn't 0) | Whether clicking the toggle that's already on turns it off, leaving none on. Off = clicking it keeps it on (classic radio buttons). | Off |
+| **Look** | The box's [state style](#state-styles-how-a-control-looks). | Color Tint |
+
+The hit area is the box **and** any visible child, so clicking a toggle's text label flips it too. Put the label as a child of the box to get this for free (the **+ → UI → Toggle** item does).
+
+### Scripting a toggle
+
+| Property | Meaning |
+|---|---|
+| `ref.isOn` | Read: on or off right now. Write: set it (`ref.isOn = true`). |
+| `ref.changed` | `true` on frames where it flipped, by a click or by a script. |
+| `ref.clicked`, `ref.hovered`, `ref.pressed` | Same as a button. |
+
+A radio group in the UI & Sound Lab picks the beep's waveform:
+
+```js
+const c = (id) => getCompByID(id)
+// waveSquare, waveSaw and waveSine are three UI Toggles with Group 1.
+const wave = c('waveSaw').isOn ? 'sawtooth' : c('waveSine').isOn ? 'sine' : 'square'
+```
+
+Setting `isOn` from a script also enforces the group: turning one toggle on turns its group-mates off.
+
+## UI Slider
+
+A **UI Slider** goes on the **track** shape. Its **Fill** child stretches from the start of the track to the value, and its **Handle** child sits at the value. Press anywhere on the track (or the handle) and drag: the value follows the pointer.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Direction** | Which way the fill grows: **Left to right**, **Right to left**, **Bottom to top**, **Top to bottom**. | Left to right |
+| **Min / Max** | The value range. | 0 / 1 |
+| **Value** | The starting value (a slider and a number box). | 0.5 |
+| **Whole numbers** | Snap to integers (a 1–10 volume step, a level picker). | Off |
+| **Interactable** | Off = Disabled look on the handle, no dragging. | On |
+| **Handle look** | The **Handle**'s [state style](#state-styles-how-a-control-looks). | Color Tint |
+
+How the parts are positioned:
+
+- **Fill** is scaled along the slider's axis and re-centred, so draw it the **same size and position as the track** (as the + → UI item does). At the minimum it's squashed to nothing; at the maximum it covers the track.
+- **Handle** is moved along the axis only. Its position across the axis (for example its y in a horizontal slider) is left as you placed it.
+
+### Scripting a slider
+
+| Property | Meaning |
+|---|---|
+| `ref.value` | Read: the value, `min..max`. Write: set it (`ref.value = 0.25`); the fill and handle follow. |
+| `ref.changed` | `true` on frames where the value moved, by dragging or by a script. |
+| `ref.hovered`, `ref.pressed` | While over / dragging. |
+
+From the UI & Sound Lab, volume plus a mute checkbox, re-applied whenever either changes:
+
+```js
+const g = ctx.globals.lab || (ctx.globals.lab = {})
+const volume = getCompByID('volume'), mute = getCompByID('mute')
+if (!g.init || volume.changed || mute.changed) {
+  g.init = true
+  ctx.setMasterVolume(mute.isOn ? 0 : volume.value)
+  getCompByID('volLabel').textContent = mute.isOn ? 'VOLUME (MUTED)' : 'VOLUME ' + Math.round(volume.value * 100) + '%'
+}
+```
+
+:::note
+Values you write from a script are applied, and `changed` raised, on the **next** frame. Reading `ref.value` right after writing it in the same frame gives the new value, but the fill and handle move one frame later.
+:::
+
+## UI Scrollbar
+
+A **UI Scrollbar** goes on the **track**. Its **Handle** child is stretched to **Size** of the track and placed by **Value** (`0..1`). Drag the handle, or click the track to jump there.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Direction** | Which end is value 0: **Left to right** (0 = left), **Right to left**, **Bottom to top**, **Top to bottom** (0 = top). | Top to bottom |
+| **Value** | Handle position, `0..1`. | 0 |
+| **Size** | Handle length as a fraction of the track, `0.05..1`. A Scroll View overrides this from its content. | 0.25 |
+| **Steps** | 0 = continuous. Otherwise the value snaps to that many evenly spaced positions. | 0 |
+| **Interactable** | Off = Disabled look, no dragging. | On |
+| **Handle look** | The handle's [state style](#state-styles-how-a-control-looks) (colour or image only, no scale fields). | Color Tint |
+
+Draw the Handle the **same length as the track**; the scrollbar scales it down to **Size**.
+
+Scripts read and write `ref.value` (`0..1`) and see `ref.changed`, exactly like a slider.
+
+## UI Scroll View
+
+A **UI Scroll View** turns a shape into a scrolling viewport. Its **Content** child scrolls inside it: drag the content, use the mouse wheel, and with **Inertia** on it keeps gliding after you let go. A child named **Scrollbar** (with a UI Scrollbar) is kept in sync in both directions.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Vertical (off = horizontal)** | Which way the content scrolls. | On (vertical) |
+| **Wheel step** | World units scrolled per mouse-wheel notch. | 40 |
+| **Inertia (keeps gliding after a drag)** | Keep sliding after a drag is released, slowing down by friction. Off = stop at once. | On |
+
+Set up a scroll view like this (the **+ → UI → Scroll View** item does all of it):
+
+1. The viewport shape gets **UI Scroll View**, and **Clip children to this shape** turned on in its Inspector, so content outside the viewport is cut off.
+2. A **Content** child holds the list. A [UI Stack](./ui-components.mdx#ui-stack) on it is the easy way to lay the items out.
+3. Optionally, a **Scrollbar** child with a **UI Scrollbar** and its own **Handle**.
+
+```text
+notes            rectangle 220 × 120, Clip children, UI Scroll View
+├── Content      group, UI Stack (spacing 4, padding 4)
+│   ├── note0    rectangle + UI Button
+│   ├── note1    ...
+│   └── note11
+└── Scrollbar    rectangle 8 × 116, UI Scrollbar
+    └── Handle   rectangle 8 × 116
+```
+
+How it behaves:
+
+- The scrollable range is the content's length minus the viewport's length. Content shorter than the viewport doesn't scroll.
+- The scroll view **positions Content itself**: its top edge (or left edge, horizontally) is aligned to the viewport's, minus the scroll amount. Don't animate Content's position along the scroll axis.
+- The linked scrollbar's **Size** is set to the visible fraction, and its **Value** to how far you've scrolled. Dragging the scrollbar scrolls the view.
+- Pointer hits inside a scroll view only count within the viewport, so buttons scrolled out of sight can't be clicked.
+
+### Scripting a scroll view
+
+| Property | Meaning |
+|---|---|
+| `ref.scroll` | How far the content is scrolled, in world units. Write to jump (`ref.scroll = 0` back to the top); this also stops any inertia. |
+| `ref.value` | The same position as `0..1` of the range (read it; to move, write `ref.scroll`). |
+| `ref.changed` | `true` on frames where the scroll position changed. |
+| `ref.hovered` | While the pointer is over the viewport. |
+
+```js
+// Buttons inside the list work like any other button.
+const notes = [261.63, 293.66, 329.63 /* ... */]
+for (let i = 0; i < notes.length; i++) {
+  if (getCompByID('note' + i).clicked) ctx.playTone({ freq: notes[i], duration: 0.35, volume: 0.35 })
+}
+```
+
+## Control state at runtime
+
+The Inspector values (**Is on**, **Value**, a scrollbar's **Value**) are **starting** values. Once Playground starts, each control keeps its own live state: dragging a slider doesn't edit the document, and nothing you do in Playground needs undoing. Every Play starts fresh from the authored values.
+
+For the full script reference of `ref.clicked`, `ref.value`, `ref.isOn`, `ref.scroll` and friends, see [Scripting: UI and DOM](../scripting/ui-and-dom.mdx).

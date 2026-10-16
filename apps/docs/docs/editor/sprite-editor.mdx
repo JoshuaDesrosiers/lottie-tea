@@ -1,0 +1,187 @@
+---
+title: Sprite Editor
+sidebar_position: 6
+description: Slice a sprite sheet into individual frames by cell size, by cell count, or automatically, then animate or script the frames.
+---
+
+# Sprite Editor
+
+A **sprite sheet** is one image holding many smaller pictures: the frames of a walk cycle, a set of icons, a font of tiles. The **Sprite Editor** cuts a sheet into separate images, one per frame, the same way Unity's Sprite Editor does.
+
+It has three ways to decide where the cuts go:
+
+- **Cell size**: a grid of fixed-size cells (for example 16×16 pixels).
+- **Cell count**: a grid with a set number of columns and rows, sized to fit the sheet.
+- **Automatic**: Toasty finds every separate sprite by looking for transparent gaps around it.
+
+Whichever you use, you see the slices drawn over a zoomable, pixel-exact preview, click any slice to leave it out, and press **Slice** to create the images.
+
+<Shot id="sprite-editor-overview" caption="The Sprite Editor open on a 4×4 walk-cycle sheet in Cell size mode: blue slice outlines numbered 0–15 over the checkerboard preview, settings column on the right." />
+
+## When to use it
+
+- You downloaded a character or tileset as a single PNG sheet.
+- You exported a sheet from Aseprite, Piskel or another tool.
+- You have a pile of icons on one transparent canvas and want each as its own image.
+
+If your art is an animated **GIF**, you don't need the Sprite Editor: importing a GIF already gives you one image per frame (see [Images and sprites](./images-and-sprites.mdx)).
+
+## Opening it
+
+1. Import the sheet: **+ → Import → Image…**, or **Import…** in the bottom dock's **Resources** tab.
+2. In **Resources**, **single-click** the sheet's tile (inside `Assets/Images`). This selects the *image asset* rather than a node on the canvas, and the Inspector shows the image's settings.
+3. At the bottom of the Inspector, click **Sprite Editor…**.
+
+The editor opens over the whole window. The top of its settings column shows the file name and the sheet's size in pixels (for example `Walk.png — 64×64`).
+
+:::tip Double-click places, single-click selects
+In the Resources tab, **double-clicking** an image places it on the canvas. To edit the image asset itself (and reach the Sprite Editor), single-click it.
+:::
+
+## The preview
+
+The left side shows the sheet on a checkerboard (so transparency is visible), scaled up with hard pixel edges.
+
+| Interaction | What it does |
+|---|---|
+| **Ctrl+scroll** over the preview | Zoom in or out (1× to 32×) |
+| **Zoom** slider in the settings | Same zoom, as a slider |
+| Hover a slice | Highlights it |
+| **Click a slice** | Leaves it out: it turns dark with a dashed outline. Click again to put it back |
+| Numbers in each slice | Its index. Shown when the slice is big enough on screen (zoom in to see them on tiny cells) |
+
+The initial zoom is chosen so the whole sheet fits comfortably.
+
+## Mode: Cell size
+
+Use this when you know how big each frame is, which is the most common case.
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Cell width** | 16 (or the sheet width, if smaller) | Width of every cell, in pixels. Minimum 1. |
+| **Cell height** | 16 (or the sheet height, if smaller) | Height of every cell, in pixels. Minimum 1. |
+| **Offset X** / **Offset Y** | 0 | Where the grid starts, in pixels from the sheet's top-left corner. Use it when the sheet has a border. |
+| **Padding X** / **Padding Y** | 0 | The gap between neighbouring cells, in pixels. Use it when frames are separated by spacing lines. |
+| **Skip empty cells** | On | Drops cells that are completely transparent (every pixel has alpha 0). |
+
+The grid only includes **whole cells**: a partial cell at the right or bottom edge that doesn't fit is ignored. Cells are numbered left to right, top to bottom.
+
+## Mode: Cell count
+
+Use this when you know the layout ("4 columns, 4 rows") but not the pixel size.
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Columns** | 4 | How many cells across (1 to 512). |
+| **Rows** | 4 | How many cells down (1 to 512). |
+| **Offset X/Y**, **Padding X/Y**, **Skip empty cells** | as above | Same meaning as in Cell size mode. |
+
+The cell size is worked out for you: the sheet's width, minus the offset and the padding between columns, divided by the number of columns (rounded down), and the same for height.
+
+## Mode: Automatic
+
+Use this for sheets where the sprites are different sizes or not on a grid, as long as the background is **transparent**.
+
+Switching to **Automatic** runs detection right away. Change a setting, then click **Detect sprites** to run it again.
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Alpha threshold** | 0 | Pixels with alpha at or below this value (0 to 254) count as background. Raise it if a faint shadow or anti-aliasing halo glues sprites together. |
+| **Min size (px)** | 2 | Ignore specks: a detected sprite is dropped if it is smaller than this on **both** sides. |
+| **Merge gap (px)** | 0 | Join pieces that are this close (0 to 64 pixels) into one sprite. Pieces that touch or overlap are always joined. Raise it for sprites with floating parts: a detached eye, a sword tip, a hat. |
+
+How detection works: every group of touching non-background pixels (including diagonal neighbours) becomes one box; boxes within the merge gap are merged until nothing changes; tiny boxes are dropped; and the result is ordered in **reading order**, row by row from the top, left to right within a row.
+
+If nothing is found, the editor says "No sprites found — is the background transparent?". Automatic mode can't separate sprites on a solid-colour background; use a grid mode for those (or remove the background first).
+
+## Naming and timing
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Name** | The sheet's file name without extension (`Walk.png` → `Walk`) | The prefix for every new image and the name of the sprite group. |
+| **Frame time (ms)** | 100 | How long each frame lasts (1 to 10000 ms), stored with the sprite group. |
+
+The summary line under the settings tells you what will happen, for example "14 of 16 slices (2 left out). Click a slice to leave it out. Frames are named Walk 0, 1, 2… and grouped as one sprite group."
+
+## Slicing
+
+Click **Slice N sprites**. Toasty:
+
+1. crops each slice you kept out of the **original** sheet pixels, in the order shown, skipping the ones you left out;
+2. adds each as a **new image asset** named `<Name> 0`, `<Name> 1`, `<Name> 2`…, numbered consecutively over the kept slices;
+3. groups the new images as one **sprite group** called `<Name>`, with your frame time on every frame.
+
+The editor closes and the new images appear in Resources. The original sheet is left untouched, so you can slice it again with different settings.
+
+:::caution Slices copy the sheet's import settings
+Each new image gets the same **Filter Mode**, **Effect** and **Resize** settings as the sheet. Resize is an absolute size, so if you resized the *sheet* (say to 512×512), every frame would be stretched to 512×512 too. Click **Reset to original size** on the sheet before slicing, or fix the frames afterwards.
+:::
+
+:::tip Pixel art
+Set the sheet's **Filter Mode** to **Nearest** *before* slicing. Every frame inherits it, so they all stay crisp when scaled up.
+:::
+
+## Using the frames
+
+### As a flipbook animation
+
+The [Flipbook](../components/overview.mdx) component shows its node's children one at a time.
+
+1. In Resources, **double-click** each frame in order (`Walk 0`, `Walk 1`, …). Double-clicking places an image at the centre of the view, so they all land on the same spot.
+2. Select all the placed frames (Ctrl+click or Shift+click in Layers) and press **Ctrl+G** to group them.
+3. With the group selected, click **Add Component → Animation → Flipbook**.
+
+| Flipbook setting | Default | Meaning |
+|---|---|---|
+| **Frame Rate** | 12 fps | Frames per second while playing (0.1 to 120). For a 100 ms frame time, use 10. |
+| **Frame** | 1 | The frame shown in Design, and in Playground when not playing. |
+| **Play in Playground** | On | Starts playing by itself when the game runs. |
+| **Loop** | On | Wraps around; off means stop on the last frame. |
+
+Frame 1 is the child drawn furthest back, which is the **bottom** child of the group in the Layers panel (Layers lists the frontmost object at the top). If you placed the frames in order, they're already in the right order.
+
+### From a script
+
+Many games swap a single sprite's picture from code instead, picking frames by name. `ctx.images` lists every image asset with its `name` and `id`, and setting `ref.image` on an image node shows that image. This is the pattern the Ninja Adventure demo uses for its hero (simplified here; the node id `hero` is whatever Id you gave your sprite in the Inspector):
+
+```js
+const G = ctx.globals            // survives from frame to frame
+
+// Once: build a name -> id lookup of every image.
+if (!G.frames) {
+  G.frames = {}
+  for (const img of ctx.images) G.frames[img.name] = img.id
+}
+
+// Every frame: pick "Walk 0".."Walk 3" from the clock.
+const hero = getCompByID('hero')
+const step = Math.floor(ctx.time * 8) % 4
+const id = G.frames['Walk ' + step]
+if (id && hero.image !== id) hero.image = id   // only write when it changes
+```
+
+See [Nodes and refs](../scripting/nodes-and-refs.mdx) for `getCompByID` and node refs.
+
+### In a tilemap, particles or UI
+
+Every slice is an ordinary image asset, usable anywhere an image is: a shape's **Image** fill, a particle's look, a UI icon, a tile.
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| The **Sprite Editor…** button isn't in the Inspector | You have a node selected, not the image asset. Single-click the image's tile in Resources. |
+| The grid is shifted by a few pixels | The sheet has a border: set **Offset X/Y**. |
+| Each cell after the first drifts further off | The sheet has gaps between frames: set **Padding X/Y**. |
+| Too few cells in Cell count mode | Check Offset and Padding; they reduce the space the cells are fitted into. |
+| Automatic finds one giant sprite | The background isn't transparent, or a halo connects everything. Raise **Alpha threshold**, or use a grid mode. |
+| Automatic splits a sprite into pieces | Raise **Merge gap**. |
+| Automatic finds dust | Raise **Min size**. |
+| Frames come out blurry when scaled | Set the sheet's Filter Mode to **Nearest** and slice again. |
+
+## Related
+
+- [Images and sprites](./images-and-sprites.mdx)
+- [Paint mode](./paint-mode.mdx) for drawing your own frames
+- [Animation timeline](./animation-timeline.mdx)
+- [Nodes and refs](../scripting/nodes-and-refs.mdx)

@@ -1,0 +1,126 @@
+---
+title: UI and DOM
+sidebar_position: 16
+description: Reading and setting UI controls (buttons, toggles, sliders, scroll views) and scripting HTML UI elements through ref.dom.
+---
+
+# UI and DOM
+
+Toasty has two kinds of UI, and scripts talk to both through refs:
+
+- **UI components** (UI Button, Toggle, Slider, Scrollbar, Scroll View) drawn by the engine. Read their state with `ref.clicked`, `ref.value`, `ref.isOn`, ...
+- **HTML UI** nodes: real HTML and CSS laid over the canvas. Reach in with `ref.dom`, or wire them with `data-*` attributes and no code.
+
+The engine handles hover, press, drag and visuals for UI components every frame, even in scenes with no scripts. See [UI components](../components/ui-components.mdx), [UI controls](../components/ui-controls.mdx) and [HTML UI](../components/html-ui.mdx).
+
+## UI control state
+
+| Member | Type | Read/write | Controls | Description |
+|---|---|---|---|---|
+| `ref.clicked` | boolean | read | Button, Toggle, any control | `true` on the frame it was clicked (pressed and released over it) |
+| `ref.hovered` | boolean | read | any | Pointer is over it |
+| `ref.pressed` | boolean | read | any | Held down |
+| `ref.changed` | boolean | read | Slider, Toggle, Scrollbar, Scroll View | `true` on frames its value changed (by the user or a script) |
+| `ref.value` | number | read/write | Slider (min..max); Scrollbar, Scroll View (0..1) | Current value |
+| `ref.isOn` | boolean | read/write | Toggle | On/off |
+| `ref.scroll` | number | read/write | Scroll View | How far the content is scrolled, world units |
+
+On nodes without a UI control these read `false` / `0`.
+
+### Buttons
+
+```js
+if (getCompByID('beep').clicked) ctx.playTone({ freq: 660, duration: 0.15 })
+for (let i = 0; i < 6; i++) if (getCompByID('card' + i).clicked) g.last = 'CARD ' + (i + 1)
+```
+
+### Sliders and toggles
+
+```js
+const volume = getCompByID('volume'), mute = getCompByID('mute')
+if (!g.init || volume.changed || mute.changed) {
+  g.init = true
+  ctx.setMasterVolume(mute.isOn ? 0 : volume.value)
+  getCompByID('volLabel').textContent = mute.isOn ? 'VOLUME (MUTED)' : 'VOLUME ' + Math.round(volume.value * 100) + '%'
+}
+```
+
+### Radio groups
+
+Toggles that share a non-zero **group** number are radio buttons: turning one on turns the others off. Read which one is on:
+
+```js
+const wave = getCompByID('waveSaw').isOn ? 'sawtooth' : getCompByID('waveSine').isOn ? 'sine' : 'square'
+```
+
+### Setting values from code
+
+```js
+getCompByID('volume').value = 0.5
+getCompByID('mute').isOn = false
+getCompByID('list').scroll = 0          // back to the top
+```
+
+Script writes are picked up on the next frame, update the control's visuals, and raise `changed` there.
+
+The low-level `ctx.uiState(id)` and `ctx.setUiState(id, patch)` take internal ids; use the ref properties.
+
+---
+
+## HTML UI: no-code wiring
+
+Inside an HTML UI node's markup, these attributes work with no script (in Playground and games):
+
+| Attribute | On | Does |
+|---|---|---|
+| `data-trigger="name"` | any clickable element | Click fires state machine trigger `name` |
+| `data-input="name"` | `<input>`, `<select>` | Sets state machine input `name`: checkbox -> Bool, `range`/`number` -> Number, anything else -> its value (Enum) |
+| `data-bind="prop"` | any element | Shows scene Property `prop` as text; optional `data-format="Score: {}"` |
+| `data-prop="prop"` | `<input>`, `<select>` | Writes scene Property `prop` when edited (checkbox -> checked) and shows its current value |
+
+```html
+<div class="hud">
+  <span data-bind="score" data-format="Score: {}"></span>
+  <input type="range" min="0" max="1" step="0.01" data-prop="volume">
+  <button data-trigger="celebrate">Party mode</button>
+</div>
+```
+
+## ref.dom
+
+```ts
+ref.dom: ShadowRoot | null
+```
+
+On an **HTML UI** node: the element's live DOM, as a `ShadowRoot` (each element lives in its own shadow root, so its CSS can't leak). Use `querySelector`, `getElementById`, set `textContent`, add listeners.
+
+`null` before the element first shows, and outside Playground / exported games / embeds.
+
+```js
+const g = ctx.globals.html || (ctx.globals.html = { score: 0, speed: 3, wired: null })
+const dom = getCompByID('hud').dom
+
+// Wire listeners ONCE per DOM, not every frame.
+if (dom && g.wired !== dom) {
+  g.wired = dom
+  dom.querySelector('#speed').addEventListener('input', (e) => { g.speed = Number(e.target.value) })
+  dom.querySelector('#reset').addEventListener('click', () => { g.score = 0 })
+}
+
+// Write back only when the text actually changes.
+if (dom) {
+  const el = dom.querySelector('#score')
+  const text = String(g.score)
+  if (el.textContent !== text) el.textContent = text
+}
+```
+
+**Gotchas**
+- **Add listeners once.** The script runs every frame; adding a listener each frame stacks thousands of them. Guard with a flag in `ctx.globals` (as above).
+- **Touch the DOM only on change.** Setting `textContent`, `className` or styles every frame forces the browser to re-layout. Compare first.
+- Listener callbacks run outside the frame. Errors in them are still caught and shown in the Console (marked *Async*).
+- If you edit the element's HTML/CSS while playing, its content is re-rendered and earlier listeners are gone. Restart Play.
+- The element only receives the pointer when its **Interactive** option is on.
+- `ref.x`, `ref.y`, `ref.visible`, `ref.rotation` and scale move and show/hide the element just like any node; it follows the camera.
+
+The low-level `ctx.htmlRoot(id)` takes an internal id; use `ref.dom`.

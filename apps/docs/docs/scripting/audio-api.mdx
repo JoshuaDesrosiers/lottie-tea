@@ -1,0 +1,121 @@
+---
+title: Audio API
+sidebar_position: 14
+description: Playing imported sounds, synthesizing tones, Audio Source nodes, sound handles and master volume from scripts.
+---
+
+# Audio API
+
+| Member | Description |
+|---|---|
+| `ctx.playSound(name, options?)` | Play an imported sound by name |
+| `ctx.playTone(options?)` | Play a synthesized beep, zap or noise burst (no asset) |
+| `ctx.stopAllSounds()` | Stop everything |
+| `ctx.setMasterVolume(v)` | Overall game volume |
+| `ref.playAudio(options?)` / `ref.stopAudio()` | Play / stop a node's **Audio Source** |
+
+Import sounds and set up Audio Sources as described in [Audio](../components/audio.mdx).
+
+:::note Browsers need a first click
+Browsers only allow audio after a user gesture. Toasty unlocks audio on the first pointer press or key press; sounds requested before that start once audio is running.
+:::
+
+## ctx.playSound
+
+```ts
+ctx.playSound(name: string, options?: {
+  volume?: number   // 0..1, above 1 amplifies. Default 1
+  pitch?: number    // playback rate: 1 normal, 2 an octave up. Default 1
+  loop?: boolean    // default false
+  pan?: number      // -1 left .. 1 right. Default 0
+}): SoundHandle | null
+```
+
+| Parameter | Description |
+|---|---|
+| `name` | The sound's name, with or without extension: `'jump'` or `'jump.wav'`. Case-insensitive |
+
+**Returns** a [SoundHandle](#soundhandle), or `null` if there's no such sound (a warning goes to the browser console).
+
+```js
+if (jumped) ctx.playSound('jump', { volume: 0.6, pitch: 0.9 + Math.random() * 0.2 })
+const g = ctx.globals.music || (ctx.globals.music = {})
+if (!g.track) g.track = ctx.playSound('theme', { loop: true, volume: 0.4 })
+```
+
+## ctx.playTone
+
+```ts
+ctx.playTone(options?: {
+  freq?: number      // start frequency, Hz. Default 440
+  to?: number        // end frequency (a slide), Hz. Default = freq
+  type?: 'square' | 'sine' | 'sawtooth' | 'triangle' | 'noise'   // default 'square'
+  duration?: number  // seconds. Default 0.15
+  volume?: number    // 0..1. Default 0.3
+  attack?: number    // fade-in seconds. Default 0.005
+  release?: number   // fade-out seconds. Default 60% of duration
+  pan?: number       // -1..1
+}): SoundHandle | null
+```
+
+Instant retro sound effects with no asset.
+
+```js
+ctx.playTone({ freq: 660, duration: 0.15 })                                    // beep
+ctx.playTone({ freq: 1400, to: 180, duration: 0.25, type: 'sawtooth', volume: 0.25 }) // laser
+ctx.playTone({ type: 'noise', duration: 0.6, volume: 0.5, release: 0.55 })     // explosion
+ctx.playTone({ freq: 880, to: 1320, duration: 0.12, volume: 0.12 })             // pickup
+```
+
+## SoundHandle
+
+What `playSound`, `playTone` and `ref.playAudio` return.
+
+| Member | Description |
+|---|---|
+| `stop()` | Stop it now |
+| `setVolume(v)` | Change volume |
+| `setPitch(p)` | Change playback rate (`playSound` / Audio Source sounds) |
+| `playing` | `true` until it ends or is stopped |
+
+```js
+const g = ctx.globals.engine || (ctx.globals.engine = {})
+if (!g.hum || !g.hum.playing) g.hum = ctx.playSound('engine', { loop: true })
+g.hum?.setPitch(0.8 + Math.abs(car.velocity?.x ?? 0) / 400)
+```
+
+Keep handles in `ctx.globals`; a handle stored in a local variable is lost next frame (the sound keeps playing, you just can't stop it).
+
+## ctx.stopAllSounds / ctx.setMasterVolume
+
+```ts
+ctx.stopAllSounds(): void
+ctx.setMasterVolume(volume: number): void   // 0..1 (negative clamps to 0)
+```
+
+```js
+const volume = getCompByID('volume'), mute = getCompByID('mute')
+if (volume.changed || mute.changed) ctx.setMasterVolume(mute.isOn ? 0 : volume.value)
+```
+
+## Audio Source nodes
+
+```ts
+ref.playAudio(options?: { volume?: number; pitch?: number }): SoundHandle | null
+ref.stopAudio(): void
+```
+
+Plays the node's **Audio Source** clip with its own settings (volume, pitch, loop, spatial, range); `options` override volume and pitch. `stopAudio` stops what that node is playing. Returns `null` if the node has no Audio Source or no clip.
+
+Spatial Audio Sources pan and fade by their node's position relative to the camera, every frame, automatically.
+
+```js
+if (opened) getCompByID('door').playAudio({ pitch: 0.9 })
+```
+
+**Lifetime**
+- Sounds stop when Playground stops and when a new play session starts.
+- On a scene switch, node-tied sounds (Audio Sources) stop; `playSound`/`playTone` sounds keep playing, so music can cross scenes.
+- *Play on start* Audio Sources start automatically when their scene starts.
+
+The low-level `ctx.playAudioSource(id, options)` / `ctx.stopAudioSource(id)` take internal ids; use the ref methods.

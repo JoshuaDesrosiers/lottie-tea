@@ -1,0 +1,195 @@
+---
+title: "3. The click script"
+sidebar_position: 3
+description: Write the like button's script - hit-testing clicks, updating Properties, the pop animation, sparks, a synthesized sound, and the like event for the page.
+---
+
+# 3. The click script
+
+**Goal:** a working like button inside the editor's Playground.
+
+**What you'll learn**
+
+- Sharing one script file between two states with **Runs** (`@file:` scripts).
+- Detecting a click on a node with `ctx.tap`, `ctx.mouseX` and `ctx.mouseY`.
+- Reading and writing Properties through `ctx.props`.
+- Keeping the state machine in sync with data using `ctx.state` and `ctx.fireTrigger`.
+- Tween-style animation from `ctx.time`.
+- `ref.emit(n)` for particles, `ctx.playTone` for sound, and `ctx.emit` for the page.
+
+## Step 1: one script file for both states
+
+Both states run the same logic; the script asks `ctx.state` which one it's in. Rather than paste the code twice, keep it in one project file:
+
+1. Switch to **Code** mode (top toolbar).
+2. In the **Files** explorer, click **+js**. Name the file `Scripts/like.js` and press Enter.
+3. Paste the full script from step 2 below into it.
+4. Back in **Design**, open the **State Machine** panel and double-click `State 1`. The program editor opens.
+5. Click the **Code** tab. In the **Runs** dropdown, pick `Scripts/like.js`.
+6. Click **← State Machine**, double-click `State 2`, and do the same.
+
+Now both states run `Scripts/like.js`, and editing the file updates both.
+
+## Step 2: the full script
+
+```js title="Scripts/like.js"
+// =====================================================================
+// Like button. Runs every frame in BOTH states of the "Like" state
+// machine; `ctx.state` says which one is active right now.
+//
+// Source of truth: the scene Properties `liked` and `count`.
+//   - A click flips `liked` and changes `count` by one.
+//   - The page can set either one at any time (player.set / data={...}).
+//   - The state machine just *shows* `liked`: whenever they disagree,
+//     the script fires the `burst` Trigger, which flips the state.
+// =====================================================================
+
+// The editor names states "State 1", "State 2"... The finished file on the
+// docs site uses "Idle" and "Liked". Put your names here.
+const IDLE = 'State 1'
+const LIKED = 'State 2'
+
+const GREY = [0.55, 0.57, 0.65, 1]
+const RED = [0.95, 0.22, 0.38, 1]
+const HIT_RADIUS = 56   // world units around the heart's centre that count as "on" it
+const POP_TIME = 0.45   // seconds the like "pop" lasts
+
+const G = ctx.globals   // survives from frame to frame (and across scenes)
+const heart = getCompByID('heart')
+const sparks = getCompByID('sparks')
+if (!heart) return      // a script body may `return` early: nothing to do
+
+// ---------------------------------------------------------------------
+// 1. Clicks. ctx.tap is true for exactly one frame after a quick
+//    press-and-release (mouse or finger). ctx.mouseX/Y are in world units.
+// ---------------------------------------------------------------------
+const overHeart = Math.hypot(ctx.mouseX - heart.x, ctx.mouseY - heart.y) < HIT_RADIUS
+if (ctx.tap && overHeart) {
+  const nowLiked = !ctx.props.liked
+  // Writes are coerced to each Property's type and reach the page as
+  // `prop` events (onPropChange). The bound count label updates by itself.
+  ctx.props.liked = nowLiked
+  ctx.props.count = Math.max(0, ctx.props.count + (nowLiked ? 1 : -1))
+
+  if (nowLiked) {
+    // Move the particle system onto the heart, then fire 24 sparks.
+    if (sparks) {
+      sparks.x = heart.x
+      sparks.y = heart.y
+      sparks.emit(24)
+    }
+    // A rising "bling": a triangle wave sliding from 660 Hz up to 1320 Hz.
+    ctx.playTone({ freq: 660, to: 1320, type: 'triangle', duration: 0.18, volume: 0.2 })
+  } else {
+    // A soft falling blip for "unlike".
+    ctx.playTone({ freq: 440, to: 220, type: 'sine', duration: 0.12, volume: 0.15 })
+  }
+
+  // Tell the page. In the editor this just shows in the Console.
+  ctx.emit('like', { liked: nowLiked, count: ctx.props.count })
+}
+
+// ---------------------------------------------------------------------
+// 2. Keep the state machine showing what `liked` says. Firing `burst`
+//    flips the state on the next frame, so remember which state we asked
+//    for and don't fire again while we wait for it.
+// ---------------------------------------------------------------------
+const want = ctx.props.liked ? LIKED : IDLE
+if (ctx.state === want) {
+  G.flippingTo = null
+} else if (G.flippingTo !== want) {
+  G.flippingTo = want
+  ctx.fireTrigger('burst')
+}
+
+// ---------------------------------------------------------------------
+// 3. Animation. ctx.time = seconds since this state was entered, so it
+//    restarts at 0 every time the heart changes state.
+// ---------------------------------------------------------------------
+G.clock = (G.clock || 0) + ctx.deltaSeconds
+let scale = 1
+if (ctx.state === LIKED) {
+  if (ctx.time < POP_TIME) {
+    // A springy pop: up to ~1.45x and back, with a small overshoot.
+    const k = ctx.time / POP_TIME                          // 0 -> 1
+    scale = 1 + Math.sin(k * Math.PI) * 0.45 * (1 - k * 0.5) - Math.sin(k * Math.PI * 2) * 0.06 * k
+  }
+} else {
+  // Idle: a slow breathing pulse, plus a hint of growth on hover.
+  scale = 1 + Math.sin(G.clock * 2.4) * 0.025 + (overHeart ? 0.06 : 0)
+}
+// Round so tiny changes don't cost an engine call every frame.
+scale = Math.round(scale * 1000) / 1000
+if (heart.scaleX !== scale) {
+  heart.scaleX = scale
+  heart.scaleY = scale
+}
+
+// Colour: only write when it actually changes.
+const color = ctx.state === LIKED ? RED : GREY
+const key = color.join(',')
+if (G.colorKey !== key) {
+  G.colorKey = key
+  heart.fillColor = color
+}
+```
+
+Press **Playground** and click the heart.
+
+## How it works
+
+### Finding nodes
+
+`getCompByID('heart')` returns a **ref**: a live handle on the node with that Id. Reading `heart.x` gives its position; writing `heart.scaleX = 1.2` changes it this frame. Writes made by scripts are "untracked": they never land in undo history, and leaving Playground puts every node back the way you designed it. See [Nodes and refs](../../scripting/nodes-and-refs.mdx).
+
+### The click
+
+`ctx.tap` is `true` for exactly one frame after a short press-and-release that didn't move much. It works the same for a mouse click and a finger tap, which matters once this button is on a phone. `ctx.mouseX` / `ctx.mouseY` are the pointer in world coordinates (the same coordinates as `heart.x`, `heart.y`), so the hit test is a plain distance check.
+
+### Properties as the source of truth
+
+`ctx.props.liked` and `ctx.props.count` read and write the scene Properties you made in lesson 2. Writing one:
+
+- converts the value to the Property's type (a Bool stays a Bool),
+- updates anything bound to it (the count label),
+- and, when embedded, tells the page with a `prop` event.
+
+The page can also write them at any moment. That's why the script never stores "is it liked?" itself: it only ever reads `ctx.props.liked`.
+
+### Syncing the state machine
+
+The states only *display* the value. Each frame the script compares `ctx.state` (the state this program is running in) with the state `liked` asks for, and fires `burst` if they differ. The transition happens on the next frame, so `G.flippingTo` remembers the request and prevents a second `burst` (which would flip it straight back).
+
+This "data decides, the state machine follows" pattern is worth remembering: no matter who changes `liked` (a click, the page, a server response), the heart ends up right.
+
+:::caution Don't fire `burst` from the page
+In this design `burst` is internal plumbing. If the page fired it directly, the heart would flip, and next frame the script would flip it back to match `liked`. To like from the page, set `liked` (and `count`).
+:::
+
+### Animation from `ctx.time`
+
+`ctx.time` restarts at `0` whenever the state changes, which makes it a free "time since this started" clock. The pop is a sine bump over `POP_TIME` seconds. Idle uses `G.clock`, a clock the script keeps itself in `ctx.globals`, because Idle's breathing shouldn't restart.
+
+### Sparks and sound
+
+`sparks.emit(24)` spawns 24 particles from the Particle System on the next frame, wherever the node is by then (so the script moves it first). `ctx.playTone(...)` synthesizes a short sound with no audio file at all: `freq` slides to `to` over `duration` seconds. See [Audio API](../../scripting/audio-api.mdx).
+
+:::info Sound in the browser
+Browsers only allow audio after the user has interacted with the page. A click on the heart counts, so the first like is audible.
+:::
+
+### Talking to the page
+
+`ctx.emit('like', { liked, count })` sends an event to whatever page embeds the scene. Inside the editor nothing is listening, so it's written to the **Console** instead. Open it in Playground and you'll see a line per click.
+
+## Check your work
+
+- In Playground, clicking the heart turns it red with a pop, sparks and a rising sound; the label goes from `128` to `129`.
+- Clicking again turns it grey, plays a falling blip, and the label goes back to `128`.
+- The Console shows `ctx.emit("like", {"liked":true,"count":129})` and so on.
+- Clicking beside the heart does nothing.
+- Leave Playground, select nothing, change `liked`'s starting value to ticked, and play again: the heart starts red (with one pop). Untick it again afterwards.
+
+If nothing happens, open the Console: a typo in an Id (`getCompByID('Heart')`) or a script error shows up there with its line number. See [Debugging](../../scripting/debugging.mdx).
+
+**Next:** [4. Export and embed](./04-export-and-embed.mdx)

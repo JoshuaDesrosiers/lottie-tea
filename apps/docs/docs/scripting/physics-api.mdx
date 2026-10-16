@@ -1,0 +1,214 @@
+---
+title: Physics API
+sidebar_position: 13
+description: Rigidbody velocity and forces, raycasts, collision and trigger events, body types, ragdolls and joints - 2D and 3D.
+---
+
+# Physics API
+
+These members work on nodes with **Rigidbody 2D / Collider 2D** (or **Rigidbody 3D / Collider 3D**) components while the simulation runs: in Playground, exported games and embeds. Elsewhere they're harmless no-ops that return `null`. For setting up bodies and colliders see [Physics 2D](../components/physics-2d.mdx) and [Physics 3D](../components/physics-3d.mdx).
+
+Physics reads go **straight to the engine**, not the frame snapshot, so a velocity you set reads back immediately.
+
+## 2D summary
+
+| Member | Type | Description |
+|---|---|---|
+| `ref.velocity` | `{ x, y }` or `null` | Linear velocity, world units/s, +y up. Assign to set |
+| `ref.angularVelocity` | number or `null` | Spin, degrees/s. Assign to set |
+| `ref.addForce(x, y)` | function | Push spread over the next frame |
+| `ref.addImpulse(x, y)` | function | Instant kick |
+| `ref.bodyType` | `'Dynamic'`, `'Kinematic'`, `'Static'` or `null` | Rigidbody 2D body type. Assign to switch |
+| `ref.ragdoll(on)` | function | Whole rig Dynamic (limp) or Kinematic |
+| `ref.breakJoint()` | function | Break this node's Hinge Joint 2D |
+| `ctx.raycast(...)` | function | First collider along a ray |
+| `ctx.collisions` | array | Contacts that began or ended this frame |
+
+## ref.velocity
+
+```ts
+ref.velocity: { x: number; y: number } | null
+```
+
+`null` when the node has no simulated body. Assign `{ x, y }` or `[x, y]`. Mutating the returned object does nothing; assign a new one.
+
+```js
+const p = getCompByID('player')
+const v = p.velocity
+if (v) {
+  const dir = (ctx.keysDown.has('d') ? 1 : 0) - (ctx.keysDown.has('a') ? 1 : 0)
+  const k = Math.min(1, ctx.deltaSeconds * 12)
+  p.velocity = { x: v.x + (dir * 170 - v.x) * k, y: v.y }   // steer x, keep gravity's y
+}
+```
+
+## ref.angularVelocity
+
+```ts
+ref.angularVelocity: number | null   // degrees per second
+```
+
+```js
+getCompByID('wheel').angularVelocity = -360
+```
+
+## ref.addForce / ref.addImpulse
+
+```ts
+ref.addForce(x: number, y: number): void     // ForceMode2D.Force: over the next frame
+ref.addImpulse(x: number, y: number): void   // ForceMode2D.Impulse: instant
+```
+
+Call `addForce` every frame for steady thrust; use `addImpulse` once for jumps and knockback.
+
+```js
+if (ctx.keysDown.has('w')) ship.addForce(0, 900)
+if (jumpPressed && onGround) player.addImpulse(0, 340)
+```
+
+## ctx.raycast
+
+```ts
+ctx.raycast(originX: number, originY: number, dirX: number, dirY: number,
+            maxDistance?: number, ignore?: Ref | null): RaycastHit | null
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `originX`, `originY` | number | Start point, world |
+| `dirX`, `dirY` | number | Direction; any length, normalized for you |
+| `maxDistance` | number | Default unlimited |
+| `ignore` | ref | A body the ray skips, usually the caster itself |
+
+**Returns** the first **non-trigger** collider hit, or `null`:
+
+| Field | Type | Description |
+|---|---|---|
+| `ref` | ref or `null` | What was hit (`null` if it was spawned this very frame) |
+| `x`, `y` | number | Hit point |
+| `normalX`, `normalY` | number | Surface normal |
+| `distance` | number | From the origin |
+
+```js
+// Ground check: a short ray straight down, ignoring the player's own body
+const ground = ctx.raycast(p.x, p.y, 0, -1, 18, p)
+if (ground && jumpPressed) p.addImpulse(0, 340)
+```
+
+## ctx.collisions
+
+```ts
+ctx.collisions: readonly { a: Ref | null; b: Ref | null; started: boolean; trigger: boolean }[]
+```
+
+Every contact that **began** (`started: true`) or **ended** (`started: false`) since the last frame: collision enter/exit and trigger enter/exit in one list. `trigger` is `true` when either collider is a trigger. `a`/`b` are the two nodes (the collider's node, or its Rigidbody's node). Order of `a` and `b` is not guaranteed, so check both.
+
+```js
+for (const c of ctx.collisions) {
+  const ids = [c.a && c.a.id, c.b && c.b.id]
+  if (c.started && c.trigger && ids.includes('player') && ids.includes('goal')) g.goals += 1
+}
+```
+
+Tracking "who is inside a zone":
+
+```js
+for (const c of ctx.collisions) {
+  if (!c.trigger || !c.a || !c.b) continue
+  const other = c.a.name === 'goal' ? c.b : c.b.name === 'goal' ? c.a : null
+  if (!other) continue
+  if (c.started) g.inZone.add(other.name); else g.inZone.delete(other.name)
+}
+```
+
+**Notes**
+- Events are shared by every program this frame: each layer's script sees the same list.
+- Contacts that persist don't repeat; keep your own set if you need "currently touching".
+- 3D Rigidbody/Collider contacts arrive in the same list.
+
+## ref.bodyType
+
+```ts
+ref.bodyType: 'Dynamic' | 'Kinematic' | 'Static' | null
+```
+
+The Rigidbody 2D's body type (`null` without one). Assign to switch, e.g. hand a held prop over to physics when thrown.
+
+```js
+crate.bodyType = 'Dynamic'
+crate.velocity = { x: 300, y: 200 }
+```
+
+## ref.ragdoll
+
+```ts
+ref.ragdoll(on: boolean): void
+```
+
+For a rig built with **Make Ragdoll**: `true` makes this node and every body under it Dynamic (goes limp, keeping momentum); `false` makes them Kinematic again (follows animation / IK).
+
+```js
+if (hp <= 0) getCompByID('dummy').ragdoll(true)
+```
+
+## ref.breakJoint
+
+```ts
+ref.breakJoint(): void
+```
+
+Breaks this node's **Hinge Joint 2D** for the rest of the play session: the limb comes off with its current momentum (its own children stay attached to it). No-op without a hinge.
+
+```js
+if (impact > 900) getCompByID('armL').breakJoint()
+```
+
+---
+
+## 3D physics
+
+| Member | Type | Description |
+|---|---|---|
+| `ref.velocity3` | `{ x, y, z }` or `null` | Linear velocity, m/s. Assign to set |
+| `ref.angularVelocity3` | `{ x, y, z }` or `null` | Angular velocity, degrees/s per axis. Assign to set |
+| `ref.addForce3(x, y, z)` | function | Force over the next frame |
+| `ref.addImpulse3(x, y, z)` | function | Instant impulse (velocity change = impulse / mass) |
+| `ref.addTorque3(x, y, z)` | function | Instant spin (torque impulse) |
+| `ctx.raycast3(origin, dir, max?, ignore?)` | function | First 3D collider along a ray |
+
+Vector arguments to `raycast3` accept `{ x, y, z }` or `[x, y, z]`; assignments to `velocity3` accept either too.
+
+```js
+// Adapted from the Physics 3D Lab: a hidden ball appears, then gets its
+// velocity on the next frame, once its body exists.
+const g = ctx.globals.shots || (ctx.globals.shots = { launch: [] })
+for (const shot of g.launch.splice(0)) {
+  const ball = getCompByID(shot.id)
+  if (ball.velocity3) ball.velocity3 = shot.v
+  else g.launch.push(shot)                 // body not there yet: try next frame
+}
+if (ctx.tap) {
+  const ball = getCompByID('shot0')
+  ball.position3 = { x: 0, y: 2, z: 0 }
+  ball.visible = true
+  g.launch.push({ id: 'shot0', v: { x: 0, y: 4, z: -12 } })
+}
+```
+
+### ctx.raycast3
+
+```ts
+ctx.raycast3(origin: Vec3, direction: Vec3, maxDistance?: number, ignore?: Ref | null): RaycastHit3 | null
+```
+
+Returns the first non-trigger 3D collider within `maxDistance` meters (default unlimited): `{ ref, x, y, z, normalX, normalY, normalZ, distance }`, or `null`.
+
+```js
+const cam = getCompByID('camera').position3
+const hit = ctx.raycast3(cam, [0, 0, -1], 100)
+if (hit) getCompByID('marker').position3 = { x: hit.x, y: hit.y, z: hit.z }
+```
+
+3D ragdolls for VRM avatars (`ragdoll3`, `ragdollHit3`) and breakable glass (`glassRaycast3`, `shatter3`) are on the [3D API](./3d-api.mdx) page.
+
+The low-level `ctx.physics.*` object (`velocity`, `setVelocity`, `addForce`, `raycast`, `events`, and their 3D forms) takes internal ids; it's what the ref members above are built on. Use the refs.

@@ -1,0 +1,96 @@
+---
+title: State machine control
+sidebar_position: 8
+description: Driving the state machine from code with ctx.setInput and ctx.fireTrigger, and reading ctx.state and ctx.layer.
+---
+
+# State machine control
+
+Scripts live **inside** states, and they also steer the state machine. The pattern: the script decides *what is true* (the player is falling, health is 30%, the round is over) and writes it into **inputs**; the state machine's transitions decide *which state* that means.
+
+| Member | Type | Description |
+|---|---|---|
+| `ctx.setInput(name, value)` | function | Set a declared input (Bool, Number, Enum; Trigger fires on a truthy value) |
+| `ctx.fireTrigger(name)` | function | Fire a Trigger input |
+| `ctx.state` | string | Name of the state this program belongs to |
+| `ctx.layer` | string or `null` | The state machine layer (`null` = base layer) |
+
+For how to declare inputs and build transitions, see [State machines](../editor/state-machines.mdx).
+
+## ctx.setInput
+
+```ts
+ctx.setInput(name: string, value: boolean | number | string): void
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | string | An input declared on the scene's active state machine |
+| `value` | boolean, number or string | Coerced to the input's kind: Bool -> `Boolean(value)`, Number -> `Number(value)`, Enum -> `String(value)`. For a Trigger, a truthy value fires it, a falsy one does nothing |
+
+**Returns** nothing. Transitions react on the **next** frame.
+
+```js
+const p = getCompByID('player')
+ctx.setInput('grounded', !!ctx.raycast(p.x, p.y, 0, -1, 18, p))
+ctx.setInput('speed', Math.abs(p.velocity?.x ?? 0))
+ctx.setInput('weapon', 'bow')                   // an Enum input
+```
+
+**Notes**
+- An unknown input name logs a warning to the browser console and does nothing.
+- Setting an input to the value it already has is harmless, but if you set many each frame, only send changes (see below).
+
+## ctx.fireTrigger
+
+```ts
+ctx.fireTrigger(name: string): void
+```
+
+Shorthand for `ctx.setInput(name, true)` on a Trigger input.
+
+```js
+if (ctx.time > 3.6 && !g.started) { g.started = true; ctx.fireTrigger('begin') }
+if (ctx.keysDown.has('escape')) ctx.fireTrigger('pause')
+```
+
+## ctx.state and ctx.layer
+
+```ts
+ctx.state: string
+ctx.layer: string | null
+```
+
+The state and layer this program is running in. Useful when **one script file is shared by several states** (point several states at the same `@file:` script), or to tell layers apart.
+
+```js
+const party = ctx.state === 'Party'
+star.rotation += (party ? 360 : 90) * ctx.deltaSeconds
+```
+
+## Only sending changes
+
+Each `setInput` call goes to the engine. When you mirror game values into inputs every frame, remember the last value you sent:
+
+```js
+function syncInputs() {
+  const hp = Math.round((g.hp / g.maxHp) * 100) / 100
+  if (hp !== g.sentHp) { g.sentHp = hp; ctx.setInput('keepHp', hp) }
+  if (g.wave !== g.sentWave) { g.sentWave = g.wave; ctx.setInput('wave', g.wave) }
+}
+```
+
+## Layers
+
+Every layer's active state runs its own program, base layer first. Use layers to split concerns: a base-layer "flow" (Menu, Playing, GameOver) and an extra layer for, say, an alarm banner that reacts to a `danger` input. All layers share `ctx.globals`. `ctx.time` is per layer.
+
+```js
+// On a layer "Alarm", state "On":
+getCompByID('banner').visible = Math.floor(ctx.time * 4) % 2 === 0   // blink
+```
+
+## Other ways to drive inputs (no code)
+
+- **On Click** actions on a UI Button: *Fire trigger* / *Set input*. See [Events and messages](./events-and-messages.mdx).
+- **HTML UI**: `data-trigger="name"` on a clickable element, `data-input="name"` on an `<input>`. See [UI and DOM](./ui-and-dom.mdx).
+- **The embedding page**: `player.setInput(name, value)` and `player.fire(name)`. See [Embedding](../embedding/overview.mdx).

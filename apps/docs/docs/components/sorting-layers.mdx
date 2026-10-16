@@ -1,0 +1,78 @@
+---
+title: Sorting layers
+sidebar_position: 8
+description: Control what draws on top of what - the Layers panel order, Z Index, Y Sort groups and project-wide sorting layers, and how lights target layers.
+---
+
+# Sorting layers and draw order
+
+Toasty decides what draws on top of what in four steps, from coarsest to finest:
+
+1. **Sorting layer.** Everything on a later sorting layer draws above everything on an earlier one, whatever the hierarchy.
+2. **Hierarchy.** Within a layer, nodes draw in their order in the **Layers** panel; children draw with their parent.
+3. **Z Index.** Within one parent, a higher Z Index draws on top, overriding the Layers order.
+4. **Y Sort.** A group with Y Sort on orders its children by their height on screen, for top-down games.
+
+## Sorting layers
+
+Sorting layers are project-wide (Unity's Sorting Layers): a list such as *Background*, *Normal*, *Characters*, *Foreground*, *HUD*. Every project has **Normal**, which always exists and cannot be removed.
+
+### Putting a node on a layer
+
+Select a node and use the **Layer** dropdown in the Inspector (under Z Index):
+
+| Choice | Meaning |
+|---|---|
+| Normal / parent's | No layer of its own. The node uses its parent's layer, or Normal at the top level. This is the default. |
+| *(a layer name)* | The node, and everything under it that does not pick its own layer, draws on that layer. |
+
+Picking a layer stores a **Sorting Layer** component on the node; going back to "Normal / parent's" removes it.
+
+<Shot id="sorting-layers-manager" caption="The Inspector's Layer dropdown with the Layers… manager open, showing Background, Normal, Characters and Foreground with move and remove buttons" />
+
+### Managing layers
+
+Click **Layers…** next to the dropdown to open the manager. The list runs **back to front**: later layers draw on top.
+
+| Control | What it does |
+|---|---|
+| Name box | Rename the layer (applies when the box loses focus). |
+| ↑ | Move the layer back (draws earlier). |
+| ↓ | Move the layer forward (draws later, on top). |
+| × | Remove the layer. Its nodes fall back to Normal. Normal cannot be removed. |
+| + Add layer | Adds a new layer at the front. |
+
+:::caution
+Editing the layer list changes a project setting. Rename and reorder deliberately; the list itself is not part of the per-edit undo history.
+:::
+
+## Z Index
+
+Every node has a **Z Index** field (default 0). Among siblings, higher numbers draw on top, without moving the node in the Layers panel. Scripts can read and write it as `ref.zIndex`, untracked (not saved, not undoable), which is how you depth-sort at run time:
+
+```js
+// Bring whatever the player is carrying in front of the player.
+const item = getCompByID('held-item')
+item.zIndex = getCompByID('player').zIndex + 1
+```
+
+## Y Sort
+
+Groups have a **Y Sort (dynamic depth by position)** toggle. With it on, the group's children draw in order of their Y position, lower on screen in front, every frame. This is the classic top-down depth: walk behind a tree and it covers you, walk in front and you cover it. Z Index is ignored inside a Y Sort group.
+
+:::tip
+Put the characters, trees, rocks and props of a top-down level in one Y Sort group. Put each one's origin at its feet so they sort by where they stand.
+:::
+
+## Lights and sorting layers
+
+A Light 2D lights every sorting layer unless you restrict it. Under a light's card, untick **Lights every layer** and tick the layers it should reach; this stores a **Light Layers** component. Each layer is then lit only by its own lights, so a lantern can light the characters without lighting the sky behind them. See [Lighting 2D](./lighting-2d.mdx#light-layers).
+
+## Goo and layers
+
+A [goo group](./goo-and-liquid.mdx) is drawn once, at the place of its front-most member in the draw order, sorting layers included.
+
+## Related
+
+- [Nodes and layers](../editor/nodes-and-layers.mdx) for the Layers panel itself.
+- [Effects 2D](./effects-2d.mdx) for Parallax, which pairs naturally with background and foreground layers.

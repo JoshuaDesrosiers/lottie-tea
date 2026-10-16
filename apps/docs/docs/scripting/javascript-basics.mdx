@@ -1,0 +1,174 @@
+---
+title: JavaScript basics
+sidebar_position: 3
+description: A focused JavaScript refresher for writing Toasty game scripts - only the parts you will actually use.
+---
+
+# JavaScript basics
+
+Toasty scripts are standard modern JavaScript. This page covers the subset game scripts use every day. If you already write JS, skip to the [ctx reference](./ctx-reference.mdx).
+
+## Variables
+
+```js
+const speed = 200      // can't be reassigned (use this by default)
+let lives = 3          // can be reassigned
+lives = lives - 1
+```
+
+Remember: your script runs **every frame from the top**, so `let lives = 3` resets to 3 every frame. State that must last goes on `ctx.globals` (see [How scripts run](./how-scripts-run.mdx)).
+
+## Numbers and math
+
+```js
+const a = 7 / 2            // 3.5 (all numbers are floats)
+const r = 7 % 3            // 1 (remainder)
+Math.floor(3.7)            // 3
+Math.round(3.5)            // 4
+Math.abs(-5)               // 5
+Math.min(4, 9)             // 4
+Math.max(4, 9)             // 9
+Math.sqrt(16)              // 4
+Math.hypot(3, 4)           // 5 - distance from (0,0) to (3,4)
+Math.random()              // 0 <= n < 1
+Math.sin(Math.PI / 2)      // 1 - trig uses radians
+Math.atan2(dy, dx)         // angle of a vector, radians
+const deg = rad * 180 / Math.PI
+```
+
+:::note Degrees vs radians
+`ref.rotation` is in **degrees**. `Math.sin`, `Math.cos` and `Math.atan2` use **radians**. Convert with `* 180 / Math.PI` and `* Math.PI / 180`.
+:::
+
+Toasty also puts a few helpers in scope: `lerp(a, b, t)` (t clamped to 0..1), `clamp(v, min, max)`, and `random(seed)` (a repeatable 0..1 value for a given seed). See [ctx reference](./ctx-reference.mdx#helpers).
+
+## Strings
+
+```js
+const name = 'Ada'
+const msg = 'Score: ' + 42            // "Score: 42"
+const tpl = `Hi ${name}, ${3 * 2}!`   // template literal: "Hi Ada, 6!"
+String(12)                            // "12"
+Number('12')                          // 12
+const pi = (3.14159).toFixed(2)       // "3.14"
+'abc'.toUpperCase()                   // "ABC"
+'hello'.startsWith('he')              // true
+String(7).padStart(3, '0')            // "007"
+```
+
+## Booleans and comparisons
+
+```js
+a === b     // equal (always use ===, not ==)
+a !== b     // not equal
+a > b, a >= b, a < b, a <= b
+x && y      // and
+x || y      // or
+!x          // not
+const label = lives > 0 ? 'ALIVE' : 'DEAD'   // ternary
+```
+
+Falsy values: `false`, `0`, `''`, `null`, `undefined`, `NaN`. Everything else is truthy. That's why `if (ref) ...` is the usual "does this node exist?" check.
+
+## if / else
+
+```js
+if (ctx.keysDown.has('space')) {
+  jump()
+} else if (ctx.keysDown.has('down')) {
+  crouch()
+} else {
+  idle()
+}
+```
+
+## Loops
+
+```js
+for (let i = 0; i < 5; i++) { /* i = 0..4 */ }
+for (const enemy of getCompByClass('enemy')) enemy.rotation += 90 * ctx.deltaSeconds
+for (const key in someObject) { /* object keys */ }
+```
+
+## Functions
+
+```js
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+const double = (n) => n * 2          // arrow function
+const ref = (id) => getCompByID(id)  // a common shorthand in Toasty demos
+```
+
+Functions you declare in a script are redeclared every frame, which is fine; they are cheap.
+
+## Arrays
+
+```js
+const list = [3, 1, 2]
+list.push(4)              // add to end
+list.pop()                // remove from end
+list.shift()              // remove from start
+list.length               // 3
+list.includes(2)          // true
+list.indexOf(2)           // 2
+list.map((n) => n * 10)   // [30, 10, 20]
+list.filter((n) => n > 1) // [3, 2]
+list.find((n) => n > 1)   // 3
+list.some((n) => n > 2)   // true
+list.reduce((a, b) => a + b, 0)  // 6
+list.forEach((n, i) => print(i, n))
+list.splice(i, 1)         // remove item i
+```
+
+## Objects
+
+```js
+const g = { score: 0, name: 'p1' }
+g.score += 10
+g['name']                         // "p1"
+const { score, name } = g         // destructuring
+const copy = { ...g, score: 0 }   // spread
+Object.keys(g)                    // ["score", "name"]
+delete g.name
+```
+
+Colours, positions and 3D vectors in Toasty are plain arrays and objects: `ref.fillColor = [1, 0.5, 0, 1]` (RGBA, each 0..1), `ref.velocity = { x: 0, y: 300 }`, `ref.position3 = { x: 0, y: 1, z: -5 }`.
+
+## The "create once" idiom
+
+The single most common line in Toasty scripts:
+
+```js
+const g = ctx.globals.myGame || (ctx.globals.myGame = { score: 0, enemies: [] })
+```
+
+Read it as: "use `ctx.globals.myGame` if it exists, otherwise create it with these defaults". It runs every frame, but only creates the object the first time. See [Patterns](./patterns.mdx).
+
+## Optional chaining and defaults
+
+```js
+const hp = save?.player?.hp ?? 100   // undefined/null anywhere -> 100
+const v = player.velocity || { x: 0, y: 0 }
+```
+
+## Sets and Maps
+
+`ctx.keysDown` is a `Set`, so you'll use `.has()`:
+
+```js
+ctx.keysDown.has('a')
+const seen = new Set(); seen.add('coin1'); seen.has('coin1')
+const hp = new Map(); hp.set('orc', 10); hp.get('orc')
+```
+
+## Classes (optional)
+
+You can define classes, but remember they are re-declared every frame. Store instances on `ctx.globals`, and prefer plain objects plus functions; that's what every built-in demo does.
+
+## Things to avoid
+
+- `var`: use `const` and `let`.
+- `==`: use `===`.
+- Infinite loops (`while (true)` without a `break`): the frame never ends and the game freezes.
+- Heavy work every frame that could be done once (build lookup tables in an init block; see [Patterns](./patterns.mdx)).

@@ -1,0 +1,347 @@
+---
+title: Recipes
+sidebar_position: 10
+description: Live, copyable patterns for embedded Toasty components, from notification badges and fetched weather to theme sync, optimistic likes and pausing off screen.
+---
+
+# Recipes
+
+Each recipe is a small, complete pattern built on the showcase components made in Toasty. The live blocks are editable; click a card to run it. To use one in your own app, swap `ToastyPlayer` for `An1Player` from `./an1mbyt3/an1mbyt3-react.js` and point `game` at your export.
+
+## Notification bell with a live inbox
+
+The page owns the unread count. New messages arrive on a timer (standing in for a websocket); each one bumps the count and rings the bell. Clicking the bell (inside the game) emits `open`, and the page marks everything read.
+
+```jsx live
+function Inbox() {
+  const ref = React.useRef(null)
+  const [messages, setMessages] = React.useState(['Welcome aboard', 'Your export finished', 'Ada liked your scene'])
+  const [read, setRead] = React.useState(0)
+  React.useEffect(() => {
+    const senders = ['Grace', 'Linus', 'Margaret', 'Alan']
+    const id = setInterval(() => {
+      setMessages((m) => [...m, `${senders[Math.floor(Math.random() * senders.length)]} sent you a message`])
+      ref.current?.fire('ring')
+    }, 6000)
+    return () => clearInterval(id)
+  }, [])
+  const unread = messages.length - read
+  return (
+    <div>
+      <ToastyPlayer
+        ref={ref}
+        game="/games/bell.teab"
+        data={{ unread }}
+        style={{ height: 200 }}
+        onEvent={(e) => e.name === 'open' && setRead(messages.length)}
+      />
+      <ul style={{ fontSize: 13 }}>
+        {messages.slice(-4).map((m, i, arr) => (
+          <li key={i} style={{ fontWeight: messages.length - arr.length + i >= read ? 700 : 400 }}>{m}</li>
+        ))}
+      </ul>
+      <small>{unread} unread. Click the bell to read them all.</small>
+    </div>
+  )
+}
+```
+
+## Optimistic like button
+
+The game updates instantly when clicked; the page saves to a (fake, slow, sometimes failing) server and rolls back on failure by sending the old values back in.
+
+```jsx live
+function OptimisticLike() {
+  const [saved, setSaved] = React.useState({ count: 128, liked: false })
+  const [shown, setShown] = React.useState(saved)
+  const [status, setStatus] = React.useState('')
+  const fakeSave = (value) =>
+    new Promise((resolve, reject) => setTimeout(() => (Math.random() < 0.25 ? reject(new Error('network')) : resolve(value)), 700))
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/like-button.teab"
+        data={shown}
+        style={{ height: 220 }}
+        onEvent={async (e) => {
+          if (e.name !== 'like') return
+          const next = { count: e.payload.count, liked: e.payload.liked }
+          setShown(next)
+          setStatus('saving…')
+          try {
+            setSaved(await fakeSave(next))
+            setStatus('saved')
+          } catch {
+            setShown({ ...saved })   // new object, so the old values are sent back
+            setStatus('save failed, rolled back')
+          }
+        }}
+      />
+      <p>Server has {saved.count} likes ({saved.liked ? 'liked' : 'not liked'}). {status}</p>
+    </div>
+  )
+}
+```
+
+The rollback works because `data` is diffed against what was last *sent*. `shown` was first set to the new values, so setting it back to the saved ones is a real change and gets sent to the game, which redraws the old count.
+
+## Weather card from an API, refreshed
+
+The full fetch walkthrough is in [Sending data in](./data-binding.mdx#data-from-an-api). This variant uses the browser's location (when allowed) and refreshes every 10 minutes.
+
+```jsx live
+function MyWeather() {
+  const [data, setData] = React.useState({ city: 'Lisbon', temp: 21, condition: 'sun' })
+  const [note, setNote] = React.useState('')
+  const code = (c) => (c >= 95 ? 'storm' : (c >= 71 && c <= 77) || c === 85 || c === 86 ? 'snow' : c >= 51 ? 'rain' : c >= 2 ? 'cloud' : 'sun')
+  const load = React.useCallback(async (lat, lon, city) => {
+    try {
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`)
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const j = await r.json()
+      setData({ city, temp: Math.round(j.current.temperature_2m), condition: code(j.current.weather_code) })
+      setNote(`updated ${new Date().toLocaleTimeString()}`)
+    } catch (err) {
+      setNote(`offline (${err.message}); showing the last reading`)
+    }
+  }, [])
+  React.useEffect(() => {
+    let spot = [38.72, -9.14, 'Lisbon']
+    load(...spot)
+    const id = setInterval(() => load(...spot), 10 * 60 * 1000)
+    navigator.geolocation?.getCurrentPosition(
+      (pos) => { spot = [pos.coords.latitude.toFixed(2), pos.coords.longitude.toFixed(2), 'Here']; load(...spot) },
+      () => {},
+    )
+    return () => clearInterval(id)
+  }, [load])
+  return (
+    <div>
+      <ToastyPlayer game="/games/weather-card.teab" data={data} style={{ height: 280 }} />
+      <small>{note}</small>
+    </div>
+  )
+}
+```
+
+## Sync with the site's dark mode
+
+The day/night scene follows this docs site's theme switch (top right). It watches the `data-theme` attribute Docusaurus sets on `<html>`, and clicking the scene flips the site's theme back. In your app, use whatever holds your theme.
+
+```jsx live
+function ThemeSync() {
+  const read = () => document.documentElement.dataset.theme === 'dark'
+  const [dark, setDark] = React.useState(read)
+  React.useEffect(() => {
+    const obs = new MutationObserver(() => setDark(read()))
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => obs.disconnect()
+  }, [])
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/day-night.teab"
+        inputs={{ isNight: dark }}
+        data={{ isNight: dark }}
+        style={{ height: 200 }}
+        onEvent={(e) => {
+          if (e.name !== 'toggle') return
+          // Click on the scene → flip the page theme (Docusaurus-specific).
+          document.documentElement.dataset.theme = e.payload.isNight ? 'dark' : 'light'
+        }}
+      />
+      <p>The site is in {dark ? 'dark' : 'light'} mode.</p>
+    </div>
+  )
+}
+```
+
+(Setting `data-theme` directly is a demo shortcut and isn't remembered by the site; your app should go through its own theme state.)
+
+## A mood mascot that reacts to a form
+
+The page scores what you type with a toy word list and sends a `mood` from -1 to 1. The blob's states (`Sad`, `Neutral`, `Happy`) follow, and the page shows a help link when it's sad.
+
+```jsx live
+function FeedbackMood() {
+  const [text, setText] = React.useState('')
+  const [state, setState] = React.useState('Neutral')
+  const good = ['love', 'great', 'nice', 'good', 'thanks', 'awesome', 'easy', 'fun']
+  const bad = ['hate', 'bad', 'broken', 'slow', 'bug', 'hard', 'confusing', 'crash']
+  const words = text.toLowerCase().split(/\W+/)
+  const score = words.filter((w) => good.includes(w)).length - words.filter((w) => bad.includes(w)).length
+  const mood = Math.max(-1, Math.min(1, score / 3))
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/mood-blob.teab"
+        data={{ mood }}
+        style={{ height: 220 }}
+        onStateChange={(e) => e.layer === null && setState(e.state)}
+      />
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} style={{ width: '100%' }}
+        placeholder="Tell us how it went… (try 'great', 'love', 'broken', 'slow')" />
+      <p>mood {mood.toFixed(2)}, blob is {state}.{' '}
+        {state === 'Sad' && <a href="#">Need help? Chat with us.</a>}
+      </p>
+    </div>
+  )
+}
+```
+
+## Multi-step upload with waitForState
+
+Async code that reads like a script: drive the ring through steps, waiting for the game to confirm `Done` before moving on.
+
+```jsx live
+function Uploader() {
+  const ref = React.useRef(null)
+  const [busy, setBusy] = React.useState(false)
+  const [steps, setSteps] = React.useState([])
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  const run = async () => {
+    const p = ref.current
+    if (!p) return setSteps(['Click the card first.'])
+    setBusy(true)
+    setSteps([])
+    for (const file of ['photo.png', 'notes.pdf', 'song.mp3']) {
+      p.setData({ label: file, progress: 0 })
+      for (let x = 0; x <= 1.0001; x += 0.1) { p.set('progress', Math.min(1, x)); await sleep(120) }
+      await p.waitForState('Done')
+      setSteps((s) => [...s, `${file} uploaded`])
+      await sleep(600)
+    }
+    p.setData({ label: 'All done', progress: 1 })
+    setBusy(false)
+  }
+  return (
+    <div>
+      <ToastyPlayer ref={ref} game="/games/progress-ring.teab" style={{ height: 240 }} />
+      <button onClick={run} disabled={busy}>Upload 3 files</button>
+      <ul>{steps.map((s) => <li key={s}>{s}</li>)}</ul>
+    </div>
+  )
+}
+```
+
+This recipe uses the player's own methods (`setData`, `set`, `waitForState`) through the ref instead of the `data` prop, because the sequence is imperative. Don't mix both for the same key: if you also passed `data={{ progress }}`, the next render would send React's value again whenever it changes.
+
+## An event log for debugging
+
+Drop this next to any game while you build the page. It shows everything the game says.
+
+```jsx live
+function EventLog() {
+  const [lines, setLines] = React.useState([])
+  const add = (kind, value) => setLines((l) => [`${kind.padEnd(6)} ${JSON.stringify(value)}`, ...l].slice(0, 12))
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/like-button.teab"
+        style={{ height: 200 }}
+        onReady={(p) => add('ready', { scenes: p.scenes, scene: p.scene, state: p.state })}
+        onEvent={(e) => add('event', e)}
+        onStateChange={(e) => add('state', e)}
+        onPropChange={(e) => add('prop', e)}
+        onSceneChange={(e) => add('scene', e)}
+        onError={(err) => add('error', String(err))}
+      />
+      <pre style={{ fontSize: 12, minHeight: 160 }}>{lines.join('\n')}</pre>
+    </div>
+  )
+}
+```
+
+The exported `example.html` does the same with plain JavaScript.
+
+## Pause when off screen
+
+There's no point animating something nobody can see. An `IntersectionObserver` on a wrapper drives `paused`. Scroll this card out of view and back.
+
+```jsx live
+function PauseOffscreen() {
+  const box = React.useRef(null)
+  const [visible, setVisible] = React.useState(true)
+  React.useEffect(() => {
+    const io = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { threshold: 0.1 })
+    io.observe(box.current)
+    return () => io.disconnect()
+  }, [])
+  React.useEffect(() => {
+    if (!visible) console.log('Toasty paused (off screen) at', new Date().toLocaleTimeString())
+  }, [visible])
+  return (
+    <div ref={box}>
+      <ToastyPlayer game="/games/mood-blob.teab" paused={!visible} style={{ height: 200 }} />
+      <small>{visible ? 'playing' : 'paused (off screen)'}</small>
+    </div>
+  )
+}
+```
+
+Add `document.visibilityState` if you also want to pause in background tabs (browsers already slow down animation frames there).
+
+## Respect reduced motion
+
+```tsx
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+<An1Player game="/an1mbyt3/game.teab" paused={reduce} style={{ height: 300 }} />
+```
+
+Better still, give the game a `reducedMotion` Property or data key and let it swap to calmer animations: `data={{ reducedMotion: reduce }}`.
+
+## Load only when needed (plain JS)
+
+The engine is the big download. Start it only when the box gets near the viewport:
+
+```js
+import { createPlayer } from './an1mbyt3/an1mbyt3-embed.js'
+
+const box = document.getElementById('hero-game')
+const io = new IntersectionObserver(async ([entry]) => {
+  if (!entry.isIntersecting) return
+  io.disconnect()
+  const player = await createPlayer(box, { game: '/an1mbyt3/game.teab' })
+  player.on('event', ({ name, payload }) => console.log(name, payload))
+}, { rootMargin: '300px' })
+io.observe(box)
+```
+
+In React, render `<An1Player>` only once a similar observer says the box is near (`{near && <An1Player … />}`).
+
+## Analytics from game events
+
+```js
+player.on('event', ({ name, payload }) => analytics.track(`game_${name}`, payload))
+player.on('scene', ({ scene }) => analytics.page(`game/${scene}`))
+player.on('state', ({ layer, state }) => layer === null && state === 'Win' && analytics.track('game_win'))
+```
+
+## Poll an API into bound labels
+
+```js
+const player = await createPlayer(el, { game: '/an1mbyt3/game.teab' })
+async function refresh() {
+  const stats = await (await fetch('/api/stats')).json()   // e.g. { visitors: 1200, sales: 37 }
+  player.setData(stats)                                     // Properties named visitors / sales update
+}
+refresh()
+setInterval(refresh, 5000)
+```
+
+Keys without a matching Property only reach `ctx.data`, so sending a whole API response is harmless.
+
+## Several widgets, one player
+
+Only one player runs per page. If a page needs a like button *and* a bell, build them as **one scene** in Toasty (each in its own corner, or laid out with [UI components](../components/ui-components.mdx)), export that, and give it one set of data:
+
+```tsx
+<An1Player
+  game="/an1mbyt3/game.teab"
+  data={{ count, liked, unread }}
+  onEvent={(e) => (e.name === 'like' ? onLike(e.payload) : e.name === 'open' ? onOpen() : null)}
+  style={{ width: '100%', height: 360 }}
+/>
+```
+
+Or show them one at a time (tabs, a modal), mounting only the visible one.

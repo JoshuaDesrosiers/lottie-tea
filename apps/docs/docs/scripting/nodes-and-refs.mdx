@@ -1,0 +1,329 @@
+---
+title: Nodes and refs
+sidebar_position: 5
+description: Finding nodes from code (getCompByID, getCompByClass, ctx.nodes) and every 2D property and method on a node ref.
+---
+
+# Nodes and refs
+
+A **ref** is the object a script uses to read and change one node. You get refs with `getCompByID` or `getCompByClass` (named after the DOM's `getElementById` / `getElementsByClassName`), then read and assign plain properties.
+
+```js
+const ship = getCompByID('ship')
+ship.x += 120 * ctx.deltaSeconds
+ship.rotation = Math.sin(ctx.time) * 15
+ship.fillColor = [1, 0.4, 0.2, 1]
+```
+
+Physics, UI, audio and 3D members live on the same ref; they're documented on their own pages and indexed in the [ctx reference](./ctx-reference.mdx).
+
+## Ids, names and classes
+
+Every node has three author-facing labels, set in the Inspector:
+
+| Label | Inspector field | Used by | Unique? |
+|---|---|---|---|
+| **Id** | Id | `getCompByID` | Should be (not enforced; the first match wins). New nodes get `shape(0)`, `shape(1)`, ... |
+| **Classes** | Classes | `getCompByClass` | No, many nodes can share a class; a node can have several |
+| **Name** | the Layers panel name | `ctx.nodes`, `ref.part(name)` on spawned prefabs, UI controls' child lookup | No |
+
+Rename ids to something meaningful (`player`, `scoreText`) before you script against them.
+
+---
+
+## getCompByID
+
+```ts
+getCompByID(id: string): Ref | null
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | string | The node's **Id** (Inspector "Id" field), exactly |
+
+**Returns** a ref, or `null` if no node in the current scene has that id.
+
+```js
+const label = getCompByID('scoreText')
+if (label) label.textContent = 'Score: ' + ctx.props.score
+```
+
+**Notes**
+- Lookups are indexed and refs are cached per frame: calling `getCompByID('x')` 100 times in a frame builds one ref.
+- Searches only the **current scene**. Nodes spawned this frame with `ctx.spawn` aren't in the index until next frame (use the ref `ctx.spawn` returned).
+- Monaco autocompletes ids inside `getCompByID('`.
+
+## getCompByClass
+
+```ts
+getCompByClass(className: string): Ref[]
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `className` | string | One class from the node's Classes field |
+
+**Returns** an array (possibly empty) of refs, in scene order.
+
+```js
+for (const coin of getCompByClass('coin')) {
+  coin.rotation += 180 * ctx.deltaSeconds
+}
+```
+
+**Notes**
+- Builds a new ref for each match on every call. With many matches, call it once per frame and reuse the array.
+- Nodes spawned from prefabs have no classes on their spawned refs; keep the refs `ctx.spawn` returns in your own list instead.
+
+## Finding a node by name
+
+There's no `getCompByName`. Search `ctx.nodes` (every node in the scene this frame), then get a ref by its id:
+
+```js
+const n = ctx.nodes.find((n) => n.name === 'Door')
+const door = n && getCompByID(n.elementId)
+```
+
+## ctx.nodes
+
+```ts
+ctx.nodes: readonly SceneNode[]
+```
+
+Every node in the current scene as of the start of the frame. Read-only data, not refs. Useful fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `elementId` | string | The node's Id (what `getCompByID` takes) |
+| `name` | string | Layers panel name |
+| `classes` | string[] | Classes |
+| `kind` | string | `'Shape'`, `'Group'`, `'Bone'`, `'Instance'`, `'Text'`, `'Image'`, `'ParticleSystem'`, `'Tilemap'`, `'Camera'`, `'Light2D'`, `'Trail'`, `'Node3D'` |
+| `id` | object | Internal id (only needed for the low-level `ctx.set*` calls) |
+| `parent` | object or `null` | Parent's internal id |
+| `transform` | object | Local transform: `translation {x,y}`, `rotation` (**radians**), `scale {x,y}`, `anchor {x,y}` |
+| `worldTransform` | object | Same shape, in world space |
+| `visible` | boolean | |
+| `zIndex` | number | |
+| `fillColor` | `[r,g,b,a]` or `null` | |
+| `textContent` | string or `null` | Text nodes |
+| `image` | object or `null` | Image nodes: current image id |
+| `path` | object or `null` | Shape nodes: `{ commands: [...] }` |
+| `bounds` | `[minX, minY, maxX, maxY]` | Local-space bounds |
+| `transform3d` | object or `null` | 3D nodes: `position`, `rotation` (degrees), `scale`, each `[x,y,z]` |
+| `behaviors` | array | Every component on the node: `{ enabled, behavior: { kind, ... } }` |
+
+```js
+// Does this node have a Rigidbody 2D?
+const hasBody = (n) => n.behaviors.some((b) => b.enabled && b.behavior.kind === 'Rigidbody2D')
+const bodies = ctx.nodes.filter(hasBody).length
+```
+
+## ctx.images
+
+```ts
+ctx.images: readonly { id: object; name: string }[]
+```
+
+Every image asset in the project. Use it to find an image's id by name, then assign it to an Image node's `ref.image`. Sprite sheet frames are named `"<sheet name> <frame index>"` (for example `"skull 3"`).
+
+```js
+const g = ctx.globals.anim || (ctx.globals.anim = { frames: {} })
+if (!g.ready) { g.ready = true; for (const im of ctx.images) g.frames[im.name] = im.id }
+const frame = Math.floor(ctx.time * 10) % 4                  // 10 fps, 4 frames
+getCompByID('hero').image = g.frames['run ' + frame]
+```
+
+---
+
+## Ref properties (2D)
+
+All transform values are **local** (relative to the parent), in world units, with **+y up**.
+
+| Property | Type | Read/write | Description |
+|---|---|---|---|
+| `id` | string | read | The node's Id |
+| `name` | string | read | The node's name |
+| `classes` | string[] | read | The node's classes |
+| `x`, `y` | number | read/write | Local position |
+| `rotation` | number | read/write | Local rotation in **degrees** |
+| `scaleX`, `scaleY` | number | read/write | Local scale (1 = 100%) |
+| `anchorX`, `anchorY` | number | read/write | Pivot point in local units |
+| `visible` | boolean | read/write | Show/hide. A hidden node's Light 2D stops lighting |
+| `fillColor` | `[r,g,b,a]` or `null` | read/write | Fill colour, each channel 0..1. `null` for kinds without a fill (Group, ...); writing to those does nothing |
+| `textContent` | string or `null` | read/write | Text nodes only (`null` otherwise) |
+| `image` | image id or `null` | read/write | Image nodes only: which image to draw (see `ctx.images`) |
+| `path` | `{ commands }` or `null` | read/write | Shape nodes only: the whole vector path |
+| `zIndex` | number | read/write | Draw order within the parent, higher on top. Ignored under a Y-sort group |
+| `worldX`, `worldY` | number | read | World position of the node's origin (includes parents, animation, IK, physics) |
+| `worldRotation` | number | read | World rotation, degrees |
+
+```js
+const p = getCompByID('player')
+p.x = Math.round(p.x)                // pixel snap
+p.scaleX = p.scaleY = 1 + Math.sin(ctx.time * 6) * 0.05
+p.visible = ctx.props.lives > 0
+p.zIndex = Math.round(-p.y)          // lower on screen draws on top
+```
+
+**Notes**
+- Writes are untracked: they don't create undo steps, and leaving Playground puts the scene back as designed.
+- Setting `scaleX`, `scaleY`, `anchorX` or `anchorY` also re-sends the ref's current `x`/`y`. On a ref cached across frames for a node that physics or animation moves, that can snap it back to an old position; get a fresh ref each frame instead (see [How scripts run](./how-scripts-run.mdx)).
+- Writing `fillColor`, `textContent`, `image` or `path` as `null` does nothing.
+- Setting `zIndex` to its current value is skipped, so writing it every frame is cheap.
+
+### worldPoint
+
+```ts
+ref.worldPoint(localX: number, localY: number): { x: number; y: number }
+```
+
+Converts a point in the node's local space to world space (from this frame's snapshot). Handy for the tip of a bone or a gun's muzzle.
+
+```js
+const arm = getCompByID('arm')
+const tip = arm.worldPoint(40, 0)     // 40 units along the arm
+getCompByID('spark').x = tip.x
+getCompByID('spark').y = tip.y
+```
+
+### path
+
+```ts
+ref.path: { commands: PathCommand[] } | null
+// PathCommand:
+//   { kind: 'MoveTo',  value: { x, y } }
+//   { kind: 'LineTo',  value: { x, y } }
+//   { kind: 'CubicTo', value: { control1: {x,y}, control2: {x,y}, to: {x,y} } }
+//   { kind: 'Close' }
+```
+
+Assign a whole new path to reshape a Shape node every frame (blobs, waves, procedural shapes).
+
+```js
+const w = 80, h = 20 + Math.sin(ctx.time * 3) * 10
+getCompByID('wave').path = { commands: [
+  { kind: 'MoveTo', value: { x: -w, y: 0 } },
+  { kind: 'LineTo', value: { x: w, y: 0 } },
+  { kind: 'LineTo', value: { x: 0, y: h } },
+  { kind: 'Close' },
+] }
+```
+
+---
+
+## Component helpers on refs
+
+These act on a specific component on the node, and do nothing if it isn't there.
+
+### emit (Particle System)
+
+```ts
+ref.emit(count: number): void
+```
+
+Spawns `count` particles from a Particle System node on the next frame, wherever the emitter is by then (so move it first, then emit). Doesn't restart the system or clear live particles.
+
+```js
+const fx = getCompByID('sparks')
+fx.x = ctx.mouseX; fx.y = ctx.mouseY
+if (ctx.tap) fx.emit(30)
+```
+
+### setTiles (Tilemap)
+
+```ts
+ref.setTiles(tiles: number[]): void
+```
+
+Replaces a Tilemap's whole grid: row-major, `mapWidth * mapHeight` tile indices, `-1` = empty. For procedural levels.
+
+```js
+const W = 20, H = 12, tiles = []
+for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) tiles.push(y === H - 1 ? 0 : -1)
+getCompByID('level').setTiles(tiles)
+```
+
+### lightIntensity, lightRadius (Light 2D)
+
+```ts
+ref.lightIntensity: number | null   // write-only knob
+ref.lightRadius: number | null      // outer radius, write-only knob
+```
+
+Set a Light 2D's intensity and outer radius. Reading returns the last value written through **this ref** (else `null`); they don't read the authored value.
+
+```js
+const torch = getCompByID('torch')
+torch.lightIntensity = 1 + Math.sin(ctx.time * 20) * 0.1   // flicker
+```
+
+### shake2 (Camera Shake)
+
+```ts
+ref.shake2(amount?: number): void   // default 0.5
+```
+
+Kicks a 2D camera's shake (needs a **Camera Shake** component on the camera node). `amount` is 0..1, adds up, and strength is squared.
+
+```js
+if (hit) getCompByID('Main Camera').shake2(0.6)
+```
+
+### shakeTree, regrowTree (Tree 2D)
+
+```ts
+ref.shakeTree(strength?: number): void   // default 1; 0.5 = a nudge, 2 = a big shake
+ref.regrowTree(): void                   // restart; regrows from a sapling if "Grow in" is on
+```
+
+### Cloth 2D
+
+```ts
+ref.grabCloth(x: number, y: number, radius?: number): boolean  // default radius 40
+ref.dragCloth(x: number, y: number): void
+ref.releaseCloth(): void
+ref.tearCloth(x: number, y: number, radius?: number): number   // default radius 12; returns threads cut
+ref.setClothWind(x: number | null, y?: number): void           // null = back to authored wind
+ref.resetCloth(): void                                         // mend, hang at rest
+```
+
+Coordinates are world space. `grabCloth` takes hold of the free point nearest `(x, y)` and returns `false` if none is within `radius`; then call `dragCloth` each frame and `releaseCloth` when done.
+
+```js
+const cloth = getCompByID('flag')
+const g = ctx.globals.cloth || (ctx.globals.cloth = { held: false })
+const down = ctx.keysDown.has('mouse')
+if (down && !g.held) g.held = cloth.grabCloth(ctx.mouseX, ctx.mouseY)
+if (g.held) cloth.dragCloth(ctx.mouseX, ctx.mouseY)
+if (!down && g.held) { cloth.releaseCloth(); g.held = false }
+if (ctx.keysDown.has('x')) cloth.tearCloth(ctx.mouseX, ctx.mouseY)
+```
+
+---
+
+## Low-level ctx setters
+
+`ctx` also exposes the raw primitives refs are built on. They take a node's internal id (`ctx.nodes[i].id`), not a ref. You almost never need them; they exist so refs can be built, and they're listed here for completeness.
+
+| Member | Equivalent ref usage |
+|---|---|
+| `ctx.setTranslation(id, x, y)` | `ref.x`, `ref.y` |
+| `ctx.setRotationDegrees(id, deg)` | `ref.rotation` |
+| `ctx.setScale(id, sx, sy, x, y)` | `ref.scaleX`, `ref.scaleY` (also sets position) |
+| `ctx.setAnchor(id, ax, ay, x, y)` | `ref.anchorX`, `ref.anchorY` (also sets position) |
+| `ctx.setVisible(id, bool)` | `ref.visible` |
+| `ctx.setFillColor(id, r, g, b, a)` | `ref.fillColor` |
+| `ctx.setTextContent(id, text)` | `ref.textContent` |
+| `ctx.setImage(id, imageId)` | `ref.image` |
+| `ctx.setPath(id, path)` | `ref.path` |
+| `ctx.setZIndex(id, z)` | `ref.zIndex` |
+| `ctx.setTiles(id, tiles)` | `ref.setTiles` |
+| `ctx.setLight(id, intensity, radius)` | `ref.lightIntensity` / `ref.lightRadius` (negative = keep) |
+| `ctx.emitParticles(id, n)` | `ref.emit` |
+| `ctx.tree.shake/regrow`, `ctx.cloth.*`, `ctx.camera2.shake` | the Tree 2D, Cloth 2D, Camera Shake helpers above |
+
+One legitimate use: moving many nodes straight from `ctx.nodes` without building refs.
+
+```js
+for (const n of ctx.nodes) if (n.classes.includes('star')) ctx.setTranslation(n.id, n.transform.translation.x - 1, n.transform.translation.y)
+```

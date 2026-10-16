@@ -76,6 +76,7 @@ mod demo_match3;
 mod demo_liquid;
 mod demo_torture;
 mod demo_3d;
+mod demo_docs;
 mod demo_ui;
 mod demo_responsive;
 mod demo_html;

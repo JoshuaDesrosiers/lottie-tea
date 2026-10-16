@@ -1,0 +1,174 @@
+---
+title: Particles 2D
+sidebar_position: 3
+description: The 2D Particle System and its companions Particle Look, Particle Behaviours 2D and Particle Path, with every field, default and script call.
+---
+
+# Particles 2D
+
+A **Particle System** spawns many small, short-lived things from one node: sparks, smoke, fire, rain, confetti, magic, dust. It is modelled on Unity's Particle System and keeps its module names (Main, Emission, Shape, Color over Lifetime, Size over Lifetime).
+
+Three more components sit on the **same node** to extend it:
+
+| Component | Adds |
+|---|---|
+| **Particle Look** | Each particle's shape (circle, star, streak, an image, any Shape), blend mode, stretch and glow. |
+| **Particle Behaviours 2D** | Converge, Attract, Repel and Drag forces, each with a strength curve over the particle's life. |
+| **Particle Path** | Makes particles flow along a path you draw. |
+
+Two more turn particles into liquid: **Particle Fluid 2D** and **Goo 2D**. Those are on [Goo and liquid](./goo-and-liquid.mdx).
+
+<Shot id="particles-2d-inspector" caption="A Particle System selected, its Inspector card showing the Main, Emission and Shape modules, with sparks previewing on the canvas" />
+
+## When particles run
+
+Particles simulate in **Playground**, the State Machine tab's preview, and exported games. In Design, a Particle System previews live **while it is selected** (or while something inside it, or a group above it, is selected), so you can tune it without pressing Play. The **Replay** button at the top of its card restarts the simulation from scratch, which is handy for bursts and non-looping effects that only play once.
+
+A hidden emitter (the node or any parent hidden) is switched off: it stops simulating and starts fresh when shown again.
+
+## Particle System
+
+### Main
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Looping | Restart emission every **Duration** seconds. Off: emission stops for good after one Duration (live particles still finish their lives). | on/off | on |
+| Play On Awake | Start emitting as soon as the scene starts. | on/off | on |
+| Duration (s) | Length of one cycle. Bursts are timed within it. | 0 and up | 5 |
+| Lifetime min / max | Seconds each particle lives, picked at random between min and max. Same value in both = fixed. | any | 2 / 2 |
+| Speed min / max | Starting speed, units per second. | any | 100 / 100 |
+| Size min / max | Starting size (diameter) in units. | any | 30 / 30 |
+| Rotation min / max | Starting rotation in degrees. | any | 0 / 0 |
+| Color | Every particle's base colour. Color over Lifetime multiplies it. | | white |
+| Gravity | Downward acceleration on every particle, units per second squared. 0 = none. This is separate from the scene's physics gravity. | any | 0 |
+| Drag | Share of the starting speed lost per second (0 = never slows). | 0 and up | 0 |
+| Space | **Local**: particles move with the emitter (a torch's sparks drift with the torch). **World**: once spawned they stay where they are in the scene (footprints, a smoke trail behind a rocket). | Local / World | Local |
+| Max Count | Hard cap on live particles. At the cap, no new particles spawn until old ones die. | 0 and up | 100 |
+
+:::tip
+Every "min / max" pair is a random range. Give Speed a spread like 60 / 140 and Lifetime 0.6 / 1.2 and an effect instantly looks more natural.
+:::
+
+### Emission
+
+| Field | Meaning | Default |
+|---|---|---|
+| Rate/sec | Particles spawned per second. 0 turns continuous emission off (a burst-only effect such as an explosion). | 10 |
+| Bursts | Each row is one burst: **t** = time into the cycle (seconds), **n** = how many particles at once, **×** = how many times it fires. **+ Burst** adds one (t 0, n 10, × 1). | none |
+
+### Shape
+
+Where particles start and which way they move.
+
+| Shape | Starts at | Moves | Fields (value when you switch to it) |
+|---|---|---|---|
+| Point | the emitter's origin | in every direction | none |
+| Circle | a circle round the emitter | outward from the centre (rings, shockwaves) | radius (1) |
+| Cone | the origin, or within **radius** of it | within a cone round the node's local up (+Y): fire, fountains, smoke | angle° (about 23, the half-width of the cone), radius (0) |
+| Box | a random point in a width x height rectangle | straight along local up (rain falling through an area: rotate the node 180°) | w, h (2, 2) |
+
+A new Particle System starts with a Cone of about 23° and radius 0. Rotate the node to aim it.
+
+### Color over Lifetime
+
+A list of colour stops along the particle's life (**t** 0 = birth, 1 = death). The sampled colour multiplies the start colour. Empty = the particle keeps its start colour all its life. **+ Stop** adds one.
+
+:::tip
+For a fade-out, add two stops: white at t 0 and white with alpha 0 at t 1.
+:::
+
+### Size over Lifetime
+
+Keys of **t** (0 to 1 along the life) and **×** (multiplier on the start size). Empty = constant size. **+ Keyframe** adds one. A key of × 0 at t 1 makes particles shrink away.
+
+### Spin °/s
+
+A constant rotation speed for every particle, degrees per second. 0 = particles keep their start rotation.
+
+## Particle Look
+
+Each particle's look. Put it on the same node as the Particle System.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Shape | **Circle**, **Square**, **Triangle**, **Diamond**, **Star**, **Hexagon**, **Ring**, **Streak** (a thin line that always points along the motion: sparks, rain, speed lines), **Image**, **Shape**. | | Circle |
+| Image | The image each particle shows (Shape = Image). Image particles always draw with Normal blend. | any image | none |
+| Shape node | Any Shape node in the scene: each particle takes its outline (Shape = Shape). Hide the original if you only want it as a template. Leaves, hearts, logos. | any Shape | none |
+| Blend | **Add**: light (fire, sparks, magic). **Multiply**: shadows, ink. **Screen**: soft light. **Normal**: plain paint. | | Normal |
+| Face the direction of motion | Turns each particle to face where it is moving (Streak always does). | on/off | off |
+| Stretch | Lengthens particles with their speed (motion streaks). 0 = off. | 0 to 3 | 0 |
+| Glow | A soft halo round every particle, added on top as light. 0 = off. | 0 to 1 | 0 |
+| Glow size | Halo size, in particle sizes (shown when Glow is above 0). | 1 to 8 | 2.5 |
+| Glow in the particle's own colour | Tints the halo with each particle's colour. Untick to pick one colour. | on/off | on |
+| Glow colour | The halo colour when the option above is off. | | warm yellow |
+
+## Particle Behaviours 2D
+
+A stack of behaviours that act on this node's particles. Click **Add behaviour** and pick one; each card has an on/off checkbox, a kind dropdown and a trash icon.
+
+| Behaviour | What it does | Strength range | New-card strength |
+|---|---|---|---|
+| Converge | Moves particles onto the point. At strength 1 they sit exactly on it. | 0 to 1 | 1 |
+| Attract | Pulls particles toward the point (px/s²). They overshoot and swing back, like gravity. | 0 to 3000 | 600 |
+| Repel | Pushes particles away from the point (px/s²). | 0 to 3000 | 600 |
+| Drag | Slows particles down over time. | 0 to 10 | 2 |
+
+Every behaviour has:
+
+- **Strength over life**: a curve editor. Across = the particle's life (birth to death), up = strength multiplier (0 to 1). Drag points; double-click empty space to add one, double-click a point to remove it (two always stay). Presets: **Ramp in**, **Late** (free for the first 40 %, then ramps to full), **Ramp out**, **Pulse**, **Constant**. Converge starts with **Late**, the others with **Constant**.
+- **Point space** (not Drag): **Local** = relative to the emitter, moving and turning with it. **World** = a fixed spot in the scene.
+- **Point X / Y** (not Drag): the target point, in pixels.
+
+:::tip
+Converge with the **Late** curve makes particles fly out freely and then gather into a point: collecting coins, a spell charging up. **Ramp out** does the opposite: start gathered, then spread.
+:::
+
+## Particle Path
+
+Makes the particles flow along a path: smoke trails, magic streams, rivers of sparks, swarms. Draw the guide with the Pen tool, then hide it.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Path | The Shape whose outline the particles follow (its first subpath, start to end). | any Shape | none |
+| Weight (pull) | How strongly particles are pulled onto the path. 1 locks them to it; low = a loose, drifting stream. | 0 to 1 | 0.85 |
+| Join after (life) | Share of each particle's life it flies free before joining. | 0 to 1 | 0 |
+| Join over (life) | Share of the life it takes to ease onto the path. | 0.01 to 1 | 0.25 |
+| Strays | Share of particles that never join (wisps that wander off). | 0 to 1 | 0.1 |
+| Spread (px) | How wide the stream is. | 0 to 300 | 12 |
+| Widen by end | Multiplies the spread by the end of the path (billowing smoke). | 0 to 8 | 2.5 |
+| Speed (px/s, 0 = over life) | Speed along the path. 0 = each particle travels the whole path over its lifetime. | 0 to 1000 | 0 |
+| Enter at | Where on the path (0 = start, 1 = end) particles join. | 0 to 1 | 0 |
+| Turbulence (px) | Wobble on the stream. | 0 to 100 | 8 |
+| Turbulence speed | How fast the wobble changes (Hz). | 0 to 10 | 1.5 |
+| Loop round the path | Wraps back to the start (closed paths, orbits). | on/off | off |
+
+The Inspector suggests a smoke recipe: Join after about 0.1, Join over about 0.4, Weight 0.6, Spread 10, Widen 4, Turbulence 12, Strays 0.15.
+
+## Scripting particles
+
+| Call | What it does |
+|---|---|
+| `ref.emit(count)` | Spawns `count` particles on the next frame, wherever the emitter is by then (so move it first, then emit). Doesn't restart the system or clear live particles. A no-op on nodes without a Particle System. |
+| `ref.visible = false` | Hides the emitter, which switches it off; showing it again restarts it fresh. |
+
+Set the emitter's **Rate/sec** to 0 and fire bursts from code for hit sparks, explosions and pickups. This is the pattern the demos use:
+
+```js
+// Move a shared "sparks" emitter to the hit point and puff 20 particles there.
+function sparksAt(x, y, n) {
+  const r = getCompByID('sparks')
+  r.x = x
+  r.y = y
+  r.emit(n)
+}
+
+if (ctx.keysDown.has('mouse')) sparksAt(ctx.mouseX, ctx.mouseY, 20)
+```
+
+Any Inspector value can also be keyframed with **+ Property** in the Timeline (for example the emission rate, to build up a fire), see [Animation timeline](../editor/animation-timeline.mdx).
+
+## Related
+
+- [Goo and liquid](./goo-and-liquid.mdx): draw particles as liquid, and play a Flipbook on each particle.
+- [Particles 3D](./particles-3d.mdx) for 3D emitters.
+- [Trails](./trails.mdx) for a continuous ribbon behind a moving object.

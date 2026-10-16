@@ -1,0 +1,92 @@
+---
+title: Debugging
+sidebar_position: 19
+description: Logging with console.log and print, reading the Console panel, how errors are isolated, and profiling scripts with F3.
+---
+
+# Debugging
+
+## Logging
+
+```ts
+console.log(...values): void     // also console.info, console.debug
+console.warn(...values): void
+console.error(...values): void
+print(...values): void           // same as console.log
+```
+
+Everything a script prints goes to the game **Console**, tagged with where it ran (scene, layer, state). Objects and arrays are formatted like the browser console (first 20 items / 12 keys, 3 levels deep). Entries also reach the browser's DevTools.
+
+```js
+print('hp', g.hp, 'pos', { x: p.x, y: p.y })
+if (!getCompByID('player')) console.warn('no node with id "player" in', ctx.scene)
+```
+
+:::caution Don't log every frame
+A `print` in the frame body runs 60 times a second. Identical consecutive lines collapse into one row with a count, but changing values don't. Log on events (a click, a state entry), or throttle:
+
+```js
+if (Math.floor(ctx.time) !== Math.floor(ctx.time - ctx.deltaSeconds)) print('t =', Math.floor(ctx.time))
+```
+:::
+
+## The Console panel
+
+Open it from the bottom dock's **Console** tab (it stays visible while playing), or in the **Code** mode, where it sits under the editor.
+
+<Shot id="scripting-console-error" caption="The Console showing a script error with its scene › state : line location and expanded stack" />
+
+- Filters for logs / warnings / errors (with counts) and a search box.
+- Each entry shows **where**: `Scene › Layer › State :line:column`. Click it to open the code at that line.
+- **Repeats collapse** into one row with a count.
+- Click an error to see its **stack**, in your program's own line numbers.
+- **Clear**, and **Clear on Play** (on by default).
+
+## How errors behave
+
+| Problem | What happens |
+|---|---|
+| **Syntax error** (doesn't compile) | Reported once with its line: *"... this program won't run until it's fixed"*. That program is skipped until you change its code (or press Play again). Other programs keep running |
+| **Runtime error** (throws) | That program loses the rest of **this frame**. Everything else keeps running. Reported with scene, state, line and stack; repeats are counted |
+| **Error in a callback** (DOM listener, `setTimeout`, promise) | Caught and reported as *Async*, with the location in your script |
+| **Engine error** | The frame is skipped and the loop carries on; reported as *Engine* |
+
+So a typo never freezes the game, but a program that throws on line 3 every frame never reaches line 4. Fix the first error first.
+
+## Common mistakes
+
+| Symptom | Likely cause |
+|---|---|
+| `TypeError: Cannot set properties of null (setting 'x')` | `getCompByID` returned `null`: wrong id, or the node is in another scene. Check the Inspector's **Id** |
+| Value resets every frame | Stored in a `let` instead of `ctx.globals` |
+| Movement speed depends on the monitor | Forgot `* ctx.deltaSeconds` |
+| Rotation is way off | Used radians; `ref.rotation` is degrees |
+| `ctx.props.x` stays `undefined` | The scene has no Property `x` (a warning is in the Console) |
+| A key "fires" many times | `keysDown` is held-state; detect the edge (see [Input](./input.mdx)) |
+| Listener runs thousands of times | `addEventListener` called every frame; guard it (see [UI and DOM](./ui-and-dom.mdx)) |
+| Cached ref reports an old position | Refs cached across frames don't refresh their transform; get a fresh ref (see [How scripts run](./how-scripts-run.mdx)) |
+| Nothing runs in the editor | You're in Design mode, or on the State Machine tab with **Run Programs** off |
+
+## Inspecting state
+
+`ctx.globals` is a plain object; print a slice of it:
+
+```js
+if (ctx.keysDown.has('f9')) print(JSON.stringify(ctx.globals.myGame).slice(0, 500))
+```
+
+Scripts are real JavaScript running on the page, so a `debugger` statement pauses in the browser's DevTools when they're open (stack frames show as `an1script://Scene/Layer/State`).
+
+## Performance: the F3 profiler
+
+Press **F3** (or the backtick key) in Playground or an exported game to toggle the frame profiler overlay. Its **scripts** row is the time all Code programs took this frame, next to the engine's own stages (logic, IK, physics, scene, GPU) and counts (nodes, draws, bodies, particles).
+
+Script performance tips:
+
+- `getCompByID` is indexed and cached per frame; calling it often is fine.
+- `getCompByClass` builds new refs each call; call it once per frame.
+- Position, rotation, visibility, colour, image and z-index writes are batched and cheap. Text, scale, path and physics calls each cross into the engine; avoid redundant ones (compare before writing text).
+- Don't rebuild big lookup tables every frame; build them once into `ctx.globals`.
+- Touch HTML UI DOM only when something changed.
+
+See [Patterns](./patterns.mdx) for the idioms.

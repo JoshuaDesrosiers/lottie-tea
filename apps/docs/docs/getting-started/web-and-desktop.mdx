@@ -1,0 +1,57 @@
+---
+title: Web and desktop
+sidebar_position: 2
+description: The differences between the browser editor at toastycreate.web.app and the Toasty desktop app, and which one to pick.
+---
+
+# Web and desktop
+
+Toasty comes in two flavours that share the exact same editor and engine:
+
+- **The web editor** at [toastycreate.web.app](https://toastycreate.web.app). Nothing to install. Open the link and start.
+- **The desktop app** (built with Tauri). A window of its own, with a few abilities a browser tab is not allowed to have.
+
+Projects are interchangeable: a project folder made in one opens in the other, and a game exported from either runs anywhere.
+
+## What is the same
+
+Everything you do in the editor itself: drawing, animating, state machines, scripting, Playground, every component, every demo, and every export *except* the desktop `.exe`. The engine is the same WebAssembly module in both.
+
+## What is different
+
+| Feature | Web editor | Desktop app |
+|---|---|---|
+| Project folders on your disk | Chrome and Edge: yes, you pick a real folder. Firefox and Safari: no, projects live in the browser's private storage (see below) | Yes, on every system |
+| **Export → Game → Desktop app (.exe)** | Not available. You get a message telling you to use **Game → Web page** instead | Yes |
+| **Export → Game → Web page (.html)** and **Website embed** | Yes | Yes |
+| Hosting a multiplayer session (`ctx.net.host`) | No. A browser can *join* a session but not host one | Yes, the desktop app runs the relay |
+| **File → Show in Explorer** | Does nothing (browsers can't open your file manager) | Opens the project folder |
+| Window controls in the title bar | Your browser's own | Minimize, maximize and close buttons in Toasty's title bar |
+| Closing with unsaved, folder-less work | The browser's generic "Leave site?" prompt | A Toasty dialog: **Save as Project…**, **Don't Save** or **Cancel** |
+
+### Project folders in the browser
+
+When you choose **File → New Project…** or **Open Project…** in the web editor:
+
+- **Chrome and Edge** show a folder picker. Pick an empty folder (for a new project). Toasty remembers the folder for **Open Recent**; when you reopen it later, the browser asks you once more for permission to edit that folder.
+- **Firefox and Safari** can't open folders. Toasty asks for a project name instead ("This browser keeps projects in its own storage. Project name:") and stores the project inside the browser. It autosaves and reopens exactly like a real folder, but you can't see the files in your file manager, and clearing the site's data deletes them.
+
+:::caution Browser storage is not a backup
+If you work in Firefox or Safari, use **File → Export .tea / .teab…** now and then to keep a copy of your work as a single file you control. See [Projects and saving](./projects-and-saving.mdx).
+:::
+
+### Opening and saving single files in the browser
+
+Import dialogs (images, SVG, audio, 3D models, `.tea`/`.teab` documents) use the browser's normal file chooser. "Save as" style exports (GIF, video, `.html`, `.teab`) use the browser's save dialog where the browser has one, and otherwise simply download the file under its suggested name.
+
+## Which should I use?
+
+- **Just trying Toasty, following a course, or making web embeds?** The web editor is all you need.
+- **Making a game you want to hand to friends as a double-clickable app, or a LAN multiplayer game?** Use the desktop app for those two features.
+- **Using Firefox or Safari for serious work?** Prefer Chrome/Edge or the desktop app so your project lives in a real folder you can back up and put in version control.
+
+## Related
+
+- [Projects and saving](./projects-and-saving.mdx)
+- [Exporting](../editor/exporting.mdx)
+- [Multiplayer](../components/multiplayer.mdx)

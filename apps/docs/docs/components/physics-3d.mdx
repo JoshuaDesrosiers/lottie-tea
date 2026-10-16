@@ -1,0 +1,154 @@
+---
+title: Physics 3D
+sidebar_position: 31
+description: Rigidbody 3D and Collider 3D (Rapier 3D) on 3D nodes, triggers, 3D gravity, and the script calls for velocity, forces, impulses, raycasts and collision events.
+---
+
+# Physics 3D
+
+Toasty simulates 3D physics with [Rapier](https://rapier.rs) through two components that work like Unity's:
+
+| Component | What it does |
+|---|---|
+| **Rigidbody 3D** | Makes a 3D node a physics **body**: it falls, collides, and can be pushed. |
+| **Collider 3D** | Gives a node a collision **shape**: box, sphere, capsule, or **Auto** (fitted to its mesh). |
+
+Both go on [Node3Ds](./3d-basics.mdx) and are found under **Add Component → Physics 3D** (with **Ragdoll 3D**, covered in [VRM avatars](./vrm-avatars.mdx#ragdoll-3d)). Units are meters, kilograms and seconds, so nothing needs converting: a 1 m cube with a 1 kg body falls at Earth gravity out of the box.
+
+Physics runs in **Playground** and exported games. In Design mode bodies stay where you put them.
+
+For 2D physics, see [Physics 2D](./physics-2d.mdx).
+
+## A falling crate in four steps
+
+1. **+ → 3D → Plane** for the floor. Add **Collider 3D** (shape **Auto**): a collider with no body is static scenery.
+2. **+ → 3D → Cube**, move it up to y = 3. Add **Rigidbody 3D** and **Collider 3D**.
+3. Add a **Camera 3D** and a **Sun** if the scene doesn't have them.
+4. Press Play. The cube falls and lands.
+
+## Rigidbody 3D
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Body Type** | **Dynamic**: simulated (gravity, forces, collisions push it). **Kinematic**: moved by scripts or animation; pushes dynamic bodies but isn't pushed. **Static**: never moves. | Dynamic |
+| **Mass** (kg) | Spread over the body's colliders by volume. | 1 |
+| **Gravity Scale** | Multiplies the scene's 3D gravity. 0 = floats, 2 = falls twice as hard, negative = falls up. | 1 |
+| **Drag** (linear, angular) | Slows movement and spin over time (Unity's Drag / Angular Drag). | 0, 0.05 |
+| **Freeze rotation (character capsules)** | Never rotates from collisions: a character's capsule stays upright. | Off |
+| **Continuous collision (fast objects)** | Continuous collision detection, so fast bullets don't tunnel through thin walls. Costs more. | Off |
+
+Mass, gravity, drag and the two checkboxes only show for **Dynamic** bodies.
+
+## Collider 3D
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Shape** | **Auto**, **Box**, **Sphere** or **Capsule** (see below). | Auto |
+| **Size** (Box) | X, Y, Z in meters. | 1 × 1 × 1 |
+| **Radius** (Sphere) | Meters. | 0.5 |
+| **Radius / Height** (Capsule) | Upright along local Y; the height includes the rounded ends. | 0.5 / 2 |
+| **Center** | The shape's centre in the node's local space. | `(0, 0, 0)` |
+| **Is Trigger (detects overlaps, doesn't push)** | A sensor: reports overlaps but blocks nothing. | Off |
+| **Friction** | 0 = ice. | 0.5 |
+| **Bounciness** | `0..1` restitution. | 0 |
+
+**Auto** fits the node's own mesh:
+
+| Mesh | Auto collider |
+|---|---|
+| Cube | a box |
+| Sphere | a ball |
+| Plane | a thin floor slab |
+| Cylinder / Cone | a cylinder / cone |
+| Torus, imported model | its bounding box |
+
+Shapes are given in the node's own unscaled space, and the node's world **scale** is applied on top, so a Cube scaled to `(4, 0.5, 2)` with an Auto collider gets a matching 4 × 0.5 × 2 m box.
+
+### Which body does a collider belong to?
+
+- A collider on a node with a Rigidbody 3D belongs to that body.
+- A collider on a node **inside** a Node3D that has a Rigidbody 3D belongs to that ancestor's body, so you can build one body out of several shapes.
+- A collider with no Rigidbody 3D on itself or any Node3D ancestor is **static scenery**: floors, walls, ramps.
+
+## Gravity
+
+The scene's 3D gravity is the **Gravity 3D** field in the Inspector's **Canvas** section (select the scene). Default: `(0, -9.81, 0)` m/s², Earth gravity. Set it to `(0, -1.62, 0)` for the Moon, or `(0, 0, 0)` for space. Each body multiplies it by its **Gravity Scale**.
+
+## Scripting bodies
+
+Refs of nodes with a Rigidbody 3D have:
+
+| Member | Meaning |
+|---|---|
+| `ref.velocity3` | Linear velocity `{ x, y, z }` in m/s, read live. Assign to set it. `null` without a simulated body. |
+| `ref.angularVelocity3` | Spin, degrees per second per axis. Assign to set. |
+| `ref.addForce3(x, y, z)` | Unity's AddForce: a push spread over the next frame. Call every frame for a steady thrust. |
+| `ref.addImpulse3(x, y, z)` | An instant kick: velocity changes by impulse / mass. Jumps, explosions, hits. |
+| `ref.addTorque3(x, y, z)` | An instant spin. |
+| `ref.position3` / `ref.rotation3` | Teleport a body, or move a Kinematic one. |
+
+```js
+const ball = getCompByID('ball')
+if (ctx.tap) ball.addImpulse3(0, 6, 0)          // hop
+if (ball.velocity3 && ball.velocity3.y < -20) {  // cap the fall speed
+  ball.velocity3 = { ...ball.velocity3, y: -20 }
+}
+```
+
+:::caution
+`ref.velocity3` is `null` until the node has a simulated body. On the frame you make a hidden node visible, its body may not exist yet. The Physics 3D Lab's ball cannon handles this by retrying on the next frame:
+
+```js
+for (const shot of g.launch.splice(0)) {
+  const ball = getCompByID(shot.id)
+  if (ball.velocity3) ball.velocity3 = shot.v   // the body exists: launch it
+  else g.launch.push(shot)                      // not yet: try again next frame
+}
+```
+:::
+
+## Raycasts
+
+`ctx.raycast3(origin, direction, maxDistance?, ignore?)` is Unity's `Physics.Raycast`. It returns the first **non-trigger** collider along the ray, or `null`.
+
+- `origin` and `direction` take `{ x, y, z }` or `[x, y, z]`. The direction is normalized for you.
+- `maxDistance` in meters (default unlimited).
+- `ignore`: a ref whose body the ray skips, usually the caster itself.
+
+The hit has `ref` (the node hit), `x`, `y`, `z` (the point), `normalX`, `normalY`, `normalZ` and `distance`.
+
+```js
+// Is the player standing on something?
+const p = player.position3
+const ground = ctx.raycast3(p, [0, -1, 0], 1.1, player)
+const grounded = !!ground
+
+// Aim marker where the camera's ray hits.
+const hit = ctx.raycast3(camPos, dir, 100)
+if (hit) marker.position3 = { x: hit.x + hit.normalX * 0.05, y: hit.y + hit.normalY * 0.05, z: hit.z + hit.normalZ * 0.05 }
+```
+
+## Collisions and triggers
+
+`ctx.collisions` lists the contacts that **began** (`started: true`) or **ended** (`started: false`) this frame, for 2D and 3D alike. `a` and `b` are the two refs, and `trigger` is `true` when either collider is a trigger.
+
+The Physics 3D Lab counts crates inside a trigger zone:
+
+```js
+for (const c of ctx.collisions) {
+  if (!c.trigger || !c.a || !c.b) continue
+  const other = c.a.name === 'goal' ? c.b : c.b.name === 'goal' ? c.a : null
+  if (!other || !other.name.startsWith('crate')) continue
+  if (c.started) g.inZone.add(other.name)
+  else g.inZone.delete(other.name)
+}
+getCompByID('score').textContent = 'IN THE ZONE: ' + g.inZone.size
+```
+
+## Try it
+
+**+ → Demos → Physics 3D Lab**: a crate pyramid, balls rolling down a ramp, a bouncy ball, all Dynamic bodies with Auto colliders; static floor and ramp; a green trigger zone that counts crates. Click to fire balls from the camera, drag to orbit, **R** to reset.
+
+<Shot id="physics3d-lab" caption="Physics 3D Lab in Playground: crate pyramid mid-collapse, the aim marker on the floor, and the IN THE ZONE counter" />
+
+See also: [Scripting: physics](../scripting/physics-api.mdx), [Scripting: 3D](../scripting/3d-api.mdx).

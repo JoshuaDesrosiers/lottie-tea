@@ -1,0 +1,84 @@
+---
+title: Props and data
+sidebar_position: 9
+description: Reading and writing scene Properties with ctx.props, and reading values from the embedding web page with ctx.data.
+---
+
+# Props and data
+
+Two objects carry named values into and out of a game:
+
+| Member | Read/write | What it is |
+|---|---|---|
+| `ctx.props` | read/write | The scene's **Properties** (Inspector, nothing selected). Bound text, colours and HTML update from them with no code |
+| `ctx.data` | read-only | Values the **embedding web page** passed in (`player.set`, `<An1Player data>`) |
+
+## ctx.props
+
+```ts
+ctx.props: Record<string, any>
+```
+
+Scene Properties are typed values you declare on a scene (Number, Bool, Text, Color). Everything reads and writes the same live store: scripts, On Click *Set Property* actions, **Property Binding** components, HTML UI `data-bind` / `data-prop`, and the embedding page.
+
+```js
+ctx.props.score += 10
+if (ctx.props.lives <= 0) ctx.fireTrigger('gameOver')
+ctx.props.status = 'Level ' + g.level
+```
+
+### Types and coercion
+
+Every write is converted to the property's declared type, so a number stays a number however it was set.
+
+| Kind | Stored as | Coercion on write |
+|---|---|---|
+| `Number` | number | `Number(value)`; non-numbers become `0` |
+| `Bool` | boolean | `true` for `true`, `1`, `'true'`, `'1'`, `'on'`; otherwise `false` |
+| `Text` | string | `String(value)`; `null`/`undefined` become `''` |
+| `Color` | `[r, g, b, a]` (0..1) | Arrays of 3 or 4 numbers, or `'#rrggbb'`; anything else becomes white |
+
+```js
+ctx.props.tint = '#ff8800'          // stored as [1, 0.533, 0, 1]
+ctx.props.paused = 'on'             // stored as true
+```
+
+### Lifetime
+
+Properties start at their authored defaults on every Play **and every scene switch**. For values that should cross scenes use [`ctx.globals`](./scenes-and-globals.mdx); for values that should survive a reload use [`ctx.storage`](./storage-api.mdx).
+
+### Gotchas
+
+- Writing a property the scene doesn't declare does nothing and logs a warning in the Console: *"this scene has no property ..."*. Reading one returns `undefined`. Add it in the Inspector's Properties (with nothing selected).
+- Bindings only re-apply when a value actually **changes**, so writing the same value every frame is cheap.
+- `'score' in ctx.props` and `Object.keys(ctx.props)` work and list the declared properties.
+
+### Show a value without code
+
+Add a **Property Binding** component to a Text node and bind it to `score` with a format like `Score: {}`. Then the script only does `ctx.props.score += 1`. See [Properties and bindings](../editor/properties-and-bindings.mdx).
+
+## ctx.data
+
+```ts
+ctx.data: Readonly<Record<string, unknown>>
+```
+
+Values handed in by the web page that embeds the game:
+
+```js
+// page:  player.set('userName', 'Ada')   or   <An1Player data={{ userName: 'Ada' }} />
+getCompByID('greeting').textContent = 'Hi, ' + (ctx.data.userName ?? 'friend')
+```
+
+**Notes**
+- Read-only. To send something back, use [`ctx.emit`](./events-and-messages.mdx).
+- `{}` in the editor (nothing is embedding it), so always provide a fallback.
+- A page value **also** sets the same-named scene Property, if the scene has one, so bound text updates automatically. If you declared a property, you can read `ctx.props.userName` instead and get type coercion for free.
+- The object is replaced (never mutated) when the page sends new data, and survives scene switches.
+
+```js
+// Works in the editor (default) and when embedded (page value):
+const count = Number(ctx.data.count ?? ctx.props.count ?? 0)
+```
+
+See [Data binding](../embedding/data-binding.mdx) for the page side.

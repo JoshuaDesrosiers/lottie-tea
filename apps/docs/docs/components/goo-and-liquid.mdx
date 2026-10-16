@@ -1,0 +1,202 @@
+---
+title: Goo and liquid
+sidebar_position: 4
+description: Gooey liquids in Toasty - Goo 2D groups, Anti Goo 2D, Goo Gloss, Goo Material and Glow, Particle Fluid 2D, the Liquid 2D physics fluid, antialiasing, and flipbooks on particles and goo.
+---
+
+# Goo and liquid
+
+Toasty has two kinds of liquid, and they combine:
+
+- **Goo** is a *look*. Shapes, text, sprites and particles melt into one smooth blob, growing necks between each other as they get close, like drops of mercury or a lava lamp. **Goo 2D**, **Anti Goo 2D**, **Goo Gloss**, **Goo Material & Glow** and **Particle Fluid 2D** are goo components.
+- **Liquid 2D** is *physics*. Thousands of tiny particles pour, splash, settle in containers made of colliders, and make light bodies float. It looks like water out of the box, and you can draw it as goo too.
+
+Try the Liquid Lab demo: water in a tank with floating crates and a sinking stone, and a honey faucet draining through a funnel. Click to drop a crate, Shift-click for a stone.
+
+<ToastyDemo game="/games/liquid-lab.teab" height={360} caption="Liquid Lab: Liquid 2D water and honey, Rigidbody 2D crates that float or sink. Click to drop a crate, Shift-click for a stone." />
+
+## When goo runs
+
+Goo, Particle Fluid 2D and liquids are simulation effects: they run in **Playground**, the State Machine tab's preview and exports. While you design, a goo group previews whole as soon as **any member is selected** (its particle members run too), so you can see the liquid while you tweak it. Otherwise each member draws normally in Design.
+
+## Goo 2D (liquid group)
+
+Put **Goo 2D** on any node: a shape, a text, an image, a Particle System, a Liquid 2D, a Flipbook. Every node with the **same group number** melts into one liquid. Each member keeps its exact outline while it is alone, and as two members come within reach of each other a smooth neck grows between them until they merge.
+
+The group is drawn once, with its **first member's** look (first in the Layers order): that member's fill, rim, gloss, Goo Material and Antialias settings apply to the whole group. The liquid draws at the group's front-most member's place in the draw order.
+
+<Shot id="goo-2d-inspector" caption="Goo Shapes demo: the GOO text selected, its Goo 2D card with Group, Fill (gradient), Rim and Reach, and the liquid around it on the canvas" />
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Group # | Members with the same number are one liquid. | 0 and up | 0 |
+| Fill | The liquid's body: **Solid** (a colour) or **Gradient**. A gradient's kind and stops are edited here; its line is dragged on the canvas (**Edit on canvas**), in the first member's space, like a shape's own gradient. Copy and paste buttons move gradients between nodes. | | blue |
+| Rim | A band round the outline: colour or gradient. Alpha 0 and no gradient = no rim. | | dark blue |
+| Rim width | Rim thickness, in world units. | 0 to 30 | 4 |
+| Reach | How far outside its outline a member starts pulling on neighbours. Bigger = joins from further away, longer necks. | 2 to 120 | 28 |
+| Gloss | Strength of the glossy highlight. 0 = flat. | 0 to 1 | 0.4 |
+| Smoothness | Outline detail: lower = smoother curves, more work per frame. | 0.08 to 0.6 | 0.2 |
+| Hide the original (the goo replaces it) | Hides each member's own drawing. Turn it off to keep, for example, a text label drawn on top of the blob it is part of. | on/off | on |
+| Antialias edges | Smooth edges instead of hard pixels. See [Antialias](#antialias). | on/off | off |
+
+:::tip
+A shape's fill **alpha** sets how strongly it pulls. A half-transparent member makes a thinner, more reluctant goo.
+:::
+
+### Moving goo from a script
+
+Goo needs no special API: move, scale or animate the members and the liquid follows. This is the script from the **Goo Shapes** demo, which orbits two balls round a text so they melt into the letters as they pass:
+
+```js
+const t = ctx.time
+const ref = (id) => getCompByID(id)
+for (let i = 0; i < 2; i++) {
+  const a = t * 0.9 + i * Math.PI
+  const b = ref('ball' + i)
+  // An ellipse that grazes the letters: they merge as they pass close.
+  b.x = -150 + Math.cos(a) * 205
+  b.y = 25 + Math.sin(a) * 105
+}
+const gap = 75 + Math.sin(t * 1.3) * 45
+ref('square0').x = 270 - gap
+ref('square1').x = 270 + gap
+```
+
+## Anti Goo 2D
+
+The opposite of a member: it **carves into** a goo group. Where this node sits, the liquid is pushed away with the same soft falloff it melts with, so the goo bends round it and splits apart where it cuts through. It works on anything Goo 2D accepts (shapes, text, sprites, particles). A node can carry several.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Goo group # | The group to carve into. | 0 to 99 | 0 |
+| Strength | How hard it carves. 1 cancels one goo member exactly; raise it to cut through thick, overlapping goo. | 0 to 5 | 1.5 |
+| Hide this node while goo runs | The carving node is not drawn itself while the goo runs (it still shows in Design so you can see and move it). | on/off | on |
+
+## Goo Gloss
+
+Places and shapes a goo group's shine. Put it on **any member**. The group's **Gloss** slider still decides whether there is a shine at all and scales its strength.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Depth from edge (px) | How far inside the edge the shine starts, at any blob size. Only parts thicker than twice this catch a shine. | 1 to 300 | 24 |
+| Direction (°) | Which way the shine is nudged. 0 = right, 90 = up, 135 = up-left. | 0 to 360 | 135 |
+| Offset (px) | How far it is nudged. | 0 to 200 | 8 |
+| Opacity | The shine's strength. | 0 to 1 | 0.4 |
+| Softness | 0 = a crisp edge (pixel art), higher = a soft fade inward. | 0 to 1 | 0 |
+| Colour | The shine's colour. | | white |
+| Colour amount | How far the liquid's colour moves toward the shine colour (1 = exactly that colour). | 0 to 1 | 0.6 |
+
+## Goo Material & Glow
+
+Makes a goo group look richer than a flat fill. Put it on the group's **first member**.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Material | A shader-graph material (from the [Shader tab](./shader-graph.mdx)) that paints the liquid's body. **None (plain fill)** = no material. | | None |
+| Glow colour | The halo's colour. | | light cyan |
+| Glow | Strength of a soft halo round the liquid. 0 = off. | 0 to 1 | 0.8 |
+| Glow spread | How far the halo reaches: 0 = a tight edge glow, 1 = as far as the goo's reach. | 0 to 1 | 0.5 |
+
+The material's colour **multiplies** the Goo 2D fill, so keep the fill white to see the material exactly as built. Graphs receive the liquid's local position and UV (0 to 1 across the liquid's box). A graph's **Sample Texture** input is not available here. For extra bloom on neon, magic or lava, add the **Glow** [post effect](./post-effects.mdx) as well.
+
+## Particle Fluid 2D (goo)
+
+Draws the node's **Particle System** or **Liquid 2D** particles as one liquid: drops join with smooth necks as they near each other and pull apart like goo. Put it on the same node as the particles.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Colour | The liquid's colour. | | blue |
+| Rim colour | A band round the outline. Alpha 0 = no rim. | | dark blue |
+| Rim width | Rim thickness, as a share of the drop (how much thinner the body is than the rim). | 0 to 1 | 0.25 |
+| Stickiness | How far each drop's pull reaches, times its size. Higher = drops join from further apart and stretch longer necks. | 1 to 4 | 2 |
+| Threshold | Lower = fatter, more merged liquid. Higher = thinner, separate drops. | 0.1 to 0.9 | 0.5 |
+| Gloss | Glossy highlight strength. | 0 to 1 | 0.5 |
+| Smoothness | Outline detail: lower = smoother, more work per frame. | 0.08 to 0.6 | 0.2 |
+| Antialias edges | See [Antialias](#antialias). | on/off | off |
+
+:::note Particle Fluid 2D or Goo 2D?
+Particle Fluid 2D turns *one* emitter into liquid. Goo 2D is more general: put it on an emitter **and** on shapes or text with the same group number, and the particles melt into those shapes too (drips running off a logo, a potion pouring into a bottle).
+:::
+
+## Liquid 2D
+
+A real particle fluid, simulated with the 2D physics. It pours, splashes, settles in containers made of ordinary colliders, pushes bodies around and floats the light ones (Archimedes: a body lighter for its area than the liquid floats, a denser one sinks). It lives in the **Physics 2D** section of Add Component.
+
+Place the node where the liquid should start. In Design it shows its starting body of particles; in Playground it flows. Any static collider holds it: walls, floors, tilted platforms, funnels.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Volume X / Y (px) | The starting block of liquid, centred on the node. 0 x 0 for a faucet that starts empty. The card shows how many particles that makes. | 0 and up | 160 x 80 |
+| Spacing (px) | Distance between particles at rest. Smaller = finer and smoother, but more particles to simulate. | 3 to 30 | 7 |
+| Color | The liquid's colour. Thin spots and spray blend toward white, like foam. | | blue |
+| Viscosity | 0 = water, 1 = honey. | 0 to 1 | 0.15 |
+| Stiffness | How hard it resists being squashed. Lower = squishier, higher = firmer (can jitter). | 0.2 to 3 | 1 |
+| Density | Buoyancy: bodies lighter per area than this float, denser ones sink (kg per 32 x 32 px; a 24 px crate of mass 1 is about 1.8). 0 = no buoyancy. | 0 to 50 | 2.5 |
+| Drag | How much it slows bodies moving through it. | 0 to 20 | 2 |
+| Faucet (/s) | Particles per second streaming out of the node's origin. 0 = off. | 0 to 2000 | 0 |
+| Stream X / Y | The faucet's stream velocity, px/s (shown when Faucet is on). | any | (0, -120) |
+| Max | Hard cap on particles, a performance guard. | 10 to 4000 | 900 |
+
+The demo's two liquids are a good starting point:
+
+| Liquid | Volume | Spacing | Viscosity | Stiffness | Density | Drag | Faucet | Stream | Max |
+|---|---|---|---|---|---|---|---|---|---|
+| Water tank | 170 x 64 | 6 | 0.08 | 1 | 2.5 | 2 | 0 | | 1100 |
+| Honey faucet | 0 x 0 | 6 | 0.75 | 0.8 | 3 | 5 | 70 | (0, -60) | 520 |
+
+Liquids interact through physics, so the script side is about the bodies. The Liquid Lab's whole script spawns crate and stone prefabs where you click:
+
+```js
+// Click to drop a crate (Shift: a stone) into the liquids.
+const g = ctx.globals
+const keys = ctx.keysDown
+const down = keys.has('mouse')
+if (down && !g.wasDown && ctx.mouseY < 110) {
+  const heavy = keys.has('shift')
+  const box = ctx.spawn(heavy ? 'Stone' : 'Crate', ctx.mouseX, ctx.mouseY)
+  if (box) box.rotation = Math.random() * 40 - 20
+}
+g.wasDown = down
+```
+
+See [Physics 2D](./physics-2d.mdx) for the bodies and colliders, and [Spawning and prefabs](../scripting/spawning-and-prefabs.mdx) for `ctx.spawn`.
+
+:::tip
+Want goo-style water? Add **Particle Fluid 2D** to the Liquid 2D node, or give it a **Goo 2D** so it melts together with other goo in the scene.
+:::
+
+## Antialias
+
+Liquid edges are **hard by default**: each pixel is either liquid or not. That keeps pixel art and low-resolution scenes crisp. The **Antialias** component (also switched on by the **Antialias edges** checkbox on Goo 2D and Particle Fluid 2D) opts in to smooth edges.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Softness (px) | Width of the smooth edge in screen pixels. 1 = standard antialiasing, more = softer. | 0.25 to 6 | 1 |
+
+- It applies to the node's own Particle Fluid 2D, or to its whole Goo 2D group when the node is the group's first member.
+- It only works at full resolution. When the scene's **Resolution** (canvas settings) is above 1 px, edges stay pixel-crisp regardless.
+- Remove it (or untick the checkbox) to go back to hard edges.
+
+## Flipbooks on particles and goo
+
+A **Flipbook** shows a node's children one at a time, like the frames of a hand-drawn cartoon. Animated drawings from [Paint mode](../editor/paint-mode.mdx) are placed as a node with one child per frame and a Flipbook. You can also build one yourself: group some frames and add **Animation → Flipbook**.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Frame Rate (fps) | Frames per second while playing. | 0.1 to 120 | 12 |
+| Frame | The frame shown in Design (and in Playground when not playing). Each child is one frame, in Layers order. | 1 to the number of children | 1 |
+| Play in Playground | Starts playing on its own in Playground and exported games. | on/off | on |
+| Loop (otherwise stop on the last frame) | Wraps round at the end, or holds the last frame. | on/off | on |
+
+Flipbooks work with particles and goo:
+
+- **Flipbook on a Particle System node**: each particle shows the frames over **its own life**, starting at its birth. The art is scaled so the first frame's size matches the particle's size, turns with the particle, and is tinted by its colour over life. Animated butterflies, flickering embers, tumbling leaves.
+- **Flipbook on a Goo 2D member**: the frame it is showing (and everything in it) shapes the liquid, so the goo animates with the flipbook. With **Hide the original** on, the frames are only used as the liquid's outline.
+
+<Shot id="flipbook-particles" caption="A Particle System with a Flipbook and three child frames in the Layers panel; each particle on the canvas shows a different frame" />
+
+## Related
+
+- [Particles 2D](./particles-2d.mdx) for emitters, Particle Look and behaviours.
+- [Shader graph](./shader-graph.mdx) for building a Goo Material.
+- [Post effects](./post-effects.mdx) for Glow (bloom) on top of glowing goo.

@@ -1,0 +1,227 @@
+---
+title: 3D API
+sidebar_position: 17
+description: Scripting 3D nodes - transforms, look-at, model animation, VRM avatars, poses, ragdolls, 3D particles, block worlds, breakable glass and fog.
+---
+
+# 3D API
+
+3D nodes (Node3D: meshes, models, cameras, lights) use their own transform members, ending in `3`. 2D members like `ref.x` don't apply to them. For the 3D editor and components see [3D basics](../components/3d-basics.mdx). 3D physics (`velocity3`, `raycast3`, ...) is on the [Physics API](./physics-api.mdx) page.
+
+**Vectors:** where a method takes a vector (`Vec3` below) you can pass `{ x, y, z }` or `[x, y, z]`. Units are meters; angles are degrees.
+
+## Transform
+
+| Member | Type | Description |
+|---|---|---|
+| `ref.position3` | `{ x, y, z }` or `null` | Position |
+| `ref.rotation3` | `{ x, y, z }` or `null` | Euler rotation, degrees: x = pitch, y = yaw, z = roll |
+| `ref.scale3` | `{ x, y, z }` or `null` | Scale |
+| `ref.lookAt3(x, y, z)` | function | Turn to face a world point |
+
+`null` on 2D nodes. **Assign a whole object**; mutating the returned one does nothing.
+
+```js
+const cube = getCompByID('cube')
+cube.rotation3 = { x: 0, y: ctx.time * 90, z: 0 }      // spin
+const p = cube.position3
+cube.position3 = { ...p, y: 1 + Math.sin(ctx.time * 2) * 0.25 }   // bob
+```
+
+```js
+// WRONG: changes a copy, nothing moves
+cube.position3.x += 1
+```
+
+### lookAt3
+
+```ts
+ref.lookAt3(x: number, y: number, z: number): void
+```
+
+Rotates the node so its forward axis points at the world point. Cameras and lights look down their local **-Z**. Keeps the current roll.
+
+```js
+const t = getCompByID('target').position3
+getCompByID('camera').lookAt3(t.x, t.y, t.z)
+```
+
+A position written this frame reads back immediately from `position3`; on a later frame it reads the engine's value.
+
+## Model animation clips
+
+```ts
+ref.playAnimation3(name: string, options?: { loop?: boolean; overlay?: string }): void
+```
+
+For imported **model** meshes. Plays clip `name` (`''` = rest pose), looping unless `loop: false` (then it holds the last frame). `overlay` layers a second clip on top. Re-sending the same clip/options does **not** restart it, so call it every frame with whatever should be playing.
+
+```js
+const moving = Math.abs(v.x) + Math.abs(v.z) > 0.1
+soldier.playAnimation3(moving ? 'walk' : 'idle', { overlay: aiming ? 'holding-right-shoot' : '' })
+if (dead) soldier.playAnimation3('die', { loop: false })
+```
+
+## Humanoid Animator
+
+```ts
+ref.playAnim3(name: string, options?: { loop?: boolean; speed?: number; blend?: number }): boolean
+ref.anim3: { clip: string; time: number } | null      // read
+```
+
+For avatars with a **Humanoid Animator** component: crossfade to one of its imported clips, optionally overriding loop, speed and blend time. `''` goes back to the component's own clip. Returns `false` if it can't.
+
+```js
+if (attack) hero.playAnim3('punch', { loop: false, speed: 1.4, blend: 0.1 })
+if (hero.anim3?.clip === 'punch' && hero.anim3.time > 0.5) hero.playAnim3('')
+```
+
+## Bones and expressions (models and VRM avatars)
+
+| Member | Returns | Description |
+|---|---|---|
+| `ref.setBone3(bone, rotation)` | boolean | Turn a bone by Euler degrees on top of its animation (applied Y-X-Z in the bone's space). `{0,0,0}` resets. `false` for an unknown bone |
+| `ref.setBoneOffset3(bone, offset)` | boolean | Move a bone (usually `hips`) by meters in its parent's space |
+| `ref.clearBones3()` | void | Every scripted bone pose off |
+| `ref.setExpression3(name, weight)` | boolean | VRM expression weight 0..1 |
+| `ref.bone3(bone)` | `{ x, y, z }` or `null` | A bone's world position (last frame) |
+| `ref.resetSprings3()` | void | Hair/cloth spring bones settle from the current pose |
+| `ref.modelInfo3` | object or `null` | What the model offers (below) |
+
+Bone names are VRM humanoid names (`hips`, `spine`, `chest`, `neck`, `head`, `leftUpperArm`, `leftLowerArm`, `leftHand`, `leftUpperLeg`, `leftLowerLeg`, `leftFoot`, and the `right...` ones) or a node name in the model. Expressions include `happy`, `angry`, `sad`, `relaxed`, `surprised`, `blink`, `blinkLeft`, `blinkRight`, the mouth shapes `aa`, `ih`, `ou`, `ee`, `oh`, and `lookUp`...; the exact list is in `modelInfo3.expressions`.
+
+Bone poses are applied every frame you set them; set them every frame you're animating.
+
+```js
+const avatar = getCompByID('avatar')
+avatar.setBone3('head', { x: 0, y: Math.sin(ctx.time) * 30, z: 0 })   // look around
+avatar.setBoneOffset3('hips', [0, crouching ? -0.3 : 0, 0])
+avatar.setExpression3('blink', ctx.time % 4 < 0.12 ? 1 : 0)
+const hand = avatar.bone3('rightHand')
+if (hand) getCompByID('sword').position3 = hand
+```
+
+### modelInfo3
+
+```ts
+ref.modelInfo3: {
+  vrm: boolean         // a VRM avatar
+  version: number      // VRM 0 or 1
+  name: string
+  forwardZ: number     // +1 faces +Z (VRM 1.0), -1 faces -Z (VRM 0.x)
+  bones: string[]      // humanoid bone names (VRM) or node names
+  expressions: string[]
+  clips: string[]      // animation clips in the file
+} | null
+```
+
+```js
+print(getCompByID('avatar').modelInfo3?.clips)
+```
+
+## VRM Poses
+
+```ts
+ref.setPose3(name: string, options?: { blend?: number }): boolean
+ref.pose3: string    // read
+```
+
+For avatars with a **VRM Poses** component: crossfade to one of its named poses (Guard, Punch, Kick, ...) over the component's blend time or `blend` seconds. `''` returns to the component's selected pose. `false` if there's no such pose. `pose3` is the pose showing (or blending to).
+
+```js
+if (ctx.keysDown.has('j') && fighter.pose3 !== 'Punch') fighter.setPose3('Punch', { blend: 0.08 })
+```
+
+## Ragdoll 3D (VRM avatars)
+
+```ts
+ref.ragdoll3(on: boolean, options?: { velocity?: Vec3 }): boolean
+ref.isRagdoll3: boolean                                  // read
+ref.ragdollHit3(bone: string, impulse: Vec3): boolean    // impulse in N·s, world axes
+```
+
+Go limp (optionally flung at `velocity` m/s) or get back up. `ragdollHit3` knocks one limb of a limp avatar. Playground / games only.
+
+```js
+if (knockedOut && !foe.isRagdoll3) foe.ragdoll3(true, { velocity: [0, 2, -6] })
+if (foe.isRagdoll3 && kicked) foe.ragdollHit3('chest', [0, 30, -80])
+if (foe.isRagdoll3 && ctx.time > 3) foe.ragdoll3(false)
+```
+
+## Particle System 3D
+
+```ts
+ref.burst3(count?: number): void   // default 50
+```
+
+Emits `count` particles at once on top of the steady rate: explosions, casts, impacts.
+
+```js
+if (hit) { fx.position3 = { x: hit.x, y: hit.y, z: hit.z }; fx.burst3(80) }
+```
+
+## Block worlds (Voxels)
+
+| Member | Description |
+|---|---|
+| `ref.setVoxels(blocks)` | Replace every block at once |
+| `ref.setVoxel(x, y, z, block)` | Set one block; returns `false` outside the world |
+| `ref.setVoxelChunk(cx, cz, blocks)` | Load or replace one 16-wide chunk column (streamed worlds) |
+| `ref.unloadVoxelChunk(cx, cz)` | Drop a loaded chunk |
+
+Blocks are one byte each, `0` = air (other ids: grass 1, dirt 2, stone 3, ...; see [Voxels](../components/voxels.mdx)). Arrays can be `Uint8Array` or a plain number array.
+
+- `setVoxels`: index = `x + width * (z + depth * y)` (x fastest, then z, then y). Block `(x, y, z)` fills the unit cube from that corner in the node's local space.
+- `setVoxel`: only the touched part of the world is re-meshed. Coordinates are floored.
+- `setVoxelChunk`: covers blocks `[cx*16, cx*16+16)` x `[0, height)` x `[cz*16, cz*16+16)`, index = `lx + 16 * (lz + 16 * y)`. Load chunks around the player as they move and unload far ones; the engine meshes nearest-first and draws only what the camera sees.
+
+Block worlds are runtime only: they aren't saved into the scene.
+
+```js
+const world = getCompByID('world')
+const W = 32, D = 32, H = 16, blocks = new Uint8Array(W * D * H)
+for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++)
+  blocks[x + W * (z + D * y)] = y < 4 ? 3 : y === 4 ? 1 : 0       // stone, then grass
+world.setVoxels(blocks)
+world.setVoxel(10, 5, 10, 3)        // place one stone block on the grass
+```
+
+## Breakable glass
+
+| Member | Returns | Description |
+|---|---|---|
+| `ctx.glassRaycast3(origin, dir, max?)` | hit or `null` | Nearest standing glass pane along a ray. Holes let it through. `normal` faces back at the ray |
+| `ref.shatter3(point, velocity, options?)` | `{ broken, loose }` | Break the pane where something hit |
+| `ref.crack3(point, options?)` | number | Frost/crack without breaking; returns pieces touched |
+| `ref.resetGlass()` | void | Every piece back in place |
+| `ref.glassIntact` | number | How much is still standing, 0..1 by area |
+
+`shatter3` options: `radius` (m, default 0.25) how far the break reaches; `floor` (world y shards land on, default 0; `null` = none). `point` is in world space (projected onto the pane); `velocity` is the hitter's, and shards fly along it. Pieces left hanging off nothing fall too. A hit on a hole returns `{ broken: 0, loose: 0 }`.
+
+`crack3` options: `radius` (default 0.35) and `amount` (0..1 whitening per hit, default 0.5).
+
+```js
+const hit = ctx.glassRaycast3(ball.position3, dir, 0.5)
+if (hit && hit.ref) {
+  if (thick) hit.ref.crack3([hit.x, hit.y, hit.z], { amount: 0.4 })
+  else hit.ref.shatter3([hit.x, hit.y, hit.z], ball.velocity3 ?? dir, { radius: 0.4 })
+}
+```
+
+## Fog and ambient light
+
+```ts
+ctx.setEnvironment3(options: {
+  fog?: [r, g, b]        // 0..1, default [0.5, 0.5, 0.5]
+  fogDensity?: number    // ≈ 1 / distance where things are mostly fogged; 0 = none (default)
+  ambient?: [r, g, b]    // sky ambient light, default [0.3, 0.33, 0.4]
+} | null): void
+```
+
+Applies until Playground stops. `null` restores the defaults. Usually the fog matches the camera's clear colour.
+
+```js
+ctx.setEnvironment3({ fog: [0.62, 0.78, 0.95], fogDensity: 1 / 60, ambient: [0.35, 0.38, 0.45] })
+```
+
+The low-level `ctx.setTransform3D`, `ctx.setAnimation3D`, `ctx.burstParticles3D`, `ctx.setVoxels`/`setVoxel`/`setVoxelChunk`/`unloadVoxelChunk`, `ctx.model3.*` and `ctx.glass.*` take internal ids; they're what the ref members above call.

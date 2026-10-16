@@ -1,0 +1,215 @@
+---
+title: Components overview
+sidebar_position: 1
+description: What components are, how to add, enable, disable and remove them, and a full table of every component Toasty has with a link to its page.
+---
+
+# Components overview
+
+A **component** is a piece of behaviour you attach to a node. A plain shape just sits there; give it a **Rigidbody 2D** and a **Box Collider 2D** and it falls and lands; add a **Light 2D** and it glows; add a **Particle System** and it sprays sparks. If you have used Unity, this is the same idea as its "Add Component" button, and most components even share Unity's names.
+
+Components never change what a node *is*. A shape stays a shape, a text stays a text. Components stack on top, in a list, and any node can carry any number of them.
+
+## Where components live
+
+Select a node and look at the **Inspector**. Near the bottom is the **Components** section: one card per component, in the order they were added, and an **Add Component** button under them.
+
+<Shot id="components-inspector-section" caption="The Inspector's Components section with a few components and the Add Component menu open" />
+
+Each card has:
+
+| Part | What it does |
+|---|---|
+| Checkbox (left of the name) | **Enabled.** Untick it to switch the component off without losing any of its settings. A disabled component is ignored by the engine exactly as if it were not there. |
+| Name | The component's name (a Script shows its script's name; the shader-graph material slot shows as **Material**). |
+| Trash icon | Removes the component (one undo step, like every edit). |
+| Body | The component's own settings. Hover a label to see its help text. |
+
+### Adding a component
+
+Click **Add Component**. The menu is grouped into sections:
+
+| Section | Components |
+|---|---|
+| Rendering | Camera, Light 2D, Shadow Caster 2D, Trail Renderer, Particle System, Particle Fluid 2D (goo), Particle Behaviours 2D, Goo 2D (liquid group), Anti Goo 2D, Goo Material & Glow, Goo Gloss, Particle Look (shape, blend, glow), Particle Path (flow along a path), Antialias (smooth liquid edges) |
+| Effects 2D | Drop Shadow, Outline, Repeater, Mirror (symmetry), Stroke Style (dash, trim path), Pixel Snap |
+| Motion | Wiggle, Parallax, Camera Shake |
+| Lighting 2D | Light Flicker, Light Layers |
+| Nature | Tree 2D |
+| Physics 2D | Rigidbody 2D, Box Collider 2D, Circle Collider 2D, Capsule Collider 2D, Polygon Collider 2D, Hinge Joint 2D, Liquid 2D, Cloth 2D |
+| Physics 3D | Rigidbody 3D, Collider 3D, Ragdoll 3D (VRM) |
+| Effects 3D | Particle System 3D, Material Overrides |
+| Rigging | IK Constraint 2D, Sprite Skin, Foot IK (VRM), Bone Attachment |
+| Audio | Audio Source |
+| Animation | Flipbook, VRM Poses (states), Humanoid Animator (mocap) |
+| UI | UI Anchor, UI Stack, UI Button, UI Toggle, UI Slider, UI Scrollbar, UI Scroll View, HTML UI |
+| Layout | UI Layout, UI Layout Item, UI Show When |
+| Events & Data | On Click (Events), Property Binding |
+| Shading | Material (Shader Graph) |
+| Scripts | Every script in the project, plus **+ New Script…** |
+
+A new component starts with sensible defaults (the engine owns them, so the Inspector never disagrees with what actually runs). Adding a **UI Button** also adds an **On Click (Events)** list, the way Unity does.
+
+### One of each, or many?
+
+Most components are "one per node": once a node has one, its entry in the menu is greyed out. The ones you can stack several of are:
+
+- the four **2D colliders** (Box, Circle, Capsule, Polygon), so one body can be built from several shapes,
+- **Hinge Joint 2D**,
+- **Collider 3D**,
+- **Anti Goo 2D** and **Goo Gloss**,
+- **Scripts** (any number, even the same script twice).
+
+### Components that appear by themselves
+
+A few components are written for you by other Inspector controls rather than picked from the menu:
+
+- **Sorting Layer** is what the node's **Layer** dropdown stores. See [Sorting layers](./sorting-layers.mdx).
+- **Light Layers** is what a light's **Sorting layers lit** checkboxes store, and **+ Flicker** under a Light 2D adds **Light Flicker**. See [Lighting 2D](./lighting-2d.mdx).
+- **Clip Options** and **Clip Fade** are what the toggles under **Clip children to this shape** store. See [Effects 2D](./effects-2d.mdx).
+- **Group Fill** is what a group's **Fill** field stores. See [Effects 2D](./effects-2d.mdx).
+- **Antialias** is also switched on by the **Antialias edges** checkbox on Goo 2D and Particle Fluid 2D.
+
+You can still see, disable and remove these in the component list like any other.
+
+### When components run
+
+Simulation components (physics, particles, goo, liquids, cloth, trails, camera shake) run in **Playground** and in exported games. While you design, the scene stays still and light so it is easy to edit. A few exceptions help you work:
+
+- A selected **Particle System**, **Particle Fluid 2D** or **Goo 2D** group previews live in Design while it (or something inside or above it) is selected.
+- Lights, draw effects (shadow, outline, repeater, mirror, wiggle, parallax, pixel snap, stroke style) and shader materials show in Design too.
+- Whole-scene **post effects** only render in Playground, the State Machine tab's preview and exports. See [Post effects](./post-effects.mdx).
+
+### Animating component values
+
+Every number, colour and toggle a component shows can be keyframed: in the Timeline, use **+ Property** on the node and pick the component field (for example a Light 2D's intensity or a Stroke Style's Trim End). See [Animation timeline](../editor/animation-timeline.mdx).
+
+### Driving components from scripts
+
+Scripts get a reference to a node with `getCompByID('id')` (the node's **Id** field in the Inspector) and then use properties and methods for the components on it:
+
+```js
+const player = getCompByID('player')
+player.addImpulse(0, 340)            // Rigidbody 2D
+getCompByID('torch').lightIntensity = 1.2 + Math.sin(ctx.time * 13) * 0.1  // Light 2D
+getCompByID('sparks').emit(20)       // Particle System
+getCompByID('camera').shake2(0.5)    // Camera Shake
+getCompByID('door').playAudio()      // Audio Source
+```
+
+Each component page lists the calls that belong to it. For the full API see [Nodes and refs](../scripting/nodes-and-refs.mdx).
+
+## Every component
+
+The table lists every component in the engine, in the order they were added to it. The name in the first column is the Inspector label; the second is the internal name you see in saved files and in the field paths the Timeline uses.
+
+| Inspector name | Internal name | What it does | Page |
+|---|---|---|---|
+| Material | `SpriteRenderer` | Draws the node with a shader-graph material from the Shader tab. | [Shader graph](./shader-graph.mdx) |
+| *(your script's name)* | `Script` | Runs one of your scripts on this node, with per-node field values. | [Scripting overview](../scripting/overview.mdx) |
+| Camera | `Camera` | A viewpoint Playground can look through: zoom, background, follow, vignette, pixel-perfect. | [Camera](../editor/camera.mdx) |
+| Light 2D | `Light2D` | A 2D light: Global, Spot, Freeform or Sprite, with shadows and volumetric glow. | [Lighting 2D](./lighting-2d.mdx) |
+| Trail Renderer | `TrailRenderer` | Draws a fading ribbon behind the node as it moves. | [Trails](./trails.mdx) |
+| Particle System | `ParticleSystem` | Emits 2D particles: lifetime, speed, size, colour over life, bursts, emitter shape. | [Particles 2D](./particles-2d.mdx) |
+| Shadow Caster 2D | `ShadowCaster2D` | Makes the node block Light 2D light and cast a shadow. | [Lighting 2D](./lighting-2d.mdx) |
+| Rigidbody 2D | `Rigidbody2D` | Puts the node under 2D physics: gravity, mass, drag, forces. | [Physics 2D](./physics-2d.mdx) |
+| Box Collider 2D | `BoxCollider2D` | A rectangular collision shape. | [Physics 2D](./physics-2d.mdx) |
+| Circle Collider 2D | `CircleCollider2D` | A circular collision shape. | [Physics 2D](./physics-2d.mdx) |
+| Capsule Collider 2D | `CapsuleCollider2D` | A pill-shaped collision shape, good for characters. | [Physics 2D](./physics-2d.mdx) |
+| Polygon Collider 2D | `PolygonCollider2D` | A collision shape from your own points (convex hull). | [Physics 2D](./physics-2d.mdx) |
+| Hinge Joint 2D | `HingeJoint2D` | Pins this body to another (or the world) so it can only rotate: limbs, doors, pendulums. | [Physics 2D](./physics-2d.mdx) |
+| IK Constraint 2D | `IkConstraint2D` | Bends a bone chain so its tip reaches a target node. | [Rigging components](#rigging-components) |
+| Sprite Skin | `SpriteSkin2D` | Deforms an image with its bones so limbs bend smoothly. | [Rigging components](#rigging-components) |
+| Liquid 2D | `Liquid2D` | A particle fluid that pours, splashes, fills containers and floats bodies. | [Goo and liquid](./goo-and-liquid.mdx) |
+| Audio Source | `AudioSource` | Plays an imported sound from this node, optionally positioned in 2D. | [Audio](./audio.mdx) |
+| UI Anchor | `UiAnchor` | Pins the node to a point of the screen (HUD corners). | [UI components](./ui-components.mdx) |
+| UI Stack | `UiStack` | Lays the children out in a row or column. | [UI components](./ui-components.mdx) |
+| UI Button | `UiButton` | Hover and press feedback, and clicks scripts can read. | [UI components](./ui-components.mdx) |
+| UI Slider | `UiSlider` | A draggable value slider. | [UI controls](./ui-controls.mdx) |
+| UI Scrollbar | `UiScrollbar` | A scrollbar handle and track. | [UI controls](./ui-controls.mdx) |
+| UI Scroll View | `UiScrollView` | A scrolling viewport for a child named Content. | [UI controls](./ui-controls.mdx) |
+| UI Toggle | `UiToggle` | An on/off checkbox, or a radio button in a group. | [UI controls](./ui-controls.mdx) |
+| UI Layout | `UiLayout` | A flexbox container for responsive layouts. | [Responsive layout](./responsive-layout.mdx) |
+| UI Layout Item | `UiLayoutItem` | This child's size, grow and alignment inside a UI Layout. | [Responsive layout](./responsive-layout.mdx) |
+| UI Show When | `UiShowWhen` | Shows the node only on phones, tablets, portrait or landscape. | [Responsive layout](./responsive-layout.mdx) |
+| HTML UI | `UiHtml` | Real HTML and CSS drawn at this node. | [HTML UI](./html-ui.mdx) |
+| Rigidbody 3D | `Rigidbody3D` | 3D physics on a 3D node. | [Physics 3D](./physics-3d.mdx) |
+| Collider 3D | `Collider3D` | A 3D collision shape: Auto, Box, Sphere or Capsule. | [Physics 3D](./physics-3d.mdx) |
+| Flipbook | `Flipbook` | Shows the node's children one at a time, like frames of a cartoon. Also animates particles and goo. | [Paint mode](../editor/paint-mode.mdx), [Goo and liquid](./goo-and-liquid.mdx#flipbooks-on-particles-and-goo) |
+| Cloth 2D | `Cloth2D` | Soft fabric pinned along an edge, blown by wind: flags, curtains, capes. | [Physics 2D](./physics-2d.mdx#cloth-2d) |
+| Tree 2D | `Tree2D` | A procedural tree from a species and a seed that sways and drops leaves. | [Effects 2D](./effects-2d.mdx#tree-2d) |
+| On Click (Events) | `UiEvents` | Actions that run when the node is clicked, no code needed. | [UI components](./ui-components.mdx) |
+| Property Binding | `PropertyBindings` | Drives the node from the scene's Properties. | [Properties and bindings](../editor/properties-and-bindings.mdx) |
+| Particle System 3D | `ParticleSystem3D` | A 3D particle emitter with orbit motion and behaviours. | [Particles 3D](./particles-3d.mdx) |
+| Particle Fluid 2D (goo) | `ParticleFluid2D` | Draws a Particle System's or Liquid 2D's particles as one gooey liquid. | [Goo and liquid](./goo-and-liquid.mdx) |
+| Particle Behaviours 2D | `ParticleBehaviors2D` | Converge, Attract, Repel and Drag for 2D particles, each with a curve over life. | [Particles 2D](./particles-2d.mdx#particle-behaviours-2d) |
+| Goo 2D (liquid group) | `Goo2D` | Melts any shape, text, sprite or particles together with others in the same group. | [Goo and liquid](./goo-and-liquid.mdx) |
+| Antialias (smooth liquid edges) | `Antialias2D` | Opt-in smooth edges for this node's goo or particle fluid. | [Goo and liquid](./goo-and-liquid.mdx#antialias) |
+| VRM Poses (states) | `VrmPoses` | Named poses for a VRM avatar. | [VRM avatars](./vrm-avatars.mdx) |
+| Ragdoll 3D (VRM) | `Ragdoll3D` | Lets a VRM avatar go limp under 3D physics. | [VRM avatars](./vrm-avatars.mdx) |
+| Material Overrides | `MaterialSlots` | Swaps materials on one copy of a 3D model. | [3D basics](./3d-basics.mdx) |
+| Humanoid Animator (mocap) | `HumanoidAnimator` | Plays imported humanoid animation clips on a VRM avatar. | [VRM avatars](./vrm-avatars.mdx) |
+| Foot IK (VRM) | `FootIK` | Keeps a VRM avatar's feet planted on the ground. | [VRM avatars](./vrm-avatars.mdx) |
+| Bone Attachment | `BoneAttachment` | Makes a 3D node ride a bone of its parent model (a sword in a hand). | [VRM avatars](./vrm-avatars.mdx) |
+| Group Fill | `GroupFill` | A group's own fill colour or gradient, painted onto everything inside it. | [Effects 2D](./effects-2d.mdx#group-fill) |
+| Goo Material & Glow | `GooMaterial2D` | A shader-graph material and a glow for a goo group. | [Goo and liquid](./goo-and-liquid.mdx#goo-material--glow) |
+| Particle Look (shape, blend, glow) | `ParticleLook2D` | Each 2D particle's shape, blend mode, stretch and glow. | [Particles 2D](./particles-2d.mdx#particle-look) |
+| Sorting Layer | `SortingLayer2D` | Which sorting layer the node draws on. | [Sorting layers](./sorting-layers.mdx) |
+| Light Layers | `LightLayers2D` | Which sorting layers a Light 2D lights. | [Lighting 2D](./lighting-2d.mdx#light-layers) |
+| Light Flicker | `LightFlicker2D` | Makes a Light 2D waver like a candle, torch or failing neon. | [Lighting 2D](./lighting-2d.mdx#light-flicker) |
+| Drop Shadow | `DropShadow2D` | A solid copy of the node behind it, offset and optionally soft. | [Effects 2D](./effects-2d.mdx#drop-shadow) |
+| Outline | `Outline2D` | An outline round the node's silhouette. | [Effects 2D](./effects-2d.mdx#outline) |
+| Repeater | `Repeater2D` | Copies stepping by an offset, turn and scale, fading out. | [Effects 2D](./effects-2d.mdx#repeater) |
+| Mirror (symmetry) | `Mirror2D` | Mirrored copies across the node's own axes. | [Effects 2D](./effects-2d.mdx#mirror) |
+| Wiggle | `Wiggle2D` | Smooth random motion, like After Effects' wiggle. | [Effects 2D](./effects-2d.mdx#wiggle) |
+| Parallax | `Parallax2D` | Moves against the camera for depth. | [Effects 2D](./effects-2d.mdx#parallax) |
+| Pixel Snap | `PixelSnap2D` | Snaps drawn positions to whole pixels so pixel art never shimmers. | [Effects 2D](./effects-2d.mdx#pixel-snap) |
+| Stroke Style (dash, trim path) | `StrokeStyle2D` | Dashed strokes and Trim Path (draw-on lines). | [Effects 2D](./effects-2d.mdx#stroke-style) |
+| Camera Shake | `CameraShake2D` | Screen shake on a camera, kicked from a script. | [Effects 2D](./effects-2d.mdx#camera-shake) |
+| Particle Path (flow along a path) | `ParticlePath2D` | Makes 2D particles flow along a Shape's outline. | [Particles 2D](./particles-2d.mdx#particle-path) |
+| Mask (old — use Clip children) | `Mask2D` | Older way to clip a node by another shape. Still loads; no longer in the menu. | [Effects 2D](./effects-2d.mdx#clipping-and-masks) |
+| Clip Options | `ClipOptions2D` | Invisible or inverted clipping for "Clip children". | [Effects 2D](./effects-2d.mdx#clipping-and-masks) |
+| Clip Fade | `ClipFade2D` | Soft, partly visible clipping. | [Effects 2D](./effects-2d.mdx#clipping-and-masks) |
+| Anti Goo 2D | `AntiGoo2D` | Carves into a goo group instead of joining it. | [Goo and liquid](./goo-and-liquid.mdx#anti-goo-2d) |
+| Goo Gloss | `GooGloss2D` | Places and shapes a goo group's shine. | [Goo and liquid](./goo-and-liquid.mdx#goo-gloss) |
+
+Post effects are not components: they belong to the whole scene and live in the Effects panel. See [Post effects](./post-effects.mdx).
+
+## Rigging components
+
+Two 2D rigging components do not have a page of their own. Both work with **bones** (see [Nodes and layers](../editor/nodes-and-layers.mdx)).
+
+### IK Constraint 2D
+
+Put it on the **tip** bone of a chain (a hand, a foot, the end of a tail). Every frame, after animation and before physics, the chain of bones ending at this one bends so the tip reaches toward the target. Two-bone chains are solved exactly (arms, legs); longer chains use FABRIK (tails, tentacles).
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Target | The node the chain reaches for. Move it, animate it, or drive it from a script. **None (off)** disables the constraint. Bones are not offered. | any non-bone node | None |
+| Chain Length | Bones the solver may bend, this one included. 2 = a limb (exact), more = FABRIK. | 1 to 32 | 2 |
+| Weight | 0 = animation only, 1 = fully solved. | 0 to 1 | 1 |
+| Flip bend (2-bone) | Bends a two-bone chain the other way (knee forward or back). | on/off | off |
+
+A script moves the target like any node:
+
+```js
+// Make the arm reach for the mouse.
+const target = getCompByID('hand-target')
+target.x = ctx.mouseX
+target.y = ctx.mouseY
+```
+
+### Sprite Skin
+
+Unity's Sprite Skin: deforms the node's image with its bones instead of moving it rigidly, so limbs bend smoothly and tails curl. The image is cut into a grid and each grid point follows the bones near it.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Grid (cols, rows) | How finely the image is cut. More = smoother bends, more vertices. | 1 to 64 each | 8 x 8 |
+| Smoothness (px) | How softly influence blends between neighbouring bones. | 0.5 and up | 12 |
+| Rig | Pick a root bone to bind to every bone under it. | root bones in the scene | first root bone |
+| Bind to current pose | Binds (or re-binds) using the current pose as the rest pose. The card then reads "Bound to N bones". | button | |
+
+:::tip
+Pose the rig the way the art is drawn **before** pressing **Bind to current pose**. Whatever pose you bind in becomes the rest pose.
+:::

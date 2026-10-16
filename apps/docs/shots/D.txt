@@ -1,0 +1,2 @@
+export-menu-website-embed | Editor top toolbar with the Export menu (export icon) open and "Game → Website embed (React / JS)" hovered so its hint text shows; any showcase scene (e.g. Like) active
+export-embed-folder | A file explorer window showing the exported "Like-embed" folder with src/an1mbyt3 and public/an1mbyt3 expanded (README.md, GUIDE.md, AGENTS.md, an1mbyt3.json, example.html visible)

@@ -1,0 +1,8 @@
+{
+  "label": "Components",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Components are the building blocks you attach to nodes: physics bodies and colliders, particles, goo and liquids, lights, trails, draw effects, post effects, shader materials, sound, UI, 3D and more. Each page lists every Inspector field with its range and default, plus the script calls that drive it."
+  }
+}

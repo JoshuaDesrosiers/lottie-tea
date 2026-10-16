@@ -1,0 +1,185 @@
+---
+title: Input
+sidebar_position: 6
+description: Reading keyboard, mouse, touch, wheel, taps, swipes and pointer lock from scripts.
+---
+
+# Input
+
+All input is read by **polling** inside your frame: "is this key down right now?", "where is the mouse this frame?". There are no event handlers to register.
+
+| Member | Type | Description |
+|---|---|---|
+| `ctx.keysDown` | `Set<string>` | Keys and mouse buttons held right now |
+| `ctx.mouseX`, `ctx.mouseY` | number | Pointer position in **world** units (+y up) |
+| `ctx.mouseDX`, `ctx.mouseDY` | number | Mouse movement since last frame, CSS pixels (works under pointer lock) |
+| `ctx.wheelX`, `ctx.wheelY` | number | Wheel movement since last frame, pixels (+Y = scrolled down / towards you) |
+| `ctx.tap` | boolean | `true` for one frame after a quick click or finger tap |
+| `ctx.swipe` | object or `null` | The swipe that ended this frame: `{ dir, dx, dy }` |
+| `ctx.pointerLocked` | boolean | Whether the canvas holds the pointer lock |
+| `ctx.requestPointerLock()` | function | Arms pointer lock for the next click |
+| `ctx.exitPointerLock()` | function | Disarms / releases pointer lock |
+
+## ctx.keysDown
+
+```ts
+ctx.keysDown: ReadonlySet<string>
+```
+
+A live `Set` of key names currently held. Use `.has(name)`.
+
+```js
+const keys = ctx.keysDown
+const dx = (keys.has('d') || keys.has('right') ? 1 : 0) - (keys.has('a') || keys.has('left') ? 1 : 0)
+getCompByID('player').x += dx * 200 * ctx.deltaSeconds
+```
+
+### Key names
+
+Names are the browser's `KeyboardEvent.key`, **lowercased**, with five renamed:
+
+| Key | Name |
+|---|---|
+| Space bar | `'space'` |
+| Arrow keys | `'up'`, `'down'`, `'left'`, `'right'` |
+| Letters | `'a'` ... `'z'` (lowercase even with Shift held) |
+| Digits | `'0'` ... `'9'` |
+| Enter, Escape, Tab, Shift | `'enter'`, `'escape'`, `'tab'`, `'shift'` |
+| Control, Alt, Backspace | `'control'`, `'alt'`, `'backspace'` |
+| Anything else | `event.key` lowercased (`'f1'`, `'delete'`, `','`) |
+
+### Mouse buttons as keys
+
+| Name | Held while |
+|---|---|
+| `'mouse'` | any mouse button, or a finger, is down |
+| `'mouseleft'` | left button down |
+| `'mouseright'` | right button down |
+| `'mousemiddle'` | middle button down |
+
+```js
+if (ctx.keysDown.has('mouseright')) aim()
+```
+
+**Gotchas**
+- Keys pressed while typing in a text field (an `<input>` in HTML UI, for example) are not reported.
+- Shifted symbols come through as the symbol: Shift+1 is `'!'`, not `'1'`.
+- `keysDown` says "held", not "just pressed". For a one-shot press, compare with last frame (below).
+
+### Detecting a press (edge)
+
+```js
+const g = ctx.globals.input || (ctx.globals.input = { jumpWas: false })
+const jump = ctx.keysDown.has('space')
+if (jump && !g.jumpWas) doJump()       // only on the frame it goes down
+g.jumpWas = jump
+```
+
+:::tip Ignore a key held over from the previous screen
+When you switch scenes or states with Enter or a click, the key is still down on the first frame of the new one. Start the "was" flag as `true` so the first press is ignored: `g.keyWas = true`. The built-in demos do exactly this.
+:::
+
+## ctx.mouseX / ctx.mouseY
+
+```ts
+ctx.mouseX: number
+ctx.mouseY: number
+```
+
+The pointer in world coordinates, through the scene's camera. Touch moves it too.
+
+```js
+const cursor = getCompByID('crosshair')
+cursor.x = ctx.mouseX
+cursor.y = ctx.mouseY
+```
+
+Point-in-rectangle hit test, the way the demos build simple buttons:
+
+```js
+function over(x, y, w, h) {
+  return Math.abs(ctx.mouseX - x) < w / 2 && Math.abs(ctx.mouseY - y) < h / 2
+}
+if (over(0, -90, 200, 64) && ctx.tap) startGame()
+```
+
+For real buttons, prefer a **UI Button** component and `ref.clicked` ([UI and DOM](./ui-and-dom.mdx)).
+
+## ctx.mouseDX / ctx.mouseDY
+
+```ts
+ctx.mouseDX: number   // CSS pixels since last frame
+ctx.mouseDY: number
+```
+
+Raw mouse movement. Unlike `mouseX/Y`, it keeps working while the pointer is locked, so it's what you use for FPS mouselook.
+
+```js
+const g = ctx.globals.look || (ctx.globals.look = { yaw: 0, pitch: 0 })
+if (ctx.pointerLocked) {
+  g.yaw -= ctx.mouseDX * 0.15
+  g.pitch = Math.max(-80, Math.min(80, g.pitch - ctx.mouseDY * 0.15))
+}
+getCompByID('camera').rotation3 = { x: g.pitch, y: g.yaw, z: 0 }
+```
+
+## ctx.wheelX / ctx.wheelY
+
+```ts
+ctx.wheelX: number
+ctx.wheelY: number   // + = scrolled down / towards you
+```
+
+```js
+const g = ctx.globals.zoom || (ctx.globals.zoom = { z: 1 })
+g.z = Math.max(0.25, Math.min(4, g.z * (1 - ctx.wheelY * 0.001)))
+```
+
+UI Scroll Views read the wheel on their own; you don't need this for them.
+
+## ctx.tap
+
+```ts
+ctx.tap: boolean
+```
+
+`true` for exactly one frame after a press and release that was quick (under 350 ms) and barely moved (under 12 px). Works the same for mouse and touch.
+
+```js
+if (ctx.tap) getCompByID('sparks').emit(20)
+```
+
+## ctx.swipe
+
+```ts
+ctx.swipe: { dir: 'left' | 'right' | 'up' | 'down', dx: number, dy: number } | null
+```
+
+The quick flick that ended this frame (at least 30 px in under 600 ms), or `null`. `dx`/`dy` are screen pixels with **+y down** (screen axes, unlike world coordinates). `dir` is the dominant axis.
+
+```js
+if (ctx.swipe) {
+  if (ctx.swipe.dir === 'left') ctx.fireTrigger('prevPage')
+  if (ctx.swipe.dir === 'right') ctx.fireTrigger('nextPage')
+}
+```
+
+## Pointer lock
+
+```ts
+ctx.pointerLocked: boolean
+ctx.requestPointerLock(): void
+ctx.exitPointerLock(): void
+```
+
+Pointer lock hides the cursor and gives unlimited mouse movement. Browsers only grant it on a user gesture, so `requestPointerLock()` **arms** it: the next click on the canvas locks. Esc releases it; leaving Playground always does. `exitPointerLock()` disarms it and releases it if held.
+
+```js
+if (!ctx.pointerLocked) ctx.requestPointerLock()      // click to start looking around
+if (ctx.keysDown.has('tab')) ctx.exitPointerLock()    // back to a normal cursor
+```
+
+## See also
+
+- [UI and DOM](./ui-and-dom.mdx): button clicks, sliders, HTML inputs.
+- [Patterns](./patterns.mdx): edge detection, input buffering, cooldowns.

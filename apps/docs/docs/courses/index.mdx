@@ -1,0 +1,61 @@
+---
+title: Courses
+sidebar_position: 0
+description: Five complete, step-by-step courses that build real Toasty projects, from an animated React like button to a full platformer and a match-3 deep dive.
+---
+
+# Courses
+
+The rest of these docs explain one feature at a time. The courses do the opposite: each one builds a complete, working project from an empty scene (or takes a finished demo apart), with **every line of code shown**, explained, and ready to copy.
+
+Every lesson follows the same shape:
+
+- **Goal** and **what you'll learn**, so you know where you're heading.
+- **Steps** in the editor, using the real names of the menus, panels and fields.
+- **The full code** for that step: complete, commented, copy-pasteable. No "..." gaps.
+- **How it works**, explaining the code you just pasted.
+- **Check your work**, a short list of things to try so you know the step is done.
+- A link to the next lesson.
+
+## Pick a course
+
+| Course | You build | Best for | Time | Lessons |
+|---|---|---|---|---|
+| [Animated like button for React](./react-like-button/01-plan-the-button.mdx) | A heart button with a pop animation and a live like count, embedded in a React app with optimistic updates and a server count | Web developers who want animated UI with real data | about 2 h | 6 |
+| [Ninja platformer](./platformer/01-project-setup.mdx) | A side-scrolling ninja platformer with two levels, coins, score, sounds and a web export | Anyone making their first game | about 4 h | 7 |
+| [Data-driven widget kit](./data-dashboard/01-properties-and-bindings.mdx) | A progress ring bound to a real upload, a weather card fed by a live API, and a notification bell | Dashboard and product UI builders | about 2.5 h | 6 |
+| [Crown Match: how a match-3 works](./match3/01-tour-of-the-demo.mdx) | Nothing new: you read and modify the full Crown Match demo, line by line | Programmers who learn best by reading real game code | about 3 h | 7 |
+| [Interactive landing page hero](./interactive-hero/01-the-hero-plan.mdx) | A landing page hero with a theme-driven day/night toggle, a form-driven mood blob, scroll effects and a plain-HTML version | Front-end developers and marketers | about 2 h | 6 |
+
+Times are for reading and doing every step, not just reading.
+
+## Before you start
+
+All courses assume:
+
+- You can open the editor at [toastycreate.web.app](https://toastycreate.web.app) (or the desktop app) and know the basic layout. If not, take ten minutes with [Your first project](../getting-started/first-project.mdx) and the [Interface tour](../getting-started/interface-tour.mdx) first.
+- You can read basic JavaScript: variables, `if`, functions, arrays and objects. The [JavaScript basics](../scripting/javascript-basics.mdx) page covers everything the courses use.
+
+Extra prerequisites per course:
+
+| Course | Also needs |
+|---|---|
+| Like button | A React app to embed into (Vite's `npm create vite@latest` React template is fine). Comfort with `useState` and `fetch`. |
+| Platformer | A sprite sheet (the lessons say exactly what kind) and a tileset image. Nothing else. |
+| Widget kit | React basics for the second half. The first half is editor-only. |
+| Crown Match | Comfort reading 700 lines of JavaScript. The lessons walk you through it, but it's real code. |
+| Landing page hero | React basics, or plain HTML and JavaScript for the custom element lesson. |
+
+:::tip Run the finished result first
+Each course opens with the finished project running live in the page (a `ToastyDemo` card: click it to start). Play with it before you build it. Knowing exactly what you're aiming for makes every step easier to follow.
+:::
+
+## How the code in these courses runs
+
+Toasty games are scripted with **Code programs**: plain JavaScript that runs once per frame inside a *Programmable State* of a state machine. Each frame your script gets a `ctx` object (time, input, scene Properties, physics, sound and more) and finds nodes with `getCompByID('id')` and `getCompByClass('class')`. If you've never seen this before, read [How scripts run](../scripting/how-scripts-run.mdx) once. The courses explain everything they use as they go, and they only use members that exist in the real runtime ([the `ctx` reference](../scripting/ctx-reference.mdx) lists them all).
+
+The React lessons use the real embed component, `An1Player`. Live code blocks on these pages use `ToastyPlayer`, the docs' wrapper with exactly the same props. When you copy code into your own app, import `An1Player` from the export folder as the plain `tsx` blocks show.
+
+:::note One player per page
+A web page can run one Toasty player at a time. Starting a second one stops the first. The live examples on these pages handle that for you: starting one card puts the others back to their poster. Keep it in mind when you plan your own pages. The widget-kit and hero courses show how to work with it.
+:::

@@ -1,0 +1,248 @@
+---
+title: API reference
+sidebar_position: 9
+description: Every option, method, property, event, React prop and custom element attribute of the Toasty embed API, with types.
+---
+
+# API reference
+
+The embed API lives in three files from [the export](./export-for-web.mdx):
+
+| Module | Exports |
+|---|---|
+| `an1mbyt3-embed.js` | `createPlayer`, `defineAn1PlayerElement`; types `An1Player`, `PlayerOptions`, `PlayerEvents`, `PlayerEventType`, `StateChange`, `Source` |
+| `an1mbyt3-react.js` | `An1Player` (component), `useAn1Player`; types `An1PlayerProps`, `An1PlayerHandle`, `PlayerEvents`, `PlayerOptions`, `Source`, `StateChange` |
+| `an1mbyt3-engine.js` | internal; imported by the other two |
+
+Type declarations ship next to them as `an1mbyt3-embed.d.ts` and `an1mbyt3-react.d.ts`. Note the naming: in the plain JS module `An1Player` is the *player type*; in the React module `An1Player` is the *component* and the player type is called `An1PlayerHandle`.
+
+## createPlayer
+
+```ts
+function createPlayer(container: HTMLElement, options: PlayerOptions): Promise<An1Player>
+```
+
+Starts a game inside `container` and resolves with the player once the first scene is loaded and running.
+
+- Destroys any player already running on the page (one per page).
+- Downloads `options.wasm` and `options.game` in parallel.
+- Sets `container.style.position = 'relative'` if it was `static`, and `overflow: hidden`. Sets `background` if given.
+- Adds a centred stage `div` holding a `<canvas>` (`tabIndex = 0`, `touch-action: none`) and the HTML UI overlay.
+
+Rejects with:
+
+| Message | Cause |
+|---|---|
+| ``an1mbyt3: pass `wasm` (the engine) when `game` is bytes`` | `game` is an `ArrayBuffer`/`Uint8Array` and `wasm` is missing |
+| `couldn't load <url> (<status>)` | the game or engine URL returned a non-OK HTTP status |
+| `an1mbyt3: this game has no scenes` | the `.teab` has no scenes |
+| other errors | network failures, an invalid `.teab`, no WebGPU/WebGL2 |
+
+## createPlayer options
+
+```ts
+interface PlayerOptions {
+  game: Source
+  wasm?: Source
+  scene?: string
+  fit?: 'contain' | 'cover'
+  keyboard?: 'focus' | 'window' | 'none'
+  data?: Record<string, unknown>
+  paused?: boolean
+  background?: string
+  stats?: boolean
+}
+
+type Source = string | URL | ArrayBuffer | Uint8Array
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `game` | `Source` | required | The `.teab` file. A string or `URL` is fetched (relative to the page); bytes are used directly. |
+| `wasm` | `Source` | `an1mbyt3_wasm_bg.wasm` next to `game` | The engine. Required when `game` is bytes. |
+| `scene` | `string` | first scene | Scene to open on, by name. An unknown name falls back to the first scene. |
+| `fit` | `'contain'` or `'cover'` | `'contain'` | `contain` shows the whole frame, letterboxed. `cover` fills the box and crops. Scenes in Responsive screen mode always fill. |
+| `keyboard` | `'focus'`, `'window'` or `'none'` | `'focus'` | `focus`: keys reach the game only while its canvas has focus (clicking it focuses it). `window`: every key on the page. `none`: never. |
+| `data` | object | none | Starting data; the same as calling `set` for each key. |
+| `paused` | `boolean` | `false` | Start paused. |
+| `background` | `string` | transparent | CSS colour for the container (the letterbox). |
+| `stats` | `boolean` | `false` | Show the frame profiler overlay. It also turns on when the page URL has a `?stats` query parameter, and F3 or the backtick key toggles it while the game receives keys. |
+
+## The player (`An1Player` / `An1PlayerHandle`)
+
+```ts
+interface An1Player {
+  readonly container: HTMLElement
+  readonly canvas: HTMLCanvasElement
+  readonly scenes: string[]
+  readonly scene: string | null
+  readonly state: string | null
+  readonly layerStates: Readonly<Record<string, string>>
+  readonly paused: boolean
+  set(name: string, value: unknown): void
+  setData(values: Record<string, unknown>): void
+  get(name: string): unknown
+  setInput(name: string, value: boolean | number | string): void
+  fire(trigger: string): void
+  loadScene(name: string): void
+  call(name: string, arg?: unknown): unknown
+  on<T extends PlayerEventType>(type: T, listener: (event: PlayerEvents[T]) => void): () => void
+  off<T extends PlayerEventType>(type: T, listener: (event: PlayerEvents[T]) => void): void
+  waitForState(state: string, layer?: string | null): Promise<void>
+  pause(): void
+  play(): void
+  destroy(): void
+}
+```
+
+### Read-only properties
+
+| Property | Type | Value |
+|---|---|---|
+| `container` | `HTMLElement` | The element you passed to `createPlayer` (for `<an1-player>`, its inner box). |
+| `canvas` | `HTMLCanvasElement` | The game's canvas. |
+| `scenes` | `string[]` | Every scene's name. |
+| `scene` | `string` or `null` | The scene playing. |
+| `state` | `string` or `null` | The base state machine layer's current state; `null` without a state machine. |
+| `layerStates` | `Record<string, string>` | Each extra state machine layer's current state, by layer name (a copy). |
+| `paused` | `boolean` | Whether it's paused. |
+
+### Methods
+
+| Method | Description |
+|---|---|
+| `set(name, value)` | Sends a data value. Writes `ctx.data[name]` for scripts and the current scene's Property `name` if it exists, converted to the Property's type. Applied at the next frame. Kept across scene switches. |
+| `setData(values)` | `set` for every key of `values`. |
+| `get(name)` | The current scene Property `name` if it exists, else the last value `set` under that name (else `undefined`). |
+| `setInput(name, value)` | Sets a state machine input of the current scene's active state machine: Bool (`Boolean(value)`), Number (`Number(value)`), Enum (`String(value)`), or fires a Trigger when `value` is truthy. Unknown names log a warning. |
+| `fire(trigger)` | Fires a Trigger input. |
+| `loadScene(name)` | Switches scene after the current frame. Unknown names log `no scene named "…"`. |
+| `call(name, arg?)` | Synchronously calls a function a script registered with `ctx.on(name, fn)` and returns its result. Returns `undefined` and logs a warning if none is registered. |
+| `on(type, listener)` | Subscribes to an event; returns an unsubscribe function. |
+| `off(type, listener)` | Unsubscribes. |
+| `waitForState(state, layer = null)` | Resolves the next time the base layer (or the layer named `layer`) enters `state`, or immediately if it's already there. Never rejects. |
+| `pause()` | Freezes simulation, scripts and rendering. |
+| `play()` | Resumes. The first frame after resuming has a zero time step, so nothing jumps. |
+| `destroy()` | Stops the frame loop, removes the canvas and overlay, releases held keys and input listeners, frees the engine. Safe to call twice. |
+
+## Events
+
+```ts
+interface StateChange {
+  layer: string | null
+  state: string
+  previous: string | null
+}
+
+interface PlayerEvents {
+  ready: { scenes: string[]; scene: string }
+  scene: { scene: string; previous: string | null }
+  state: StateChange
+  prop: { name: string; value: unknown }
+  event: { name: string; payload: unknown }
+  error: { error: unknown }
+}
+
+type PlayerEventType = keyof PlayerEvents
+```
+
+| Type | Payload | Fires when |
+|---|---|---|
+| `ready` | `{ scenes, scene }` | once, just before `createPlayer` resolves (so only DOM listeners added beforehand hear it) |
+| `scene` | `{ scene, previous }` | the scene switched, by the page or the game; also once for the start scene, before `createPlayer` resolves |
+| `state` | `{ layer, state, previous }` | a state machine layer entered a new state; `layer` is `null` for the base layer |
+| `prop` | `{ name, value }` | the game changed a scene Property; checked once per frame; your own `set` is not echoed |
+| `event` | `{ name, payload }` | a script called `ctx.emit(name, payload)`, or an On Click "Call script function" named a function no script registered (payload: the action's argument, JSON-parsed when possible) |
+| `error` | `{ error }` | a frame threw; the frame is skipped and the game continues (first 3 errors, then every 600th) |
+
+Every event is also dispatched as a DOM `CustomEvent` named `an1:<type>` (`an1:state`, `an1:event`, …) on `player.container`, with the payload as `detail`. These DOM events don't bubble.
+
+## defineAn1PlayerElement
+
+```ts
+function defineAn1PlayerElement(tag?: string): void   // tag defaults to 'an1-player'
+```
+
+Registers the custom element. Does nothing if `tag` is already defined. See [The an1-player element](./custom-element.mdx).
+
+### Attributes
+
+| Attribute | Maps to | On change |
+|---|---|---|
+| `game` | `options.game` (required) | reload |
+| `wasm` | `options.wasm` | reload |
+| `scene` | `options.scene`, then `loadScene` | live |
+| `data` | `options.data`, then `setData` (JSON text) | live |
+| `paused` | `options.paused`, then `pause` / `play` (boolean attribute) | live |
+| `fit` | `options.fit` | reload |
+| `keyboard` | `options.keyboard` | reload |
+
+### Element property and events
+
+| Name | Type | Description |
+|---|---|---|
+| `element.player` | `An1Player` or `null` | The player once ready; `null` while loading and after removal. |
+| `an1:ready` | `CustomEvent<{ scenes: string[]; scene: string }>` | Dispatched on the element (bubbles) when the game is running. |
+| `an1:error` | `CustomEvent<{ error: unknown }>` | Dispatched on the element (bubbles) when loading failed. |
+
+The element sets `display: block` on itself if no `display` style is set, destroys its player when removed from the page, and reloads when re-inserted.
+
+## React: An1Player
+
+```ts
+interface An1PlayerProps {
+  game: Source
+  wasm?: Source
+  scene?: string
+  data?: Record<string, unknown>
+  inputs?: Record<string, boolean | number | string>
+  paused?: boolean
+  fit?: 'contain' | 'cover'
+  keyboard?: 'focus' | 'window' | 'none'
+  background?: string
+  className?: string
+  style?: CSSProperties
+  ref?: Ref<An1PlayerHandle | null>
+  onReady?: (player: An1PlayerHandle) => void
+  onEvent?: (event: { name: string; payload: unknown }) => void
+  onStateChange?: (event: StateChange) => void
+  onSceneChange?: (event: { scene: string; previous: string | null }) => void
+  onPropChange?: (event: { name: string; value: unknown }) => void
+  onError?: (error: unknown) => void
+}
+```
+
+| Prop | Behaviour |
+|---|---|
+| `game`, `wasm`, `fit`, `keyboard`, `background` | Passed to `createPlayer`. Changing any of them destroys the player and creates a new one. |
+| `scene` | Initial scene; afterwards, when it changes to a name other than the current scene, calls `loadScene`. |
+| `data` | Initial data; afterwards, keys whose value changed (`Object.is`, shallow) are sent with `set`. Removing a key sends nothing. |
+| `inputs` | Applied with `setInput` once ready; afterwards, changed keys only (shallow). A Trigger fires each time its value changes to truthy. |
+| `paused` | Calls `pause()` when truthy, `play()` otherwise, whenever it changes. |
+| `className`, `style` | On the box `div`, which always has `position: relative; overflow: hidden` (your `style` can override). |
+| `ref` | Set to the player once ready and to `null` when it's destroyed (React 19; on React 18 use `onReady`). |
+| `onReady` | Called with the player once it's running and the initial `inputs` are applied. |
+| `onEvent`, `onStateChange`, `onSceneChange`, `onPropChange` | Subscribed for the player's lifetime; the latest function is always called, so inline handlers are fine. |
+| `onError` | Load failures (the `createPlayer` rejection) and `error` events (receives the `error` itself, not `{ error }`). |
+
+## useAn1Player
+
+```ts
+function useAn1Player(): [(instance: An1PlayerHandle | null) => void, An1PlayerHandle | null]
+```
+
+Returns a callback ref and the player as state: `const [ref, player] = useAn1Player()` then `<An1Player ref={ref} />`. The component re-renders when the player becomes ready or is destroyed.
+
+## The game side
+
+The script API a game uses to talk to the page (documented in [Properties and data](../scripting/props-and-data.mdx) and [Events and messages](../scripting/events-and-messages.mdx)):
+
+| In a script | Page side |
+|---|---|
+| `ctx.data` (read-only object; `{}` when not embedded) | `set`, `setData`, `data` |
+| `ctx.props.name` (scene Properties) | `set` writes them; game writes arrive as `prop` |
+| `ctx.emit(name, payload?)` | `event` / `onEvent`; logged in the Console when not embedded |
+| `ctx.on(name, fn)` | `call(name, arg)` |
+| `ctx.loadScene(name)` | `scene` / `onSceneChange` |
+| state machine inputs (no code) | `setInput`, `fire`, `inputs` |
+| state machine states (no code) | `state` / `onStateChange`, `waitForState` |

@@ -1,0 +1,8 @@
+{
+  "label": "Scripting",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "The coding section: how Toasty runs your JavaScript, and a syntax-first reference for every ctx member, every node ref property and method, plus idioms, a cheatsheet and the Blocks language."
+  }
+}

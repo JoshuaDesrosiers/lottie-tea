@@ -1,0 +1,188 @@
+---
+title: State machines
+sidebar_position: 9
+description: Decide which animation plays when — states, inputs, transitions with conditions and crossfades, blend states, masked layers and Programmable States with code.
+---
+
+# State machines
+
+A **state machine** is the brain of an animated object. It holds a set of **states** (Idle, Walk, Jump, Happy, Sad…), each playing an animation, and **transitions** between them that fire when **inputs** change: "go from Idle to Hover when `hovered` is true", "go to Jump when the `jump` trigger fires".
+
+It's the same model Rive and Unity's Animator use, and it's how every interactive Toasty widget and game decides what to show. A page that [embeds](../embedding/overview.mdx) your game talks to it through these same inputs.
+
+Here's one running. The blob has a **Number** input `mood` (−1 to 1) that picks between three states, and a **Trigger** `jump`. Click it:
+
+<ToastyDemo game="/games/mood-blob.teab" height={340} caption="mood-blob.teab: states Sad, Neutral and Happy chosen by the mood number; jump is a trigger. Clicking sends a poke event to the page." />
+
+## Opening the editor
+
+Click the **State Machine** tab of the bottom dock, the graph icon in the icon rail, or press **3**. The dock has two parts:
+
+- a **left column**: which state machine you're editing, and its **inputs**;
+- the **graph**: states as boxes, transitions as arrows, and a side column with the selected state's details.
+
+<Shot id="state-machine-overview" caption="The State Machine tab: the left column with the machine dropdown, Run Programs toggle and an Inputs list (a Bool, a Number and a Trigger with its Fire button); the graph with four state boxes, transition arrows, the starred initial state, the active state highlighted, and the Outgoing Transitions column for the selected state." />
+
+## Creating a state machine
+
+A state machine plays animations, so make at least one animation first (a new document already has **Animation 1**).
+
+1. In the left column, open the dropdown (it reads **No state machine** at first).
+2. Choose **New State Machine**, type a name and click **Create**.
+
+The new machine starts with one state, **State 1**, playing the active animation on **Loop**, already marked as the initial state (★).
+
+A scene can have several state machines. The dropdown switches between them; the pencil button renames the current one and the trash button deletes it. The machine selected here is the one the scene runs.
+
+## States
+
+### Adding and arranging
+
+- **+ Add State** (above the graph) adds a state named **State 2**, **State 3**, … playing an animation on Loop.
+- Drag a box by its title to move it. Positions are saved with the document.
+- Scroll the graph by dragging empty space; the graph has its own zoom buttons (**Zoom out**, the percentage to reset, **Zoom in**).
+
+### What's in a box
+
+Every box shows its fields directly:
+
+| Field | What it does |
+|---|---|
+| Name | The state's name. Scripts, events and embeds refer to states by name. |
+| **Set Initial** / ★ | Makes this the state the machine starts in. The current initial state shows a ★. |
+| **Delete** | Removes the state (not available on the last one). |
+| Animation | Which animation plays while the state is active. |
+| Loop mode | **Once** (play and hold the last frame), **Loop** (wrap to the start), **PingPong** (forward, backward, forward…). |
+
+The **active** state is drawn with an accent border while the machine runs; the selected state has a dashed outline.
+
+## Inputs
+
+**Inputs** are the machine's controls: named values the transitions check. Declare them in the left column: type a name in **New input name**, pick a type, and click **Declare Input**.
+
+| Type | Holds | Typical use |
+|---|---|---|
+| **Bool** | true / false | `isNight`, `hovered`, `grounded` |
+| **Number** | a number | `speed`, `health`, `mood` |
+| **Enum** | a text value | `weather` = `sun` / `rain` / `snow` |
+| **Trigger** | a one-shot pulse | `jump`, `burst`, `ring` |
+
+Each declared input has a live control next to it (a checkbox, a number box, a text box, or a **Fire** button for triggers). Use them to **test the machine right in the State Machine tab**: the canvas previews the machine and the graph highlights the active state as you flip inputs.
+
+Input values are live state, never saved: every run starts from false / 0 / empty.
+
+## Transitions
+
+### Adding one
+
+Each box has a small connect handle (tooltip: "Drag to another state to add a transition"). Drag from it onto another state's box. An arrow appears and the source state is selected so you can set the transition up in the side column. You can drag back onto the same box for a self-transition (useful to restart a state with a trigger).
+
+### Setting it up
+
+Select a state to see its **Outgoing Transitions** in the side column. Each transition row has:
+
+| Field | What it does |
+|---|---|
+| Condition type | **Trigger**, **Boolean is**, **Number >**, **Number &lt;**, **Enum is** |
+| **input name** | Which input to check. Type the name exactly as declared. |
+| Value | For **Boolean is**: the **Required value** checkbox. For **Number >** / **Number &lt;**: the **threshold**. For **Enum is**: the **enum value**. Triggers need no value. |
+| Direction | **Forward** plays the target state's animation from the start; **Reverse** plays it backward from the end, so one animation can serve both "open" and "close". |
+| **Crossfade (s)** | How long the old pose blends into the new one. A new transition starts with the target animation's own duration; set **0** for an instant switch. |
+| **Allow exit during transition** | On (default): another transition out of the target state may interrupt this crossfade before it finishes, blending smoothly from wherever it got to. Off: the crossfade always runs to completion first. Rive calls this "Allow Exit During Transition". |
+| Remove | Deletes the transition. |
+
+New transitions start as a **Trigger** with an empty input name: fill in the input before testing.
+
+### How transitions are chosen
+
+- Only transitions **out of the active state** are checked.
+- They're checked **in order**, top to bottom; the **first** whose condition is true wins.
+- A trigger is a one-frame pulse: it counts as fired for one update only, then resets by itself. If no transition out of the active state uses it at that moment, it is simply missed.
+
+:::tip Two-way switches
+For an on/off pair like Day/Night, add *two* transitions: Day → Night when **Boolean is** `isNight` = checked, and Night → Day when **Boolean is** `isNight` = unchecked.
+:::
+
+<ToastyDemo game="/games/day-night.teab" height={300} caption="day-night.teab: exactly that pair of transitions on one Bool input, isNight." />
+
+### Ranges with numbers
+
+To pick a state from a number range (like the blob's mood), chain conditions: Neutral → Happy when **Number >** 0.33, Neutral → Sad when **Number &lt;** −0.33, Happy → Neutral when **Number &lt;** 0.33, Sad → Neutral when **Number >** −0.33.
+
+## Blend states
+
+A **blend state** doesn't play an animation over time. Instead it mixes two **pose** animations continuously by a number input, like Unity's 1D Blend Tree. Use it for anything that should follow a value smoothly: a mouth opening with voice volume, a character leaning with speed, a gauge needle.
+
+1. Make two animations that each hold one extreme pose (a single keyframe each is enough).
+2. Select a state and, in the side column's **Dynamic Expression** section, tick **Blend two animations**.
+3. Set the **input name** (a Number input), the **Low** animation and **Low value**, and the **High** animation and **High value**.
+
+At the low value the state shows 100% of the low pose; at the high value, 100% of the high pose; in between, a mix. Beyond the range it holds the nearest extreme. The defaults are 0 and 1, but any range works (for example −1 to 1).
+
+## Layers
+
+A machine can have extra **layers**: independent little state machines that share the same inputs but each animate only their own set of nodes. A face rig can blink on one layer, talk on another and change mood on a third, all at once.
+
+- The strip above the graph shows **Base** and any layers. Click one to edit its states.
+- **+ Layer** adds a layer (type a name, press Enter). It starts with one looping state.
+- **Delete Layer** removes the selected layer.
+
+### The layer mask
+
+A new layer animates **nothing** until you give it a mask (so it can't fight the base layer by accident). With a layer selected in the graph, every row in the **Layers** panel gets a checkbox: tick the nodes this layer may animate.
+
+Layers apply in order: Base first (unmasked), then each layer on top, overriding the base wherever their masks overlap.
+
+## Programmable States (code in a state)
+
+A state can run **logic every frame** instead of (or as well as) playing an animation. This is where game code lives.
+
+1. Select the state and tick **Programmable State** in the side column (under **Program**).
+2. **Double-click** the box (it now shows a ▸ badge) to open its program editor, which fills the dock. A back button returns to the graph.
+
+The program editor has three tabs:
+
+| Tab | What it is |
+|---|---|
+| **Nodes** | A visual node graph. |
+| **Code** | JavaScript with the `ctx` API. The **Runs** dropdown chooses **Inline code** or a script file from your project (`Assets/Code`), editable in Code mode with **Edit in Code tab**. |
+| **Blocks** | Scratch-style blocks. |
+
+Only one tab is the real program at a time. Nodes and Code convert into each other where possible; Blocks never converts.
+
+Programs only run in **Playground** and exported games, or in the State Machine tab when you tick **Run Programs** (off by default, so opening the tab never starts code by surprise). Every layer's active state runs its program each frame, base layer first. See [Scripting overview](../scripting/overview.mdx) and [Blocks](../scripting/blocks.mdx).
+
+## Driving a state machine
+
+| From | How |
+|---|---|
+| A script | `ctx.setInput('speed', 3)`, `ctx.setInput('isNight', true)`, `ctx.fireTrigger('jump')`. Transitions react on the next frame. Inside a program, `ctx.state` is the state it's running in and `ctx.layer` its layer (`null` for Base). See [State machine control](../scripting/state-machine-control.mdx). |
+| A button, no code | An **On Click** action: **Fire trigger** or **Set input**. See [Properties and bindings](./properties-and-bindings.mdx#on-click-events). |
+| A web page | `player.setInput(name, value)`, `player.fire(name)`, or React `inputs={{ … }}`. The page hears state changes through `player.on('state', …)`. See [Data binding](../embedding/data-binding.mdx) and [Listening](../embedding/listening.mdx). |
+| The editor | The input controls in the left column, while previewing. |
+
+```js
+// A platformer's Code state: feed physics into the animation machine.
+const hero = getCompByID('hero')
+ctx.setInput('speed', Math.abs(hero.x - (ctx.globals.lastX ?? hero.x)) / ctx.deltaSeconds)
+ctx.globals.lastX = hero.x
+if (ctx.keysDown.has('space')) ctx.fireTrigger('jump')
+```
+
+## Troubleshooting
+
+| Problem | Check |
+|---|---|
+| Can't create a state machine | You need at least one animation first. |
+| A transition never fires | The input name in the condition must match the declared input exactly (case matters). Is it on the *active* state? Is an earlier transition in the list winning first? |
+| The animation pops instead of blending | Set **Crossfade (s)** above 0. |
+| A crossfade gets cut off | Another transition interrupted it; turn off **Allow exit during transition** on the one that must finish. |
+| A layer does nothing | Its mask is empty: select the layer and tick nodes in the Layers panel. |
+| Code doesn't run in the State Machine tab | Tick **Run Programs**, or use Playground. |
+
+## Related
+
+- [Animation timeline](./animation-timeline.mdx)
+- [Properties and bindings](./properties-and-bindings.mdx)
+- [State machine control (scripting)](../scripting/state-machine-control.mdx)
+- [Embedding: data binding](../embedding/data-binding.mdx)

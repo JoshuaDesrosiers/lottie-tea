@@ -1,0 +1,92 @@
+---
+title: Prefabs
+sidebar_position: 11
+description: Turn any object into a reusable prefab, place instances in any scene, push changes to every copy with Apply, and spawn prefabs from scripts.
+---
+
+# Prefabs
+
+A **prefab** is a reusable template of an object: a node together with all its children, components, physics, lights, particles and scripts. Make the player, an enemy, a coin or a crate once, then place it in as many scenes as you like. Change the prefab and every copy updates. Scripts can also **spawn** prefabs while the game runs.
+
+The idea (and the words: Apply, Revert, Unpack) come from Unity.
+
+## Creating a prefab
+
+1. Build the object in a scene the normal way, as one node with children.
+2. Select its top node.
+3. At the top of the Inspector, next to "Reuse this object anywhere", click **Create Prefab**.
+
+The subtree becomes a prefab asset (named after the node), and the object you selected becomes its first **instance**. The prefab appears in the **Resources** tab under `Assets/Prefabs` (one `.prefab` file each, in a project folder).
+
+<Shot id="prefab-strip" caption="The Inspector's prefab strip on a selected instance: the PREFAB label, the prefab's name, and the Apply, Revert and Unpack buttons." />
+
+## Placing instances
+
+From **Resources** → `Assets/Prefabs`:
+
+- **double-click** a prefab, or right-click → **Place in Scene**, to drop it in the middle of the view;
+- **drag** it onto the canvas to drop it exactly where you want.
+
+Instances are ordinary, fully working nodes: physics, scripts, state machines and everything else behave exactly as they would on a hand-built object. In the Layers panel their names show in the accent colour.
+
+## Editing: Apply, Revert, Unpack
+
+Select any node inside an instance and the Inspector's prefab strip shows which prefab it came from:
+
+| Button | What it does |
+|---|---|
+| **Root** | Selects the instance's top node (shown when you selected a child). |
+| **Apply** | Writes this instance's changes into the prefab. **Every other instance updates.** |
+| **Revert** | Throws away this instance's changes and re-syncs it from the prefab. Its position and name are kept. |
+| **Unpack** | Disconnects it from the prefab: it becomes ordinary nodes. |
+
+These always act on the instance as a whole, even if you have a child selected.
+
+The usual workflow: tweak one instance until it's right (add a component, recolour a part, add a child), then **Apply** to roll the change out everywhere.
+
+:::tip What stays per-instance
+Where an instance sits and what it's called belong to that instance: Revert never moves or renames it, and Apply doesn't move the other instances.
+:::
+
+:::caution References outside the prefab
+If something inside the prefab points at a node *outside* it (a camera following the player, a hinge joint attached to the floor), that link can't be copied with the prefab and is dropped in the prefab's copy. Links between nodes *inside* the prefab (a mask, an IK target, a hinge between two parts) are kept and re-pointed for every instance.
+:::
+
+## Managing prefabs
+
+In **Resources** → `Assets/Prefabs`, right-click a prefab for:
+
+- **Place in Scene**
+- **Rename**: scripts spawn prefabs by name, so update any `ctx.spawn` calls too.
+- **Delete Prefab**: existing instances become plain objects; nothing in your scenes disappears.
+
+## Spawning from scripts
+
+`ctx.spawn(name, x, y, parent?)` creates a live instance while the game runs and returns a ref to its root (or `null` if no prefab has that name). This is the Liquid Lab demo's click-to-drop code:
+
+```js
+// Click near the top to drop a crate (Shift: a stone).
+const g = ctx.globals
+const down = ctx.keysDown.has('mouse')
+if (down && !g.wasDown && ctx.mouseY < 110) {
+  const heavy = ctx.keysDown.has('shift')
+  const box = ctx.spawn(heavy ? 'Stone' : 'Crate', ctx.mouseX, ctx.mouseY)
+  if (box) box.rotation = Math.random() * 40 - 20
+}
+g.wasDown = down
+```
+
+Rules worth knowing:
+
+- Spawning works in **Playground** and exported games. It's not an undoable edit, and everything spawned is removed when play stops.
+- `x` and `y` are in the parent's space, or the scene's if you omit `parent`.
+- The new object is fully live (physics, lights, particles, its own state machines) and can be found with `getCompByClass` from the **next** frame.
+- `ref.destroy()` removes a spawned object for real. On an object that's part of the authored scene it hides it instead (it comes back when play stops).
+
+See [Spawning and prefabs](../scripting/spawning-and-prefabs.mdx) for the full scripting side.
+
+## Related
+
+- [Nodes and layers](./nodes-and-layers.mdx)
+- [Projects and saving](../getting-started/projects-and-saving.mdx)
+- [Spawning and prefabs (scripting)](../scripting/spawning-and-prefabs.mdx)

@@ -1,0 +1,220 @@
+---
+title: "4. A live weather card"
+sidebar_position: 4
+description: Feed the weather card from a real API - fetch Open-Meteo's current conditions, map WMO weather codes to sun, cloud, rain, snow and storm, refresh on a timer and let the user pick a city.
+---
+
+# 4. A live weather card
+
+**Goal:** a weather card showing the real current temperature and conditions for a city, refreshed automatically.
+
+**What you'll learn**
+
+- Fetching data in the page and handing it to the scene (never fetching inside the scene).
+- Mapping an API's codes to the values a scene understands.
+- Refreshing on an interval and when inputs change.
+- Loading and error states.
+
+## The card's contract
+
+| Property | Type | Values |
+|---|---|---|
+| `city` | Text | any city name, shown as a label (default `Lisbon`) |
+| `temp` | Number | degrees, shown rounded (default `21`) |
+| `condition` | Text | `sun`, `cloud`, `rain`, `snow` or `storm` |
+
+The card's state machine follows `condition`: states `Sun`, `Cloud`, `Rain`, `Snow`, `Storm`, each with its own animated sky. It has no inputs: the page only sends data.
+
+:::info How the card turns `condition` into a state
+Inside the card, a script does what the progress ring's did in [lesson 2](./02-build-a-progress-ring.mdx): reads `ctx.props.condition` and sets an internal input, which the transitions check. That's the general pattern for "a Text value picks a state". The page never needs to know about it.
+:::
+
+## The API
+
+[Open-Meteo](https://open-meteo.com) is a free weather API that needs no key. Current conditions for Lisbon:
+
+```
+https://api.open-meteo.com/v1/forecast?latitude=38.72&longitude=-9.14&current=temperature_2m,weather_code
+```
+
+The part we use of the response:
+
+```json
+{
+  "current": {
+    "time": "2026-10-15T14:00",
+    "temperature_2m": 22.4,
+    "weather_code": 3
+  }
+}
+```
+
+`weather_code` is a **WMO weather interpretation code**. Our card knows five looks, so we group the codes:
+
+| WMO codes | Meaning | `condition` |
+|---|---|---|
+| 0, 1 | Clear sky, mainly clear | `sun` |
+| 2, 3, 45, 48 | Partly cloudy, overcast, fog | `cloud` |
+| 51–57, 61–67, 80–82 | Drizzle, rain, freezing rain, showers | `rain` |
+| 71–77, 85, 86 | Snow, snow grains, snow showers | `snow` |
+| 95, 96, 99 | Thunderstorm (with or without hail) | `storm` |
+
+## The code
+
+```tsx title="src/weather.ts"
+export type Condition = 'sun' | 'cloud' | 'rain' | 'snow' | 'storm'
+
+/** WMO weather code -> one of the card's five looks. */
+export function conditionFromWmo(code: number): Condition {
+  if (code <= 1) return 'sun'
+  if (code <= 3 || code === 45 || code === 48) return 'cloud'
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain'
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow'
+  if (code >= 95) return 'storm'
+  return 'cloud' // anything unexpected: a safe neutral sky
+}
+
+export interface Place {
+  name: string
+  latitude: number
+  longitude: number
+}
+
+export async function fetchWeather(place: Place, signal?: AbortSignal) {
+  const url =
+    'https://api.open-meteo.com/v1/forecast' +
+    `?latitude=${place.latitude}&longitude=${place.longitude}` +
+    '&current=temperature_2m,weather_code'
+  const res = await fetch(url, { signal })
+  if (!res.ok) throw new Error(`weather: HTTP ${res.status}`)
+  const json = await res.json()
+  return {
+    city: place.name,
+    temp: Math.round(json.current.temperature_2m),
+    condition: conditionFromWmo(json.current.weather_code),
+  }
+}
+```
+
+```tsx title="src/WeatherCard.tsx"
+import { useEffect, useState } from 'react'
+import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
+import { fetchWeather, type Place } from './weather'
+
+export function WeatherCard({ place, refreshMs = 10 * 60 * 1000 }: { place: Place; refreshMs?: number }) {
+  const [weather, setWeather] = useState<{ city: string; temp: number; condition: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const load = () =>
+      fetchWeather(place, controller.signal)
+        .then((w) => {
+          setWeather(w)
+          setError(null)
+        })
+        .catch((e) => {
+          if (e.name !== 'AbortError') setError(String(e))
+        })
+    load()
+    const timer = setInterval(load, refreshMs)
+    // A new place (or unmount) cancels the old request and timer.
+    return () => {
+      controller.abort()
+      clearInterval(timer)
+    }
+  }, [place.latitude, place.longitude, place.name, refreshMs])
+
+  return (
+    <figure>
+      <An1Player
+        game="/an1mbyt3/game.teab"
+        style={{ width: 320, height: 200 }}
+        // Before the first answer, show the city with the scene's defaults.
+        data={weather ?? { city: place.name }}
+      />
+      {error && <figcaption role="alert">Couldn't load the weather. Showing the last known values.</figcaption>}
+    </figure>
+  )
+}
+```
+
+## Try it live
+
+This calls the real API from your browser. Pick a city:
+
+```jsx live
+function LiveWeather() {
+  const places = [
+    { name: 'Lisbon', latitude: 38.72, longitude: -9.14 },
+    { name: 'Oslo', latitude: 59.91, longitude: 10.75 },
+    { name: 'Mumbai', latitude: 19.08, longitude: 72.88 },
+    { name: 'Reykjavik', latitude: 64.15, longitude: -21.94 },
+    { name: 'Singapore', latitude: 1.35, longitude: 103.82 },
+  ]
+  const [place, setPlace] = React.useState(places[0])
+  const [weather, setWeather] = React.useState(null)
+  const [raw, setRaw] = React.useState(null)
+
+  const conditionFromWmo = (code) => {
+    if (code <= 1) return 'sun'
+    if (code <= 3 || code === 45 || code === 48) return 'cloud'
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain'
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow'
+    if (code >= 95) return 'storm'
+    return 'cloud'
+  }
+
+  React.useEffect(() => {
+    const controller = new AbortController()
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + place.latitude +
+      '&longitude=' + place.longitude + '&current=temperature_2m,weather_code'
+    fetch(url, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((json) => {
+        setRaw(json.current)
+        setWeather({
+          city: place.name,
+          temp: Math.round(json.current.temperature_2m),
+          condition: conditionFromWmo(json.current.weather_code),
+        })
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [place])
+
+  return (
+    <div>
+      <select value={place.name} onChange={(e) => setPlace(places.find((p) => p.name === e.target.value))}>
+        {places.map((p) => <option key={p.name}>{p.name}</option>)}
+      </select>
+      <ToastyPlayer
+        game="/games/weather-card.teab"
+        style={{ width: 320, height: 200 }}
+        data={weather ?? { city: place.name }}
+      />
+      <pre>{raw ? JSON.stringify(raw) : 'loading…'}</pre>
+      <p>Try every look:{' '}
+        {['sun', 'cloud', 'rain', 'snow', 'storm'].map((c) => (
+          <button key={c} onClick={() => setWeather((w) => ({ ...(w ?? { city: place.name, temp: 21 }), condition: c }))}>{c}</button>
+        ))}
+      </p>
+    </div>
+  )
+}
+```
+
+## How it works
+
+- **The page fetches; the scene displays.** The scene never calls the API. That keeps API keys, caching, retries and error handling in your app where they belong, and the same card works with any data source.
+- **Mapping at the edge.** The API speaks WMO codes; the card speaks five words. `conditionFromWmo` is the only place that knows both.
+- **Only changes are sent.** Every refresh calls `setWeather` with a new object, but `An1Player` compares each key. If it's still 22° and cloudy, nothing is sent and the card doesn't restart its animation.
+- **Text is converted for you.** `temp` is a Number Property, so even a string like `"22"` would arrive as `22`.
+
+## Check your work
+
+- The live card shows the selected city's real temperature, and its sky matches the raw `weather_code` per the table.
+- The "Try every look" buttons switch the sky instantly (the card's states follow `condition`).
+- Switching cities quickly never shows a stale city: the `AbortController` cancels the old request.
+
+**Next:** [5. A notification bell](./05-notification-bell.mdx)

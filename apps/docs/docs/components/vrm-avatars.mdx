@@ -1,0 +1,201 @@
+---
+title: VRM avatars
+sidebar_position: 33
+description: Import VRM humanoid avatars, pose them with VRM Poses, play retargeted mocap with Humanoid Animator, plant their feet with Foot IK, attach props to bones, and knock them over with Ragdoll 3D.
+---
+
+# VRM avatars
+
+[VRM](https://vrm.dev) is the open format for 3D humanoid avatars: a glTF / GLB file of a rigged character plus extensions that say what its parts **are**. Toasty reads all of them, so any VRM avatar can be posed, animated and scripted the same way: a punch written for one avatar works on every avatar.
+
+| VRM feature | What Toasty does with it |
+|---|---|
+| **Humanoid bones** | Standard names (`hips`, `spine`, `chest`, `neck`, `head`, `leftUpperArm`, `rightFoot` ...) mapped to the model's joints, with GPU skinning. |
+| **Expressions** | Named face shapes: `happy`, `angry`, `sad`, `relaxed`, `surprised`, `blink`, `blinkLeft` / `blinkRight`, mouth shapes `aa` `ih` `ou` `ee` `oh`, `lookUp` and more. VRM 0.x preset names are mapped to VRM 1.0's. |
+| **Spring bones** | Hair, skirts and ribbons swing, lag and settle, pushed out of the body's collider shapes. Simulated in world space, so they react to the avatar moving. |
+| **MToon materials** | The anime cel-shading look, turned into editable [toon materials](./3d-basics.mdx#materials). |
+
+Both VRM 0.x (avatars facing −Z) and VRM 1.0 (facing +Z) are supported.
+
+The **Fatal Clash (3D fighting)** demo (**+ → Demos**) is a complete example: two VRM fighters with poses, ragdolls, sun shadows and a material override.
+
+## Importing an avatar
+
+**+ → Import → 3D Model (glTF / GLB / VRM)…** and pick a `.vrm` file. You get a mesh node with **Shape: Imported Model**, and:
+
+- It's stood on the ground, and scaled to about 1.8 m tall if it's absurdly big or small.
+- Every MToon material in the file becomes an editable **toon material** asset, one per material slot, listed under **Model materials** in the mesh's Inspector. Use **All MToon** / **All Arcane** to restyle every slot at once. These are shared by every copy of the model; to change one copy, use [Material Overrides](./3d-basics.mdx#material-overrides).
+- A **Foot IK** component is added, so the feet stay planted (see below).
+
+<Shot id="vrm-inspector" caption="An imported VRM avatar selected: Mesh section with Model materials (All MToon / All Arcane), then the Foot IK and VRM Poses components" />
+
+## Components for avatars
+
+| Component | Add Component section | What it does |
+|---|---|---|
+| **VRM Poses (states)** | Animation | Named poses authored in the Inspector, switched by scripts with a crossfade. |
+| **Humanoid Animator (mocap)** | Animation | Plays humanoid animation clips from other files (VRMA, Mixamo-via-GLB), retargeted onto this avatar. |
+| **Foot IK (VRM)** | Rigging | Bends the legs so the feet stay on the ground. |
+| **Bone Attachment** | Rigging | Makes a 3D node ride one of the avatar's bones (a sword in a hand, a hat on a head). |
+| **Ragdoll 3D (VRM)** | Physics 3D | Turns the avatar into physics limbs that collapse and tumble. |
+| **Material Overrides** | Effects 3D | Per-object material swaps for this copy only. |
+
+### How the layers stack
+
+Each frame an avatar's pose is built up in this order, each layer on top of the last:
+
+1. The model's own animation clip (**Animation / overlay**) or the **Humanoid Animator**'s clip.
+2. The active **VRM Poses** pose.
+3. Script bone poses (`ref.setBone3`, `ref.setBoneOffset3`).
+4. **Foot IK** plants the feet.
+5. Spring bones (hair, cloth) follow.
+
+While ragdolled, physics drives the limbs instead.
+
+## VRM Poses
+
+**VRM Poses** stores named **poses** ("states") for an avatar, so you can animate a character by switching between a handful of poses instead of keyframing every bone. Each pose holds per-bone rotations, a hips offset, and expression weights.
+
+- The **active** pose shows instantly in Design, so moving a slider moves the avatar right there.
+- Playground starts in the active pose. Scripts switch with `ref.setPose3(name)`, which **crossfades** over the **Blend** time.
+- Poses are just component fields, so you can also keyframe them on the [timeline](../editor/animation-timeline.mdx).
+
+| Inspector element | What it does |
+|---|---|
+| Pose buttons | One per pose. Click to make it the active (shown) pose. |
+| Name box | Rename the active pose. |
+| **New** / **Duplicate** / **Delete** | Add an empty pose, copy this one, or delete it (the last pose can't be deleted). |
+| **Start from** → **Preset…** | Replace this pose with a starting point: **Rest (T-pose)**, **A-pose**, **Idle**, **Guard**, **Punch**, **Kick**, **Hit**, **Victory**. Then tweak. |
+| **Mirror L→R** / **R→L** | Copy one side's arm, leg and finger angles to the other side, mirrored. |
+| **Reset** | Back to the rest pose (all angles and weights to 0). |
+| **Blend (s)** | Crossfade seconds when a script switches pose, `0..1`. Default 0.12. |
+| Bone groups | **Body**, **Left arm**, **Right arm**, **Left leg**, **Right leg**, **Left fingers**, **Right fingers**: collapsible sections, each bone with **x / y / z** rotation sliders (`-180..180`°) and a **reset** link. Only bones the avatar has are listed. **hips** also has **↕x / ↕y / ↕z** offset sliders (`-1..1` m) for crouches, hops and lunges. |
+| **Expressions** | A `0..1` slider per expression the avatar has. |
+
+Rotations are Euler degrees, applied Y-X-Z in the bone's own space on top of its rest (or animated) pose. Presets are authored for VRM 1.0 and flipped automatically for VRM 0.x avatars.
+
+New components start with one pose, **Rest**, and a blend of 0.12 s.
+
+```js
+const g = ctx.globals.fight || (ctx.globals.fight = { prev: {} })
+const keys = ctx.keysDown
+const pressed = (k) => keys.has(k) && !g.prev[k]   // true on the frame a key goes down
+
+const fighter = getCompByID('popi')
+if (pressed('j')) fighter.setPose3('Punch', { blend: 0.05 })   // a snappy jab
+if (pressed('k')) fighter.setPose3('Kick')
+if (pressed('g')) fighter.setPose3('')   // back to the component's selected pose
+
+for (const k of ['j', 'k', 'g']) g.prev[k] = keys.has(k)
+```
+
+`setPose3` returns `false` if there's no pose with that name. Names are matched case-insensitively.
+
+### Posing in the scene view
+
+In the [3D scene view](./3d-basics.mdx#the-3d-scene-view), selecting an avatar shows its **bones** as joints and sticks. Click a joint to select that bone (its name shows in the toolbar as **Bone: ...**), then drag the rotate rings to pose it. The rotation is written into the avatar's active VRM pose (adding the component if needed). **Esc** lets go of the bone.
+
+## Humanoid Animator
+
+**Humanoid Animator** plays humanoid animation clips from **other files** on this avatar. Clips are **retargeted**: any humanoid motion plays on any VRM, whatever the skeleton it was recorded on.
+
+Supported sources:
+
+- **VRMA** files (VRM Animation).
+- A **GLB / VRM** with a humanoid skeleton and animations. Mixamo motions work after a trip through Blender: Mixamo FBX → Blender → export GLB. FBX itself isn't read.
+
+| Inspector element | Meaning | Default |
+|---|---|---|
+| Clip rows | Each imported clip: a radio button (play this clip), its name (rename it here; scripts play it by this name), and **×** to remove it. | none |
+| **+ Import animation (.vrma / .glb)** | Pick a file and add its clip. The same button appears in the mesh section as **Import animation (.vrma / .glb)…**. | |
+| **None (stand still)** | No clip playing. | |
+| **Loop** | Loop the clip. | On |
+| **Preview in Design** | Play it in Design too, so you see it while you work. | On |
+| **Speed** | Playback speed, `0..3`. | 1 |
+| **Blend (s)** | Crossfade when the clip changes, `0..1.5`. | 0.25 |
+
+```js
+const hero = getCompByID('hero')
+hero.playAnim3(speed > 0.1 ? 'Walk' : 'Idle', { blend: 0.2 })
+hero.playAnim3('Wave', { loop: false, speed: 1.2 })
+const now = hero.anim3          // { clip, time } or null
+hero.playAnim3('')              // back to the component's own clip
+```
+
+VRM Poses and `setBone3` layer on top of the animator, so you can play a walk and turn the head with a script at the same time.
+
+## Foot IK
+
+**Foot IK** bends an avatar's legs (two-bone IK, knees forward) so the feet stay on the ground. Feet never sink when the animation or a hips offset lowers the body. In Playground, on uneven ground (any collider under the feet: stairs, slopes) the feet step onto it, the hips drop to reach a lower foothold, and the feet tilt to the slope. Feet the animation lifts (kicks, steps, jumps) are left alone. It's skipped while ragdolled.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Weight** | How strongly the feet are planted, `0..1`. | 1 |
+| **Sole (m)** | Extra sole thickness under the ankle, `-0.05..0.1`. | 0 |
+| **Max step (m)** | The furthest the hips drop to reach a lower step, `0..1`. | 0.4 |
+| **Tilt feet to the slope** | Align the feet to the ground's angle. | On |
+
+Outside Playground (no physics), the ground is the plane at the avatar node's own origin.
+
+## Bone Attachment
+
+Add **Bone Attachment** to a 3D node that's a **child of the avatar** and it rides one bone: a weapon in a hand, a hat on a head, a light on a wrist. Its children follow too.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Bone** | A humanoid bone name (suggestions: `rightHand`, `leftHand`, `head`, `neck`, `upperChest`, `chest`, `spine`, `hips`, `rightLowerArm`, `leftLowerArm`, `rightFoot`, `leftFoot`) or any node name inside the model. | `rightHand` |
+
+The node's own transform becomes an **offset from the bone**, measured in the avatar's T-pose frame facing +Z, whatever the file's own bone orientations are. So one setup (say, "sword 8 cm forward, rotated 90°") fits every avatar.
+
+## Ragdoll 3D
+
+**Ragdoll 3D** turns the avatar's humanoid bones into physics capsules joined by ball joints. In Playground it can collapse, tumble and be knocked around, then get back up.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Start ragdolled** | Collapse the moment Playground starts. | Off |
+| **Mass (kg)** | Total weight, shared out over the limbs, `5..200`. | 60 |
+| **Flexibility** | How far joints bend: 1 = natural limits, lower = stiffer, `0.1..2`. | 1 |
+| **Thickness** | Limb thickness, 1 = average build, `0.3..2.5`. | 1 |
+
+```js
+const dummy = getCompByID('dummy')
+dummy.ragdoll3(true, { velocity: [0, 2, -4] })   // knock it down, flung backwards
+if (dummy.isRagdoll3) dummy.ragdollHit3('head', [0, 0, -30])  // hit a limb (N·s, world axes)
+dummy.ragdoll3(false)                            // get back up
+```
+
+## Scripting avatars
+
+Every call takes vectors as `{ x, y, z }` or `[x, y, z]`.
+
+| Member | Meaning |
+|---|---|
+| `ref.setBone3(bone, rotation)` | Turn a bone by Euler degrees (Y-X-Z, in the bone's space) on top of its animation. `{0, 0, 0}` puts it back. Set it every frame you're animating. `false` for an unknown bone. |
+| `ref.setBoneOffset3(bone, offset)` | Move a bone (usually `hips`) by meters in its parent's space. |
+| `ref.clearBones3()` | Every scripted bone pose off. |
+| `ref.setExpression3(name, weight)` | An expression's weight, `0..1`. |
+| `ref.bone3(bone)` | A bone's world position (last frame): hitboxes, effects, camera targets. `null` if unknown. |
+| `ref.resetSprings3()` | Hair and cloth settle from the current pose (after a teleport). |
+| `ref.setPose3(name, { blend })`, `ref.pose3` | [VRM Poses](#vrm-poses). |
+| `ref.playAnim3(name, { loop, speed, blend })`, `ref.anim3` | [Humanoid Animator](#humanoid-animator). |
+| `ref.ragdoll3(on, { velocity })`, `ref.isRagdoll3`, `ref.ragdollHit3(bone, impulse)` | [Ragdoll 3D](#ragdoll-3d). |
+| `ref.modelInfo3` | What the model offers: `vrm`, `version` (0 or 1), `name`, `forwardZ` (+1 faces +Z, −1 faces −Z), `bones`, `expressions`, `clips`. |
+
+```js
+// Look at the camera, blink every few seconds, talk while speaking.
+const a = getCompByID('avatar')
+const talking = ctx.keysDown.has('t')   // stand-in for your own "is speaking" flag
+a.setBone3('head', { x: -5, y: Math.sin(ctx.time) * 20, z: 0 })
+a.setExpression3('blink', (ctx.time % 4) < 0.12 ? 1 : 0)
+a.setExpression3('aa', talking ? 0.5 + 0.5 * Math.sin(ctx.time * 20) : 0)
+
+// A hand position for a hit check.
+const fist = a.bone3('rightHand')
+```
+
+:::tip
+Write VRM-version-proof code with `ref.modelInfo3.forwardZ`: multiply X and Z angles by it when an angle depends on which way the avatar faces.
+:::
+
+See also: [Scripting: 3D](../scripting/3d-api.mdx), [3D basics](./3d-basics.mdx).

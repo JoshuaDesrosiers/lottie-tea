@@ -1,0 +1,139 @@
+---
+title: Keyboard shortcuts
+sidebar_position: 6
+description: Every keyboard shortcut and mouse modifier in the Toasty editor, grouped by where it works.
+---
+
+# Keyboard shortcuts
+
+On macOS, **Cmd** works wherever this page says **Ctrl**.
+
+:::note Shortcuts and text fields
+Editor shortcuts are ignored while you are typing in a text field (an Inspector number, a name, the code editor), so Backspace edits the text instead of deleting your selection.
+:::
+
+:::note Shortcuts and Playground
+While **Playground** is running, the editor's own shortcuts are switched off so that every key reaches your game (a game that uses the **1** key won't flip the editor back to Design). Click **Design** in the toolbar to stop playing.
+:::
+
+## Everywhere in Design mode
+
+| Shortcut | Action |
+|---|---|
+| **Ctrl+Z** | Undo |
+| **Ctrl+Shift+Z** or **Ctrl+Y** | Redo |
+| **Ctrl+S** | Save (with no project yet: Save as Project…) |
+| **Ctrl+O** | Open Project… |
+| **Ctrl+G** | Group the selection |
+| **Ctrl+C** | Copy the selection |
+| **Ctrl+V** | Paste in place (the copy lands exactly where the original is) |
+| **Ctrl+]** | Move the selected node one step forward (in front) |
+| **Ctrl+[** | Move the selected node one step backward |
+| **Ctrl+Shift+]** | Bring to front |
+| **Ctrl+Shift+[** | Send to back |
+| **Delete** or **Backspace** | Delete the selected keyframes if any are selected in the timeline, otherwise the selected node(s) |
+| **1** | Design (closes nothing, just returns to Design) |
+| **2** | Open the bottom dock on the **Animate** tab (timeline) |
+| **3** | Open the bottom dock on the **State Machine** tab |
+| **Escape** | Stop editing a shape's points |
+| **F3** or **`** | Show or hide the frame profiler (works in every mode) |
+
+## Canvas (mouse)
+
+| Gesture | Action |
+|---|---|
+| **Scroll** | Pan |
+| **Ctrl+scroll**, or pinch | Zoom toward the cursor |
+| **Click** | Select (the outermost group under the cursor; **double-click** to go one level deeper) |
+| **Drag on empty canvas** | Pan, and clear the selection |
+| **Ctrl+click** or **Shift+click** | Add to / remove from the selection |
+| **Drag** a node | Move it (snaps to the scene edges and other objects' edges and centres, with a guide line) |
+| **Shift** while dragging a scale handle | Keep proportions |
+| **Alt** when releasing a scale or rotate drag | Children keep their place instead of following the parent |
+| **Shift** while rotating or scaling a multi-selection | Rotation snaps to 15° steps; scaling stays uniform |
+| **Double-click** a shape | Edit its points |
+
+## Editing points (path edit)
+
+| Gesture | Action |
+|---|---|
+| Drag a point or handle | Move it |
+| **Alt** while dragging a curve handle | Break the tangent (move one handle independently) |
+| Click the outline | Add a point |
+| Double-click a point | Toggle smooth / corner |
+| **Delete** or **Backspace** | Delete the selected point (never the whole shape) |
+| **Escape** | Finish editing |
+
+## Layers panel
+
+| Gesture | Action |
+|---|---|
+| Double-click a name | Rename (Enter to commit, Escape to cancel) |
+| Drag onto the **top half** of a row | Reorder as a sibling |
+| Drag onto the **bottom half** of a row | Make it a child; the parent starts clipping its children |
+| **Alt** while dropping as a child | Make it a child without turning on clipping |
+| Ctrl/Shift+click | Multi-select |
+
+## Timeline
+
+| Gesture | Action |
+|---|---|
+| Drag in the ruler | Scrub the playhead |
+| Drag in the track area | Marquee-select keyframes |
+| Drag a keyframe diamond | Retime it |
+| Double-click a keyframe | Edit the easing curve leading into it |
+| Scroll over the duration field | Nudge the duration by 0.5 s (**Shift**: 5 s) |
+| **Delete** / **Backspace** | Delete the selected keyframes |
+
+## Bones
+
+| Gesture | Action |
+|---|---|
+| **Shift** while dragging a bone in IK mode | Bend the whole chain up to the root instead of just two bones |
+
+## Sprite Editor
+
+| Shortcut | Action |
+|---|---|
+| **Ctrl+scroll** over the sheet | Zoom the preview |
+| Click a slice | Leave it out / put it back |
+| **Escape** | Close |
+
+## Paint mode
+
+The **Keyboard shortcuts** button on Paint's canvas bar shows this list in the editor too.
+
+| Shortcut | Action |
+|---|---|
+| **,** / **.** | Previous / next frame |
+| **I** / **Shift+I** | Eyedropper for the fill / outline colour |
+| **Ctrl+Z** / **Ctrl+Shift+Z** | Undo / redo |
+| **Delete** | Delete the selection |
+| **Escape** | Deselect |
+| **Ctrl+C** / **Ctrl+X** / **Ctrl+V** | Copy / cut / paste |
+| **Ctrl+A** | Select all |
+| **Ctrl+G** / **Ctrl+Shift+G** | Group / ungroup |
+| Arrow keys | Nudge the selection |
+| Scroll / **Ctrl+scroll** | Pan / zoom |
+| Click a palette swatch / right-click / **Alt+click** | Set fill / set outline / remove the swatch |
+
+## 3D scene view
+
+These work when the canvas is showing a 3D scene in Design mode. See [3D basics](../components/3d-basics.mdx).
+
+| Shortcut | Action |
+|---|---|
+| **Right-drag**, or **Alt+left-drag** | Orbit |
+| **Middle-drag**, or **Shift+right-drag** | Pan |
+| **W A S D**, **Q E**, **Shift** while right-dragging | Fly (Shift for speed) |
+| **W** / **E** / **R** | Move / rotate / scale gizmo |
+| **F** | Frame the selected object |
+| **Numpad 1** / **Ctrl+Numpad 1** | Front / back view |
+| **Numpad 3** | Right view |
+| **Numpad 7** | Top view |
+| **Numpad 5** | Perspective |
+| **Escape** | Let go of the selected bone |
+
+## In your game
+
+Keys and mouse buttons reach your scripts through `ctx.keysDown` and friends. Key names are normalised: the space bar is `space`, arrow keys are `up`, `down`, `left`, `right`, letters and digits are lower case, and any mouse button counts as `mouse`. See [Input](../scripting/input.mdx).

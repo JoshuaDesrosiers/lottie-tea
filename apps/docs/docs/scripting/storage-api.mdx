@@ -1,0 +1,68 @@
+---
+title: Storage API
+sidebar_position: 15
+description: Saving progress, high scores and settings that survive restarts with ctx.storage.
+---
+
+# Storage API
+
+`ctx.storage` is persistent save data (Unity's `PlayerPrefs`, the web's `localStorage`). Values survive leaving Playground, closing the editor and reloading an exported game.
+
+| Member | Description |
+|---|---|
+| `ctx.storage.get(key)` | The saved value, or `null` |
+| `ctx.storage.set(key, value)` | Save any JSON-serializable value |
+| `ctx.storage.remove(key)` | Delete a key |
+| `ctx.storage.keys()` | Every saved key |
+
+## get
+
+```ts
+ctx.storage.get(key: string): unknown   // null if missing or unreadable
+```
+
+## set
+
+```ts
+ctx.storage.set(key: string, value: unknown): void
+```
+
+`value` is stored as JSON: numbers, strings, booleans, `null`, arrays and plain objects. Functions, refs, `Set`/`Map` and class instances don't survive (convert them first).
+
+## remove / keys
+
+```ts
+ctx.storage.remove(key: string): void
+ctx.storage.keys(): string[]
+```
+
+## Example: a save object
+
+Load once per session into `ctx.globals`, write back when something changes.
+
+```js
+const S = ctx.globals.save || (ctx.globals.save = Object.assign(
+  { unlocked: 1, stars: {}, coins: 0 },          // defaults
+  ctx.storage.get('crownmatch') || {},            // whatever was saved
+))
+function persist() { ctx.storage.set('crownmatch', S) }
+
+if (levelWon) { S.unlocked = Math.max(S.unlocked, level + 1); S.coins += 25; persist() }
+```
+
+`Object.assign(defaults, saved)` means new fields you add later get their defaults for old saves.
+
+## Example: high score
+
+```js
+const best = ctx.storage.get('runner.best') ?? 0
+if (ctx.props.score > best) ctx.storage.set('runner.best', ctx.props.score)
+```
+
+## Notes
+
+- **Save on change, not every frame.** Each `set` serializes to JSON and writes to the browser's storage.
+- **Pick game-specific keys** (`'mygame.progress'`). The editor and every exported game opened from the same web address share that browser's storage for that address, so two games using `'save'` would overwrite each other. Keys are stored under an internal prefix, so they never collide with the editor's own settings.
+- **Storage can be unavailable** (private windows, blocked site data): `get` returns `null`, `set` does nothing and logs a warning, `keys` returns `[]`. Your game then simply starts fresh; always have defaults.
+- Data lives in **this browser on this device**. It doesn't sync between machines or browsers.
+- To wipe your own save while testing: `ctx.storage.remove('mygame.progress')`, or loop over `ctx.storage.keys()`.

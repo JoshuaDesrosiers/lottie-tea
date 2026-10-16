@@ -1,0 +1,217 @@
+---
+title: Exporting for the web
+sidebar_position: 2
+description: Export a game as a website embed folder, and put each file in the right place in Vite, Next.js, Create React App, Astro or a plain static site.
+---
+
+# Exporting for the web
+
+Toasty has two ways to put a game on the web:
+
+| Export | What you get | Use it when |
+|---|---|---|
+| **Game → Web page (.html)** | One self-contained page. Runs in any browser, but it is a closed box. | You want to share a game as a link or upload it to itch.io. See [Exporting](../editor/exporting.mdx). |
+| **Game → Website embed (React / JS)** | A folder of files for *your* web project, with a JavaScript API to steer the game. | You want the game inside your own site, talking to your code. This page. |
+
+## Run the export
+
+1. Open the scene the embed should **start on** and make it the active scene. The export uses its name as the embed's title and as the start scene.
+2. Open the **Export** menu in the top toolbar and choose **Game → Website embed (React / JS)**.
+3. Pick a folder. Toasty creates a new folder called `<SceneName>-embed` inside it (spaces become dashes, punctuation is dropped), and tells you where it saved it.
+
+<Shot id="export-menu-website-embed" caption="Export menu with Game → Website embed (React / JS) highlighted" />
+
+If you are in Playground mode when you export, Toasty switches back to Design first, so the exported scene starts from its designed pose rather than wherever the game happened to be.
+
+:::caution Browser editor: use Chrome or Edge
+In the web editor the export writes to a real folder on your disk through the browser's folder access, which Chrome and Edge support. Firefox and Safari can't open real folders, so the editor keeps "folders" in the browser's own private storage there, which you can't easily copy into your project. Export from Chrome, Edge or the desktop app.
+:::
+
+## What's in the folder
+
+```text
+Like-embed/
+  README.md                     what it is and a quick start
+  GUIDE.md                      a step-by-step guide for people
+  AGENTS.md                     the API and rules for AI coding assistants
+  an1mbyt3.json                 this game's scenes, Properties, inputs, events as data
+  example.html                  a working test page
+  src/an1mbyt3/                 code you import from your app
+    an1mbyt3-embed.js           createPlayer, defineAn1PlayerElement (<an1-player>)
+    an1mbyt3-embed.d.ts         its TypeScript types
+    an1mbyt3-react.js           <An1Player>, useAn1Player for React
+    an1mbyt3-react.d.ts         its TypeScript types
+    an1mbyt3-engine.js          shared by both (don't import it directly)
+    AGENTS.md                   same as above, so it travels with the code
+    CLAUDE.md                   points Claude Code at AGENTS.md
+  public/an1mbyt3/              static files your site serves as they are
+    game.teab                   your game
+    an1mbyt3_wasm_bg.wasm       the engine
+```
+
+The two halves, `src/` and `public/`, mirror the root of a typical Vite, Next.js or Create React App project, so you can drag both folders straight into your project root.
+
+<Shot id="export-embed-folder" caption="The exported Like-embed folder open in a file explorer, src and public expanded" />
+
+### The JavaScript files
+
+- **`an1mbyt3-embed.js`** exports `createPlayer` and `defineAn1PlayerElement`. Use it from any page.
+- **`an1mbyt3-react.js`** exports the `An1Player` component and the `useAn1Player` hook. It imports `react` and `react/jsx-runtime` from your app (React is a peer dependency; it is not bundled).
+- **`an1mbyt3-engine.js`** is the engine glue both of the above share. It is about 230 KB.
+
+The three import each other with relative paths, so **keep them together in one folder**. The `.d.ts` files next to them give you full types in TypeScript projects with no extra setup.
+
+### The static files
+
+- **`game.teab`** is your game: scenes, art, animations, state machines, scripts, sounds.
+- **`an1mbyt3_wasm_bg.wasm`** is the engine itself (around 25 MB uncompressed). By default the player looks for it **next to `game.teab`**, so keep them in the same folder, or pass its URL as the `wasm` option.
+
+These are fetched at run time, never imported. Don't `import` anything from `public/` (Vite and Next.js don't treat static files as modules).
+
+### The docs and the manifest
+
+`README.md`, `GUIDE.md` and `AGENTS.md` are generated for **this game**: each ends with a "What … offers" section listing every scene, its Properties (with type and default), its state machine's states, the transitions between them and which call triggers each one, the inputs, the `ctx.data` keys its scripts read, the events it emits and the functions it registers.
+
+`an1mbyt3.json` is the same thing as data. Roughly:
+
+```json
+{
+  "title": "Like",
+  "startScene": "Like",
+  "scenes": [
+    {
+      "name": "Like",
+      "properties": [
+        { "name": "count", "kind": "Number", "default": "128" },
+        { "name": "liked", "kind": "Bool", "default": "false" }
+      ],
+      "stateMachines": [
+        {
+          "name": "…",
+          "initialState": "Idle",
+          "states": ["Idle", "Liked"],
+          "transitions": [{ "layer": null, "from": "Idle", "to": "Liked", "when": "…" }],
+          "layers": [],
+          "inputs": [{ "name": "burst", "kind": "Trigger" }]
+        }
+      ]
+    }
+  ],
+  "dataKeys": [],
+  "events": ["like"],
+  "functions": []
+}
+```
+
+:::note How the lists are found
+Data keys, events and functions are found by scanning the game's scripts for `ctx.data.name`, `ctx.emit('name'` and `ctx.on('name'`. Names built at run time (for example `ctx.emit('level' + n)`) aren't listed. Names used by On Click "Call script function" actions also reach the page as events, but they aren't in the `events` list.
+:::
+
+## Try the example page
+
+`example.html` is a working page with the game, a scene picker, a "set data" box, a "fire trigger" box and a live log of every event. Browsers refuse to load the engine from a `file://` address, so serve the folder over HTTP:
+
+```bash
+cd Like-embed
+npx serve .
+```
+
+Then open `http://localhost:3000/example.html`. It is the quickest way to check what your game sends and accepts before you write your own page.
+
+## Where the files go
+
+The player only needs two things: your code can import `src/an1mbyt3/*.js`, and the browser can fetch `game.teab` and the `.wasm` by URL.
+
+### Vite, Create React App, Remix
+
+```text
+my-app/
+  public/an1mbyt3/game.teab
+  public/an1mbyt3/an1mbyt3_wasm_bg.wasm
+  src/an1mbyt3/an1mbyt3-react.js  (+ the other .js and .d.ts files)
+  src/App.tsx
+```
+
+```tsx
+import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
+
+<An1Player game="/an1mbyt3/game.teab" style={{ height: 400 }} />
+```
+
+Everything in `public/` is served from the site root, so `public/an1mbyt3/game.teab` is `/an1mbyt3/game.teab`.
+
+### Next.js
+
+The same layout: `public/an1mbyt3/` for the static files, and the JS folder anywhere in your source (`src/an1mbyt3/`, `app/an1mbyt3/`, `components/an1mbyt3/`). The player only runs in the browser, so it needs a client-only wrapper. See [Next.js](./nextjs.mdx).
+
+### Astro, SvelteKit, Nuxt
+
+Put the static files in the framework's static folder (`public/` in Astro and Nuxt, `static/` in SvelteKit) and the JS files with your source. Make sure the player is only created in the browser: in Astro use a framework component with `client:only`, in SvelteKit create it in `onMount`, in Nuxt wrap it in `<ClientOnly>` or create it in `onMounted`.
+
+### A plain static site
+
+Put everything wherever your static files live and use relative or absolute URLs:
+
+```html
+<div id="game" style="height: 400px"></div>
+<script type="module">
+  import { createPlayer } from '/js/an1mbyt3/an1mbyt3-embed.js'
+  const player = await createPlayer(document.getElementById('game'), {
+    game: '/assets/an1mbyt3/game.teab',
+  })
+</script>
+```
+
+### Game and engine in different places
+
+If the engine is hosted somewhere other than next to the game (a CDN, a shared folder for several games), pass both URLs:
+
+```js
+createPlayer(el, {
+  game: '/games/like/game.teab',
+  wasm: 'https://cdn.example.com/an1mbyt3/an1mbyt3_wasm_bg.wasm',
+})
+```
+
+The default is resolved relative to the `game` URL, so `game: '/games/like/game.teab'` looks for `/games/like/an1mbyt3_wasm_bg.wasm`.
+
+### Games as bytes
+
+`game` and `wasm` also accept an `ArrayBuffer` or `Uint8Array`, for example a `.teab` the user uploaded or one you fetched with your own auth headers. When `game` is bytes there is no URL to find the engine next to, so `wasm` is **required**:
+
+```js
+const bytes = await (await fetch('/api/games/42', { headers: { Authorization: token } })).arrayBuffer()
+const player = await createPlayer(el, { game: bytes, wasm: '/an1mbyt3/an1mbyt3_wasm_bg.wasm' })
+```
+
+Without it you get the error ``an1mbyt3: pass `wasm` (the engine) when `game` is bytes``.
+
+## Serving it well
+
+The `.wasm` is by far the biggest download, so:
+
+- **Compress it.** Turn on gzip or Brotli for `.wasm` on your server or CDN. The player downloads it with `fetch` and the browser decompresses it transparently.
+- **Cache it.** Serve it with long cache headers. It only changes when you re-export.
+- **No special MIME type is needed.** The player reads the engine as raw bytes, so it works even if your server sends `.wasm` and `.teab` as `application/octet-stream`.
+
+The engine and the game are downloaded in parallel when the player starts. If you want the download to start earlier (say, the game sits below the fold but you know the user will reach it), add preload hints:
+
+```html
+<link rel="preload" href="/an1mbyt3/an1mbyt3_wasm_bg.wasm" as="fetch" crossorigin>
+<link rel="preload" href="/an1mbyt3/game.teab" as="fetch" crossorigin>
+```
+
+Or create the player only when its box scrolls into view (see [Recipes](./recipes.mdx)).
+
+## Updating the game
+
+When you change the game, **export again and replace every file**: the three `.js` files, the `.d.ts` files, `game.teab` and the `.wasm`. They come from the same version of the engine and belong together; mixing a new `.teab` with an old engine can fail to load or behave oddly.
+
+:::tip Keep the names stable
+Your page talks to the game by name: Property names, input names, trigger names, state names, event names, scene names. If you rename something in the editor, search your site's code for the old name. Check the regenerated `AGENTS.md` or `an1mbyt3.json` to see the current list.
+:::
+
+## Next
+
+- [React](./react.mdx) or [Plain JavaScript](./vanilla-js.mdx) to show it.
+- [Troubleshooting](./troubleshooting.mdx) if nothing appears.

@@ -1,0 +1,180 @@
+---
+title: "4. Scroll-linked data"
+sidebar_position: 4
+description: Link a scene to scrolling - compute scroll progress once per frame, send it as data, pause the player off-screen, and only mount the scene that's in view.
+---
+
+# 4. Scroll-linked data
+
+**Goal:** scenes that react to the visitor scrolling, and a page that only runs the scene in view.
+
+**What you'll learn**
+
+- Computing scroll progress through a section, once per animation frame.
+- Mapping progress to scene data (`mood`, `isNight`).
+- `paused` for a player that's off-screen.
+- A `useInView` hook to run one scene at a time and show posters for the rest.
+
+## Step 1: scroll progress
+
+```ts title="src/useScrollProgress.ts"
+import { useEffect, useRef, useState } from 'react'
+
+/**
+ * 0 when the element's top reaches the bottom of the viewport,
+ * 1 when its bottom leaves the top. Updated at most once per frame.
+ */
+export function useScrollProgress<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null)
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    let frame = 0
+    const measure = () => {
+      frame = 0
+      const el = ref.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const total = rect.height + window.innerHeight
+      const p = (window.innerHeight - rect.top) / total
+      setProgress(Math.min(1, Math.max(0, p)))
+    }
+    // Scroll events can fire many times per frame: coalesce them.
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(measure)
+    }
+    measure()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [])
+
+  return [ref, progress] as const
+}
+```
+
+## Step 2: map it to the scene
+
+```tsx title="src/PricingSection.tsx"
+import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
+import { useScrollProgress } from './useScrollProgress'
+
+/** The blob gets happier as the visitor scrolls through the pricing. */
+export function PricingSection() {
+  const [ref, progress] = useScrollProgress<HTMLElement>()
+  // Map 0..1 scroll to -0.6..1 mood: a bit glum at first, delighted by the end.
+  const mood = -0.6 + progress * 1.6
+
+  return (
+    <section ref={ref} style={{ minHeight: '150vh', display: 'grid', gridTemplateColumns: '1fr 280px' }}>
+      <div>{/* pricing cards */}</div>
+      <div style={{ position: 'sticky', top: 80, height: 280 }}>
+        <An1Player game="/an1mbyt3/game.teab" style={{ width: 280, height: 280 }} data={{ mood }} />
+      </div>
+    </section>
+  )
+}
+```
+
+## Try it live
+
+Scroll inside the box. The same idea, with the box's own scroll position instead of the window's:
+
+```jsx live
+function ScrollMood() {
+  const [progress, setProgress] = React.useState(0)
+  const frame = React.useRef(0)
+  const onScroll = (e) => {
+    const el = e.currentTarget
+    if (frame.current) return
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0
+      setProgress(el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight))
+    })
+  }
+  const mood = -1 + progress * 2
+  return (
+    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <div onScroll={onScroll} style={{ height: 260, width: 260, overflowY: 'auto', border: '1px solid #8884', borderRadius: 8, padding: 12 }}>
+        {['Free', 'Starter', 'Pro', 'Team', 'Enterprise', 'Thanks for reading!'].map((t) => (
+          <div key={t} style={{ height: 140, display: 'grid', placeItems: 'center', borderBottom: '1px dashed #8884' }}>{t}</div>
+        ))}
+      </div>
+      <div>
+        <ToastyPlayer game="/games/mood-blob.teab" style={{ width: 240, height: 240 }} data={{ mood }} />
+        <p>scroll {Math.round(progress * 100)}% → mood {mood.toFixed(2)}</p>
+      </div>
+    </div>
+  )
+}
+```
+
+## Step 3: only run what's visible
+
+Scroll-linked or not, a scene the visitor can't see shouldn't use their battery. Two tools:
+
+**`paused`** stops the simulation and rendering but keeps the scene loaded, so it resumes instantly:
+
+```tsx
+<An1Player game="/an1mbyt3/game.teab" paused={!visible} data={{ mood }} />
+```
+
+**Mounting only the scene in view** is how two scenes share a page (only one player can run at a time). Unmounting a player destroys it; showing a still image in its place keeps the layout:
+
+```tsx title="src/useInView.ts"
+import { useEffect, useRef, useState } from 'react'
+
+/** True while at least `threshold` of the element is visible. */
+export function useInView<T extends Element>(threshold = 0.4) {
+  const ref = useRef<T | null>(null)
+  const [inView, setInView] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const io = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [threshold])
+  return [ref, inView] as const
+}
+```
+
+```tsx title="src/LiveScene.tsx"
+import type { ComponentProps } from 'react'
+import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
+import { useInView } from './useInView'
+
+type Props = ComponentProps<typeof An1Player> & { poster: string; width: number; height: number }
+
+/** A scene that only runs while on screen; a poster image otherwise. */
+export function LiveScene({ poster, width, height, ...player }: Props) {
+  const [ref, inView] = useInView<HTMLDivElement>()
+  return (
+    <div ref={ref} style={{ width, height }}>
+      {inView ? (
+        <An1Player {...player} style={{ width, height }} />
+      ) : (
+        <img src={poster} alt="" width={width} height={height} />
+      )}
+    </div>
+  )
+}
+```
+
+Use one `LiveScene` for the day/night toggle at the top and one for the blob by the form. As the visitor scrolls from one to the other, the first unmounts and the second starts. Keep the two thresholds high enough (0.4 here) that both are rarely "in view" at once; if they are, the player created second destroys the first, leaving it blank until it remounts.
+
+:::tip Posters
+Take a screenshot of each scene running (in Playground, or in your page) and use it as the poster. Matching the poster to the scene's first frame makes the swap invisible.
+:::
+
+## Check your work
+
+- In the live example, scrolling down moves the blob from sad to happy, and scrolling back up reverses it.
+- In your app, with the browser's performance panel recording, a paused or unmounted scene does no per-frame work.
+- Scrolling from the hero to the form swaps which scene is live, and the poster stands in for the other.
+
+**Next:** [5. Sequencing the page with state changes](./05-sequencing-with-state-changes.mdx)

@@ -12698,6 +12698,23 @@ impl WasmEditor {
         self.document_summary()
     }
 
+    /// The docs site's showcase components (`demo_docs`): `kind` is one of
+    /// `like-button`, `progress-ring`, `day-night`, `mood-blob`,
+    /// `weather-card`, `bell`. Adds that scene and returns its id.
+    pub fn load_docs_showcase(&mut self, kind: &str) -> Result<JsValue, JsValue> {
+        let demo = match kind {
+            "like-button" => crate::demo_docs::build_like_button(&mut self.document),
+            "progress-ring" => crate::demo_docs::build_progress_ring(&mut self.document),
+            "day-night" => crate::demo_docs::build_day_night(&mut self.document),
+            "mood-blob" => crate::demo_docs::build_mood_blob(&mut self.document),
+            "weather-card" => crate::demo_docs::build_weather_card(&mut self.document),
+            "bell" => crate::demo_docs::build_bell(&mut self.document),
+            other => return Err(JsValue::from_str(&format!("unknown showcase \"{other}\""))),
+        };
+        migrate_document(&mut self.document);
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+    }
+
     pub async fn load_ninja_demo(&mut self) -> Result<JsValue, JsValue> {
         let demo = crate::demo_ninja::build_demo_ninja_adventure(&mut self.document);
         migrate_document(&mut self.document);

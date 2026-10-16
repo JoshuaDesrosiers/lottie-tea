@@ -1,0 +1,27 @@
+.main { max-width: 1180px; margin: 0 auto; padding: 3rem 1rem 4rem; display: grid; gap: 3.5rem; }
+.hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 2.5rem; align-items: center; }
+.eyebrow { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.78rem; font-weight: 700; color: var(--ifm-color-primary); margin: 0 0 0.8rem; }
+.title { font-size: clamp(2.2rem, 4.6vw, 3.6rem); line-height: 1.04; margin: 0 0 1rem; }
+.lede { font-size: 1.12rem; line-height: 1.6; max-width: 34rem; color: var(--ifm-color-emphasis-800); }
+.actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem; }
+.primary, .secondary { display: inline-block; padding: 0.7rem 1.3rem; border-radius: 999px; font-weight: 700; text-decoration: none !important; }
+.primary { background: var(--toasty-butter); color: #1b1408 !important; }
+.primary:hover { background: #ffb940; }
+.secondary { border: 1px solid var(--toasty-line); color: var(--ifm-font-color-base) !important; }
+.secondary:hover { border-color: var(--ifm-color-primary); }
+.demo { display: grid; gap: 0.75rem; }
+.slider { display: grid; grid-template-columns: auto 1fr auto; gap: 0.75rem; align-items: center; font-family: var(--ifm-font-family-monospace); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.slider input { width: 100%; accent-color: var(--toasty-butter); }
+.state { color: var(--ifm-color-primary); }
+.snippet { margin: 0; font-size: 0.78rem; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.card { display: block; padding: 1.4rem; border: 1px solid var(--toasty-line); border-radius: 14px; color: inherit !important; text-decoration: none !important; background: var(--ifm-background-surface-color); transition: border-color 0.15s, transform 0.15s; }
+.card:hover { border-color: var(--ifm-color-primary); transform: translateY(-2px); }
+.card h2 { font-size: 1.25rem; margin: 0 0 0.4rem; }
+.card p { margin: 0; color: var(--ifm-color-emphasis-700); line-height: 1.55; }
+.band { padding: 2.2rem; border-radius: 18px; background: var(--ifm-background-surface-color); border: 1px solid var(--toasty-line); }
+.band h2 { margin-top: 0; }
+.band p { max-width: 46rem; }
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; } .grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .grid { grid-template-columns: 1fr; } .main { padding-top: 2rem; } }
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }

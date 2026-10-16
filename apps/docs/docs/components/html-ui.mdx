@@ -1,0 +1,182 @@
+---
+title: HTML UI
+sidebar_position: 23
+description: Put real HTML and CSS in your scene with the HTML UI component, wire it to state machines and properties with data attributes, and script its live DOM with ref.dom.
+---
+
+# HTML UI
+
+The **HTML UI** component puts a box of **real HTML and CSS** in your scene. Forms, sliders, styled text, gradients, `backdrop-filter` glass panels, Google Fonts, icon fonts: anything a browser can render. It sits at its node, so moving, rotating or scaling the node (or moving the camera) moves it like any other object.
+
+You can wire it up three ways, from no code to full control:
+
+| Way | How | Code needed |
+|---|---|---|
+| `data-trigger` | Clicking an element fires a state-machine trigger. | None |
+| `data-input` | An `<input>` sets a state-machine input. | None |
+| `data-bind` / `data-prop` | An element shows a scene property, or an input writes one. | None |
+| `ref.dom` | A script gets the element's live DOM (a `ShadowRoot`). | Yes |
+
+<ToastyDemo game="/games/html-ui-lab.teab" height={400} caption="HTML UI Lab: the HUD is HTML. Party mode uses data-trigger, the speed slider and score use ref.dom, and the speech bubble follows the star." />
+
+## Adding one
+
+- **+ → UI → HTML + CSS** adds a group node with an HTML UI component, under the active Camera when there is one. It starts as a sample card with a **Start** button.
+- Or add **HTML UI** from the **UI** section of **Add Component** on any node.
+
+Put it under the Camera (and give it a [UI Anchor](./ui-components.mdx#ui-anchor)) for a HUD that stays on screen. Put it anywhere else in the scene for an element anchored in the world, like a speech bubble or a name tag.
+
+## Inspector fields
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Size** (**W**, **H**) | The element's box in world units, which is CSS pixels at zoom 1. It scales with the node and the camera. | 320 × 180 |
+| **Interactive (takes clicks and typing when playing)** | On: the element receives the pointer and keyboard in Playground and games. Off: the pointer passes through it to the game underneath. | On |
+| **Source** | **Inline**: HTML and CSS typed right here. **Files**: HTML and CSS files in the project, edited in the Code tab. | Inline |
+| **HTML** | The element's markup. | a sample card |
+| **CSS** | Its styles. | sample styles |
+| **Fonts & Icons (Google)** | A helper that writes a font rule or icon markup for you (see [Fonts and icons](#fonts-and-icons)). | |
+
+Inline HTML and CSS apply when the box loses focus, or on **Ctrl+Enter**. **Tab** inserts two spaces instead of leaving the box.
+
+<Shot id="html-ui-inspector" caption="The HTML UI component in the Inspector: Size, Interactive, Source (Inline / Files), the HTML and CSS boxes and the Fonts & Icons helper" />
+
+### Files mode
+
+Long HTML is easier to edit in a proper editor. Click **Source → Files** and Toasty:
+
+1. writes the current HTML and CSS into two new project files, `UI/<node-name>.html` and `UI/<node-name>.css`;
+2. points the component at them.
+
+Each source then shows a file picker (any `.html` or `.css` file in the project) and an **Edit** button that opens it in the Code tab. Edits show up live. A file that has gone missing renders as a red "Missing file" message instead of the content.
+
+Click **Inline** to copy the files' current content back into the component.
+
+## How it renders
+
+- Each element is a real DOM element laid **over the canvas**, positioned every frame from its node's world position, rotation and scale through the camera.
+- It's **always drawn on top** of the canvas. A 3D wall or a 2D sprite can't hide it. Use node order for overlap between HTML elements (their stacking follows the nodes' z-order), and plain canvas UI for anything that must sit behind scene objects.
+- Each element lives in its own **shadow root**, so its CSS can't restyle the editor or your web page, and the page's CSS can't restyle it. Its root is reset with `:host { all: initial }` and sized to **W** × **H**, so style a wrapper with `width: 100%; height: 100%`.
+- Hiding the node hides the element.
+- In **Design** mode the element is a non-interactive preview, so you can still select and move things on the canvas under it. It becomes interactive in **Playground** and exported games.
+
+:::tip
+The element is CSS pixels at zoom 1. If your camera zooms in or the scene is scaled up on a big screen, the HTML scales with it, crisply, because it's real text and vector CSS, not a texture.
+:::
+
+## data-trigger: clicks fire triggers
+
+Clicking an element with `data-trigger="name"`, or anything inside it, fires the state machine's trigger input called `name`. In the HTML UI Lab, the Party button switches between the Play and Party states with no code:
+
+```html
+<button class="party" data-trigger="celebrate">Party mode</button>
+```
+
+The state machine has a Trigger input `celebrate`, with transitions Play → Party and Party → Play on it.
+
+## data-input: inputs set state-machine inputs
+
+An `<input>`, `<select>` or `<textarea>` with `data-input="name"` sets the state machine's input `name` whenever it changes. The value is converted to fit the input you declared:
+
+| State machine input kind | Value sent |
+|---|---|
+| Bool | the element's value as a boolean (a checkbox's checked state) |
+| Number | the value as a number (for a range or number field) |
+| Enum | the value as text (a `<select>`'s chosen option) |
+| Trigger | fires the trigger on every change |
+
+```html
+<label><input type="checkbox" data-input="nightMode"> Night mode</label>
+<input type="range" min="0" max="10" step="0.5" data-input="speed">
+<select data-input="weather">
+  <option>Sun</option><option>Rain</option><option>Snow</option>
+</select>
+```
+
+If the state machine has no input with that name, a warning is printed and nothing happens.
+
+## data-bind and data-prop: scene properties
+
+Scene **properties** (see [Properties and bindings](../editor/properties-and-bindings.mdx)) can be shown and edited from HTML:
+
+- `data-bind="name"` on any element shows the property's value as its text. Add `data-format` with `{}` where the value goes: `data-format="Score: {}"`. Numbers are rounded to 3 decimal places; colour values show as comma-separated numbers.
+- `data-prop="name"` on an `<input>`, checkbox or `<select>` writes the property as the user edits it, and is refreshed from the property whenever it changes elsewhere (except while the user is typing in it).
+
+```html
+<div class="score" data-bind="score" data-format="Score: {}"></div>
+<label>Volume <input type="range" min="0" max="1" step="0.01" data-prop="volume"></label>
+<label><input type="checkbox" data-prop="muted"> Mute</label>
+```
+
+Values are converted to the property's type, so a range input's `"0.4"` arrives as the number 0.4. A `data-prop` naming a property the scene doesn't have prints a warning in the game console.
+
+:::info
+Properties are also what a web page sets through the embed API (`player.set('score', 10)` or React's `data={{ score: 10 }}`), so `data-bind` is a zero-code path from your website's data to HTML inside the game. See [Embedding: data binding](../embedding/data-binding.mdx).
+:::
+
+## ref.dom: scripting the live DOM
+
+For anything beyond the data attributes, a script can reach into the element. Give the node an **Id**, then `getCompByID('hud').dom` is its `ShadowRoot`: use `querySelector`, `getElementById`, set `textContent`, toggle classes, add event listeners.
+
+- `ref.dom` is `null` until the element has been shown once, and outside Playground / games. Always check it.
+- The element is re-rendered **only** when its authored HTML, CSS or size changes, so changes your script makes to the DOM stick.
+- A new Play (or scene switch) builds a fresh DOM. Attach listeners once per DOM, not every frame.
+
+The HTML UI Lab's script, lightly trimmed:
+
+```js
+const g = ctx.globals.html || (ctx.globals.html = { score: 0, speed: 3, hue: 40, wired: null })
+const dom = getCompByID('hud').dom
+
+// Wire listeners once per DOM (it's null until the HUD first shows).
+if (dom && g.wired !== dom) {
+  g.wired = dom
+  dom.querySelector('#speed').addEventListener('input', (e) => { g.speed = Number(e.target.value) })
+  dom.querySelector('#color').addEventListener('click', () => { g.hue = (g.hue + 70) % 360 })
+}
+
+if (getCompByID('star').clicked) g.score += 1
+
+// Write back into the HUD, only when the text actually changes.
+if (dom) {
+  const score = dom.querySelector('#score')
+  if (score.textContent !== String(g.score)) score.textContent = String(g.score)
+}
+```
+
+:::tip
+Writing to the DOM every frame is cheap but not free. Compare before you write, as above, so the browser only re-lays out when something changed.
+:::
+
+### World-anchored HTML
+
+An HTML UI node outside the Camera lives in the world. The HTML UI Lab's speech bubble is a 120 × 44 element with **Interactive** off, moved every frame to follow the star:
+
+```js
+const star = getCompByID('star')
+const bubble = getCompByID('bubble')
+bubble.x = star.x
+bubble.y = star.y + 95
+```
+
+Turning **Interactive** off on decorative elements matters: an interactive element swallows clicks, so the star underneath couldn't be clicked through it.
+
+## Fonts and icons
+
+- **Google Fonts** load by themselves: name any Google Font in a `font-family` in your HTML or CSS and it's fetched when the element first renders. System fonts and generic families (`sans-serif`, `system-ui`) are never requested.
+- **Material Symbols** icons work as ligatures: `<span class="material-symbols-rounded">home</span>`. The classes `material-symbols-rounded`, `material-symbols-outlined` and `material-symbols-sharp` are available in every element.
+
+The **Fonts & Icons (Google)** helper in the Inspector does this for you: pick a font to add a `:host { font-family: "…", sans-serif; }` rule, or pick an icon (in Rounded, Outlined or Sharp) to add its `<span>`. With inline sources the snippet is appended directly; in Files mode it's copied to the clipboard for you to paste.
+
+## When to use HTML UI vs canvas UI
+
+| Use HTML UI for | Use canvas UI ([UI components](./ui-components.mdx), [UI controls](./ui-controls.mdx)) for |
+|---|---|
+| Text-heavy panels, forms, settings, lobbies, chat | UI that must sit behind scene objects or be lit, outlined or post-processed |
+| Typing (text inputs), native selects and ranges | Pixel-art looks using your sprites |
+| Rich CSS (gradients, blur, shadows, transitions) | Things animated with the timeline and state machines like any node |
+| Reusing existing HTML / CSS skills | Exporting to GIF / video (DOM overlays aren't part of the canvas) |
+
+Several demos use HTML UI for their menus and HUDs: **Voxel Craft** (hotbar, inventory), **LAN Party** (the lobby, see [Multiplayer](./multiplayer.mdx)), and **Shatterline**.
+
+See also: [Scripting: UI and DOM](../scripting/ui-and-dom.mdx).

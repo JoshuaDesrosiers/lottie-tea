@@ -1,0 +1,202 @@
+---
+title: Responsive layout
+sidebar_position: 22
+description: Make one scene work on phones, tablets and desktops with Responsive screens, flexbox UI Layout and UI Layout Item, UI Show When, ctx.screen and the preview picker.
+---
+
+# Responsive layout
+
+A game or interactive piece embedded on a website gets shown on a phone held upright, a tablet, and a wide desktop window. Toasty's layout tools let **one scene** adapt to all of them, the way Rive's Layouts or Unity's Canvas Scaler plus layout groups do:
+
+| Piece | Where | What it does |
+|---|---|---|
+| **Screen: Responsive** | Scene (Canvas section) | The view fills the whole canvas or page; the visible world area follows the screen. |
+| **UI Layout** | Component on a container | CSS flexbox: direction, wrap, justify, align, gap, padding, Hug / Fill / Fixed / Percent sizes. Can switch to a different style on phones. |
+| **UI Layout Item** | Component on a child (optional) | That child's own size, grow / shrink, alignment and margin inside its layout. |
+| **UI Show When** | Component on any node | Shows the node only on compact, regular, portrait or landscape screens. |
+| `ctx.screen` and screen inputs | Scripts and state machines | The same screen facts, so anything else can react too. |
+
+Layouts are solved with [taffy](https://github.com/DioxusLabs/taffy), a real CSS flexbox engine. If you know `display: flex`, you already know how UI Layout behaves.
+
+Load **+ → Demos → Responsive Layout** for a complete example: a header with a nav bar that turns into a MENU button on phones, a sidebar that only shows on wide screens, and cards that wrap onto more lines and stack into a column on compact screens.
+
+<Shot id="responsive-demo-two-sizes" caption="The Responsive Layout demo previewed as Desktop and as Phone (portrait) side by side: nav bar vs MENU button, sidebar gone, cards in one column" />
+
+## Screens: Fixed vs Responsive
+
+Each scene has a **Screen** setting in the Inspector's **Canvas** section (select the scene, or nothing).
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Screen** | **Fixed** or **Responsive** (below). | Fixed |
+| **Match** (Responsive only) | `0..1`: which design axis keeps its scale. 0 = width, 1 = height, 0.5 = a blend. | 0.5 |
+| **Compact below** | Screens narrower than this many CSS pixels count as **compact** (phones). | 700 px |
+
+### Fixed
+
+The scene's design size (Canvas **Size**) is scaled to fit the window and letterboxed: bars fill the leftover space when the shapes don't match. What you see in Design is exactly what every player sees, just bigger or smaller. This is the right choice for most games with a fixed playfield.
+
+### Responsive
+
+The view fills the **whole** canvas or page, with no bars. The visible world area changes shape with the screen. How much it grows is Unity's *Scale With Screen Size* rule, with your design size as the reference resolution:
+
+- **Match = 0** keeps the design's **width** on screen. A taller screen (a phone held upright) shows more of the world vertically.
+- **Match = 1** keeps the design's **height**. A wider screen shows more world to the left and right.
+- **Match = 0.5** blends the two in log space, so neither axis changes too much.
+
+For example, with a 640 × 360 design and **Match** 1, a 2560 × 720 window shows a 1280 × 360 world area: the same height, twice the width.
+
+[UI Anchors](./ui-components.mdx#ui-anchor), **UI Layouts** and `ctx.screen` all follow the responsive view, so a HUD pinned to the corners stays in the corners of the real window.
+
+The **Compact below** breakpoint applies in both modes. It compares the screen's width in CSS pixels, not world units.
+
+## UI Layout
+
+**UI Layout** makes a node a flexbox container: it lays out its **visible children** along a main axis.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Width** / **Height** | The container's own size: **Hug**, **Fill**, **Fixed** (a number) or **Percent** (`0..100`). See [Sizes](#sizes). | Hug / Hug |
+| **Direction** | Which way children run: **Row →**, **Column ↓**, **Row ←** (row-reverse), **Column ↑** (column-reverse). | Column ↓ |
+| **Justify** | Spacing along the direction: **Start**, **Center**, **End**, **Space between**, **Space around**, **Space evenly**. | Start |
+| **Align** | Placement across the direction: **Start**, **Center**, **End**, **Stretch**. | Start |
+| **Gap** | Space between children, and between wrapped lines (world units). | 8 |
+| **Padding** | Inner space: **T**op, **R**ight, **B**ottom, **L**eft. | 0 all round |
+| **Wrap onto more lines** | When children don't fit along the direction, continue on a new line. | Off |
+| **Different layout on phones (compact)** | Adds a second set of Direction / Justify / Align / Gap / Padding / Wrap used instead when the screen is compact. Turning it on copies the current style, with Row switched to Column. | Off |
+
+Two important rules:
+
+- **Rectangles are resized** to their slot. A rectangle shape inside a layout (any axis-aligned four-corner path) gets its path resized when its slot differs from its drawn size, so a panel can fill its column. Every other node (text, images, circles, groups) is only **positioned**, centred in its slot.
+- **Hidden children take no space.** That's what makes [UI Show When](#ui-show-when) work: hide the sidebar and the content takes its room.
+
+Children that should keep their hand-placed position can opt out with **UI Layout Item → Ignore layout**.
+
+### Root layouts and nesting
+
+A UI Layout whose parent isn't a layout is a **root**:
+
+- It stays where you put it (or where its UI Anchor puts it). Only its children move.
+- Sized **Fill**, a root fills the **screen** if it's under the Camera or at the top of the scene, or its **parent shape's box** if it's inside a shape.
+
+A layout inside another layout is just a child of it: it's sized and placed by its parent, then lays out its own children. Nest them freely: a page column containing a header row containing a nav row.
+
+### Sizes
+
+The same four sizes are used by **UI Layout** (the container's size) and **UI Layout Item** (a child's size):
+
+| Size | On a container | On a leaf (shape, text...) |
+|---|---|---|
+| **Hug** | Fit its children. | Its own current bounds. A hugging leaf never shrinks below its own size. |
+| **Fill** | Take the remaining space. A root fills the screen or its parent. | Along the parent's direction: grow into leftover space (like `flex-grow: 1`). Across it: stretch. |
+| **Fixed** | Exactly this many world units (default 100 when picked). | Same. |
+| **Percent** | This percentage of the parent's size (default 50 when picked). | Same. |
+
+:::note
+**Align: Stretch** stretches child *containers* sized Hug across the axis, but a leaf sized **Hug** keeps its own size (its bounds count as an explicit size). To make a shape fill across the axis, give it a UI Layout Item with **Fill** on that axis.
+:::
+
+## UI Layout Item
+
+Add **UI Layout Item** to a **child** of a layout to control how that one child is laid out (CSS flex-item settings). Without it, a child uses the defaults below.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Width** / **Height** | This child's size: Hug / Fill / Fixed / Percent. On a node that's also a container, these override its UI Layout's own Width / Height. | Hug / Hug |
+| **Grow / Shrink** | Share of leftover main-axis space to take (flex-grow) / of overflow to give up (flex-shrink). | 0 / 1 |
+| **Align self** | Overrides the layout's **Align** for this child: **Auto** (use the layout's), Start, Center, End, Stretch. | Auto |
+| **Margin** | Outer space: top, right, bottom, left. | 0 |
+| **Ignore layout (keep my position)** | Leave this child out entirely; it keeps its own position and takes no space. | Off |
+
+## UI Show When
+
+**UI Show When** shows a node only on matching screens, and hides it otherwise. Hidden, it takes no space in its layout.
+
+| Inspector field | Options | Default |
+|---|---|---|
+| **Show on** | **Compact (phones)**: narrower than the scene's **Compact below** breakpoint. **Regular (tablet / desktop)**: at least that wide. **Portrait**: taller than wide. **Landscape**: wider than tall (or square). | Compact (phones) |
+
+The classic use is a pair: a full nav bar with *Show on: Regular* and a MENU button with *Show on: Compact*, side by side in the header row. Exactly one of them is ever visible.
+
+## The Responsive Page starter
+
+**+ → UI → Responsive Page** builds a working skeleton you can restyle:
+
+```text
+Page      UI Layout: Column, Align Stretch, gap 16, padding 24, Fill × Fill
+          compact style: Column, gap 10, padding 12
+├── Header   rectangle, UI Layout Item: Fill × Fixed 56
+│   └── Header (text)
+└── Cards    UI Layout: Row, Align Stretch, gap 16, Fill × Fill
+             compact style: Column, gap 10
+             UI Layout Item: Fill × Fill
+    ├── Card 1   rectangle, UI Layout Item: Fill × Fill
+    ├── Card 2   ...
+    └── Card 3   ...
+```
+
+**+ → UI → Row Layout** and **Column Layout** add a smaller container (gap 12, Align Center, hugging its three items) for toolbars and button rows.
+
+## Previewing other screens in Design
+
+You don't need to resize your window to test a layout. The zoom bar at the bottom of the canvas has a **screen picker** next to the zoom percentage:
+
+| Option | Size (CSS px) |
+|---|---|
+| **Design size** | the scene's own Canvas size |
+| **Phone (portrait)** | 390 × 844 |
+| **Phone (landscape)** | 844 × 390 |
+| **Tablet (portrait)** | 820 × 1180 |
+| **Tablet (landscape)** | 1180 × 820 |
+| **Laptop** | 1440 × 900 |
+| **Desktop** | 1920 × 1080 |
+
+Picking a device re-solves UI Layouts, UI Anchors and Show When for that screen right in Design mode, and a Responsive scene's camera frame resizes to what that device would see. Playground always uses the real window, so resize the window (or the browser's device toolbar) to test there.
+
+<Shot id="responsive-preview-picker" caption="The canvas zoom bar with the screen picker open, listing Design size, Phone, Tablet, Laptop and Desktop presets" />
+
+## Reacting to the screen in scripts: ctx.screen
+
+Scripts see the same screen facts the layout used this frame, as `ctx.screen`:
+
+| Field | Meaning |
+|---|---|
+| `ctx.screen.width`, `ctx.screen.height` | The visible world area, in world units. |
+| `ctx.screen.screenWidth`, `ctx.screen.screenHeight` | The screen (canvas) size in CSS pixels. |
+| `ctx.screen.compact` | Narrower than the **Compact below** breakpoint. |
+| `ctx.screen.portrait` | Taller than wide. |
+
+Use it like a CSS media query. From the Responsive Layout demo:
+
+```js
+const s = ctx.screen
+const kind = s.compact ? 'COMPACT' : 'REGULAR'
+const turn = s.portrait ? 'PORTRAIT' : 'LANDSCAPE'
+const text = Math.round(s.screenWidth) + 'X' + Math.round(s.screenHeight) + ' PX  ' + kind + '  ' + turn
+const status = getCompByID('status')
+if (status.textContent !== text) status.textContent = text
+```
+
+Another common use: zoom the game camera out a little on phones, or move the on-screen joystick only when `ctx.screen.compact` is true.
+
+## Reacting to the screen in state machines
+
+Every frame, Toasty writes four values into the active state machine's inputs, **if inputs with these names exist**:
+
+| Input name | Kind | Value |
+|---|---|---|
+| `screenWidth` | Number | Screen width, CSS px |
+| `screenHeight` | Number | Screen height, CSS px |
+| `isCompact` | Bool | Narrower than the breakpoint |
+| `isPortrait` | Bool | Taller than wide |
+
+Declare an input with one of these exact names in the [state machine](../editor/state-machines.mdx) and use it in transition conditions, with no script at all. For example, a "Mobile" state entered when `isCompact` is true can play an animation that rearranges a hero banner.
+
+## Tips
+
+- Build the desktop layout first, then turn on **Different layout on phones** only on the containers that need to change. Usually just switching a Row to a Column is enough.
+- Prefer **Fill** and **Percent** over hard-coded **Fixed** widths for anything that should stretch.
+- Text is positioned, never resized. Give long labels room with padding or a Fixed width on their container.
+- Layouts are applied every frame in Design too, so dragging a child inside a layout snaps it back. Move the container, or tick **Ignore layout** on that child.
+
+See also: [UI components](./ui-components.mdx), [UI controls](./ui-controls.mdx).

@@ -1,0 +1,142 @@
+---
+title: Blocks
+sidebar_position: 20
+description: The Scratch-style Blocks language for Programmable States - every block, how it behaves, and the equivalent JavaScript.
+---
+
+# Blocks
+
+**Blocks** is the drag-and-drop way to program a state, modelled on Scratch. It's a separate language from Code: a Blocks program is run by the engine itself (in Rust), so it works everywhere a scene plays, exactly like Code does.
+
+Open a Programmable State (double-click it on the state machine graph) and pick the **Blocks** tab. Switching between Blocks and the Nodes/Code tabs doesn't convert anything: each tab shows its own kind of program, and only the kind you last edited runs.
+
+<Shot id="scripting-blocks-tab" caption="The Blocks tab with a 'when key space pressed' script that changes a node's y" />
+
+## How Blocks run (vs Code)
+
+| | Blocks | Code |
+|---|---|---|
+| Model | **Scripts** that start on an event (hat block) and can **wait** across frames | One function body run **every frame** |
+| Persistent state | The running script itself (it's paused mid-way at a `wait`) | `ctx.globals` |
+| Rotation units | **radians** (the raw transform value) | **degrees** (`ref.rotation`) |
+| Coordinates | local, +y up | local, +y up |
+| Colour channels | 0..1 | 0..1 |
+| Reach | The blocks listed below | Everything in this section |
+
+Each script is a stack starting with a hat block. A `forever` loop with no `wait` inside can't freeze the game: each script gets a fixed instruction budget per frame and simply continues next frame.
+
+## Events
+
+| Block | Behaviour | Code equivalent |
+|---|---|---|
+| **when state triggered** | Runs once when this state becomes active | an [`entered()`](./time-and-frames.mdx) check |
+| **when key** [k] **pressed** | Runs once per press while the state is active. *Allow overlapping runs* off (default): a press is ignored while the previous run is still going; on: each press starts another run | edge-detect on `ctx.keysDown` |
+| **while key** [k] **pressed** | Runs continuously while held; restarts when the body finishes; stops immediately (even mid-wait) on release | `if (ctx.keysDown.has(k)) { ... }` |
+| **when I start as a clone** | Runs once for a clone right after **create clone of** makes it | code right after `spawnClone(...)` |
+
+Keys offered: space, up/down/left/right arrow, enter, escape, tab, shift, a-z, 0-9 (the same names as [`ctx.keysDown`](./input.mdx)).
+
+## Control
+
+| Block | Behaviour | Code equivalent |
+|---|---|---|
+| **wait** (s) **seconds** | Pauses this script, other scripts keep going | a timer in `ctx.globals` |
+| **if** ... **then** / **if** ... **else** | Branch | `if (...) { } else { }` |
+| **repeat** (n) | Run the body n times | `for (let i = 0; i < n; i++)` (but blocks can `wait` inside) |
+| **forever** | Loop until the state ends | the frame body itself |
+| **for each node with class** [c] | Run the body once per node with class `c`; pick **★ current item** in node dropdowns to mean that node | `for (const n of getCompByClass(c))` |
+| **create clone of** [node] | Spawn a live copy, then run its *when I start as a clone* scripts | `spawnClone(ref)` |
+| **delete this clone** | Remove this clone and stop this script (outside a clone script: just stops) | `deleteNode(ref)` |
+
+## Motion
+
+| Block | Code equivalent |
+|---|---|
+| **go to** [node] **x:** (x) **y:** (y) | `ref.x = x; ref.y = y` |
+| **set** [node] [property] **to** (v) | `ref.prop = v` |
+| **change** [node] [property] **by** (v) | `ref.prop += v` |
+| **get** [node] [property] (reporter) | `ref.prop` |
+
+Properties: x, y, rotation (radians), scale x, scale y, anchor x, anchor y, fill red, fill green, fill blue, fill alpha, visible (0/1).
+
+Node dropdowns list the scene's nodes, plus **★ current item** (inside *for each node*) and **★ myself (clone)** (inside *when I start as a clone*).
+
+## Looks
+
+| Block | Behaviour | Code equivalent |
+|---|---|---|
+| **show** [node] / **hide** [node] | Visibility | `ref.visible = true / false` |
+| **set color of** [node] **r: g: b:** | Each channel 0..1, alpha unchanged | `ref.fillColor = [r, g, b, ref.fillColor[3]]` |
+| **set size of** [node] **to** (p) **%** | Both scales to p / 100 | `ref.scaleX = ref.scaleY = p / 100` |
+
+A *set color* block is saved as three separate fill-channel writes, and reopens as three **set** blocks. It behaves the same.
+
+## Sensing
+
+| Block | Returns | Code equivalent |
+|---|---|---|
+| [a] **touching** [b] **?** | world bounding boxes overlap | an AABB test, or [physics contacts](./physics-api.mdx) |
+| [node] **touching any** [class] **?** | overlaps any node with that class | loop over `getCompByClass` |
+| **key** [k] **pressed?** | held now | `ctx.keysDown.has(k)` |
+| **mouse x** / **mouse y** | pointer, world units | `ctx.mouseX` / `ctx.mouseY` |
+| **number input** [name] / **bool input** [name] | a state machine input's current value | no direct read in Code; mirror it in `ctx.globals` or a Property |
+
+*Touching* uses axis-aligned world bounding boxes, so rotated shapes can read as touching slightly early. It's an approximation, not pixel-perfect.
+
+## Operators
+
+| Block | Code equivalent |
+|---|---|
+| (a) **+ - × ÷** (b) | `a + b`, ... (divide by zero gives 0) |
+| (a) **mod** (b) | `a % b` |
+| (a) `>` `<` `=` (b) | comparisons (1 or 0) |
+| **and** / **or** / **not** | `&&`, `\|\|`, `!` |
+| **π** | `Math.PI` |
+| [fn] **of** (v): abs, floor, ceiling, round, sqrt, sin, cos, tan, ln, log10 | `Math.abs(v)` ... `Math.log(v)`, `Math.log10(v)` |
+| **pick random** (a) **to** (b) | `a + Math.floor(Math.random() * (b - a + 1))` |
+| **pick random float** (a) **to** (b) | `a + Math.random() * (b - a)` |
+
+Numeric slots have an editable default number typed in; drop a reporter on it to replace it. Boolean slots start empty.
+
+## A Blocks script and its Code twin
+
+```
+when key [space] pressed
+  change [Ball] [y] by (40)
+  wait (0.2) seconds
+  change [Ball] [y] by (-40)
+```
+
+```js
+// Code: the same hop, as a per-frame state machine
+const g = ctx.globals.hop || (ctx.globals.hop = { was: false, until: 0 })
+const ball = getCompByID('ball')
+const down = ctx.keysDown.has('space')
+if (down && !g.was && !g.until) { ball.y += 40; g.until = ctx.time + 0.2 }
+if (g.until && ctx.time >= g.until) { ball.y -= 40; g.until = 0 }
+g.was = down
+```
+
+Blocks express "do this, wait, do that" naturally; Code needs a timer. Code reaches everything else (physics, UI, sound, storage, networking).
+
+## Nodes and Code
+
+The **Nodes** tab (a dataflow graph) and **Code** convert into each other:
+
+- **Nodes -> Code** always works. It emits one line per node, using the helper functions instead of operators:
+
+```js
+const n3 = multiply(ctx.time, 90);
+const n4 = Math.sin(ctx.time);
+getCompByID('star').rotation = n3;
+getCompByID('star').y = multiply(n4, 20);
+```
+
+- **Code -> Nodes** works only for code written in that same vocabulary: `getCompByID('id').prop` reads and assignments (x, y, rotation, scaleX, scaleY, anchorX, anchorY), `ctx.time`, `ctx.mouseX/Y`, `random(seed)`, numbers, `Math.min/max/sin/cos`, and `add`, `subtract`, `multiply`, `divide`, `greaterThan`, `lessThan`, `equals`, `and`, `or`, `not`, `select`, `lerp`, `clamp`. Anything else shows *Can't convert to Nodes* with the reason, and your code is left untouched.
+- Fill-colour properties and state-machine number/bool inputs have no Code equivalent; they come across as a commented `0` with a warning.
+
+:::caution Rotation units differ
+Nodes and Blocks work in radians; Code's `ref.rotation` is degrees. A graph converted to Code keeps its numbers as they were, so check rotation values after converting.
+:::
+
+The helper functions are always in scope in Code (see [ctx reference](./ctx-reference.mdx#helpers)).

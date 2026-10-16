@@ -1,0 +1,211 @@
+---
+title: "4. Animation and the follow camera"
+sidebar_position: 4
+description: Pick the ninja's sprite frame every frame from what it's doing, and add a smoothed, clamped, pixel-snapped camera that follows it with look-ahead.
+---
+
+# 4. Animation and the follow camera
+
+**Goal:** the ninja faces the way it runs, plays walk, idle and jump poses, and the camera follows it smoothly without leaving the level.
+
+**What you'll learn**
+
+- A frame-picking state machine in plain code: air, run, idle.
+- Writing to the engine only when something changed.
+- Once-per-session and once-per-scene setup blocks.
+- A camera follow with smoothing, look-ahead, bounds and whole-pixel snapping.
+
+## Step 1: measure your level
+
+The camera must stop at the level's edges. With a 480 × 270 view, the camera's centre can go from 240 units right of the level's left edge to 240 units left of its right edge.
+
+Select the camera and note its starting **X** and **Y**: that's the leftmost spot. Move it to where the view should stop on the right and note that **X**. Put the camera back. You'll type those numbers into the `LEVELS` table below as `[minX, minY, maxX, maxY]`. If the level doesn't scroll vertically, `minY` and `maxY` are both the camera's **Y**.
+
+## Step 2: the script
+
+Replace `Scripts/ninja.js` with this. Everything from lesson 3 is still here; the new parts are marked **NEW**.
+
+```js title="Scripts/ninja.js (lesson 4)"
+// =====================================================================
+// Ninja platformer - lesson 4: + animation and the follow camera.
+// =====================================================================
+
+// ---- Tuning ----------------------------------------------------------
+const RUN_SPEED = 110
+const ACCEL = 14
+const JUMP_SPEED = 250
+const JUMP_CUT = 0.45
+const COYOTE_TIME = 0.1
+const JUMP_BUFFER = 0.12
+const FEET_RAY = 20
+const FEET_SPREAD = 5
+const WALK_FPS = 8          // NEW: walk cycle speed (frames per second)
+const IDLE_FPS = 4          // NEW: idle "breathing" speed
+const LOOK_AHEAD = 30       // NEW: the camera leads the ninja by this much
+
+// NEW: per-level data, keyed by scene name.
+// camera: [minX, minY, maxX, maxY] - where the camera's centre may go.
+const LEVELS = {
+  'Level 1': { camera: [0, 0, 480, 0] },
+}
+
+const G = ctx.globals
+const level = LEVELS[ctx.scene]
+const dt = Math.min(ctx.deltaSeconds, 1 / 20)
+const keys = ctx.keysDown
+const player = getCompByID('player')
+if (!level || !player) return
+
+// ---- NEW: once per play session ---------------------------------------
+// ctx.globals starts empty every time you press Playground.
+if (!G.started) {
+  G.started = true
+  G.frames = {}                                   // frame name -> image id
+  for (const img of ctx.images) G.frames[img.name] = img.id
+}
+
+// ---- NEW: once per scene entry ------------------------------------------
+// Entering a scene resets its nodes to how you designed them, so caches
+// about those nodes must be reset too.
+if (G.sceneName !== ctx.scene) {
+  G.sceneName = ctx.scene
+  G.facing = 'right'
+  G.clock = 0
+  G.camX = null           // null = snap the camera straight to the ninja
+  G.frameOf = {}          // node id -> frame name it's showing
+  G.jumpHeld = false
+  G.jumpBuffer = 0
+  G.coyote = 0
+}
+G.clock += dt
+
+// ---- NEW: helpers ------------------------------------------------------------
+// Show frame `name` on image node `ref`, writing only when it changes:
+// every write is a call into the engine, so skip the ones that do nothing.
+function setFrame(ref, name) {
+  if (G.frameOf[ref.id] === name) return
+  const id = G.frames[name]
+  if (!id) return
+  G.frameOf[ref.id] = name
+  ref.image = id
+}
+
+const v = player.velocity
+if (!v) return
+
+// ---- Ground check --------------------------------------------------------
+const onGround = [-FEET_SPREAD, FEET_SPREAD].some(
+  (dx) => ctx.raycast(player.x + dx, player.y, 0, -1, FEET_RAY, player) !== null,
+)
+const grounded = onGround && v.y <= 1
+
+// ---- Run -------------------------------------------------------------------
+const dir = (keys.has('right') || keys.has('d') ? 1 : 0) - (keys.has('left') || keys.has('a') ? 1 : 0)
+if (dir !== 0) G.facing = dir < 0 ? 'left' : 'right'
+const k = Math.min(1, dt * ACCEL)
+let vx = v.x + (dir * RUN_SPEED - v.x) * k
+let vy = v.y
+
+// ---- Jump ------------------------------------------------------------------
+const jumpDown = keys.has('space') || keys.has('w') || keys.has('up')
+if (jumpDown && !G.jumpHeld) G.jumpBuffer = JUMP_BUFFER
+G.jumpBuffer -= dt
+G.coyote = grounded ? COYOTE_TIME : G.coyote - dt
+if (G.jumpBuffer > 0 && G.coyote > 0) {
+  vy = JUMP_SPEED
+  G.jumpBuffer = 0
+  G.coyote = 0
+  ctx.playTone({ freq: 220, to: 520, type: 'square', duration: 0.12, volume: 0.12 })
+}
+if (!jumpDown && G.jumpHeld && vy > 0) vy *= JUMP_CUT
+G.jumpHeld = jumpDown
+player.velocity = { x: vx, y: vy }
+
+// ---- NEW: animation ---------------------------------------------------------
+// Sheet layout: index = row * 4 + column; column 2 = left, 3 = right.
+const col = G.facing === 'left' ? 2 : 3
+let frame
+if (!grounded) {
+  frame = 'ninja_walk ' + (1 * 4 + col)                          // mid-stride pose in the air
+} else if (Math.abs(vx) > 10) {
+  frame = 'ninja_walk ' + ((Math.floor(G.clock * WALK_FPS) % 4) * 4 + col)
+} else {
+  frame = 'ninja_idle ' + ((Math.floor(G.clock * IDLE_FPS) % 4) * 4 + col)
+}
+setFrame(player, frame)
+
+// ---- NEW: camera --------------------------------------------------------------
+const cam = getCompByID('camera')
+if (cam) {
+  const b = level.camera
+  // Aim a little ahead of the ninja, and a little above (you look where
+  // you're going, and see more of what's up than what's under your feet).
+  const tx = clamp(player.x + (G.facing === 'left' ? -LOOK_AHEAD : LOOK_AHEAD), b[0], b[2])
+  const ty = clamp(player.y + 20, b[1], b[3])
+  if (G.camX === null) {
+    G.camX = tx
+    G.camY = ty
+  }
+  // Frame-rate independent smoothing: close ~8x per second of the gap.
+  const t = 1 - Math.exp(-8 * dt)
+  G.camX += (tx - G.camX) * t
+  G.camY += (ty - G.camY) * t
+  // Whole pixels: sub-pixel camera moves make Nearest-filtered art shimmer.
+  cam.x = Math.round(G.camX)
+  cam.y = Math.round(G.camY)
+}
+```
+
+Update the `LEVELS` numbers with the ones you measured in step 1.
+
+## How it works
+
+### Picking a frame every frame
+
+Rather than an animation system, the script decides the picture from the ninja's situation, in priority order: in the air → a fixed mid-stride frame; moving → the walk cycle; otherwise → idle. `Math.floor(G.clock * WALK_FPS) % 4` counts 0, 1, 2, 3, 0… eight times a second; multiplied by 4 it picks the row, and `col` picks the facing column. This is the Ninja Adventure demo's player-sprite code, simplified from its five poses (roll, hit, attack, walk, idle) to three.
+
+If your sheet only has left and right columns (two columns per row), change the formula to `row * 2 + (G.facing === 'left' ? 0 : 1)`.
+
+### Write only on change
+
+`setFrame` remembers what each node shows in `G.frameOf` and skips identical writes. The demo does the same for images and tints:
+
+```js
+// From the Ninja Adventure demo.
+// Only write when it changes — every write is a call into the engine.
+function setImage(ref, name) {
+  if (G.imgKeys[ref.id] === name) return
+  const id = frame(name)
+  if (!id) return
+  G.imgKeys[ref.id] = name
+  ref.image = id
+}
+```
+
+`G.frameOf` is cleared on scene entry because entering a scene puts its nodes back to their designed state: the cache would otherwise claim a frame the node no longer shows.
+
+### Two kinds of setup
+
+- `if (!G.started)` runs once per **play session**: `ctx.globals` is a fresh empty object each time Playground starts.
+- `if (G.sceneName !== ctx.scene)` runs once per **scene entry**, which matters from lesson 6, when there are two levels.
+
+### The camera
+
+Four ideas, all from the demo's camera block:
+
+1. **Target**: the ninja's position plus look-ahead in the facing direction.
+2. **Clamp**: `clamp(value, min, max)` (a helper every script has) keeps the target inside the level's camera bounds, so you never see past the edge.
+3. **Smoothing**: `1 - Math.exp(-8 * dt)` moves the same fraction of the remaining distance per second whatever the frame rate, so the camera eases in at 30 fps and 144 fps alike.
+4. **Snapping**: rounding to whole pixels keeps pixel art from shimmering.
+
+:::tip No-code alternative
+The Camera component has its own **Follow** target and **Smoothing** fields. They're great for a quick follow. The script version adds look-ahead and level bounds.
+:::
+
+## Check your work
+
+- Standing still, the ninja breathes. Running, it walks, facing the direction of travel. In the air it holds one stride pose.
+- The camera trails slightly, leads in the running direction, and stops at the level's left and right edges.
+- No shimmering pixels while the camera moves.
+
+**Next:** [5. Coins, score and sound](./05-coins-and-score.mdx)

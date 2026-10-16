@@ -1,0 +1,152 @@
+---
+title: Animation timeline
+sidebar_position: 8
+description: Create keyframe animations on the timeline — keying position, rotation, scale, fill and any Inspector value, easing curves, Record mode, motion paths and how animations play in a game.
+---
+
+# Animation timeline
+
+The **timeline** is where you make keyframe animations: a character's walk, a button's bounce, a logo reveal. You pose a node, set a **keyframe** at a moment in time, pose it differently at another moment, and Toasty fills in the motion between.
+
+Open it from the **Timeline** (clock) icon in the icon rail, by pressing **2**, or from the **Animate** tab of the bottom dock.
+
+<Shot id="timeline-overview" caption="The Animate tab with a node selected: animation dropdown, trash, Rec, + Property, Dur field, transport buttons and zoom; property rows Position, Rotation, Scale, Fill, Motion Path and one field row, with keyframe diamonds and the playhead." />
+
+## Animations
+
+A scene can hold many **animations** ("Idle", "Walk", "Jump"), and each animation can move many nodes. The dropdown at the top left of the timeline shows the active one.
+
+| Action | How |
+|---|---|
+| Switch animation | Pick it from the dropdown. |
+| New animation | **New Animation** at the bottom of the dropdown. Animations are named automatically: **Animation 1**, **Animation 2**, … |
+| Delete animation | The trash button next to the dropdown (**Delete animation**). Undoable. |
+| Duration | The **Dur** field, in seconds. New animations are **5 s**. Type a value, or scroll over the field to nudge it by 0.5 s (**Shift**: 5 s). Minimum 0.1 s. |
+
+:::note Renaming
+There's no rename for animations in the timeline yet; plan your animation order, or create them in the order you want their numbers to read. State machines refer to animations by picking them from a list, so the name is only a label.
+:::
+
+## Rows and keyframes
+
+The timeline shows rows for the **selected node**:
+
+| Row | Keys |
+|---|---|
+| **Position** | X and Y together |
+| **Rotation** | Angle |
+| **Scale** | X and Y together |
+| **Fill** | Fill colour |
+| **Motion Path** | Progress along a guide path (see below) |
+| Field rows | Any other value you add with **+ Property** |
+
+Each row has two small buttons at its end:
+
+- **+** keys the node's **current** value at the playhead (tooltip "Add *Position* keyframe"). If there's already a keyframe at that time, it is replaced.
+- **×** deletes the keyframe at the playhead.
+
+Keyframes appear as diamonds. Hover one to see its time and value (for example `t=1.25 — …`).
+
+### The basic workflow: pose it, then key it
+
+1. Move the playhead to a time.
+2. Pose the node: drag it, rotate it, or type values in the Inspector.
+3. Press **+** on the property's row.
+4. Repeat at other times.
+
+If the playhead is **exactly on** an existing keyframe, moving the node updates that keyframe directly, so you can fix a pose without re-keying.
+
+### Moving around
+
+| Gesture | Action |
+|---|---|
+| Drag in the **ruler** | Scrub the playhead |
+| Drag a **diamond** | Retime that keyframe (it can't leave the animation's duration). A drag that doesn't move just jumps the playhead there. |
+| Drag in the **track area** | Marquee-select keyframes |
+| **Delete** / **Backspace** | Delete the selected keyframes |
+| **−** / **+** zoom buttons | Zoom the time scale |
+
+### Transport
+
+| Button | What it does |
+|---|---|
+| **Jump to start** / **Jump to end** | Move the playhead to 0 or to the end. |
+| **Play/Pause** | Preview the animation in the editor. |
+| **Loop mode** | Cycles **Once → Loop → PingPong** for the preview. |
+
+:::info The preview isn't the game
+The timeline's playback and loop mode are only for previewing. What plays in **Playground** and exported games is decided by a [state machine](./state-machines.mdx): each state picks an animation and its own loop mode. Without a state machine, nothing tells the game which animation to play or to loop it.
+:::
+
+## Easing curves
+
+Every keyframe starts **Linear** (constant speed). To ease, **double-click a keyframe diamond** (any but the first). A small **Curve** editor opens next to it, editing the curve of the segment *leading into* that keyframe.
+
+- Drag the two blue handles to shape a cubic-bezier curve, the same thing as CSS `cubic-bezier()`. Handles move freely from 0 to 1 across, and from −0.5 to 1.5 up and down, so you can overshoot.
+- Or type exact **x1**, **y1**, **x2**, **y2** values.
+- **Linear** resets it to a straight line. **✕** closes the editor.
+
+Common curves:
+
+| Feel | x1, y1, x2, y2 |
+|---|---|
+| Ease in-out (smooth start and stop) | 0.42, 0, 0.58, 1 |
+| Ease out (fast start, gentle stop) | 0, 0, 0.58, 1 |
+| Ease in (gentle start, fast stop) | 0.42, 0, 1, 1 |
+| Overshoot / back-out | 0.34, 1.4, 0.64, 1 |
+
+<Shot id="curve-editor" caption="The Curve popover opened by double-clicking a keyframe: the bezier graph with two blue handles, the Linear button, and the x1/y1/x2/y2 fields." />
+
+## Animating any value (+ Property)
+
+Position, rotation, scale and fill have their own rows, but you can animate **anything the Inspector shows**: a light's intensity, a particle system's rate, a corner radius, an outline's width, a 3D rotation, a VRM pose weight.
+
+1. Select the node.
+2. Click **+ Property** ("Animate any value the selected node has").
+3. Search (for example `intensity`, `position`, `colour`) and pick the value.
+
+A new row appears with a keyframe at the playhead. Use it like any other row. Rows are labelled with the component and field ("Light2D intensity", "3D rotation").
+
+If a field row is marked with **⚠**, the value no longer exists on the object (for example, you removed the component). Delete those keys and re-add the value with **+ Property**.
+
+## Record mode
+
+**Rec** turns on recording: every change you make in the **Inspector** is keyed at the playhead automatically.
+
+- **Rec off**: editing a value that is *already animated* updates or adds a key at the playhead; other values just change.
+- **Rec on**: editing *any* value keys it. The first time a value is keyed away from 0 s, its previous value is also keyed at 0 s, so it animates *from* where it was.
+
+Recording is the quickest way to animate component values: turn on Rec, scrub, change numbers, scrub, change numbers. Turn it off when you want to make normal edits again.
+
+## Motion paths
+
+Make a node follow a curve:
+
+1. Draw the path as a shape (for example a wavy line or an ellipse).
+2. Select the node that should move and, in the Inspector's **Motion Path** field, pick that shape as its guide.
+3. In the timeline's **Motion Path** row, set the progress field (0 = start of the path, 1 = end) and press **+** ("Add Motion Path keyframe at playhead"). Key 0 at the start and 1 at the end.
+
+The progress field follows the playhead so you can see where on the path the node is. Ease the progress keys like any other. Removing the guide in the Inspector removes the motion path track.
+
+## Design pose vs. animated pose
+
+While the Animate tab is open, the canvas shows the animation at the playhead. When you leave it, every node snaps back to its **authored Design pose**.
+
+In Design (timeline closed), moving a node that has position keys **shifts its whole animated path** by the same amount, so the animation plays relative to where you moved it.
+
+## Animations in a game
+
+- A **state machine** state plays one animation with a loop mode (**Once**, **Loop**, **PingPong**), and transitions can crossfade between them or play a state in **Reverse**. See [State machines](./state-machines.mdx).
+- A **blend state** mixes two single-pose animations by a number input (a "mouth open" amount, a "lean" angle).
+- Scripts drive animation by setting state machine inputs (`ctx.setInput`, `ctx.fireTrigger`); see [State machine control](../scripting/state-machine-control.mdx).
+- Frame-by-frame art plays with a **Flipbook** instead; see [Paint mode](./paint-mode.mdx) and [Sprite Editor](./sprite-editor.mdx#as-a-flipbook-animation).
+
+## Exporting an animation
+
+**Export → Animation → GIF / GIF (transparent) / WebM (transparent) / MP4** renders the active animation, once through its whole duration. See [Exporting](./exporting.mdx#animation-gif-webm-mp4).
+
+## Related
+
+- [State machines](./state-machines.mdx)
+- [Exporting](./exporting.mdx)
+- [Nodes and layers](./nodes-and-layers.mdx)

@@ -1,0 +1,67 @@
+---
+title: Trails
+sidebar_position: 6
+description: The Trail Renderer component - a fading ribbon that follows a moving node - with every field, its width curve and colour gradient.
+---
+
+# Trails
+
+A **Trail Renderer** records where its node has been and draws a ribbon through those points, narrowing and fading toward the oldest end. Put it on anything that moves (a sword tip, a projectile, a dashing player, a comet) and it streaks behind it. It works like Unity's Trail Renderer.
+
+The recorded points are not saved: a trail always starts empty when a scene loads, and it only grows while the node actually moves.
+
+<Shot id="trail-renderer" caption="A moving ball with a Trail Renderer leaving a fading ribbon, its Trail Renderer card showing the width curve and colour stops" />
+
+## Setting one up
+
+1. Select the node that moves (or add an empty child at the exact spot that should leave the trail, like the tip of a sword).
+2. **Add Component → Rendering → Trail Renderer**.
+3. Press **Play** and move the node (by animation, physics or a script).
+
+:::tip
+The trail follows its own node. Parent it under the thing that moves and offset it to where the streak should come from.
+:::
+
+## Fields
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Emitting | When off, no new points are added and the existing trail fades out. Toggle it to "lift the pen" (for example only trail while dashing). | on/off | on |
+| Time (s) | Seconds each point lives before it drops off the tail. Longer = a longer trail. | 0.01 and up | 0.6 |
+| Min Vertex Dist | How far the node must move before a new point is recorded. Smaller = smoother curves, more points. | 0.1 and up | 2 |
+| Width | Width of the ribbon in world units, multiplied by the width curve. | 0 and up | 10 |
+| Corner Vertices | Rounds sharp turns with this many extra vertices per bend. 0 = plain mitred joins. | 0 to 4 | 0 |
+| End Cap Vertices | Rounds both ends with this many extra vertices. 0 = square ends. | 0 to 16 | 0 |
+| Texture | An image stretched once from head to tail, tinted by the colour gradient. | any image | none |
+
+### Width Curve (head to tail)
+
+Keys of **t** (0 = the head, the newest point; 1 = the tail, the oldest) and **×** (multiplier on Width). **+ Key** adds a key. With no keys the width is constant.
+
+Default: × 1 at the head down to × 0 at the tail, a ribbon that tapers to a point.
+
+### Color (head to tail)
+
+Colour stops along the trail, **t** 0 = head, 1 = tail. **+ Stop** adds one. With no stops the trail is solid white.
+
+Default: white at the head fading to fully transparent white at the tail.
+
+:::note
+A textured trail always draws with Normal blending and stretches the texture once along its length; it does not tile.
+:::
+
+## Trails and scripts
+
+There is no dedicated trail call: move the node and the trail follows. To switch the trail on and off from a timeline or state, keyframe **Emitting** with **+ Property** (see [Animation timeline](../editor/animation-timeline.mdx)), or disable the component.
+
+```js
+// A comet circling the screen: the Trail Renderer on 'comet' does the rest.
+const comet = getCompByID('comet')
+comet.x = Math.cos(ctx.time * 2) * 150
+comet.y = Math.sin(ctx.time * 2) * 90
+```
+
+## Related
+
+- [Particles 2D](./particles-2d.mdx) for sparks and smoke rather than a continuous ribbon.
+- [Lighting 2D](./lighting-2d.mdx): an Additive light on the same node makes a glowing trail head.

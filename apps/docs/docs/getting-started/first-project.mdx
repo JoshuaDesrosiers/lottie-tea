@@ -1,0 +1,98 @@
+---
+title: Your first project
+sidebar_position: 3
+description: A step-by-step walkthrough that takes you from a blank canvas to an animated, playable and exported Toasty project.
+---
+
+# Your first project
+
+In this walkthrough you will draw a shape, animate it, make it loop with a state machine, try it in Playground, save it as a project and export it as a web page. It takes about fifteen minutes and touches every core part of the editor.
+
+Open [toastycreate.web.app](https://toastycreate.web.app) (or the desktop app) to follow along.
+
+## What a new document contains
+
+When Toasty starts with nothing open, you get a starter document:
+
+- one scene called **Main**, 640×480 units;
+- a **Main Camera** node already set as the scene's camera, so Playground shows exactly the scene's frame;
+- one empty animation, **Animation 1**, so the timeline is never blank.
+
+:::tip Reopening
+If you have worked on a project before, Toasty reopens the last one automatically. To start fresh, you can still follow along: everything below adds to whatever scene is open.
+:::
+
+## Step 1: Add a shape
+
+1. Click the **+** button on the right side of the top toolbar.
+2. Hover **2D Object** and choose **Ellipse**.
+
+A circle appears in the middle of the scene and is selected. Its row shows up in the **Layers** panel and its settings in the **Inspector**.
+
+<Shot id="first-project-ellipse" caption="A new Ellipse selected: transform handles on the canvas, its row in Layers, its Shape section in the Inspector." />
+
+3. In the Inspector's **Shape** section, click **Edit** next to **Fill** and pick a colour you like. Click **Done**.
+4. Drag the circle on the canvas to the left side of the scene.
+
+You can also type exact values in the Inspector's **Position**, **Rotation** and **Scale %** fields. See [Nodes and layers](../editor/nodes-and-layers.mdx) and [Shapes and paths](../editor/shapes-and-paths.mdx) for everything a shape can do.
+
+## Step 2: Animate it
+
+1. Open the timeline: click the **clock** icon in the left icon rail, or press **2**. The bottom dock opens on its **Animate** tab, showing **Animation 1** (5 seconds long by default).
+2. With the circle selected, click **Jump to start** so the playhead is at 0.
+3. Click the **+** at the end of the **Position** row. That keys the circle's current position at 0 s (a diamond appears).
+4. Drag in the ruler (the time scale at the top of the track area) to move the playhead to about **2.5** seconds.
+5. Drag the circle to the right side of the scene, then click the Position row's **+** again. A second diamond appears at 2.5 s.
+6. Move the playhead to the end (**5** s), drag the circle back to where it started, and click **+** once more.
+
+The rule is "pose it, then key it": move the object where you want it, then press **+** on that property's row. If the playhead is sitting exactly on an existing keyframe, dragging the object updates that keyframe directly.
+
+Press **Play/Pause** in the timeline to preview. The loop-mode button next to it cycles **Once → Loop → PingPong**, but only for this preview.
+
+:::tip Make it feel nicer
+Double-click a keyframe diamond to open the **Curve** editor and give the movement an ease-in-out. See [Animation timeline](../editor/animation-timeline.mdx).
+:::
+
+## Step 3: Make it loop in the game
+
+The timeline preview is just a preview. What actually plays when the game runs is decided by a **state machine**. Without one, nothing tells the game to loop your animation.
+
+1. Click the **State Machine** tab of the bottom dock (or press **3**).
+2. In the left column, open the dropdown that says **No state machine**, choose **New State Machine**, type `Ball` and click **Create**.
+
+You get one state, **State 1**, marked with a star (the initial state). It plays **Animation 1** and its loop mode is **Loop**.
+
+<Shot id="first-project-state-machine" caption="The State Machine tab right after creating the Ball machine: one State 1 box (starred) set to Animation 1, Loop." />
+
+That is all a looping animation needs. Later you can add more states and transitions; see [State machines](../editor/state-machines.mdx).
+
+## Step 4: Play it
+
+Click **Playground** in the top toolbar's mode switch. The editor chrome gets out of the way, the scene runs through the Main Camera, and your circle swings back and forth forever.
+
+Click **Design** to stop. Everything returns to how you authored it: changes made while playing are never saved into your scene.
+
+## Step 5: Save it as a project
+
+So far your work lives only in memory (Toasty does snapshot it for crash recovery, but that is a safety net, not a save).
+
+1. Open the **File** menu (the folder icon labelled **File** in the top toolbar).
+2. Choose **New Project…** and pick an empty folder. (In Firefox or Safari you type a project name instead; see [Web and desktop](../getting-started/web-and-desktop.mdx).)
+
+The File button now shows your project's name. From here on Toasty **autosaves** about a second and a half after you stop editing. **Ctrl+S** saves immediately. See [Projects and saving](./projects-and-saving.mdx).
+
+## Step 6: Export it
+
+1. Click the **Export** button (next to Save in the top toolbar).
+2. Choose **Game → Web page (.html)** and pick where to save it.
+
+You get one self-contained `.html` file. Double-click it and your animation runs in any browser, no server needed. Other options (GIF, transparent WebM, MP4, desktop `.exe`, website embed) are covered in [Exporting](../editor/exporting.mdx).
+
+## Where to go from here
+
+- Learn the editor layout properly: [Interface tour](./interface-tour.mdx).
+- Make it interactive: [State machines](../editor/state-machines.mdx) and [Properties and bindings](../editor/properties-and-bindings.mdx).
+- Add logic: [Scripting overview](../scripting/overview.mdx).
+- Put it on a website: [Embedding overview](../embedding/overview.mdx).
+- Follow a full course: [Courses](../courses/index.mdx).
+- Open a finished game and take it apart: [Demos](../editor/demos.mdx).

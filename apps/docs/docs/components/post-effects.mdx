@@ -1,0 +1,245 @@
+---
+title: Post effects
+sidebar_position: 9
+description: The scene's post-processing stack - Glow (bloom), Blur, Pixelate, Color Grading, Posterize, Gradient Map, Vignette, Palette, Dither, CRT scanlines, film grain and more - with every parameter.
+---
+
+# Post effects
+
+Post effects change the **whole finished frame**: bloom, colour grading, a retro palette, CRT scanlines, film grain, a vignette. They are not components on a node. They belong to the scene and live in the **Effects** panel (the stacked-squares button on the left icon rail, or **Effects** in the top toolbar).
+
+:::info Where post effects show
+Post effects only render in **Playground**, in the **State Machine** tab's preview, and in **exports** (games, GIFs, videos, website embeds). In Design the scene is shown as authored, with no post effects, so it stays light and easy to edit. Press Play to see them.
+:::
+
+<Shot id="post-effects-panel" caption="The Effects panel with a stack of Glow, Palette (PICO-8) and Scanlines, next to a Playground view showing the result" />
+
+## The effect stack
+
+The Effects panel holds an ordered list. Effects apply **top to bottom**: each one works on the result of the ones above it.
+
+| Control | What it does |
+|---|---|
+| Checkbox | Enables or disables the effect without losing its settings (great for before/after comparisons). |
+| Up / down arrows | Move the effect earlier or later in the stack. |
+| Trash icon | Removes it. |
+| **Add Effect** | Appends a new effect, with useful starting values. |
+
+You can add the **same effect more than once**: two Blurs, or a Glow before and after a Palette, each with its own settings.
+
+:::tip
+The order matters. **Palette** after **Glow** snaps the bloom to your palette colours too (a pure retro look); **Glow** after **Palette** lets the bloom spill smooth light over the pixel art.
+:::
+
+A Camera can also carry its own **Vignette** (in its Camera card). That one is added after the whole stack while that camera is the one Playground looks through. See [Camera](../editor/camera.mdx).
+
+## Every effect
+
+Ranges are what the Inspector allows; defaults are what **Add Effect** starts with. The names below are the ones in the Add Effect menu.
+
+### Blur
+
+Blurs the whole frame.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Radius | How far the blur spreads. | 0 and up | 4 |
+
+### Glow
+
+Bloom: bright parts of the frame glow and bleed light around them. Built on a mip-chain bloom, so large radii stay smooth and fast.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Radius | How far the glow spreads. | 0 and up | 6 |
+| Threshold | How bright a pixel must be (its brightest channel) to glow. Lower = more of the image glows. | 0 to 1 | 0.7 |
+| Intensity | Brightness of the glow added back. | 0 and up | 1 |
+
+:::tip
+For neon and magic, use bright colours on a dark background, Threshold around 0.5 and Intensity 1 to 2. Particles with an **Add** blend and a Particle Look glow bloom beautifully.
+:::
+
+### Pixelate
+
+Snaps the frame onto a grid of solid blocks (retro, or a censor mosaic).
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Block Size | Block edge in screen pixels. | 1 and up | 8 |
+
+For a whole-scene chunky look that also affects post effects, try the scene's **Resolution** setting instead (canvas settings, nothing selected), which renders everything in blocks of N pixels with hard edges.
+
+### ColorGrading
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Brightness | Added to every channel. 0 = unchanged. | any | 0 |
+| Contrast | Pushes colours away from mid-grey. 1 = unchanged. | 0 and up | 1 |
+| Saturation | 0 = greyscale, 1 = unchanged, above 1 = oversaturated. | 0 and up | 1 |
+
+### Posterize
+
+Quantizes each colour channel into flat bands.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Levels | Steps per channel. 2 = stark; higher keeps more gradation. Alpha is untouched. | 2 and up (whole numbers) | 4 |
+
+### GradientMap
+
+Maps the frame's brightness onto a gradient: duotones, thermal vision, sepia, moody grades. The left end of the bar is used for the darkest pixels, the right end for the brightest.
+
+| Control | What it does |
+|---|---|
+| Gradient bar | Click the bar to add a stop at that brightness (it starts with the colour already there). Drag a marker to move it. Click a marker to select it. |
+| Colour swatch | The selected stop's colour. |
+| Trash icon / Delete key | Removes the selected stop (at least 2 stay). |
+| Mix | Blends with the original colours. 1 = fully mapped. Range 0 to 1. |
+
+Up to 16 stops. The default is three stops: deep purple, pink and warm yellow, with Mix 1.
+
+### Vignette
+
+Darkens or tints the frame's edges, like a lens.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Color | The edge colour. | | black |
+| Intensity | How strongly the edge colour covers. | 0 to 1 | 0.45 |
+| Radius | How far from the centre the clear area reaches (1 is about the frame's half-diagonal). | 0 to 1.5 | 0.75 |
+| Blur | How soft the vignette's edge is. | 0 to 1 | 0.5 |
+
+### Anaglyph
+
+The red/cyan 3D-glasses look.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Offset (px) | How far red shifts one way and green/blue the other. | 0 to 40 | 4 |
+| Mono | Greys the image first, like classic anaglyph prints. | 0 to 1 | 0 |
+
+### Dither
+
+Ordered (Bayer) dithering with a 4 x 4 pattern.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Levels | Steps per channel. | 2 to 16 | 4 |
+| Pixel size | Screen pixels per pattern pixel. Match your art's pixel size. | 1 to 16 | 1 |
+| Strength | How strongly the pattern is applied. | 0 to 2 | 1 |
+| Two colours | Makes it a 1-bit-style dither between Dark and Light (Game Boy, Obra Dinn). | on/off | off |
+| Dark | The dark colour in two-colour mode. | | dark green |
+| Light | The light colour in two-colour mode. | | light green |
+
+### ChromaticAberration
+
+Lens colour fringing: red and blue split outward from the centre.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Strength (px) | The split at the corners. | 0 to 40 | 4 |
+
+### Scanlines
+
+A CRT monitor look.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Intensity | Darkness of the lines. | 0 to 1 | 0.35 |
+| Spacing (px) | Distance between lines. | 1 to 16 | 3 |
+| RGB mask | Strength of the red/green/blue aperture-grille pattern. | 0 to 1 | 0.25 |
+
+### FilmGrain
+
+Animated noise.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Amount | Grain strength. | 0 to 1 | 0.12 |
+| Grain (px) | Grain size. | 0.5 to 8 | 1.5 |
+
+### Sharpen
+
+Unsharp mask: crisper edges.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Amount | Sharpening strength. | 0 to 2 | 0.6 |
+
+### EdgeDetect
+
+Ink outlines wherever brightness or opacity changes sharply: a comic or blueprint look.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Thickness (px) | Line thickness. | 0.5 to 8 | 1 |
+| Threshold | Sensitivity: lower finds more edges. | 0 to 2 | 0.2 |
+| Ink | Line colour. | | near-black |
+| Lines only | Draws the lines alone on transparent. | on/off | off |
+
+### Halftone
+
+The image printed as dots of ink on paper.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Dot spacing (px) | Distance between dots. | 2 to 40 | 6 |
+| Angle | Screen angle in degrees. | 0 to 180 | 45 |
+| Mix original | Blends with the original colours. | 0 to 1 | 0 |
+| Ink | Dot colour. | | near-black |
+| Paper | Background colour. | | off-white |
+
+### WaveDistortion
+
+Wavy distortion: heat haze, underwater, dream sequences.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Amplitude (px) | How far rows shift. | 0 to 60 | 4 |
+| Waves | Waves per screen height. | 0 to 60 | 6 |
+| Speed | How fast the waves move (negative reverses). | -20 to 20 | 2 |
+
+### LensDistortion
+
+Barrel (fisheye, CRT bulge) or pincushion distortion.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Strength | Above 0 = barrel, below 0 = pincushion. | -1 to 1 | 0.25 |
+| Zoom | Above 1 crops in to hide the warped edges. | 0.5 to 2 | 1.05 |
+
+### PixelScatter
+
+Every grain shows the image from a random spot nearby: frosted glass, sand, static, dissolves.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Scatter (px) | How far each grain may sample from. | 0 to 60 | 3 |
+| Grain (px) | Grain size. | 1 to 32 | 1 |
+| Shimmer / sec | How many times a second the scatter re-rolls. 0 = still. | 0 to 60 | 0 |
+
+### Palette
+
+Snaps every pixel to the nearest colour of a fixed palette (by perceived colour distance): PICO-8, Game Boy, NES and friends, over the whole frame.
+
+| Control | What it does | Range | Default |
+|---|---|---|---|
+| Colour swatches | Click one to edit it; hover and click × to remove it; **+** adds one. | up to 32 colours | PICO-8's 16 |
+| Presets | **PICO-8**, **Game Boy**, **1-bit**, **CGA**, **Sweetie 16**, **Endesga 32**, **NES-ish**. | | |
+| Paste hex codes | Paste a list of hex colours (for example from Lospec) and press **Use**. | | |
+| Copy | Copies the palette as hex codes. | | |
+| Dither | Mixes the two nearest colours with an ordered pattern for smoother gradients. | 0 to 1 | 0 |
+| Dither pixel size | Screen pixels per pattern cell. | 1 to 16 | 1 |
+| Mix | Blends with the original colours. | 0 to 1 | 1 |
+
+<Shot id="post-effect-palette" caption="The Palette effect card with the Game Boy preset applied, and a Playground frame showing the four-green result" />
+
+## Effects on a single image
+
+Image assets have their own **Effect** dropdown in the Inspector (select the image in the Resources panel), offering the same list. That applies one effect to that image only, rather than to the whole frame.
+
+## Related
+
+- [Effects 2D](./effects-2d.mdx) for per-node effects (shadows, outlines, wiggle).
+- [Lighting 2D](./lighting-2d.mdx) for lights, which together with Glow give a scene its mood.
+- [Shader graph](./shader-graph.mdx) for custom per-sprite shaders.

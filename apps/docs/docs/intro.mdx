@@ -1,0 +1,51 @@
+---
+title: Welcome to Toasty
+slug: /intro
+sidebar_position: 0
+description: What ToastyCreate is, what you can build with it, and where to start in these docs.
+---
+
+# Welcome to Toasty
+
+**ToastyCreate** ("Toasty") is an animation and game engine with a full editor that runs in your browser at [toastycreate.web.app](https://toastycreate.web.app/) — and as a desktop app. You draw or import art, animate it on a timeline, wire it up with state machines, give it behaviour with JavaScript, and ship it: as a GIF or video, as a stand-alone web game, or **as a live component inside your own website or React app** that your page can feed data to and listen to.
+
+The like button below is a Toasty scene. Press Run, click the heart — the number under it is plain React state, updated by an event the scene sends out.
+
+```jsx live
+function LikeCounter() {
+  const [likes, setLikes] = React.useState(128)
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/like-button.teab"
+        style={{ height: 260 }}
+        label="Run the like button"
+        onEvent={(e) => e.name === 'like' && setLikes(e.payload.count)}
+      />
+      <p style={{ marginTop: 12 }}>React sees <b>{likes}</b> likes.</p>
+    </div>
+  )
+}
+```
+
+## Where to go next
+
+| If you want to… | Read |
+|---|---|
+| Get a feel for the editor in ten minutes | [Your first project](./getting-started/first-project.mdx) |
+| Learn every panel and tool | [Editor guide](./editor/scenes.mdx) |
+| Add physics, particles, goo, lights, UI, 3D… | [Components](./components/overview.mdx) |
+| Write game code — syntax first, no fluff | [Scripting](./scripting/overview.mdx) and the [cheatsheet](./scripting/cheatsheet.mdx) |
+| Put a Toasty scene on your site and drive it from React | [Embedding on the web](./embedding/overview.mdx) |
+| Follow a full build, start to finish | [Courses](./courses/index.mdx) |
+| See what's possible | [Showcase](/showcase) |
+
+## How Toasty is put together (the short version)
+
+- A **project** holds one or more **scenes**. A scene is a tree of **nodes** (shapes, images, text, groups, cameras, 3D objects…).
+- Nodes get abilities from **components** — a Rigidbody, a Particle System, a Light, a UI Button.
+- **Animations** are keyframes on a timeline. A **state machine** decides which animation plays, switching on **inputs** (booleans, numbers, triggers).
+- Each state can run a small **program** — JavaScript (or Blocks) that runs every frame while that state is active, with a `ctx` object for input, time, physics, sound, data and more.
+- **Properties** are a scene's named values (`score`, `userName`, `progress`). Text, colours and positions can be bound to them, scripts read and write them, and a web page embedding the scene can set them.
+
+Everything else in these docs builds on those five ideas.

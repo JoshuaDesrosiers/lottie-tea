@@ -1,0 +1,162 @@
+---
+title: Paint mode
+sidebar_position: 4
+description: Draw vector or bitmap art with frames and layers in Toasty's built-in paint program, then save it as a Drawing and place it in your scenes.
+---
+
+# Paint mode
+
+**Paint** is a full drawing program built into the editor. Use it to draw characters, props, backgrounds and frame-by-frame animations without leaving Toasty. Its drawing tools come from Scratch's paint editor, so if you have used Scratch, you already know them; Toasty adds frames, layers, onion skin, a reference image, a palette and better brushes.
+
+Whatever you draw is saved as a **Drawing** in your project, which you can place in any scene as many times as you like.
+
+<Shot id="paint-mode-overview" caption="Paint mode: drawing tools in the left rail, the canvas bar (grid, reference, eyedropper, shortcuts) at the top, the palette strip on the right, and the frames × layers strip at the bottom with onion skin on." />
+
+## Opening Paint
+
+- Click **Paint** in the top toolbar's mode switch to start a new drawing (or continue the one you had open).
+- To edit an existing drawing, go to **Resources**, find it under `Assets/Drawings`, and **double-click** it, or right-click → **Edit in Paint**.
+
+While Paint is open, the left icon rail shows the drawing tools instead of the panel toggles, and the top toolbar shows Paint's own controls plus **New** and **Save**.
+
+## Vector and bitmap
+
+Every drawing is in one of two formats, and the toolbox changes with it:
+
+| Format | Good for | How it's stored |
+|---|---|---|
+| **Vector** | Clean shapes you can reshape later, resolution-independent art | SVG paths. Placed as editable shapes. |
+| **Bitmap** | Painterly texture, pixel art, soft brushes | Pixels (PNG). Placed as an image. |
+
+The button at the bottom of the tool rail switches format: it reads **BMP** (tooltip **Convert to Bitmap**) while you are in vector, and **VEC** (**Convert to Vector**) while in bitmap.
+
+## Tools
+
+| Tool | Vector | Bitmap |
+|---|---|---|
+| **Select** | Pick, move, scale and rotate shapes | Select a rectangle of pixels and move it |
+| **Reshape** | Drag individual points and curve handles | (vector only) |
+| **Brush** | Freehand strokes that become shapes | Paint pixels (see brush options below) |
+| **Eraser** | Erase parts of shapes | Erase pixels |
+| **Fill** | Fill a shape with the fill colour or a gradient | Flood-fill an area |
+| **Text** | Editable text | Text painted into pixels |
+| **Line** | Straight lines | Straight lines |
+| **Oval** | Ellipses (hold Shift for circles) | Ellipses |
+| **Rectangle** | Rectangles (hold Shift for squares) | Rectangles |
+
+Above the canvas, the action bar holds undo/redo, the **fill** and **outline** colour pickers, the outline width, and options for the current tool (for example group, ungroup, forward, backward, flip and so on for Select).
+
+### Brush options (bitmap Brush and Eraser)
+
+When the bitmap Brush or Eraser is active, an extra bar appears:
+
+| Option | What it does |
+|---|---|
+| **Round** | Hard round brush (tiny sizes paint square pixels) |
+| **Pixel** | Hard square at any size: crisp pixel art |
+| **Soft** | Airbrush: soft edges that build up as you paint over |
+| **Spray** | Spray paint: scattered dots |
+| **Smoothing** | A stabilizer from 0 (off) to 0.9: the brush trails behind the cursor for smooth, steady lines |
+| **Pen pressure** | With a pen tablet or pressure-sensitive screen, pressing harder paints bigger |
+
+## The canvas bar
+
+The strip of buttons at the top of the canvas:
+
+| Control | What it does |
+|---|---|
+| **Grid** | Shows a grid over the canvas as a guide (not part of the drawing). A number field sets the spacing in drawing units. |
+| **Reference image** | Load an image to trace over. It shows faintly under your drawing and is never saved with it. Once loaded: a show/hide toggle, an opacity slider and a remove button. |
+| **Eyedropper** | Click the canvas to pick a fill colour. Keyboard: **I** for fill, **Shift+I** for outline. |
+| **Keyboard shortcuts** | Shows Paint's shortcut list. |
+
+### The palette
+
+A vertical strip of saved colours sits on the right edge of the canvas. Your palette is kept between sessions.
+
+- **Click** a swatch: use it as the fill colour.
+- **Right-click**: use it as the outline colour.
+- **Alt+click**: remove it.
+- **+**: save the current fill colour to the palette.
+
+## Frames and layers
+
+The strip along the bottom is Paint's own timeline, Aseprite-style: **one row per layer** (top layer first) and **one cell per frame**. A cell is that layer's art on that frame. Click a cell to draw on it; the other layers and the neighbouring frames are shown around it.
+
+<Shot id="paint-frame-strip" caption="The Paint frame strip with three layers and six frames: Play preview, fps field, Frame and Layer action buttons, Onion skin checked, and the cell grid with the current cell highlighted." />
+
+### Frame actions
+
+| Button (tooltip) | What it does |
+|---|---|
+| **New blank frame after this one** | Adds an empty frame. |
+| **Copy this frame (every layer)** | Duplicates the current frame. Then change the copy a little: the usual way to animate. |
+| **Move this frame earlier / later** | Reorders frames. |
+| **Delete this frame** | Removes it (not available on the last remaining frame). |
+| **,** and **.** keys | Previous / next frame. |
+
+### Layer actions
+
+| Control | What it does |
+|---|---|
+| **New layer above this one** | Adds a layer. New drawings start with one, **Layer 1**. |
+| **Move this layer up (in front) / down (behind)** | Reorders layers. |
+| **Delete this layer (every frame of it)** | Removes the layer from all frames. |
+| Eye toggle | Hide or show a layer. Hidden layers are left out when you place the drawing. |
+| Double-click a layer name | Rename it. |
+| Opacity slider | The layer's opacity. |
+
+### Playback and onion skin
+
+| Control | Default | What it does |
+|---|---|---|
+| **▶ Play** / **■ Stop** | | Plays a looping preview of the whole animation (all visible layers). |
+| **fps** | 12 | Frames per second, 1 to 60. Also used when the drawing is placed. |
+| **Onion skin** | On | Shows the previous frame (red) and next frame (blue) faintly under the current one. |
+
+## Saving a drawing
+
+1. Type a name in the name field of Paint's action bar (new drawings start as **New Drawing**).
+2. Click the **Save** button in the top toolbar (tooltip: "Save as Resource (Resources ▸ Drawings)").
+
+A message confirms it, for example "Saved "Bird" to Resources ▸ Drawings (6 frames)". Saving a drawing you opened from Resources updates that same drawing.
+
+**New** starts a blank drawing. The current one stays in Resources if you saved it, so save first.
+
+:::caution Paint has its own undo
+Paint's undo history (**Ctrl+Z** inside Paint) is separate from the editor's. Unsaved Paint work is not part of your project until you press Save.
+:::
+
+## Placing a drawing
+
+In **Resources**, find the drawing under `Assets/Drawings` and:
+
+- **drag** it onto the canvas, or
+- right-click it → **Place in Scene**.
+
+What you get depends on the drawing:
+
+| Drawing | Placed as |
+|---|---|
+| Vector, one frame | A **Group** named after the drawing, holding the drawn shapes as ordinary, editable nodes |
+| Bitmap, one frame | An **Image** node |
+| Several frames | A root **Group** named after the drawing with a **Flipbook** component (at the drawing's fps), containing one group per frame (**Frame 1**, **Frame 2**, …), each holding one node per visible layer |
+
+The frames line up exactly as they did in Paint. The Flipbook plays the frames in Playground; see [Images and sprites](./images-and-sprites.mdx) and the Flipbook settings in [Sprite Editor](./sprite-editor.mdx#as-a-flipbook-animation).
+
+:::tip Placed copies are independent
+A placed drawing is a copy made of normal nodes. Editing the drawing in Paint later and saving it does not change copies you already placed; place it again to get the new version. If you want one object you can reuse and update everywhere, make it a [prefab](./prefabs.mdx).
+:::
+
+## Tips
+
+- Draw a rough pose on one layer, then trace a clean version on a layer above it, and hide the rough layer before placing.
+- For pixel art, switch to **Bitmap**, pick the **Pixel** brush, turn on **Grid**, and set your images' Filter Mode to Nearest after placing.
+- Use a reference image of a real animation to time your frames.
+
+## Related
+
+- [Images and sprites](./images-and-sprites.mdx)
+- [Shapes and paths](./shapes-and-paths.mdx)
+- [Animation timeline](./animation-timeline.mdx)
+- [Keyboard shortcuts](../getting-started/keyboard-shortcuts.mdx#paint-mode)

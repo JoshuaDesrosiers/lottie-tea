@@ -1,0 +1,274 @@
+---
+title: 3D basics
+sidebar_position: 30
+description: 3D nodes, meshes, imported models, cameras, lights, sun shadows, fog, shader-graph and toon (MToon / Arcane) materials, and the 3D scene view with its move / rotate / scale gizmo.
+---
+
+# 3D basics
+
+Toasty scenes can hold **3D** content next to 2D. A 3D object is a **Node3D**: a node with its own 3D transform and one piece of content, either a mesh, a camera, a light, or nothing (a pivot). Node3Ds live in the same Layers tree as your shapes and text, so a 3D world and a 2D HUD are simply different nodes in one scene.
+
+This page covers the building blocks. Related pages:
+
+- [Physics 3D](./physics-3d.mdx): Rigidbody 3D, Collider 3D, raycasts.
+- [Particles 3D](./particles-3d.mdx): swirling, glowing and liquid 3D particle effects.
+- [VRM avatars](./vrm-avatars.mdx): rigged humanoid characters, poses, mocap, ragdolls.
+- [Voxels](./voxels.mdx) and [Glass](./glass.mdx): block worlds and breakable glass.
+- [Shader graph](./shader-graph.mdx): node-based materials (2D and 3D).
+- [Scripting: 3D](../scripting/3d-api.mdx): every `ref.*3` and `ctx.*3` call.
+
+## Conventions
+
+| | |
+|---|---|
+| Units | 1 unit = 1 **meter** (2D uses pixels). |
+| Axes | Right-handed, **+Y up**. |
+| Cameras and lights | Look / shine down their local **−Z** (the glTF and Godot convention). |
+| Rotation | Euler angles in **degrees**, applied Y (yaw), then X (pitch), then Z (roll), so "turn left / right, then look up / down" stay independent. |
+| Parenting | A Node3D's transform composes only through **Node3D** parents. A 3D sub-tree can sit anywhere in the hierarchy; 2D parents don't move it. |
+| Draw order | If the scene has a 3D camera, the 3D world is drawn first, depth-tested, then **all 2D content on top**, like a HUD. |
+
+## Adding 3D objects
+
+**+ → 3D** adds a Node3D (one undo step):
+
+| Menu item | What you get |
+|---|---|
+| **Cube**, **Sphere**, **Cylinder**, **Cone**, **Torus** | A light grey mesh standing on the ground (centre at y = 0.5). |
+| **Plane** | A 10 × 10 m floor at y = 0, facing up. |
+| **Camera 3D** | A camera at `(0, 2, 5)`, tilted 18° down towards the origin. |
+| **Sun (Directional Light)** | A directional light at `(0, 5, 0)`, rotated `(-55, -35, 0)`. |
+| **Point Light** | A warm point light at `(0, 2, 0)`, intensity 1.5, range 8 m. |
+| **Empty (Pivot)** | Nothing visible: a parent to group, move or spin other 3D nodes. |
+
+**+ → Import → 3D Model (glTF / GLB / VRM)…** imports a model file (plus the textures and buffers it references) as a new mesh node. The model is stood on the ground, and if it's absurdly big or small (under 0.2 m or over 20 m tall) it's scaled to about 1.8 m. VRM avatars get extra treatment, see [VRM avatars](./vrm-avatars.mdx).
+
+Breakable **Glass** and block-world **Voxels** meshes are picked from a mesh's **Shape** dropdown (below).
+
+## Transform
+
+Every Node3D shows these at the top of its Inspector:
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Position** | X, Y, Z in meters (relative to the parent Node3D). | `(0, 0, 0)` |
+| **Rotation (°)** | X (pitch), Y (yaw), Z (roll) in degrees. | `(0, 0, 0)` |
+| **Scale** | X, Y, Z multipliers. | `(1, 1, 1)` |
+
+## Meshes
+
+A mesh node's **Mesh** section:
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Shape** | **Cube**, **Sphere**, **Plane**, **Cylinder**, **Cone**, **Torus**, **Voxels**, **Glass**, or **Imported Model** (listed once a model has been imported). Changing it resets the shape's parameters. | |
+| Shape parameters | See the table below. | |
+| **Color (material tint)** | Base colour. With a material, it tints the material's output. | `(0.8, 0.8, 0.82)` for + → 3D items |
+| **Material** | The surface: **None (flat colour)** (or **Model's own materials** for an imported model), any shader-graph or toon material in the project, **+ New Toon material**, or **+ New Arcane (painted) material**. **Edit** opens the material. | None |
+| **Shininess** | `0..1`: 0 = matte, 1 = a sharp highlight. | 0.3 |
+| **Unlit (ignore lights)** | Draw at full colour, ignoring lights, shadows and fog: glowing objects, sky domes. | Off |
+
+Shape parameters (every primitive except Voxels is centred on its origin):
+
+| Shape | Inspector fields | Defaults |
+|---|---|---|
+| Cube | **Size** X, Y, Z | 1 × 1 × 1 |
+| Sphere | **Radius / Detail**: radius and segments (rings follow at half) | 0.5, 32 segments |
+| Plane | **Size** (flat on XZ, facing +Y) | 10 |
+| Cylinder, Cone | **Radius / Height** | 0.5 / 1 |
+| Torus | **Radius / Tube** | 0.5 / 0.18 |
+| Voxels | **Blocks (W / H / D)** | 32 × 32 × 32, see [Voxels](./voxels.mdx) |
+| Glass | **Size (W / H / Thickness)**, **Piece size / Pattern seed**, **Held by edges** | 2 × 1.5 × 0.02, see [Glass](./glass.mdx) |
+
+### Imported models
+
+With **Shape: Imported Model** the mesh section shows:
+
+| Inspector field | Meaning |
+|---|---|
+| **Model** | Which imported model to draw. |
+| **Animation / overlay** | Two clip pickers (listed when the file has animations): the clip playing, and an optional second clip layered on top whose channels override the first (for example `walk` plus a "holding gun" overlay). **None** = rest pose. |
+| **Loop the animation** | Off = play once and hold the last frame (a death animation). On by default. |
+| **Import animation (.vrma / .glb)…** | Adds a humanoid animation to this avatar, see [VRM avatars](./vrm-avatars.mdx). |
+| **Model materials** | For VRM avatars: one editable toon material per material slot, with **All MToon** / **All Arcane** buttons. Older imports show **Extract materials** to create them. |
+
+Scripts switch clips with `ref.playAnimation3`:
+
+```js
+const hero = getCompByID('hero')
+hero.playAnimation3(moving ? 'walk' : 'idle')            // loops; re-sending the same clip doesn't restart it
+hero.playAnimation3('die', { loop: false })               // hold the last frame
+hero.playAnimation3('walk', { overlay: 'holding-right-shoot' })
+```
+
+## Materials
+
+A mesh's look comes from one of three places:
+
+1. **No material**: the flat **Color**, lit with simple Blinn-Phong shading and **Shininess**.
+2. A **shader-graph material** (the same node-based materials 2D uses, see [Shader graph](./shader-graph.mdx)). Its output colour is then lit; **Color** is its tint. In 3D, the graph's *Local Position* is world-space meters on the surface, so patterns tile at world scale, and *UV* is the mesh's own `0..1`.
+3. A **toon material**, with two styles:
+   - **MToon**: the VRM anime look. Lit and shade colours split at a soft terminator, a rim light, an ink outline.
+   - **Arcane (painted)**: a painterly, hand-painted look. Banded light with brushy, noise-broken edges, cool hatched shadows, warm highlights, canvas grain and a coloured rim.
+
+Pick **+ New Toon material** or **+ New Arcane (painted) material** in a mesh's **Material** dropdown to create one and wear it. Its settings then appear right under the dropdown (toggle them with **Edit**). Every value is sent to the GPU per draw, so tweaking never recompiles a shader.
+
+<Shot id="3d-toon-material-fields" caption="A mesh wearing an Arcane material, with the toon material fields expanded under Material: MToon / Arcane switch, Colour, Shading, Paint, Rim light, Outline, Surface groups" />
+
+### Toon material fields
+
+| Group | Inspector field | Meaning | MToon default | Arcane default |
+|---|---|---|---|---|
+| (top) | **MToon** / **Arcane (painted)** | The style. | MToon | Arcane |
+| Colour | **Lit colour** | Multiplies the texture on the lit side (alpha = opacity). | white | white |
+| Colour | **Shade colour** | Multiplies the texture on the shadowed side. | `(0.55, 0.5, 0.6)` | `(0.38, 0.36, 0.62)` |
+| Colour | **Highlight** (Arcane) | Added to lit areas: warm highlights. | | `(0.18, 0.1, 0.02)` |
+| Colour | **Emission** | Self-lit colour added on top: glowing eyes, LEDs. | black | black |
+| Colour | **Texture** | Replace the mesh's own texture with an imported image, or keep **Mesh's own**. | Mesh's own | Mesh's own |
+| Shading | **Shadow line** | `-1..1`: moves the light / shadow boundary. Left = more shade. | 0 | 0.05 |
+| Shading | **Hardness** | `0..1`: 0 = soft gradient, 1 = hard cel edge. | 0.9 | 0.85 |
+| Shading | **Light bands** (Arcane) | `2..6` flat tones the light falls into. | | 3 |
+| Shading | **Darkest** | `0..1`: how dark shadows get from lighting alone. | 0.35 | 0.3 |
+| Shading | **Point lights** | `0..3`: how much point lights add (0 = sun only). | 1 | 1 |
+| Paint (Arcane) | **Brush size** | Brush-stroke size in meters. | | 0.22 |
+| Paint (Arcane) | **Brushiness** | How much strokes break up the shadow edge. | | 0.4 |
+| Paint (Arcane) | **Hatching** | Crosshatch lines in the shadows. | | 0.25 |
+| Paint (Arcane) | **Grain** | Canvas / paper grain. | | 0.2 |
+| Rim light | **Colour** | Edge light colour; black = none. | black | `(0.25, 0.75, 0.8)` |
+| Rim light | **Tightness** | Higher = thinner rim. | 5 | 3.5 |
+| Rim light | **Lift** | Spreads the rim across the surface. | 0 | 0.05 |
+| Outline | **Width** | Ink outline width in the mesh's units; 0 = none. | 0 | 0.012 |
+| Outline | **Colour** | Outline colour. | near-black | near-black |
+| Surface | **Alpha cutoff** | Cut-out: pixels less opaque than this aren't drawn (lace, cut-out hair); 0 = off. | 0 | 0 |
+| Surface | **Double-sided (cloth, hair cards)** | Draw both faces. | Off | Off |
+
+### Material Overrides
+
+Materials on an imported model are **shared by every copy** of that model. To make one copy look different (another skin tone, a different outfit colour), add **Material Overrides** (Add Component → **Effects 3D**) to that node:
+
+- **+ Override a slot…** adds one of the model's material slots.
+- Each override row picks a toon material that this object wears in that slot instead, or **Model's own**.
+- **×** removes the override.
+
+Only this object changes; other copies keep the model's materials. (The Fatal Clash demo gives Shadow Popi a bronze skin this way.)
+
+## Cameras
+
+The scene renders through a **Camera 3D**. The first camera with **Current** on wins; if none is current, the first camera is used.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Field of view (°) / Near / Far** | Vertical field of view in degrees, and the near / far clip distances in meters. | 60 / 0.05 / 500 |
+| **Current (the scene renders through this camera)** | Use this camera. | On |
+| **Sky colour** | The background behind the 3D world. Untick it to keep the 2D scene's background colour. | `(0.45, 0.62, 0.85)` |
+
+A camera is a Node3D like any other: parent it to an Empty to orbit, or drive it from a script:
+
+```js
+// 3D Showroom: orbit the stage centre and look at it.
+const cam = getCompByID('cam3d')
+const yr = g.yaw * Math.PI / 180, pr = g.pitch * Math.PI / 180
+cam.position3 = {
+  x: Math.sin(yr) * Math.cos(pr) * g.dist,
+  y: 1 + Math.sin(pr) * g.dist,
+  z: 1.5 + Math.cos(yr) * Math.cos(pr) * g.dist,
+}
+cam.lookAt3(0, 1, 1.5)
+```
+
+## Lights
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Type** | **Directional**: parallel rays along the node's local −Z (the sun); rotate it to aim. **Point**: shines from the node's position, fading to zero at **Range**. | Directional |
+| **Color** | The light's colour. | `(1, 0.97, 0.9)` |
+| **Intensity** / **Range** | Brightness multiplier; Range (point lights only) is where it reaches zero, in meters. | 1 / 10 |
+
+How lights are used:
+
+- The **first** directional light in the scene is the **sun**. Extra directional lights are ignored. With no directional light at all, a default soft sun is used so meshes are never black.
+- Up to **8** point lights light the scene.
+- A sky / ground **ambient** light fills the shadows.
+
+### Sun shadows
+
+A scene with a directional light gets **sun shadows** automatically: a 2048² shadow map with soft (3 × 3 filtered) edges, covering roughly 14 m around what the camera is looking at. Toon materials receive them too. Unlit plain meshes don't cast shadows.
+
+## Fog and ambient light
+
+Distance fog and the ambient colour are set from a script with `ctx.setEnvironment3`, and last until Playground stops:
+
+```js
+// Once, at the start: misty blue fog matching the sky, warm ambient.
+if (!g.envSet) {
+  g.envSet = true
+  ctx.setEnvironment3({ fog: [0.62, 0.78, 0.95], fogDensity: 0.018, ambient: [0.5, 0.46, 0.44] })
+}
+```
+
+| Option | Meaning | Default |
+|---|---|---|
+| `fog` | Fog colour, RGB `0..1`. Usually matches the camera's **Sky colour**. | the sky colour |
+| `fogDensity` | About 1 / the distance where things are mostly fogged. 0 = no fog. | 0 |
+| `ambient` | The ambient light colour. | `(0.3, 0.33, 0.4)` |
+
+`ctx.setEnvironment3(null)` restores the defaults. Unlit meshes skip fog.
+
+## The 3D scene view
+
+When a scene has 3D nodes, the top toolbar shows a **2D / 3D** switch (Design mode). **2D** edits the 2D layer (HUD, sprites) as usual; **3D** turns the canvas into a 3D scene view, with Unity-style controls:
+
+| Action | Control |
+|---|---|
+| Orbit | Right-drag (or Alt + left-drag) |
+| Fly | Hold the right button and use **W A S D**, **Q / E** down / up, **Shift** faster |
+| Pan | Middle-drag (or Shift + right-drag), or a trackpad two-finger scroll |
+| Zoom | Wheel or pinch, towards the cursor |
+| Frame the selection | **F** or double-click |
+| View presets | **Numpad 1 / 3 / 7 / 5**: front / right / top / perspective, or the toolbar's view menu |
+| Select | Left-click an object; click empty space to deselect |
+| Gizmo mode | **W** move, **E** rotate, **R** scale (also toolbar buttons **Move / Rotate / Scale**) |
+| Snap while dragging | Hold **Ctrl**: 0.25 m, 15°, 0.1× |
+
+The gizmo's axes are X red, Y green, Z blue (yellow while hovered). The move and scale gizmos also have a centre cube: move along the ground plane, or scale uniformly. A drag previews live and commits as one undo step when you release.
+
+The toolbar's **Camera** menu has:
+
+- **Align camera to view**: moves the Playground camera (or the selected Camera 3D) to exactly where you're looking from. Undoable.
+- **View through camera**: look through the Playground camera to see exactly what Playground will show.
+
+Selecting a VRM avatar shows its **bones**; click a joint and drag the rotate rings to pose it. See [VRM avatars](./vrm-avatars.mdx#posing-in-the-scene-view).
+
+<Shot id="3d-scene-view-gizmo" caption="The 3D Showroom in the 3D scene view: 2D / 3D switch and Move / Rotate / Scale buttons in the toolbar, the torus selected with the move gizmo" />
+
+## Scripting 3D nodes
+
+Every 3D node's ref has:
+
+| Member | Meaning |
+|---|---|
+| `ref.position3`, `ref.rotation3`, `ref.scale3` | `{ x, y, z }` (rotation in degrees). Assign a whole object; mutating the returned one does nothing. `null` on 2D nodes. |
+| `ref.lookAt3(x, y, z)` | Turn to face a world point (cameras and lights look down −Z). |
+| `ref.playAnimation3(name, options)` | Imported models: play a clip. |
+| `ref.visible` | Show / hide, as for any node. |
+
+```js
+const t = ctx.time
+getCompByID('torus').rotation3 = { x: t * 70, y: t * 40, z: 0 }
+const s = getCompByID('sphere'), p = s.position3
+s.position3 = { x: p.x, y: 1.15 + Math.abs(Math.sin(t * 3)) * 0.6, z: p.z }
+```
+
+The full list is in [Scripting: 3D](../scripting/3d-api.mdx).
+
+## Demos
+
+| Demo (+ → Demos) | Shows |
+|---|---|
+| **3D Showroom** | Every primitive on a lit stage, a sun and two orbiting coloured point lights, a scripted orbit camera, 2D text over 3D. |
+| **Physics 3D Lab** | Rigidbody 3D, colliders, triggers and raycasts. |
+| **Reyna's Leer** | 3D particles in fluid mode and a shader-graph eye material. |
+| **Voxel Craft** | A streamed block world. |
+| **Shatterline (glass)** | Breakable glass. |
+| **Fatal Clash (3D fighting)** | VRM avatars, poses, ragdolls, sun shadows, material overrides. |
+| **Sunset Tactics (5v5)** | A first-person 3D shooter with imported models. |

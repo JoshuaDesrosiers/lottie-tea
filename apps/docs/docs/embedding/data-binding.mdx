@@ -1,0 +1,288 @@
+---
+title: Sending data in
+sidebar_position: 7
+description: Drive a Toasty game from your page with data, state machine inputs, triggers, scene switches and script function calls.
+---
+
+# Sending data in
+
+Your page has five ways to steer a running game. Choosing the right one makes the game simpler to build and the page simpler to write.
+
+| You want to… | Use | React |
+|---|---|---|
+| Show a **value** (name, price, percent, colour, a flag) | `player.set(name, value)` / `setData({...})` | `data={{ ... }}` |
+| Put the **state machine** in a mode (open/closed, speed, tab) | `player.setInput(name, value)` | `inputs={{ ... }}` |
+| Make something **happen now** (burst, ring, jump) | `player.fire(trigger)` | `ref.current.fire(trigger)` |
+| Go to another **scene** | `player.loadScene(name)` | `scene="..."` |
+| Run **game code** and maybe get a result back | `player.call(name, arg)` | `ref.current.call(name, arg)` |
+
+## Data: `set`, `setData`, `data`
+
+Data are **values**. Each one you send goes to two places in the game:
+
+1. **The scene Property with the same name**, if the scene has one. Properties are named values you add to a scene in the editor (select the scene, Inspector, **Properties**). Anything bound to a Property updates by itself: a Text node showing it, a bar's width scaled by it, a fill colour, visibility, any component field (see [Properties and bindings](../editor/properties-and-bindings.mdx)). **No script is needed.**
+2. **`ctx.data` in the game's scripts**, for anything fancier: `ctx.data.userName`. Keys don't need a matching Property.
+
+```js
+player.set('progress', 0.8)
+player.setData({ progress: 0.8, label: 'Almost there', color: '#22c55e' })
+```
+
+```tsx
+<An1Player game="/an1mbyt3/game.teab" data={{ progress, label, color }} />
+```
+
+Drag, type and pick. Each control writes one Property, and the ring's bound text, arc and colour follow:
+
+```jsx live
+function RingControls() {
+  const [progress, setProgress] = React.useState(0.35)
+  const [label, setLabel] = React.useState('Uploading')
+  const [color, setColor] = React.useState('#7c5cff')
+  return (
+    <div>
+      <ToastyPlayer game="/games/progress-ring.teab" data={{ progress, label, color }} style={{ height: 260 }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, marginTop: 8, alignItems: 'center' }}>
+        <span>progress</span>
+        <input type="range" min="0" max="1" step="0.01" value={progress} onChange={(e) => setProgress(Number(e.target.value))} />
+        <span>label</span>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} />
+        <span>color</span>
+        <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
+      </div>
+    </div>
+  )
+}
+```
+
+### Types and conversion
+
+Values are converted to the Property's type on every write, so you don't have to be careful about strings versus numbers:
+
+| Property type | Accepts | Becomes |
+|---|---|---|
+| Number | a number, or anything `Number(...)` can read (`'42'`) | that number; `0` if it isn't a finite number |
+| Bool | `true`, `1`, `'true'`, `'1'`, `'on'` | `true`; anything else is `false` |
+| Text | anything | `String(value)`; `null` and `undefined` become `''` |
+| Color | `'#rrggbb'` or `'rrggbb'`, or `[r, g, b]` / `[r, g, b, a]` with channels from 0 to 1 | `[r, g, b, a]`; anything else becomes white |
+
+Short colours like `'#fff'` and CSS names like `'red'` are **not** understood (they turn white). Convert them to six-digit hex first.
+
+`ctx.data` keeps exactly what you sent, unconverted.
+
+### When it takes effect
+
+- `set` is **applied at the next frame**. Calling it many times between frames just keeps the latest value, so it is cheap enough to call on every keystroke, every scroll event, every poll.
+- Data are **kept across scene switches**. When the game enters a scene, all the data you've sent are applied to that scene's Properties. (Properties themselves reset to their defaults on every scene switch; your data are then re-applied on top.)
+- `player.get(name)` returns the scene Property's current value (which may have been changed by the game since), or, if there is no such Property, the last value you `set`.
+
+### Values, not pulses
+
+Sending the same value again changes nothing: the Property already has it, and the game sees the latest value every frame. That makes data the wrong tool for "do this now". For one-off actions use a [trigger](#triggers-fire) or a [function call](#calling-game-code-call).
+
+If a game reads a data value as a one-shot flag (for example "when `ctx.data.celebrate` is true, celebrate"), send `false` before sending `true` again.
+
+### Data from an API
+
+The page fetches, the game shows. Don't fetch from inside the game; fetch in your page and `set` the result. Here the page asks [Open-Meteo](https://open-meteo.com/) (free, no key) for the current weather in a city and hands the weather card three values:
+
+```jsx live
+function LiveWeather() {
+  const cities = {
+    Lisbon: [38.72, -9.14],
+    Oslo: [59.91, 10.75],
+    Tokyo: [35.68, 139.69],
+    'New York': [40.71, -74.01],
+  }
+  const [city, setCity] = React.useState('Lisbon')
+  const [weather, setWeather] = React.useState({ temp: 21, condition: 'sun' })
+  const [note, setNote] = React.useState('')
+
+  // WMO weather codes → the card's five conditions.
+  const toCondition = (code) =>
+    code >= 95 ? 'storm'
+    : (code >= 71 && code <= 77) || code === 85 || code === 86 ? 'snow'
+    : code >= 51 ? 'rain'
+    : code >= 2 ? 'cloud'
+    : 'sun'
+
+  React.useEffect(() => {
+    let cancelled = false
+    const [lat, lon] = cities[city]
+    setNote('fetching…')
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((json) => {
+        if (cancelled) return
+        setWeather({ temp: Math.round(json.current.temperature_2m), condition: toCondition(json.current.weather_code) })
+        setNote(`live from Open-Meteo (code ${json.current.weather_code})`)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        // Offline or blocked: keep the card useful with a made-up reading.
+        setWeather({ temp: 18, condition: 'cloud' })
+        setNote(`couldn't fetch (${err.message}), showing sample data`)
+      })
+    return () => { cancelled = true }
+  }, [city])
+
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/weather-card.teab"
+        data={{ city, temp: weather.temp, condition: weather.condition }}
+        style={{ height: 280 }}
+      />
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+        {Object.keys(cities).map((name) => (
+          <button key={name} onClick={() => setCity(name)} disabled={name === city}>{name}</button>
+        ))}
+      </div>
+      <p>{city}: {weather.temp}°, {weather.condition}. <small>{note}</small></p>
+    </div>
+  )
+}
+```
+
+Notice what the page does *not* do: it never touches the card's animation. It sends `condition: 'rain'` and the game decides how rain looks.
+
+## Inputs: `setInput`, `inputs`
+
+State machine inputs pick what the [state machine](../editor/state-machines.mdx) does. The page can set any input of the current scene's active state machine:
+
+```js
+player.setInput('isNight', true)   // Bool
+player.setInput('speed', 2.5)      // Number
+player.setInput('tab', 'settings') // Enum (by option name)
+player.setInput('burst', true)     // Trigger: fires when the value is truthy
+```
+
+```tsx
+<An1Player game="/an1mbyt3/game.teab" inputs={{ isNight, speed: 2.5 }} />
+```
+
+Values are converted to the input's kind (`Boolean(value)`, `Number(value)`, `String(value)`). A name the state machine doesn't have logs `the scene's state machine has no input "…"` in the browser console and does nothing.
+
+### Data or input?
+
+Both are values. The difference is who reacts:
+
+- An **input** is read by the **state machine's transitions** ("go from Day to Night when `isNight` is true"). Use it when the value should change which animation state is playing.
+- A **data value / Property** is read by **bindings and scripts** ("this label shows `temp`"). Use it when the value should be displayed or used in code.
+
+A game can offer both for the same idea. `day-night.teab` has a Property *and* an input called `isNight`. Here the page drives the input; flip the checkbox, or click the scene:
+
+```jsx live
+function NightSwitch() {
+  const [isNight, setIsNight] = React.useState(false)
+  const [state, setState] = React.useState('?')
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/day-night.teab"
+        inputs={{ isNight }}
+        style={{ height: 220 }}
+        onReady={(p) => setState(p.state)}
+        onStateChange={(e) => e.layer === null && setState(e.state)}
+        onEvent={(e) => e.name === 'toggle' && setIsNight(e.payload.isNight)}
+      />
+      <label style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <input type="checkbox" checked={isNight} onChange={(e) => setIsNight(e.target.checked)} />
+        isNight = {String(isNight)}, state machine is in <b>{state}</b>
+      </label>
+    </div>
+  )
+}
+```
+
+## Triggers: `fire`
+
+A Trigger input is a one-shot: firing it lets a transition happen once. Use it for moments.
+
+```js
+player.fire('ring')
+```
+
+In React, fire through the ref, because a trigger is an action, not state:
+
+```jsx live
+function RingIt() {
+  const ref = React.useRef(null)
+  const [fired, setFired] = React.useState(0)
+  return (
+    <div>
+      <ToastyPlayer ref={ref} game="/games/bell.teab" style={{ height: 200 }} />
+      <button style={{ marginTop: 8 }} onClick={() => { ref.current?.fire('ring'); setFired((n) => n + 1) }}>
+        Ring ({fired})
+      </button>
+    </div>
+  )
+}
+```
+
+You *can* put a trigger in `inputs`, but it only fires when its value changes to truthy (`{ ring: count }` fires each time `count` changes to a new non-zero number, `{ ring: true }` fires once). `fire` is clearer.
+
+## Scenes: `loadScene`, `scene`
+
+```js
+player.loadScene('Checkout')
+```
+
+```tsx
+<An1Player game="/an1mbyt3/game.teab" scene={step === 2 ? 'Checkout' : 'Shop'} />
+```
+
+The switch happens after the current frame. Unknown names log `no scene named "…"`. `player.scenes` lists the names and `player.scene` is the current one. Your data carry over to the new scene; Properties start from the new scene's defaults with your data applied on top.
+
+The live scene example is on the [React page](./react.mdx#switching-scenes-scene).
+
+## Calling game code: `call`
+
+A game script can offer a function to the page with `ctx.on(name, fn)`. The page calls it with `player.call(name, arg)`, synchronously, and gets its return value:
+
+```js title="in the game (a Code program)"
+ctx.on('reset', (arg) => {
+  ctx.props.count = arg?.count ?? 0
+  return 'ok'
+})
+ctx.on('getScore', () => ctx.props.score)
+```
+
+```js title="on the page"
+player.call('reset', { count: 10 })    // → 'ok'
+const score = player.call('getScore')  // → a number
+```
+
+- The function exists only once the script that registers it has run (the first frame its state is active). Calling earlier returns `undefined` and logs ``no script function "reset" (register it with ctx.on('reset', fn))``.
+- Unlike data, `call` is immediate and can return a value, so it's the right tool for "reset", "skip intro", "give me the current score".
+- The same functions can be run by a button's On Click "Call script function" action inside the game.
+
+## What the game side looks like
+
+If you also build the game, here is the counterpart of each tool. Full details are in [Properties and data](../scripting/props-and-data.mdx) and [Events and messages](../scripting/events-and-messages.mdx).
+
+```js title="a Code program in the game"
+// Data: read what the page sent (read-only; {} in the editor).
+const name = ctx.data.userName ?? 'friend'
+
+// Properties: the page's set('count', …) lands here too, and bound
+// labels update without any code. Scripts can read and write them.
+ctx.props.count += 1        // reported to the page as a 'prop' event
+
+// Functions the page can call with player.call(name, arg).
+ctx.on('reset', () => { ctx.props.count = 0 })
+
+// Messages to the page: player.on('event') / onEvent.
+ctx.emit('like', { liked: true, count: ctx.props.count })
+```
+
+Inputs and triggers need no code: they are the state machine's own inputs, set in the state machine editor.
+
+:::tip Test before you embed
+In the editor, `ctx.data` is an empty object, so write games that work without data (`ctx.data.userName ?? 'friend'`). Give Properties sensible defaults; the embed starts from them until your page sends values.
+:::
+
+## Next
+
+- [Listening to the game](./listening.mdx): the other direction.
+- [Recipes](./recipes.mdx): more complete examples.

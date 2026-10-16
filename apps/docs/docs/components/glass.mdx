@@ -1,0 +1,92 @@
+---
+title: Breakable glass
+sidebar_position: 35
+description: The Glass mesh shape - pre-fractured panes that shatter, crack and fall where they're hit, with shatter3, crack3, glassRaycast3 and materials that light up edges and cracks.
+---
+
+# Breakable glass
+
+**Glass** is a mesh shape for panes that really break. Each pane is pre-cut into Voronoi pieces. When something hits it, the pieces near the hit shatter into flying shards, the pieces around them crack, and anything left hanging off nothing falls. It's the engine behind the **Shatterline (glass)** demo (**+ → Demos**), a Smash Hit-style run through corridors of glass.
+
+<Shot id="glass-shatterline" caption="Shatterline in Playground: a tinted glass pane with glowing edges mid-shatter, shards flying, a hole where the ball went through" />
+
+## Making a pane
+
+Add a 3D mesh (for example **+ → 3D → Cube**) and set its **Shape** to **Glass**.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Size (W / H / Thickness)** | The pane's width and height (its local XY plane, facing +Z, centred) and thickness, in meters. | 2 / 1.5 / 0.02 |
+| **Piece size / Pattern seed** | **S**: roughly how big each pre-cut piece is across (smaller = more, finer shards). **#**: which fracture pattern; change it so neighbouring panes don't break identically. | 0.22 / 1 |
+| **Held by edges** | **Left**, **Right**, **Bottom**, **Top**: which edges hold the pane up. | all four |
+
+**Held by edges** decides what falls. After a hit, any piece no longer connected (through other unbroken pieces) to a held edge drops:
+
+| Held edges | Behaves like |
+|---|---|
+| All four | A window in a frame: only the hit area breaks out. |
+| Top and Bottom | A bar held at both ends: a hit takes a bite out of it. |
+| Top only | A hanging pane: everything below the break falls. |
+
+Colour, **Material** and **Unlit** work as for any [mesh](./3d-basics.mdx#meshes).
+
+## Breaking it from a script
+
+Breaking is runtime state: which pieces are gone and the flying shards exist only while playing. Every Playground start puts all panes back together.
+
+| Member | Meaning |
+|---|---|
+| `ref.shatter3(point, velocity, options)` | Break the pane where it was hit. `point` is in world space (projected onto the pane); `velocity` is the hitter's, m/s; shards fly along it. Returns `{ broken, loose }`: pieces shattered and pieces that fell. A hit on a hole returns zeros. |
+| `ref.crack3(point, options)` | Crack it without breaking anything (thick glass that survives a hit). The pieces round `point` frost over. Returns how many pieces it touched. |
+| `ref.resetGlass()` | Every piece back in place. |
+| `ref.glassIntact` | How much is still standing, `0..1` by area. |
+| `ctx.glassRaycast3(origin, direction, maxDistance?)` | The nearest **standing** glass along a ray, or `null`. Holes let the ray through, so a ball (or the camera) flies through what's already broken. The hit's `ref` is the pane; its normal faces back at the ray. |
+
+`shatter3` options:
+
+| Option | Meaning | Default |
+|---|---|---|
+| `radius` | How far the break reaches, meters. | 0.25 |
+| `floor` | World y the shards land on. `null` = no floor (they fall forever). | 0 |
+
+`crack3` options:
+
+| Option | Meaning | Default |
+|---|---|---|
+| `radius` | Meters. | 0.35 |
+| `amount` | Whitening added per hit, `0..1`. | 0.5 |
+
+Points and velocities take `{ x, y, z }` or `[x, y, z]`. A raycast hit has `x`, `y`, `z`, so you can pass the hit itself as the point.
+
+A ball flying through a level, from Shatterline (simplified):
+
+```js
+// Each frame, look ahead along the ball's motion for standing glass.
+const step = Math.hypot(b.vx, b.vy, b.vz) * ctx.deltaSeconds
+const hit = ctx.glassRaycast3([b.x, b.y, b.z], [b.vx, b.vy, b.vz], step + BALL_R)
+if (hit) {
+  if (thick) {
+    hit.ref.crack3(hit, { radius: 0.55, amount: 0.55 })     // survives this time
+  } else {
+    const r = hit.ref.shatter3(hit, [b.vx, b.vy, b.vz], { radius: 0.34, floor: 0 })
+    if (r.broken > 0) ctx.playTone({ type: 'noise', duration: 0.25, volume: 0.3 })
+  }
+}
+```
+
+:::note
+A pane gets its runtime state the first time it's drawn. `ctx.glassRaycast3` won't find a pane that hasn't been on screen yet.
+:::
+
+## Materials for glass
+
+Any [shader-graph material](./shader-graph.mdx) can dress a pane, and glass meshes give it two extra signals through **UV**:
+
+| Channel | Value |
+|---|---|
+| `uv.x` | 1 on the pane's edges and the sides of pieces, 0 on the faces. Use it for glowing edges. |
+| `uv.y` | How cracked a face is (0 = clear). Use it to frost cracked areas. |
+
+Shatterline uses this for murky, tinted panes whose edges glow.
+
+See also: [3D basics](./3d-basics.mdx), [Scripting: 3D](../scripting/3d-api.mdx).

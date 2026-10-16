@@ -1,0 +1,244 @@
+---
+title: "4. The board and the gem pool"
+sidebar_position: 4
+description: Read how Crown Match models the board as data, recycles a fixed pool of 64 gem nodes, swaps gem shapes by copying template paths, and fills a level without starting matches.
+---
+
+# 4. The board and the gem pool
+
+**Goal:** understand the Game scene's data model and how data turns into the gems you see.
+
+**What you'll learn**
+
+- Grid coordinates versus board-local positions.
+- Pieces (data) versus visuals (pooled nodes).
+- Changing a shape's outline at runtime by assigning `ref.path`.
+- A free list for node pooling.
+- Filling a board with no ready-made matches.
+- One-time screen setup.
+
+## The code
+
+The Game program starts with board constants and the piece helpers:
+
+```js title="demo_match3.js — //@program Game (setup)"
+//@program Game
+// The board. Drag a gem onto a neighbour (or tap one, then the other) to
+// swap; only swaps that make a match stick. Matches clear, gems fall,
+// new ones drop in, cascades chain. Specials:
+//   4 in a row  -> ROCKET (clears its row / column)
+//   L or T      -> TNT    (clears a 5x5 area)
+//   5 in a row  -> LIGHT BALL (swap it with a gem: clears that color)
+// Swapping two specials together combines them.
+const N = 8, CELL = 40, BOARD_Y = -36
+const lx = (c) => -140 + c * CELL
+const ly = (r) => 140 - r * CELL
+
+// ---------------------------------------------------------- setup --
+function lookOf(p) {
+  // Shape, color and special markers for a piece.
+  const v = g.vis[p.v]
+  const t = p.sp === 'light' ? 6 : p.t
+  if (v.t !== t) { v.t = t; v.ref.path = g.tpl[t]; v.ref.fillColor = GEM_COLORS[t] }
+  const h = p.sp === 'h', vv = p.sp === 'v', bomb = p.sp === 'bomb'
+  if (v.h !== h) { v.h = h; v.H.visible = h }
+  if (v.vv !== vv) { v.vv = vv; v.V.visible = vv }
+  if (v.bomb !== bomb) { v.bomb = bomb; v.R.visible = bomb }
+}
+
+function newPiece(t, r, c, startY) {
+  const v = g.free.pop()
+  const p = { t, sp: null, v, r, c, x: lx(c), y: startY, vy: 0, scale: 1, pop: 0 }
+  const vis = g.vis[v]
+  vis.ref.visible = true
+  vis.lastX = vis.lastY = vis.lastS = null
+  lookOf(p)
+  return p
+}
+
+function freePiece(p) {
+  const vis = g.vis[p.v]
+  vis.ref.visible = false
+  g.free.push(p.v)
+}
+
+// (Rows may not exist yet while the board is first being filled.)
+const at = (r, c) => (r >= 0 && c >= 0 && r < N && c < N && !g.holes[r * N + c] && g.grid[r] ? g.grid[r][c] : null)
+const playable = (r, c) => r >= 0 && c >= 0 && r < N && c < N && !g.holes[r * N + c]
+
+/** Would type `t` at (r, c) complete a run of 3 (for fills and moves)? */
+function makesRun(r, c, t) {
+  const same = (rr, cc) => { const p = at(rr, cc); return p && p.t === t && p.sp !== 'light' }
+  let h = 1, v = 1
+  for (let k = c - 1; same(r, k); k--) h++
+  for (let k = c + 1; same(r, k); k++) h++
+  for (let k = r - 1; same(k, c); k--) v++
+  for (let k = r + 1; same(k, c); k++) v++
+  return h >= 3 || v >= 3
+}
+
+function startLevel() {
+  const def = levelDef(S.level || 1)
+  g.def = def
+  g.holes = def.holes
+  g.frost = def.frost.slice()
+  g.goals = def.goals.map((x) => ({ ...x, left: x.n }))
+  g.moves = def.moves
+  g.score = 0
+  g.combo = 0
+  g.phase = 'intro'
+  g.timer = 0
+  g.idleT = 0
+  g.selected = null
+  g.press = null
+  for (const p of g.pieces || []) freePiece(p)
+  g.pieces = []
+  g.grid = []
+  for (let r = 0; r < N; r++) {
+    g.grid.push(new Array(N).fill(null))
+    for (let c = 0; c < N; c++) {
+      ref('cell' + (r * N + c)).visible = !g.holes[r * N + c]
+      if (g.holes[r * N + c]) continue
+      // Avoid starting matches.
+      let t, tries = 0
+      do { t = Math.floor(Math.random() * def.colors); tries++ } while (makesRun(r, c, t) && tries < 20)
+      const p = newPiece(t, r, c, ly(r) + 360 + r * 14)
+      g.grid[r][c] = p
+      g.pieces.push(p)
+    }
+  }
+  if (!hasMove()) shuffle()
+  for (let i = 0; i < N * N; i++) refreshFrost(i)
+  setText('levelText', 'LEVEL ' + def.n)
+  for (let k = 0; k < 3; k++) {
+    const goal = g.goals[k]
+    show('goalSlot' + k, !!goal); show('goalIcon' + k, !!goal); show('goalText' + k, !!goal)
+    if (!goal) continue
+    const icon = ref('goalIcon' + k)
+    if (goal.t === 'frost') { icon.path = g.tplFrost; icon.fillColor = [0.62, 0.86, 1, 1] } else { icon.path = g.tpl[goal.t]; icon.fillColor = GEM_COLORS[goal.t] }
+  }
+  // Star markers along the score bar.
+  for (let k = 0; k < 3; k++) ref('barStar' + k).x = Math.round(-150 + 300 * (def.stars[k] / def.stars[2]))
+  for (const id of ['dim', 'panel', 'resultTitle', 'resultSub', 'resultStar0', 'resultStar1', 'resultStar2', 'nextBtn', 'nextLabel', 'map2Btn', 'map2Label']) show(id, false)
+  banner('LEVEL ' + def.n, goalSummary(), 1.6)
+}
+
+function goalSummary() {
+  const names = ['RUBIES', 'SAPPHIRES', 'EMERALDS', 'TOPAZ', 'AMETHYSTS', 'AMBERS']
+  return g.goals.map((x) => (x.t === 'frost' ? 'BREAK ' + x.n + ' FROST' : 'COLLECT ' + x.n + ' ' + names[x.t])).join('  +  ')
+}
+
+function banner(main, sub, time) { setText('banner', main); setText('bannerSub', sub || ''); g.bannerT = time }
+
+function refreshFrost(i) {
+  const f = g.frost[i]
+  const r = ref('frost' + i)
+  r.visible = f > 0
+  if (f > 0) r.fillColor = f > 1 ? [0.5, 0.78, 1, 0.75] : [0.62, 0.86, 1, 0.45]
+}
+
+if (!g.init) {
+  g.init = true
+  g.tpl = [0, 1, 2, 3, 4, 5, 6].map((t) => ref('tpl' + t).path)
+  g.tplFrost = ref('frost0').path
+  g.vis = []
+  for (let i = 0; i < N * N; i++) {
+    g.vis.push({ ref: ref('gem' + i), H: ref('gem' + i + 'H'), V: ref('gem' + i + 'V'), R: ref('gem' + i + 'R'), t: i % 6, h: false, vv: false, bomb: false })
+    ref('gem' + i).visible = false
+  }
+  g.free = []
+  for (let i = N * N - 1; i >= 0; i--) g.free.push(i)
+  g.floats = []
+  for (let k = 0; k < 6; k++) g.floats.push({ ref: ref('float' + k), t: 0 })
+  g.floatNext = 0
+  g.pops = [0, 1, 2, 3, 4, 5, 6].map((t) => ref('pop' + t))
+  startLevel()
+}
+```
+
+## How it works
+
+### Two coordinate systems
+
+```js
+const N = 8, CELL = 40, BOARD_Y = -36
+const lx = (c) => -140 + c * CELL
+const ly = (r) => 140 - r * CELL
+```
+
+Cells are addressed as `(r, c)`, row 0 at the top. `lx(c)` / `ly(r)` give a cell's centre in the **board's local space**: the gems are children of the `board` node, so their positions are relative to it, and the board's own centre is 36 units below the screen centre (`BOARD_Y`). Column 0 is at `x = -140`, row 0 at `y = 140`, each 40 apart. (Remember +Y is up, so row numbers grow downward while `y` shrinks.)
+
+### Pieces and visuals
+
+A **piece** is plain data, one per occupied cell:
+
+```js
+{ t, sp, v, r, c, x, y, vy, scale, pop }
+```
+
+| Field | Meaning |
+|---|---|
+| `t` | Gem type 0–5 (ruby, sapphire, emerald, topaz, amethyst, amber). |
+| `sp` | Special: `null`, `'h'` / `'v'` (rocket), `'bomb'` (TNT) or `'light'` (Light Ball). |
+| `v` | Which of the 64 pool nodes draws it. |
+| `r`, `c` | The cell it belongs in. |
+| `x`, `y` | Where it is drawn right now (it may be falling or sliding toward its cell). |
+| `vy` | Falling speed. |
+| `scale` | Drawn scale (pops, landing squash). |
+| `pop` | Seconds left of its clear animation; `0` = alive. |
+
+`g.grid[r][c]` holds the piece in each cell (or `null`), and `g.pieces` lists them all.
+
+A **visual**, `g.vis[i]`, wraps pool node `gem<i>` and its three marker children, and remembers what it last showed (`t`, `h`, `vv`, `bomb`, `lastX`…) so nothing is written twice.
+
+### Changing a gem's shape: `lookOf`
+
+```js
+if (v.t !== t) { v.t = t; v.ref.path = g.tpl[t]; v.ref.fillColor = GEM_COLORS[t] }
+```
+
+Each pool node is a vector Shape. Assigning `ref.path` replaces its whole outline with another path. The seven outlines come from hidden template nodes `tpl0` … `tpl6`, read once at setup (`g.tpl = [...].map((t) => ref('tpl' + t).path)`). So the same node can be a hexagon ruby now and a star topaz after recycling. The special markers are just child shapes shown or hidden.
+
+### The pool: `newPiece` and `freePiece`
+
+```js
+const v = g.free.pop()        // take a free node index
+...
+g.free.push(p.v)              // give it back
+```
+
+`g.free` starts as `[63, 62, …, 0]`. Creating a piece pops a node, makes it visible, resets its "last written" cache and applies the look. Freeing hides it and pushes the index back. No nodes are ever created or deleted during play, which keeps every frame cheap and predictable.
+
+### Safe lookups: `at` and `playable`
+
+`at(r, c)` returns the piece at a cell, or `null` if the cell is off the board, a hole, or (during the first fill) not created yet. Every algorithm uses it, so none of them need bounds checks.
+
+### Filling without free matches: `makesRun`
+
+When filling, each new gem's type is re-rolled (up to 20 times) while `makesRun(r, c, t)` says it would complete a line of three with the gems already placed. It counts matching neighbours left, right, up and down. The board therefore starts with no matches. Then, if no move is possible at all (`hasMove()`, lesson 6), the board is shuffled.
+
+Gems start high above their cells (`ly(r) + 360 + r * 14`) and fall in during the `intro` phase: the drop-in animation is just the normal falling code from lesson 6.
+
+### `startLevel` and the HUD
+
+`startLevel` also resets goals, moves and score; shows or hides cells for holes; sets up frost overlays; points the three goal slots at the right icons (copying a gem template's path, or frost's); places the three star markers along the score bar in proportion to their thresholds; hides the result overlay; and shows a banner like "LEVEL 7 / COLLECT 19 RUBIES + BREAK 16 FROST".
+
+### One-time setup
+
+```js
+if (!g.init) {
+  g.init = true
+  ...
+  startLevel()
+}
+```
+
+The block runs on the screen's first frame (remember `g` is reset on every scene switch). It caches the templates, builds `g.vis` for all 64 gems (hiding them), fills the free list, prepares the floating-text pool and the per-colour particle systems, and starts the level.
+
+## Check your work
+
+- Fewer colours: in `levelDef` (lesson 2), `const colors = n <= 3 ? 5 : 6` controls how many gem types appear. Set it to `4` and level 1 becomes easy and cascade-heavy.
+- In `startLevel`, change the drop height `ly(r) + 360 + r * 14` to `ly(r) + 60`. The intro drop becomes a short hop.
+- Add `if (ctx.tap) print(g.pieces.length, g.free.length)` at the end of the program and tap the board. On a level without holes it prints `64 0`: all 64 pool nodes are in use. On a level with holes (5, 10, 15, 20) it prints `52 12`.
+
+**Next:** [5. Input and swapping](./05-input-and-swapping.mdx)

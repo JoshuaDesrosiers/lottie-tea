@@ -1,0 +1,220 @@
+---
+title: Patterns
+sidebar_position: 21
+description: Idioms for Toasty scripts - init-once state, cached refs, edge detection, timers, cooldowns, state via inputs, pools, and avoiding redundant writes.
+---
+
+# Patterns
+
+Recipes that show up in almost every Toasty game. Each is small enough to paste and adapt. Most come straight from the built-in demos.
+
+## Init once, keep state in ctx.globals
+
+The script body runs every frame, so state lives on `ctx.globals` and is created the first time:
+
+```js
+const g = ctx.globals.runner || (ctx.globals.runner = {
+  score: 0, speed: 200, enemies: [], spawnT: 1,
+})
+```
+
+For setup that's expensive (lookup tables, spawning a pool), use an explicit flag:
+
+```js
+if (!g.init) {
+  g.init = true
+  g.imgs = {}
+  for (const im of ctx.images) g.imgs[im.name] = im.id
+  g.tiles = buildLevel(g.level)
+}
+```
+
+## A ref helper with a per-screen cache
+
+```js
+const g = ctx.globals.screen || (ctx.globals.screen = {})
+if (!g.refs) g.refs = {}
+const ref = (id) => {
+  let r = g.refs[id]
+  if (r === undefined) { r = getCompByID(id); g.refs[id] = r }
+  return r
+}
+```
+
+Clear `ctx.globals.screen` whenever you `ctx.loadScene`. Remember cached refs don't refresh their transform each frame: fine for nodes only your script moves (HUD text, menus), not for nodes physics or animation moves. For those, call `getCompByID` each frame (it's cheap).
+
+## Only write when the value changes
+
+Text, DOM and some engine writes cost something even when nothing changed. Compare first:
+
+```js
+function setText(id, text) { const r = ref(id); if (r && r.textContent !== text) r.textContent = text }
+function show(id, on)      { const r = ref(id); if (r && r.visible !== on) r.visible = on }
+
+setText('coinsText', String(g.coins))
+show('pauseMenu', g.paused)
+```
+
+The same goes for state machine inputs (`if (hp !== g.sentHp) { g.sentHp = hp; ctx.setInput('hp', hp) }`) and HTML UI (`if (el.textContent !== t) el.textContent = t`).
+
+## Detect a press, not a hold
+
+```js
+const down = ctx.keysDown.has('space')
+if (down && !g.spaceWas) jump()
+g.spaceWas = down
+```
+
+Start `g.spaceWas = true` after a scene or state switch so a key still held from the menu doesn't fire immediately.
+
+## Timers
+
+```js
+g.spawnT -= ctx.deltaSeconds
+if (g.spawnT <= 0) { g.spawnT = 0.75; spawnEnemy() }
+```
+
+## Cooldowns
+
+```js
+g.cd = Math.max(0, (g.cd ?? 0) - ctx.deltaSeconds)
+if (ctx.keysDown.has('j') && g.cd === 0) { shoot(); g.cd = 0.25 }
+```
+
+## Run once when a state starts
+
+```js
+function entered() {
+  const key = ctx.layer || 'base'
+  g.cur = g.cur || {}
+  if (g.cur[key] === ctx.state) return false
+  g.cur[key] = ctx.state
+  return true
+}
+if (entered()) { g.lives = 3; ctx.playSound('start') }
+```
+
+## Game flow through the state machine
+
+Let the state machine own the big phases (Menu, Playing, Paused, GameOver) and let scripts report facts:
+
+```js
+// In "Playing":
+if (g.hp <= 0) ctx.setInput('dead', true)          // transition Playing -> GameOver on dead
+if (ctx.keysDown.has('escape')) ctx.fireTrigger('pause')
+
+// In "GameOver":
+if (entered()) ctx.setInput('dead', false)         // reset for next round
+if (ctx.tap) ctx.fireTrigger('restart')
+```
+
+Each state's program only contains that phase's logic. A shared helper library can live in one `@file:` script used by several states, branching on `ctx.state`.
+
+## Object pools
+
+Spawn a fixed set once, recycle by toggling visibility:
+
+```js
+if (!g.pool) {
+  g.pool = []
+  for (let i = 0; i < 30; i++) {
+    const r = ctx.spawn('Spark', 0, -9999)
+    r.visible = false
+    g.pool.push({ ref: r, alive: false, t: 0 })
+  }
+}
+const take = () => g.pool.find((p) => !p.alive) || null
+```
+
+Cap live objects so a burst can't grow forever:
+
+```js
+const r = g.projectiles.length < 40 ? ctx.spawn('Arrow', x, y) : null
+```
+
+## Remove items while iterating
+
+Iterate backwards so `splice` doesn't skip items:
+
+```js
+for (let i = g.enemies.length - 1; i >= 0; i--) {
+  const e = g.enemies[i]
+  if (e.hp <= 0) { e.ref.destroy(); g.enemies.splice(i, 1) }
+}
+```
+
+## Clamp delta time
+
+```js
+const dt = Math.min(ctx.deltaSeconds, 1 / 20)
+```
+
+## Frame-rate independent smoothing
+
+```js
+const k = 1 - Math.exp(-8 * dt)
+cam.x += (target.x - cam.x) * k
+```
+
+## Deterministic randomness
+
+`Math.random()` differs every run. For levels that must be the same every time, use a seeded generator:
+
+```js
+function rng(seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+const r = rng(levelNumber * 7919 + 13)
+const x = r() * 300
+```
+
+Or the built-in `random(seed)` for one value per seed.
+
+## Save on change
+
+```js
+const save = g.save || (g.save = Object.assign({ best: 0 }, ctx.storage.get('mygame') || {}))
+if (g.score > save.best) { save.best = g.score; ctx.storage.set('mygame', save) }
+```
+
+## Simple hover-and-tap button without a UI component
+
+```js
+function button(id, x, y, w, h) {
+  const btn = ref(id)
+  const over = Math.abs(ctx.mouseX - x) < w / 2 && Math.abs(ctx.mouseY - y) < h / 2
+  const s = over ? (ctx.keysDown.has('mouse') ? 0.95 : 1.06) : 1
+  if (btn.scaleX !== s) { btn.scaleX = s; btn.scaleY = s }
+  return over && ctx.tap
+}
+if (button('playBtn', 0, -90, 200, 64)) ctx.loadScene('Game')
+```
+
+For anything beyond a quick prototype, a **UI Button** component and `ref.clicked` handle hover, press styles and touch for you.
+
+## Wire DOM listeners once
+
+```js
+const dom = getCompByID('hud').dom
+if (dom && g.wired !== dom) {
+  g.wired = dom
+  dom.querySelector('#start').addEventListener('click', () => { g.startRequested = true })
+}
+if (g.startRequested) { g.startRequested = false; ctx.fireTrigger('start') }
+```
+
+Note the callback only sets a flag; the frame acts on it with a fresh `ctx`.
+
+## Expose functions to buttons and the page
+
+```js
+ctx.on('reset', () => { g.score = 0 })
+ctx.on('getScore', () => g.score)
+```

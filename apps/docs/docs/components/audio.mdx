@@ -1,0 +1,78 @@
+---
+title: Audio
+sidebar_position: 11
+description: Import sounds and play them from nodes with the Audio Source component - volume, pitch, looping, play on start and 2D spatial sound.
+---
+
+# Audio
+
+Sound in Toasty has two halves:
+
+- **Sounds** are project assets: audio files you import once and play from anywhere.
+- An **Audio Source** component plays a sound *from a node*: background music on the camera, a crackle on a campfire that gets louder as you walk up to it, a door creak.
+
+This page covers importing and the Audio Source component. For playing sounds from code (`ctx.playSound`, `ctx.playTone`, master volume and more) see [Audio API](../scripting/audio-api.mdx).
+
+## Importing sounds
+
+Use **+ → Import → Audio** and pick a file. Common formats work (MP3, WAV, OGG, FLAC, M4A): the browser's Web Audio decodes them, in the editor and in exported games alike.
+
+Imported sounds appear in the **Resources** panel's **Sounds** folder, where you can preview and delete them. A sound's name is also the name scripts play it by. In a project folder, sounds are saved as files under `Assets/Sounds/`.
+
+<Shot id="audio-source-inspector" caption="A campfire node with an Audio Source card (clip picked, Loop, Play on start and Spatial (2D) on), next to the Resources panel's Sounds folder" />
+
+## Audio Source
+
+**Add Component → Audio → Audio Source**. A new one picks the first imported sound automatically.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Clip | The sound this source plays. **▶** previews it right in the Inspector (with the volume and pitch below), in Design too; **■** stops the preview. | any imported sound | the first sound, or None |
+| Volume | 0 = silent, 1 = full. Above 1 amplifies. | 0 to 4 | 1 |
+| Pitch | Playback rate: 1 = normal, 2 = an octave up (and twice as fast), 0.5 = an octave down. | 0.1 to 4 | 1 |
+| Loop | Repeat until stopped. Music, ambience, engine hums. | on/off | off |
+| Play on start | Starts by itself when Playground (or the exported game) enters this scene. Turn it off for sounds a script or click triggers. | on/off | on |
+| Spatial (2D) | Pans left/right by where the node is relative to the camera, and fades out with distance. | on/off | off |
+| Range | With Spatial on: silent beyond this distance from the camera (world units). | 1 to 100000 | 600 |
+
+### How spatial sound is mixed
+
+With **Spatial (2D)** on, the camera Playground looks through is the listener. Every frame:
+
+- **Pan** follows the horizontal offset from the camera: fully left or right once the node is half the Range away to that side.
+- **Volume** fades in a straight line from full at the camera to silent at **Range**.
+
+So a torch with Range 400 is full volume when the camera is on it, half volume 200 units away, and silent beyond 400.
+
+### When Audio Sources play
+
+- **Play on start** sources begin when a play session starts or when it switches to their scene. Switching scenes stops the sounds that were playing from the old scene's nodes.
+- A disabled Audio Source (unticked checkbox) never plays.
+- Leaving Playground or starting a new play session stops every sound.
+
+:::note Browsers need a click first
+Browsers do not allow sound until the person has interacted with the page. In the editor that has already happened; in an exported game or a website embed, sounds marked **Play on start** begin once the player first clicks or presses a key.
+:::
+
+## Playing a source from a script
+
+| Call | What it does |
+|---|---|
+| `ref.playAudio(options)` | Plays the node's Audio Source clip with its volume, pitch, loop and spatial settings. `options` can override `{ volume, pitch }`. Returns a handle (or `null`). |
+| `ref.stopAudio()` | Stops what this node's source is playing. |
+
+```js
+// A door that creaks when the player opens it (Play on start is off).
+const door = getCompByID('door')
+if (ctx.keysDown.has('e') && !ctx.globals.doorOpen) {
+  ctx.globals.doorOpen = true
+  door.playAudio({ pitch: 0.9 + Math.random() * 0.2 })  // a little variation
+}
+```
+
+To play a sound that is not tied to a node (a UI click, a coin), use `ctx.playSound('coin')`, documented in [Audio API](../scripting/audio-api.mdx). Buttons can also play a sound with no code at all through their **On Click (Events)** actions, see [UI components](./ui-components.mdx).
+
+## Related
+
+- [Audio API](../scripting/audio-api.mdx): `ctx.playSound`, `ctx.playTone`, `ctx.stopAllSounds`, `ctx.setMasterVolume`.
+- [UI components](./ui-components.mdx) for click sounds without code.

@@ -1,0 +1,112 @@
+---
+title: Network API
+sidebar_position: 18
+description: Multiplayer with ctx.net - hosting, joining, sending JSON messages and reading players, messages and events each frame.
+---
+
+# Network API
+
+`ctx.net` is port-based multiplayer: one copy of the game **hosts** on a port, others **join** by address, and everyone sends JSON messages through the host's relay. For setup, firewalls and the standalone server see [Multiplayer](../components/multiplayer.mdx).
+
+## Members
+
+| Member | Type | Description |
+|---|---|---|
+| `status` | `'offline'`, `'connecting'`, `'online'`, `'error'` | Connection state |
+| `error` | string or `null` | Why, when `status` is `'error'` |
+| `me` | number or `null` | Your player id once online |
+| `hostId` | number or `null` | The host player's id |
+| `isHost` | boolean | Whether you are the host player |
+| `players` | `{ id, name }[]` | Everyone in the room, you included, oldest first |
+| `messages` | `{ from, data }[]` | Messages that arrived since last frame |
+| `events` | event[] | Joins, leaves, host changes, (dis)connection since last frame |
+| `hosting` | `{ port, addresses }` or `null` | While you host: the port and the addresses others type to join |
+| `canHost` | boolean | `true` in the desktop app; a browser can only join |
+| `host(options?)` | function | Host on a port and join as the first player |
+| `join(address, options?)` | function | Join a hosted game |
+| `leave()` | function | Disconnect (and stop hosting) |
+| `send(data, to?)` | function | Send JSON to everyone else, or one player |
+| `nameOf(id)` | function | A player's name (`'?'` if unknown) |
+
+## host
+
+```ts
+ctx.net.host(options?: { port?: number; name?: string }): void   // port default 7777, name default 'Host'
+```
+
+Starts the relay inside the **desktop app** and joins it over loopback. In a browser, `status` becomes `'error'` with an explanation (run `an1mbyt3-server` or use the desktop app to host). Asynchronous: watch `status` and `events`.
+
+## join
+
+```ts
+ctx.net.join(address: string, options?: { name?: string }): void   // name default 'Player'
+```
+
+`address` forms: `'192.168.1.20:7777'`, `'localhost'` (port 7777 is added when missing), or a full `ws://` / `wss://` URL.
+
+## send
+
+```ts
+ctx.net.send(data: unknown, to?: number): void
+```
+
+Sends any JSON value to **everyone else** (you don't receive your own), or only to player `to`. Ignored unless `status === 'online'`.
+
+## Reading messages and events
+
+`messages` and `events` hold what arrived **since the previous frame**, like `ctx.collisions`. Read them every frame, in one program (they're shared by every layer's program that frame).
+
+Event shapes:
+
+| `type` | Fields | When |
+|---|---|---|
+| `'connected'` | `id` | You are online (your id) |
+| `'disconnected'` | | You lost or left the connection |
+| `'join'` | `id`, `name` | Someone joined |
+| `'leave'` | `id`, `name` | Someone left |
+| `'host'` | `id` | The host player changed (the oldest remaining player takes over) |
+
+```js
+const net = ctx.net
+const g = ctx.globals.lan || (ctx.globals.lan = { me: { x: 0, y: 0 }, others: {}, sendT: 0 })
+
+for (const e of net.events) {
+  if (e.type === 'join') print(e.name + ' joined')
+  if (e.type === 'leave') delete g.others[e.id]
+}
+for (const m of net.messages) {
+  const d = m.data
+  if (d && d.k === 's') g.others[m.from] = { x: d.x, y: d.y }
+}
+
+// Send my position 20 times a second, not every frame
+g.sendT -= ctx.deltaSeconds
+if (net.status === 'online' && g.sendT <= 0) {
+  g.sendT = 0.05
+  net.send({ k: 's', x: Math.round(g.me.x), y: Math.round(g.me.y) })
+}
+```
+
+## The host decides
+
+A simple, cheat-resistant pattern: clients ask, the host checks and broadcasts the result.
+
+```js
+// client: "I touched coin i" -> only to the host
+if (!net.isHost) net.send({ k: 'grab', i }, net.hostId)
+
+// host: validate, update, tell everyone
+for (const m of net.messages) {
+  if (m.data?.k === 'grab' && net.isHost) {
+    g.scores[m.from] = (g.scores[m.from] || 0) + 1
+    net.send({ k: 'world', coins: g.coins, scores: g.scores })
+  }
+}
+```
+
+## Notes
+
+- One connection per app. It survives `ctx.loadScene` and is closed when Playground stops.
+- Calling `host` or `join` first leaves any current connection.
+- Messages are JSON: send plain data, not refs. Round numbers you send often.
+- `leave()` while online produces a `'disconnected'` event next frame.

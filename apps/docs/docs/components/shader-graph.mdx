@@ -1,0 +1,166 @@
+---
+title: Shader graph
+sidebar_position: 10
+description: Build node-based materials in the Shader tab and put them on sprites, shapes and goo - every node, its inputs and outputs, and how the graph compiles.
+---
+
+# Shader graph materials
+
+A **material** is a small shader you build by wiring nodes together, like Godot's VisualShader or Unity's Shader Graph: scrolling textures, glows, dissolves, colour shifts, hologram flicker, procedural bricks. Toasty compiles the graph to a GPU shader (WGSL) and runs it for every pixel of each sprite or shape that wears the material.
+
+Materials are project assets. A node wears one through its **Material** component.
+
+<Shot id="shader-graph-editor" caption="The Shader tab: the node palette on the left, a graph of UV → Panner → Sample Texture × Tint → Output in the middle, and the green Compiled pill" />
+
+## The Shader tab
+
+Open the **Shader** tab in the bottom dock. Its toolbar:
+
+| Control | What it does |
+|---|---|
+| Material dropdown | Picks which material to edit. |
+| **+ Shader Graph** | Creates a new material, named *Material N*, with the starter graph. |
+| **+ Toon**, **+ Arcane** | Create 3D toon materials (not graphs); see [3D basics](./3d-basics.mdx). |
+| Rename / Delete | Rename or delete the current material. |
+| **Apply to Selection** | Puts the material on the selected node (an **Image** or a **Shape**), adding its Material component or updating it. Shows "Applied to selection ✓" when it already wears it. |
+| Status pill | **Compiled** in green, or the first line of the error in red (hover for the whole message). |
+| **WGSL** | Shows the generated shader code next to the graph. |
+
+Edits show on the canvas live, in Design too: the engine recompiles a material the frame after its graph changes.
+
+### The starter graph
+
+A new material draws the sprite exactly as before: **Sample Texture** × **Tint** → **Output**. Start from there and insert nodes between.
+
+## Putting a material on a node
+
+Either press **Apply to Selection** in the Shader tab, or use **Add Component → Shading → Material (Shader Graph)** in the Inspector. The Material card has:
+
+| Field | What it does |
+|---|---|
+| Material dropdown | Which material this node is drawn with. **None** = drawn normally. |
+| **Edit Graph** | Opens the material in the Shader tab. |
+
+A node can wear one material. Many nodes can share the same material, and editing it updates all of them.
+
+Materials can also paint goo: see [Goo Material & Glow](./goo-and-liquid.mdx#goo-material--glow).
+
+## Editing a graph
+
+| Action | How |
+|---|---|
+| Add a node | Click it in the palette on the left (search with **Search nodes…**). A graph has one Output. |
+| Move a node | Drag its header. |
+| Select / delete | Click a node; press Delete (or its × button). |
+| Wire | Drag from an output dot to an input dot. An input takes one wire; a new one replaces the old. |
+| Unwire | Click the ✕ next to a wired input. |
+| Constant inputs | Unwired inputs show an inline editor: a number, X/Y, or a colour with alpha. |
+| Pan / zoom | Drag the background; mouse wheel zooms round the cursor. |
+
+Every finished edit is one undo step.
+
+### Types
+
+Each socket has a type, shown by its colour: **Float** (one number), **Vec2** (UV, positions), **Vec3**, **Vec4** (colours, RGBA). Math nodes are **dynamic**: they take the widest type among their wired inputs, so `Multiply(texture colour, 0.5)` is a Vec4. Other conversions follow the usual shader rules: a Float spreads to every component (into a Vec4 it becomes an opaque grey, alpha 1), a wider vector is cut down, a narrower one is padded with 0 and alpha 1.
+
+All colours are linear, like every colour in the document; the colour pickers convert for you.
+
+## Every node
+
+### Output
+
+| Node | Inputs | Notes |
+|---|---|---|
+| Output | Color (Vec4) | The pixel's final colour, alpha included. Exactly one per graph. |
+
+### Input
+
+| Node | Outputs | What it gives |
+|---|---|---|
+| UV | UV (Vec2) | The sprite's 0..1 texture coordinate, top-left origin. |
+| Local Position | UV (Vec2) | The pixel's position in the shape's own space, in units. |
+| Time | Time (Float) | Seconds since the editor started. Drives anything animated. |
+| Tint | Color (Vec4) | The node's own fill / tint colour. |
+| Sample Texture | RGBA (Vec4), A (Float) | The node's image at the UV input (unwired = the sprite's own UV). A shape without an image samples plain white. |
+| Float Constant | Value (Float) | A number you type. |
+| Vec2 Constant | UV (Vec2) | Two numbers you type. |
+| Color Constant | Color (Vec4) | A colour you pick. |
+| Facing UV | UV (Vec2) | Where the surface faces as seen from the camera, as a UV; on a 2D sprite, simply its UV. Mostly for 3D (irises that follow you). |
+
+### Math
+
+All dynamic, output **Out**. Unwired defaults in brackets.
+
+| Node | Inputs | Result |
+|---|---|---|
+| Add | A (0), B (0) | A + B |
+| Subtract | A (0), B (0) | A − B |
+| Multiply | A (1), B (1) | A × B |
+| Divide | A (1), B (1) | A ÷ B; dividing by exactly 0 gives 0 instead of infinity. |
+| Min / Max | A (0), B (1) | The smaller / larger. |
+| Power | A (1), B (1) | abs(A) to the power B. |
+| Mix | A (0), B (1), T (0.5) | Blend from A to B by T. |
+| Step | Edge (0.5), X (0) | 0 below Edge, 1 at or above. |
+| Smoothstep | Edge 0 (0), Edge 1 (1), X (0.5) | A smooth 0 → 1 ramp between the edges. |
+| One Minus | In | 1 − In (invert). |
+| Negate | In | −In |
+| Abs | In | Absolute value. |
+| Fract | In | The fractional part (repeats 0..1). |
+| Floor | In | Rounds down. |
+| Saturate | In | Clamps to 0..1. |
+| Sin / Cos | In | Sine / cosine (radians). |
+| Remap | In, In Min (−1), In Max (1), Out Min (0), Out Max (1) | Maps In from one range to another. |
+| Posterize | In, Steps (4) | Snaps In to Steps flat levels. |
+
+### Vector
+
+| Node | Inputs | Outputs |
+|---|---|---|
+| Length | In | Out (Float): the vector's length. |
+| Distance | A, B | Out (Float): distance between A and B. |
+| Dot | A, B | Out (Float): dot product. |
+| Split | In (Vec4) | X, Y, Z, W (Floats). |
+| Combine | X, Y, Z (0), W (1) | Out (Vec4). |
+| Make Vec2 | X, Y | UV (Vec2). |
+
+### UV
+
+| Node | Inputs | Output | What it does |
+|---|---|---|---|
+| Tiling Offset | UV, Tiling (1, 1), Offset (0, 0) | UV | UV × Tiling + Offset: repeat or shift a texture. |
+| Panner | UV, Speed (0.1, 0) | UV | Scrolls the UV over time: water, conveyor belts, clouds. |
+| Rotate UV | UV, Angle (0), Center (0.5, 0.5) | UV | Rotates the UV round a centre (radians). |
+| Twirl | UV, Strength (4), Center (0.5, 0.5) | UV | A swirl that twists more the further from the centre. Portals, whirlpools. |
+
+### Effect
+
+| Node | Inputs | Outputs | What it does |
+|---|---|---|---|
+| Noise | UV, Scale (8) | Out (Float) | Smooth value noise, 0..1. Dissolves, clouds, wobble. |
+| Checker | UV, Count (4, 4), Color A, Color B | Color | A checkerboard. |
+| Circle | UV, Radius (0.4), Softness (0.02) | Out (Float) | 1 inside a circle centred at (0.5, 0.5), 0 outside, with a soft edge. |
+| Hue Shift | Color, Shift (0) | Color | Rotates the hue (1 = a full turn). Rainbow cycles with Time. |
+| Grayscale | Color | Color | Removes colour, keeps brightness and alpha. |
+| Fresnel 2D | UV, Power (2) | Out (Float) | 0 at the centre to 1 at the edge, shaped by Power: a rim glow on a 2D sprite. |
+| View Fresnel | Power (1) | Out (Float) | How edge-on the surface is to the camera. On a flat sprite it fakes a sphere (centre 0, edge 1). |
+| Brick | UV, Count (4, 8), Mortar (0.06), Brick colour, Mortar Color | Color, Mortar (Float) | Running-bond bricks with per-brick colour variation and mortar lines. |
+
+## Recipes
+
+**Scrolling texture.** UV → **Panner** (Speed 0.2, 0) → Sample Texture UV → × Tint → Output.
+
+**Dissolve.** **Time** → **Multiply** by 0.3 → **Fract** gives a value that sweeps 0 → 1 every few seconds. Wire it into **Step**'s Edge, and **Noise** (Scale 10) into its X: the result is 1 where the noise is above the sweep. **Multiply** Sample Texture's RGBA by it (alpha drops to 0 where it is 0), then × Tint → Output.
+
+**Hologram tint.** Sample Texture → **Hue Shift** with Shift = **Time** × 0.1 → Output.
+
+**Rim glow.** **Fresnel 2D** (Power 3) × a **Color Constant** → **Add** to Sample Texture × Tint → Output.
+
+:::note
+Materials are 2D canvas materials: they shade sprites (Image nodes) and Shapes. Shapes without an image sample white, so a texture-free graph (Noise, Checker, Brick, Circle) is the usual way to shade a shape.
+:::
+
+## Related
+
+- [Goo and liquid](./goo-and-liquid.mdx) for using a graph on a goo group.
+- [Post effects](./post-effects.mdx) for whole-frame effects.
+- [3D basics](./3d-basics.mdx) for 3D materials.

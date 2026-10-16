@@ -1,0 +1,122 @@
+---
+title: Images and sprites
+sidebar_position: 5
+description: Import PNG, JPEG and GIF images, place them as sprites, tune their import settings, fill shapes with them, and paint tilemaps.
+---
+
+# Images and sprites
+
+Toasty is happy with vector art, but most games also use **raster images**: character sprites, backgrounds, photos, tilesets. This page covers getting images in, the two things an image can be (an **asset** and a **node**), and the tools built on top of them.
+
+## Assets vs. nodes
+
+- An **image asset** is the picture itself, stored once in your project (in `Assets/Images/` when you have a project). It appears as a tile in the **Resources** tab.
+- An **image node** (a "sprite") is one placement of an asset in a scene: it has a position, rotation, scale, components, and so on.
+
+One asset can be placed many times. Changing an asset's import settings changes every node that shows it.
+
+## Importing images
+
+| Where | What happens |
+|---|---|
+| **+ → 2D Object → Sprite (Image)…** or **+ → Import → Image…** | Pick a file. A PNG or JPEG becomes an asset **and** a new image node in the current scene, at the image's own pixel size, already selected. |
+| **Resources** tab → **Import…** | Same import; with a project open, the file is copied into `Assets/Images`. |
+| Copy files into the project's `Assets` folder from outside | Imported automatically the next time the Toasty window gets focus (PNG, JPEG, GIF, WebP). See [Projects and saving](../getting-started/projects-and-saving.mdx). |
+
+### Animated GIFs
+
+Importing a GIF decodes **every frame as its own image asset** and groups them as a **sprite group** (named after the file, with each frame's delay). It doesn't place anything on the canvas. Use the frames like any sliced sprite sheet: see [Using the frames](./sprite-editor.mdx#using-the-frames).
+
+### Sprite sheets
+
+A sheet with many frames in one image is cut up with the [Sprite Editor](./sprite-editor.mdx).
+
+## Placing an image
+
+From the **Resources** tab:
+
+- **Double-click** an image tile to place it in the middle of the current view.
+- **Drag** a tile onto the canvas to place it exactly where you drop it.
+- **Right-click** a tile → **Place in Scene**.
+
+Each placement is a new image node at the image's own pixel size.
+
+## Image asset settings
+
+**Single-click** an image tile in Resources. The Inspector shows the scene's Canvas section and then the asset's own settings:
+
+| Setting | What it does |
+|---|---|
+| **Name** | The asset's name (read only here). Scripts can look images up by this name through `ctx.images`. |
+| **Resize** **W** / **H** | Re-samples the image to this size when it's baked. **Keep aspect** (on by default) keeps the proportions as you type one side. **Reset to original size (W×H)** appears once you've changed it. |
+| **Filter Mode** | **Linear** (smooth, the default for photos and painted art) or **Nearest** (hard pixel edges, for pixel art). |
+| **Effect** | A filter baked into the image itself: **Blur**, **Glow**, **Pixelate**, **ColorGrading**, **Posterize**, **GradientMap**, **Vignette**, **Anaglyph**, **Dither**, **ChromaticAberration**, **Scanlines**, **FilmGrain**, **Sharpen**, **EdgeDetect**, **Halftone**, **WaveDistortion**, **LensDistortion**, **PixelScatter**, **Palette**. Each shows its own parameters once picked. |
+| **Sprite Editor…** | Opens the [Sprite Editor](./sprite-editor.mdx) to slice this image into frames. |
+
+These settings change the asset, so every node showing it updates. For effects on the whole screen instead, see [Post effects](../components/post-effects.mdx).
+
+:::tip Pixel art
+Set **Filter Mode** to **Nearest** on every pixel-art image (do it on a sheet before slicing, and every frame inherits it). For a fully retro look, also try the scene's **Resolution** setting (see [Scenes](./scenes.mdx)) and the camera's **Pixel Perfect** option (see [Camera](./camera.mdx)).
+:::
+
+## Image node settings
+
+Select a placed image node. Besides the usual Id, Classes, transform and Z Index (see [Nodes and layers](./nodes-and-layers.mdx)):
+
+- **Fill** tints the image. Image nodes take a solid colour only (no gradient).
+- **Material** chooses whether 2D lights affect it (Lit) or not (Unlit). See [Lighting 2D](../components/lighting-2d.mdx).
+- Any component can be added: physics, Flipbook, Outline, Drop Shadow, and so on. See [Components overview](../components/overview.mdx).
+
+## Filling a shape with an image
+
+Vector shapes have an **Image** field in the Inspector. Click the swatch to open a grid of every image in the document and pick one (or **None** to clear it). The shape then shows the image, clipped by its outline: handy for round avatars, framed pictures or textured blobs.
+
+## Changing an image from a script
+
+An image node's ref has an `image` property. `ctx.images` lists every image asset (`name` and `id`), so you can swap pictures by name:
+
+```js
+const G = ctx.globals
+if (!G.frames) {
+  G.frames = {}
+  for (const img of ctx.images) G.frames[img.name] = img.id
+}
+const door = getCompByID('door')
+door.image = G.frames[ctx.props.open ? 'door open' : 'door closed']
+```
+
+Write `image` only when it actually changes; every write is a call into the engine. See [Nodes and refs](../scripting/nodes-and-refs.mdx).
+
+## Tilemaps
+
+A **Tilemap** is a grid of tiles cut from one tileset image, painted cell by cell.
+
+### Creating one
+
+1. **+ → 2D Object → Tilemap…**
+2. Pick the tileset image.
+3. Answer the two prompts: **Tile width (pixels)?** (default 16) and **Tile height (pixels)?** (defaults to the width).
+
+You get a 20×15-cell tilemap with 32-unit cells, selected and ready to paint.
+
+### Painting
+
+1. Open the **Tile Palette** panel from the icon rail. It shows the selected tilemap's tileset as clickable tiles (hover for "Tile N").
+2. Click a tile to choose it.
+3. With the tilemap selected, **click** a cell on the canvas to paint it. **Right-click** erases a cell. Each click is one undoable edit.
+
+### Tilemap settings
+
+| Setting | What it does |
+|---|---|
+| **Tile Size** | The tile size in the tileset, in pixels (set when you created it). |
+| **Map Size** **w** / **h** | How many cells across and down. |
+| **Cell Size** | How big each cell is in the scene, in world units. |
+
+
+## Related
+
+- [Sprite Editor](./sprite-editor.mdx)
+- [Paint mode](./paint-mode.mdx)
+- [Components overview](../components/overview.mdx)
+- [Sorting layers](../components/sorting-layers.mdx)

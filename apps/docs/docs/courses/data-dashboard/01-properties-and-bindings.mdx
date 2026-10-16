@@ -1,0 +1,111 @@
+---
+title: "1. Properties and bindings"
+sidebar_position: 1
+description: How scene Properties and Property Bindings turn a Toasty scene into a data-driven widget, and how page data reaches them - the foundation for the whole widget kit.
+---
+
+# 1. Properties and bindings
+
+**Goal:** understand the one mechanism every widget in this course is built on: a page sets a value, a Property holds it, a binding shows it.
+
+**What you'll learn**
+
+- What scene **Properties** are, their four types, and how values are converted.
+- Every target a **Property Binding** can drive, with format, multiply and add.
+- How the page's `data` reaches Properties, and when a script is still needed.
+- The kit you'll build: a progress ring, a weather card and a notification bell.
+
+## The kit
+
+| Widget | Page sends | Page hears | Lessons |
+|---|---|---|---|
+| Progress ring (`progress-ring.teab`) | `progress` 0..1, `label`, `color` | states `Loading` / `Done`, event `done` | 2, 3 |
+| Weather card (`weather-card.teab`) | `city`, `temp`, `condition` (`sun` / `cloud` / `rain` / `snow` / `storm`) | states `Sun` … `Storm` | 4 |
+| Notification bell (`bell.teab`) | `unread`; fires the `ring` trigger | states `Quiet` / `Ringing`, event `open` | 5 |
+
+Lesson 6 puts them on one dashboard page.
+
+Here's the progress ring driven by a slider. Drag it:
+
+```jsx live
+function RingSlider() {
+  const [progress, setProgress] = React.useState(0.35)
+  return (
+    <div>
+      <ToastyPlayer
+        game="/games/progress-ring.teab"
+        style={{ width: 260, height: 260 }}
+        data={{ progress, label: 'Uploading' }}
+      />
+      <input
+        type="range" min={0} max={1} step={0.01}
+        value={progress}
+        onChange={(e) => setProgress(Number(e.target.value))}
+        style={{ width: 260 }}
+      />
+    </div>
+  )
+}
+```
+
+## Properties
+
+A scene's **Properties** are named values the whole scene shares, like Rive's view-model values. You create them in the Inspector with **nothing selected**, under **Properties** (inside the Canvas section): **+ Number**, **+ Bool**, **+ Text**, **+ Color**. Each has a name, a type, and a **Starts as** value.
+
+<Shot id="dashboard-properties" caption="The Properties section of the Inspector with nothing selected, showing progress, label and color." />
+
+Everything reads and writes the same live values:
+
+| Who | How |
+|---|---|
+| The embedding page | `data={{ progress: 0.5 }}` in React, `player.set('progress', 0.5)` in JavaScript |
+| Scripts | `ctx.props.progress` (read), `ctx.props.progress = 0.5` (write) |
+| Property Bindings | push a value into a node field, no code |
+| On Click actions | **Set property** (`5`, `+1`, `-1`; `true`, `false`, `!` to flip a Bool) |
+| HTML UI | `data-bind="progress"` shows it, `data-prop="progress"` on an input writes it |
+
+Values are **converted to the Property's type on every write**, whoever writes:
+
+| Type | Accepts | Example |
+|---|---|---|
+| Number | numbers, numeric strings (anything else becomes `0`) | `"42"` → `42` |
+| Bool | `true`, `1`, `'true'`, `'1'`, `'on'` are true; anything else false | `'on'` → `true` |
+| Text | anything, turned into a string (`null` → `''`) | `21.5` → `"21.5"` |
+| Color | `'#rrggbb'` or `[r, g, b]` / `[r, g, b, a]` with channels 0..1 | `'#7c5cff'` → `[0.49, 0.36, 1, 1]` |
+
+Properties go back to their **Starts as** values whenever Playground starts or the scene is entered. Page data is re-applied on entry, so values from the page stick.
+
+## Property Bindings
+
+A **Property Binding** component (**Add Component → Events & Data → Property Binding**) makes a node follow Properties. Each row, added with **+ Bind a property**, connects one Property to one target:
+
+| Target | What it does | Extra fields |
+|---|---|---|
+| **Text** | Sets a Text node's text | **Format**, where `{}` is replaced by the value (`Score: {}`, `{}°`). Numbers are rounded to 3 decimals. |
+| **Position X**, **Position Y** | Moves the node | × (multiply) and + (add) |
+| **Rotation** | Rotates (degrees) | × and + |
+| **Scale**, **Scale X**, **Scale Y** | Scales | × and + |
+| **Visible** | Shows / hides (truthy = shown) | |
+| **Fill colour** | Sets the fill colour (bind a Color Property) | |
+| Any field of the node's components | e.g. `StrokeStyle2D › trimEnd`, `Light2D › intensity` | × and + for numbers |
+
+The × and + let one Property drive many things differently. For example, `progress` (0..1) with **Scale X**, × `1`, + `0` makes a bar; the same `progress` on **Position X** with × `200`, + `-100` slides a marker from −100 to 100.
+
+Bindings are applied when a Property changes, not every frame, so they cost nothing while values are still.
+
+## When you still need a script
+
+Bindings cover "show this value". You need a few lines of code for:
+
+- **Derived values**: showing `progress` as `35%` needs `Math.round(progress * 100)`, which the Text format can't do.
+- **Turning data into state**: mapping `condition: 'rain'` to the `Rain` state, or `progress >= 1` to `Done`.
+- **Events**: telling the page "done" with `ctx.emit`.
+
+Lesson 2 shows the pattern: bindings for the visuals, a short script for the logic.
+
+## Check your work
+
+- In the live example, the ring follows the slider, and at the far right it switches to its finished look.
+- You can name the Property type that would hold each of: a temperature (Number), a city (Text), "has unread" (Bool), a brand colour (Color).
+
+**Next:** [2. Build a progress ring](./02-build-a-progress-ring.mdx)

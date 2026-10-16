@@ -1,0 +1,120 @@
+---
+title: How scripts run
+sidebar_position: 2
+description: The execution model behind Toasty scripts in one page - states, frames, layers, snapshots, batched writes, and where code runs.
+---
+
+# How scripts run
+
+You only need a handful of facts to reason about any Toasty script. Here they are.
+
+## 1. A script belongs to a state
+
+A Code program lives on a **state** of a scene's state machine (a "Programmable State"). The state machine decides which state is active; the active state's program runs. When a transition moves to another state, the old program simply stops being called and the new state's program starts.
+
+```
+Scene "Level 1"
+└─ State machine
+   ├─ Idle     (Code: wait for a key)        ← active → its code runs every frame
+   ├─ Playing  (Code: the game loop)
+   └─ GameOver (Code: show score, restart)
+```
+
+You switch states from code with [`ctx.setInput` / `ctx.fireTrigger`](./state-machine-control.mdx), or let ordinary transitions (inputs, exit times) do it.
+
+## 2. It runs once per frame, top to bottom
+
+The program is the **body of a function** that Toasty calls every frame (roughly 60 times a second). Every frame it runs from the first line to the last, then returns. There is no `update()` to define and no loop to write.
+
+Consequences:
+
+- Local variables (`const`, `let`) are **fresh every frame**. Anything that must survive to the next frame goes in [`ctx.globals`](./scenes-and-globals.mdx).
+- A top-level `return` is allowed and ends this frame's run early: `if (!player) return`.
+- A `while (true)` loop with no exit freezes the game. Spread long work across frames instead.
+
+```js
+// Survives between frames because it lives on ctx.globals:
+const g = ctx.globals.counter || (ctx.globals.counter = { clicks: 0 })
+if (ctx.tap) g.clicks++
+getCompByID('label').textContent = 'Clicks: ' + g.clicks
+```
+
+## 3. Every state machine layer runs its own program
+
+A state machine can have extra **layers** (each with its own active state). Each frame Toasty runs the active state's program on the **base layer first**, then on every extra layer in order. All of them share the same `ctx.globals` and see the same scene. Each program can tell where it is running with `ctx.layer` (`null` on the base layer) and `ctx.state`.
+
+`ctx.time` is per layer: it restarts at `0` whenever **that** layer changes state.
+
+## 4. `ctx` is rebuilt every frame
+
+`ctx` is a new object each frame, built for the program about to run. It carries this frame's input, time, scene snapshot and helper functions. Do not store `ctx` itself; read it fresh each frame. Store your own data in `ctx.globals` (play session), [`ctx.storage`](./storage-api.mdx) (saved to disk), or [`ctx.props`](./props-and-data.mdx) (scene Properties).
+
+| Lifetime | Where | Reset when |
+|---|---|---|
+| One frame | local `const`/`let` | every frame |
+| One scene visit | `ctx.props` (scene Properties) | every Play and every scene switch (back to defaults) |
+| One play session | `ctx.globals` | every time you press Play |
+| Forever | `ctx.storage` | only when you remove the key |
+
+## 5. Refs: how you touch nodes
+
+You never edit nodes directly. You ask for a **ref**:
+
+```js
+const coin = getCompByID('coin')        // by the node's Id (Inspector "Id" field)
+const enemies = getCompByClass('enemy') // every node tagged with that class
+```
+
+A ref is a plain object with settable properties. Assigning `coin.x = 10` moves the node; reading `coin.x` gives its position. See [Nodes and refs](./nodes-and-refs.mdx).
+
+**Reads come from a snapshot.** At the start of each frame Toasty copies every node's transform, visibility, colour, image and z-index into a compact table (the "scene mirror"). A ref made this frame reads from it. When you write a property, the ref remembers the new value, so reading it back in the same frame gives what you wrote (`x += 1` twice adds 2).
+
+**Writes are batched.** The most common writes (`x`, `y`, `rotation`, `visible`, `fillColor`, `image`, `zIndex`) are queued and sent to the engine in one call at the end of the frame. Other operations (scale, text, physics, raycasts, ...) flush the queue first, so order is always preserved. You never need to think about this, except to know that writing hundreds of positions per frame is cheap.
+
+:::caution Refs kept across frames
+`getCompByID` is cheap (one lookup per id per frame), so the simplest habit is to call it every frame. If you cache a ref in `ctx.globals`, its `x`, `y`, `rotation`, `scaleX/Y`, `visible`, `fillColor` and `textContent` keep returning the values **as of when the ref was made, plus your own writes** - they are not refreshed. That is perfect for nodes only your script moves, and wrong for nodes moved by physics or animation. Fresh every frame on any ref: `worldX`, `worldY`, `worldRotation`, `worldPoint()`, `position3`/`rotation3`/`scale3`, `velocity`, `velocity3`, and the UI state (`clicked`, `value`, ...).
+:::
+
+## 6. What else is in scope
+
+Besides `ctx`, every program can use these names directly:
+
+| Name | What |
+|---|---|
+| `getCompByID(id)` | One ref by node Id, or `null` |
+| `getCompByClass(cls)` | Array of refs for every node with that class |
+| `spawnClone(ref)` / `deleteNode(ref)` | Clone / delete a node (document edits; prefer [`ctx.spawn`](./spawning-and-prefabs.mdx)) |
+| `console.log/info/debug/warn/error`, `print` | Write to the game [Console](./debugging.mdx) |
+| `add`, `subtract`, `multiply`, `divide`, `greaterThan`, `lessThan`, `equals`, `and`, `or`, `not`, `select`, `lerp`, `clamp`, `random` | Math helpers (also what Nodes-to-Code conversion emits) |
+
+Scripts are ordinary, unsandboxed JavaScript running on the page, so `Math`, `performance.now()`, `setTimeout`, `JSON`, arrays, classes and the rest of the language all work.
+
+## 7. Errors never take the game down
+
+- A program that **does not compile** is reported once in the Console (with its line) and skipped until you edit it.
+- A program that **throws** loses only that frame; every other program and the engine keep running. Repeated errors collapse into one Console row with a count.
+
+See [Debugging](./debugging.mdx).
+
+## 8. Where code runs
+
+| Place | Code programs run? |
+|---|---|
+| **Design** mode | No |
+| **State Machine** tab | Only with its **Run Programs** toggle on |
+| **Playground** | Always |
+| Exported game (`.html`, desktop `.exe`) | Yes, same script host as Playground |
+| Website embed (`createPlayer`, `<An1Player>`) | Yes |
+
+The editor's Playground and the exported player share one script host, so a game behaves the same in both. A few things differ by host: `ctx.data` is only filled when [embedded](../embedding/overview.mdx); `ctx.emit` only logs in the editor; `ctx.net.host` needs the desktop app. Leaving Playground restores every node a game moved, recoloured or hid, and removes everything `ctx.spawn` created.
+
+## 9. Order of a frame
+
+For the curious, one frame of the script host does this:
+
+1. Collect the active Code program of the base layer and each extra layer.
+2. Refresh the scene mirror (cheap: one flat number copy).
+3. Update sounds, UI controls (hover/press/drag), HTML UI, On Click actions and Property Bindings. These work even in scenes with no scripts.
+4. Run each program (base layer first), each with its own `ctx`.
+5. Flush the batched writes.
+6. If any program called `ctx.loadScene`, switch scenes now, after every program has finished with the old scene.

@@ -1,0 +1,134 @@
+---
+title: "3. Home and the level map"
+sidebar_position: 3
+description: Read the Home and Levels programs - procedural idle animation, reading the save to draw stars and locks, tap hit-testing on a winding map, and handing the chosen level to the Game scene.
+---
+
+# 3. Home and the level map
+
+**Goal:** understand the two menu screens, which are short and show the patterns the Game scene uses at scale.
+
+**What you'll learn**
+
+- One-time setup inside a screen with `if (!g.something)`.
+- Procedural animation with sines and a running clock.
+- Drawing UI from save data every frame.
+- Hit-testing taps against computed positions.
+- Passing data to the next scene through `ctx.globals`.
+
+## The Home program
+
+```js title="demo_match3.js — //@program Home"
+//@program Home
+// Title screen: a bobbing crown, gems drifting up the screen, PLAY (your
+// next level) or the LEVEL MAP.
+if (!g.drift) {
+  g.drift = []
+  for (let i = 0; i < 14; i++) g.drift.push({ x: -160 + ((i * 53) % 320), y: -300 + ((i * 97) % 600), s: 18 + (i % 4) * 7, spin: (i % 2 ? 1 : -1) * (20 + i * 3) })
+}
+for (let i = 0; i < g.drift.length; i++) {
+  const d = g.drift[i]
+  d.y += d.s * dt
+  if (d.y > 340) { d.y = -340; d.x = -160 + Math.random() * 320 }
+  const r = ref('drift' + i)
+  r.x = Math.round(d.x + Math.sin(T * 0.8 + i) * 12)
+  r.y = Math.round(d.y)
+  r.rotation = (T * d.spin) % 360
+  r.fillColor = [GEM_COLORS[i % 6][0], GEM_COLORS[i % 6][1], GEM_COLORS[i % 6][2], 0.35]
+}
+const crown = ref('crown')
+crown.y = Math.round(168 + Math.sin(T * 2) * 5)
+crown.rotation = Math.sin(T * 1.3) * 3
+const next = Math.min(LEVEL_COUNT, save.unlocked)
+setText('levelHint', save.unlocked > LEVEL_COUNT ? 'ALL LEVELS CLEARED!' : 'LEVEL ' + next)
+setText('coinsText', String(save.coins))
+setText('starsText', String(totalStars()))
+const pulse = 1 + Math.sin(T * 4) * 0.04
+ref('playLabel').scaleX = pulse; ref('playLabel').scaleY = pulse
+if (button('play', 0, -90, 200, 64)) { S.level = next; go('Crown Match Game') }
+else if (button('map', 0, -196, 160, 40)) go('Crown Match Levels')
+else if (keys.has('enter') || keys.has('space')) { S.level = next; go('Crown Match Game') }
+```
+
+### How it works
+
+**Drifting gems.** The scene has 14 gem shapes, `drift0` … `drift13`. On the first frame of the screen, `g.drift` is filled with a position, rise speed `s` and spin rate per gem. The formulas `(i * 53) % 320` and `(i * 97) % 600` spread them across the screen without randomness, so the layout is the same every time. Each frame:
+
+- `d.y += d.s * dt` moves each gem up at its own speed; past the top (`340`) it wraps to the bottom at a random `x`.
+- The drawn `x` adds `Math.sin(T * 0.8 + i) * 12`, a gentle side-to-side sway. The `+ i` gives every gem a different phase.
+- `Math.round` puts them on whole pixels.
+- `fillColor` uses the gem's colour at 35 % alpha, so they read as background.
+
+**The crown** bobs (`168 + sin(T * 2) * 5`) and rocks (`sin(T * 1.3) * 3` degrees). Two sines at unrelated speeds never quite repeat, which looks alive.
+
+**The labels** are refreshed from `save` every frame through `setText`, which skips identical writes. `totalStars()` (from the library) sums the best stars of every level.
+
+**PLAY pulses** by scaling its label with `1 + sin(T * 4) * 0.04`.
+
+**The buttons** use the library's `button()`:
+
+```js
+if (button('play', 0, -90, 200, 64)) { S.level = next; go('Crown Match Game') }
+```
+
+`S.level` is how the Home screen tells the Game screen which level to start: it's in the session object, which survives `go()`. Enter or Space also start the next level.
+
+## The Levels program
+
+```js title="demo_match3.js — //@program Levels"
+// The kingdom map: 20 levels along a winding path, bottom to top. Gold =
+// done (with its best stars), green = your next level, grey = locked.
+const spot = (i) => {
+  const row = Math.floor(i / 4)
+  const col = row % 2 === 0 ? i % 4 : 3 - (i % 4)
+  return { x: -114 + col * 76, y: -206 + row * 94 }
+}
+for (let i = 0; i < LEVEL_COUNT; i++) {
+  const n = i + 1
+  const stars = save.stars[n] || 0
+  const unlocked = n <= save.unlocked
+  const current = n === Math.min(LEVEL_COUNT, save.unlocked) && !(save.stars[n] > 0)
+  const node = ref('lvl' + i)
+  node.fillColor = !unlocked ? [0.32, 0.32, 0.4, 1] : current ? [0.3, 0.85, 0.35, 1] : [1, 0.74, 0.22, 1]
+  const s = current ? 1 + Math.sin(T * 5) * 0.08 : 1
+  node.scaleX = s; node.scaleY = s
+  ref('lvlNum' + i).fillColor = unlocked ? [1, 1, 1, 1] : [0.6, 0.6, 0.66, 1]
+  for (let k = 0; k < 3; k++) ref('lvlStar' + i + '_' + k).fillColor = k < stars ? [1, 0.85, 0.2, 1] : [0.3, 0.3, 0.35, 1]
+  if (i < LEVEL_COUNT - 1) for (let k = 1; k < 4; k++) ref('dot' + i + '_' + k).fillColor = n + 1 <= save.unlocked ? [1, 0.88, 0.45, 0.9] : [1, 0.95, 0.8, 0.25]
+  const p = spot(i)
+  if (ctx.tap && Math.hypot(ctx.mouseX - p.x, ctx.mouseY - p.y) < 26) {
+    if (unlocked) { S.level = n; go('Crown Match Game') }
+    else { g.lockedT = 1.4; g.lockedN = n }
+  }
+}
+g.lockedT = Math.max(0, (g.lockedT || 0) - dt)
+setText('hint', g.lockedT > 0 ? 'LEVEL ' + g.lockedN + ' IS LOCKED - BEAT ' + (g.lockedN - 1) + ' FIRST' : 'TAP A LEVEL TO PLAY')
+setText('starTotal', totalStars() + ' / ' + LEVEL_COUNT * 3)
+if (button('back', -118, 284, 92, 34) || keys.has('escape')) go('Crown Match Home')
+```
+
+### How it works
+
+**Positions from a formula.** `spot(i)` returns level `i`'s position on a winding path: 4 per row, bottom to top, reversing direction every other row (`row % 2 === 0 ? i % 4 : 3 - (i % 4)`). The scene was built with the exact same formula, so the script doesn't need to read node positions; it computes where each level circle is.
+
+**Drawing state from the save.** For each level:
+
+| Condition | Colour | Extra |
+|---|---|---|
+| Locked (`n > save.unlocked`) | grey | number greyed out |
+| Current (the next unbeaten level) | green | pulses with `1 + sin(T * 5) * 0.08` |
+| Beaten | gold | its best stars lit |
+
+The three dots between each pair of levels light up once the next level is unlocked, drawing the path you've travelled.
+
+**Hit-testing taps.** `Math.hypot(ctx.mouseX - p.x, ctx.mouseY - p.y) < 26` is "the tap landed inside this circle" (the circles are 46 wide, so 26 is a forgiving radius). A locked level sets `g.lockedT = 1.4`, and the hint line shows "LEVEL n IS LOCKED - BEAT n-1 FIRST" until the timer runs out.
+
+**Back.** The HOME button or Escape returns to the Home scene.
+
+## Check your work
+
+- Make the drifting gems rise twice as fast: change `s: 18 + (i % 4) * 7` to `s: 36 + (i % 4) * 14` and replay Home (the drift data is built on the screen's first frame, so restart Playground).
+- Unlock everything for testing: in the Levels program, add `save.unlocked = 20` as its first line. Every level turns tappable. Remove it again; since the save is only written when you win, nothing is stored unless you then win a level.
+- Make the current level pulse harder: change `0.08` to `0.2`.
+
+**Next:** [4. The board and the gem pool](./04-board-and-gem-pool.mdx)

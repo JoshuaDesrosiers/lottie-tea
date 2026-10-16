@@ -1,0 +1,87 @@
+---
+title: Scenes
+sidebar_position: 1
+description: Create, rename, switch and delete scenes, and set each scene's canvas size, resolution, gravity, screen mode, main camera and properties.
+---
+
+# Scenes
+
+A **scene** is one self-contained screen of your project: a level, a menu, a cutscene, an interior. Each scene has its own canvas size, its own node tree, its own animations and state machines, and its own [properties](./properties-and-bindings.mdx). Small widgets usually need just one scene; games typically have several and switch between them from scripts.
+
+In a project folder, each scene is saved as its own file in `Assets/Scenes/`.
+
+## The scene picker
+
+The **Scene:** button in the top toolbar (next to the mode switch) shows the open scene. Click it to open the list.
+
+<Shot id="scene-picker" caption="The Scene picker open: a list of scenes with their sizes, pencil and trash buttons on hover, and New Scene at the bottom." />
+
+| Action | How |
+|---|---|
+| Switch scene | Click a scene in the list. The selection is cleared when you switch. |
+| Create a scene | **New Scene** at the bottom: type a name and press **Create**. The new scene gets the same size as the current one and opens straight away. |
+| Rename | The pencil button on a scene's row (or double-click its name), type, then the tick or Enter. |
+| Delete | The trash button. You can't delete the last remaining scene ("Can't delete the only scene"). Undo brings a deleted scene back. |
+
+Each row also shows the scene's size, for example `640×480`. Scenes are also listed in the **Resources** tab under `Assets/Scenes`; double-click one there to open it.
+
+## Canvas settings
+
+With **nothing selected**, the Inspector shows the open scene's **Canvas** section.
+
+<Shot id="canvas-settings" caption="The Inspector with nothing selected: the Canvas section showing Size, Resolution slider, Adaptive resolution, Gravity, Gravity 3D, Screen, Main Camera and the Properties list." />
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Size** W / H | 640 × 480 for the first scene | The scene's design size in world units. It's the frame your Main Camera sees at zoom 1, and the reference size games are scaled from. |
+| **Resolution** | 1px (off) | Renders the whole scene, post effects included, in blocks of N pixels (1 to 64) and scales it up with hard edges: an instant retro look for the whole canvas. Different from the per-object Pixelate effect. |
+| **Adaptive resolution** | | While playing, if frames run long (big window, 4K, heavy post effects), render at a lower internal resolution and upscale smoothly to keep at least about 45 fps; climbs back to native when there's headroom. Off: always native. **Lowest** (40% to 100%) limits how low it may go. This setting is per project. |
+| **Gravity** X / Y | 0, −313.92 | 2D physics gravity in world units per second² (+Y is up). Each Rigidbody 2D multiplies it by its Gravity Scale. Set Y to 0 for top-down games. See [Physics 2D](../components/physics-2d.mdx). |
+| **Gravity 3D** X / Y / Z | Earth-like (0, −9.81, 0) | 3D physics gravity in m/s². See [Physics 3D](../components/physics-3d.mdx). |
+| **Screen** | Fixed | **Fixed**: the design size, scaled to fit with bars. **Responsive**: fills the whole page or window; the visible area follows the screen and layouts adapt. Responsive adds **Match** and **Compact below** (see [Responsive layout](../components/responsive-layout.mdx)). |
+| **Main Camera** | The starter camera | Which Camera node Playground views this scene through. **None (free view)** means the editor's own pan and zoom. See [Camera](./camera.mdx). |
+| **Properties** | none | The scene's named values. See [Properties and bindings](./properties-and-bindings.mdx). |
+
+:::tip Pixel-art games
+Set **Resolution** to 2–4 px, set your images' Filter Mode to **Nearest**, and consider the camera's **Pixel Perfect** option.
+:::
+
+## Previewing other screen sizes
+
+The dropdown in the floating zoom bar at the bottom of the canvas lets you preview the layout on another screen in Design mode: **Design size**, **Phone (portrait)** 390×844, **Phone (landscape)** 844×390, **Tablet (portrait)** 820×1180, **Tablet (landscape)** 1180×820, **Laptop** 1440×900, **Desktop** 1920×1080. UI layouts, anchors and Show When react to it, and a Responsive scene's camera frame resizes. Playground always uses the real window.
+
+## Switching scenes in a game
+
+Scripts switch scenes with `ctx.loadScene`:
+
+```js
+if (ctx.keysDown.has('enter')) ctx.loadScene('Level 2')
+```
+
+The switch happens right after the current frame's script finishes, so a script never sees half of one scene and half of another. An unknown name is logged and ignored. Each scene then runs its own state machine. To carry data across (score, inventory, spawn point), use `ctx.globals`:
+
+```js
+ctx.globals.coins = (ctx.globals.coins ?? 0) + 1
+ctx.loadScene('Shop')
+```
+
+Scene properties reset to their defaults on every scene switch, so they are *not* the place for data that must survive one. See [Scenes and globals](../scripting/scenes-and-globals.mdx).
+
+Without code, a button's **On Click** list can use **Load scene**; see [Properties and bindings](./properties-and-bindings.mdx#on-click-events).
+
+## Which scene a game starts on
+
+- **Export → Game → Web page / Desktop app** start on the scene that is open when you export.
+- The **Website embed** starts on the scene open at export time too, and the page can pick another with the `scene` option or `player.loadScene(name)`. See [Embedding](../embedding/overview.mdx).
+
+## Tips
+
+- Name scenes clearly ("Title", "Level 1", "Shop"): scripts and embeds refer to them by name, and renaming a scene breaks any `ctx.loadScene` call that still uses the old name.
+- Build reusable pieces (the player, an enemy, a HUD) as [prefabs](./prefabs.mdx) so every scene can use the same one.
+- Keep demo scenes out of your project: loading a demo adds its scene to the open document. See [Demos](./demos.mdx).
+
+## Related
+
+- [Nodes and layers](./nodes-and-layers.mdx)
+- [Camera](./camera.mdx)
+- [Scenes and globals (scripting)](../scripting/scenes-and-globals.mdx)

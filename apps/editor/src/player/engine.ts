@@ -186,7 +186,7 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
         console.error(`an1mbyt3: an on('${type}') listener threw`, err)
       }
     }
-    container.dispatchEvent(new CustomEvent(`an1:${type}`, { detail: event }))
+    container.dispatchEvent(new CustomEvent(`an1:${type}`, { detail: event, bubbles: true }))
   }
 
   // ---- engine + game ----

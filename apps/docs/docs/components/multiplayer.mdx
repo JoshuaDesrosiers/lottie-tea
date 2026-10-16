@@ -1,0 +1,129 @@
+---
+title: Multiplayer (LAN)
+sidebar_position: 40
+description: How Toasty's port-based multiplayer works - the an1mbyt3-net relay server, hosting from the desktop app or the standalone server, joining by address, and the LAN Party demo.
+---
+
+# Multiplayer (LAN)
+
+Toasty games can be multiplayer: one machine **hosts** a game on a port, and other players **join** by typing its address, like a classic LAN party. This page covers how it's set up and what runs where. The script API (`ctx.net.host`, `join`, `send`, `messages`, `players`...) is documented in [Scripting: network](../scripting/network-api.mdx).
+
+Load **+ → Demos → LAN Party (multiplayer)** to try it: a lobby, toon blobs you move with WASD, and coins only one player can grab.
+
+<Shot id="multiplayer-lan-lobby" caption="The LAN Party demo's HTML lobby while hosting: name field, port, Host and Join buttons, and the addresses friends should type" />
+
+## How it works
+
+```text
+            ┌──────────── relay server (port 7777) ────────────┐
+            │  gives each player an id, tracks names,          │
+            │  picks the host player, forwards JSON messages   │
+            └──────▲───────────────▲───────────────▲───────────┘
+                   │ WebSocket     │ WebSocket     │ WebSocket
+             player 1 (host)    player 2        player 3
+             desktop editor     web editor      exported HTML game
+```
+
+- A small **relay server** (the `an1mbyt3-net` crate) listens on a port on every network interface. It knows nothing about your game: it gives each connection an id, keeps the list of names, picks a **host player**, and forwards messages.
+- **Every** player connects to it as a WebSocket client, including the person hosting: their game joins its own server over loopback.
+- The **host player** is the first one in the room. If they leave, the next-oldest player takes over, and everyone is told.
+- Game logic (who's authoritative for what) lives in your scripts. The usual pattern: the host player runs the world (scores, pickups, enemies) and everyone else sends it their inputs or requests.
+
+Browsers can open WebSocket connections but can't listen on a port, which is why the listening half is a native program.
+
+## Hosting
+
+There are two ways to run the relay server.
+
+### From the desktop app
+
+In the **desktop** editor, a script calls `ctx.net.host({ port, name })`. That starts the relay inside the app on that port (default **7777**), replacing one already running, and joins it. While hosting, `ctx.net.hosting` holds the port and the addresses other players should type: this machine's LAN address and `127.0.0.1` for players on the same machine.
+
+`ctx.net.canHost` is `true` only in the desktop app. In a browser (the web editor or an exported HTML game) `host()` fails with the error "Hosting needs the desktop app (or run an1mbyt3-server) — this copy can only join", and `ctx.net.status` becomes `'error'`. The LAN Party lobby disables its Host button in that case.
+
+### The standalone server
+
+`an1mbyt3-server` hosts a game without the editor, for example on an always-on machine:
+
+```bash
+# From the repository root
+cargo run --release -p an1mbyt3-net --bin an1mbyt3-server -- 7777
+```
+
+```text
+an1mbyt3-server listening on port 7777
+  players join with  192.168.1.20:7777
+  players join with  127.0.0.1:7777
+0 player(s) connected
+```
+
+The port argument is optional (default 7777). It prints the addresses to give players, then a line whenever the player count changes. Stop it with Ctrl+C. Players, including you, all **join** it; the first to join becomes the host player.
+
+## Joining
+
+Any copy of the game can join: the desktop editor, the web editor, or an exported HTML game. A script calls `ctx.net.join(address, { name })`, where the address is:
+
+| You type | Connects to |
+|---|---|
+| `192.168.1.20:7777` | `ws://192.168.1.20:7777` |
+| `192.168.1.20` | port 7777 is added |
+| `localhost` | `ws://localhost:7777` |
+| `ws://...` or `wss://...` | used as given |
+
+`ctx.net.status` goes `'offline'` → `'connecting'` → `'online'`, or `'error'` (with `ctx.net.error`) if joining failed or the connection dropped.
+
+## Connection lifetime
+
+- There's **one** connection per running game. It survives `ctx.loadScene`, so a lobby scene can hand over to a level scene.
+- It's closed when Playground stops (and `ctx.net.leave()` closes it any time, stopping hosting too).
+
+## Network checklist
+
+When players can't connect:
+
+- Everyone must be on the **same network** (same Wi-Fi or LAN), or the host's port must be reachable some other way.
+- The host machine's **firewall** has to allow incoming connections on the port. Operating systems often ask the first time a program listens on a port; allow it on private networks.
+- Use the address shown in `ctx.net.hosting.addresses` (or printed by `an1mbyt3-server`), not `localhost`, from other machines.
+- Pages served over `https` (like the web editor at toastycreate.web.app) are generally blocked by browsers from opening unencrypted `ws://` connections. For LAN play, join from the desktop app or from an exported game opened over `http` or from a local file, or put the relay behind a `wss://` endpoint.
+
+## The protocol
+
+You never need this from a script (`ctx.net` handles it), but it's useful if you want to write a bot or tool that joins a game. Every message is one JSON object per WebSocket text frame:
+
+| Direction | Message |
+|---|---|
+| client → server | `{"t":"hello","name":"Ada"}` first, then `{"t":"send","data":<any JSON>,"to":<id, optional>}` (no `to` = everyone else) |
+| server → client | `{"t":"welcome","id":2,"host":1,"players":[{"id":1,"name":"Ada"}, ...]}` |
+| server → client | `{"t":"join","id":3,"name":"Bo"}` and `{"t":"leave","id":3}` |
+| server → client | `{"t":"host","id":2}` (the host player changed) |
+| server → client | `{"t":"msg","from":1,"data":<any JSON>}` |
+
+A new connection has 5 seconds to send its `hello`.
+
+## The LAN Party demo
+
+**LAN Party** shows a complete host-authoritative game in one script:
+
+- **Lobby**: an interactive [HTML UI](./html-ui.mdx) element with your name, a port and Host, or an address and Join. It remembers your entries with `ctx.storage`.
+- **Movement**: each player sends its own position 20 times a second (`{ k: 's', x, y }`); others are drawn smoothly interpolated.
+- **Coins**: the host owns the coins and scores. Other players *ask* to grab a coin (`{ k: 'grab', i }`, sent to `ctx.net.hostId`); the host checks and answers, so two players can never both get one. The host shares the world (`{ k: 'world', coins, scores }`) when it changes.
+- **Host migration**: when the host leaves, the next player becomes host and carries on with the coins and scores everyone already has.
+
+The heart of it:
+
+```js
+const net = ctx.net
+for (const e of net.events) {
+  if (e.type === 'host' && net.isHost) shareWorld()   // we just became the host
+}
+for (const m of net.messages) {
+  const d = m.data
+  if (d.k === 's') g.others[m.from] = { x: d.x, y: d.y }
+  else if (d.k === 'world' && !net.isHost) { g.coins = d.coins; g.scores = d.scores }
+  else if (d.k === 'grab' && net.isHost) { /* check the coin is still there, award it, shareWorld() */ }
+}
+```
+
+To test on one machine: run the desktop editor and host, then open a second copy (another editor window or an exported game) and join `127.0.0.1:7777`.
+
+See also: [Scripting: network](../scripting/network-api.mdx), [Web and desktop](../getting-started/web-and-desktop.mdx).

@@ -1,0 +1,118 @@
+---
+title: Exporting
+sidebar_position: 13
+description: Every way to get your work out of Toasty — GIF, transparent GIF, transparent WebM and MP4 animations, a one-file web page, a desktop .exe, a website embed folder, and .teab files.
+---
+
+# Exporting
+
+The **Export** button in the top toolbar (next to Save) opens the Export menu. Its options fall into two groups: **Animation** exports render frames to an image or video file; **Game** exports package the whole interactive project.
+
+<Shot id="export-menu" caption="The Export menu open: Animation → GIF, GIF (transparent), WebM (transparent), MP4, then Game → Web page (.html), Desktop app (.exe), Website embed (React / JS), each with its hint text." />
+
+| Export | Output | Interactive? | Transparent? | Web | Desktop |
+|---|---|---|---|---|---|
+| **Animation → GIF** | `.gif` | No | No | Yes | Yes |
+| **Animation → GIF (transparent)** | `.gif` | No | 1-bit (each pixel fully clear or fully solid) | Yes | Yes |
+| **Animation → WebM (transparent)** | `.webm` (VP9) | No | Yes, real alpha | Yes | Yes |
+| **Animation → MP4** | `.mp4` (H.264) | No | No | Yes | Yes |
+| **Game → Web page (.html)** | one `.html` file | Yes | | Yes | Yes |
+| **Game → Desktop app (.exe)** | one `.exe` | Yes | | No | Yes |
+| **Game → Website embed (React / JS)** | a folder | Yes | | Yes | Yes |
+
+## Animation: GIF, WebM, MP4
+
+These render the **active animation** of the open scene (the one selected in the timeline's dropdown), once through its full duration, and save it as a file.
+
+1. In the Animate tab, pick the animation you want and check its **Dur**ation.
+2. **Export → Animation → …** and choose where to save. The suggested file name is the scene name (with `-transparent` added for transparent exports).
+
+What you get:
+
+| | GIF | WebM / MP4 |
+|---|---|---|
+| Frame rate | 24 fps | 30 fps |
+| Frames | duration × fps (at least 2) | duration × fps (at least 2) |
+| Size | The editor canvas's current size in pixels | The same, rounded to even numbers (video codecs need that) |
+| Framing | The whole scene, fitted and centred | Same |
+
+Exports always frame the **whole scene** the same way, ignoring how you've panned and zoomed the editor view. To export at a bigger size, make the editor window (and so the canvas) bigger before exporting.
+
+The export samples the animation directly from the timeline, so it doesn't touch your document or undo history. It shows the timeline animation itself, not what a state machine would do in a game.
+
+### Which format?
+
+- **GIF**: plays everywhere (chats, docs, READMEs), but limited colours and large files.
+- **GIF (transparent)**: for stickers on any background. Edges are hard (no partial transparency), so soft glows and shadows get cut off.
+- **WebM (transparent)**: the format for overlays: OBS, video editors and browsers can composite its real alpha channel. Best for animated stickers, stream overlays, and transparent video on websites.
+- **MP4**: the most compatible video format, but no transparency: the background is always filled in.
+
+:::caution Video support depends on your system
+WebM and MP4 export use your browser's or system's built-in video encoder. If it can't encode the format, you'll see "This system can't encode VP9 (WebM)" or "…H.264 (MP4)". Try the other format, or another browser.
+:::
+
+| Message | Meaning |
+|---|---|
+| "No active animation to export — switch to Animate mode and pick (or create) one first." | The scene has no active animation. Open the Animate tab and pick or create one. |
+| "Canvas has no pixels yet — try again once the editor has finished laying out." | The editor hasn't finished starting; try again. |
+
+## Game → Web page (.html)
+
+Packs the **entire project** (every scene, image, font, sound and script, plus the engine itself) into **one self-contained `.html` file**. Double-click it and the game runs in any modern browser: no server, no install, nothing else to ship. Upload it anywhere that serves files (itch.io, a static host, a USB stick).
+
+- The file name and page title come from the scene that's open; the game **starts on that scene**.
+- If you're in Playground, Toasty switches back to Design first so the export contains your authored scene, not a mid-game state.
+- The game fills the browser window and gets the keyboard.
+- The page exposes the running game as `window.an1Player`, with the same API as the embed (`set`, `setInput`, `fire`, `loadScene`, `on`, …), in case you want to add your own scripts to the page.
+
+## Game → Desktop app (.exe)
+
+**Desktop app only.** Writes **one `.exe` file**: double-click to play, **F11** for fullscreen. It's the web page export wrapped in a small native player, so the game behaves the same.
+
+In the browser editor this option shows "Exporting a desktop app (.exe) needs the an1mbyt3 desktop app. In the browser, use Export → Game → Web page instead."
+
+## Game → Website embed (React / JS)
+
+For putting your game *inside* a website or web app, driven by the page: React `<An1Player>`, plain JS `createPlayer`, live data, inputs, scenes and events.
+
+1. **Export → Game → Website embed (React / JS)**.
+2. Pick a parent folder. Toasty creates a new folder in it named `<scene name>-embed`.
+
+```text
+<name>-embed/
+  README.md                     what it is + quick start
+  GUIDE.md                      step-by-step guide for people
+  AGENTS.md                     API + rules for AI coding assistants
+  an1mbyt3.json                 this game's scenes, inputs and events as data
+  example.html                  a working page (serve the folder over http)
+  src/an1mbyt3/                 import from your code
+    an1mbyt3-embed.js / .d.ts   createPlayer, <an1-player>
+    an1mbyt3-react.js / .d.ts   <An1Player> for React
+    an1mbyt3-engine.js          shared by both
+    AGENTS.md, CLAUDE.md        notes for AI assistants, next to the code
+  public/an1mbyt3/              static files your site serves as-is
+    game.teab                   the game
+    an1mbyt3_wasm_bg.wasm       the engine
+```
+
+The `src` and `public` folders mirror a Vite, Next.js or Create React App project, so you can drag them straight in. `example.html` is a ready-made test page with a scene picker, a property/data setter, a trigger button and an event log; it starts on the scene that was open when you exported.
+
+The whole embedding API is documented in the [Embedding](../embedding/overview.mdx) section, starting with [Export for web](../embedding/export-for-web.mdx).
+
+## .tea / .teab files
+
+**File → Export .tea / .teab…** writes the whole document as a single file (see [Projects and saving](../getting-started/projects-and-saving.mdx#tea-and-teab-files)). A `.teab` is also exactly what the embed player loads, so you can update an embedded game by replacing its `game.teab`.
+
+## Before you export a game
+
+- Open the scene the game should **start** on.
+- Play it through once in Playground and check the **Console** for errors.
+- Make sure the scene's **Main Camera** frames what you want (see [Camera](./camera.mdx)).
+- For phones and resizable windows, consider a **Responsive** scene (see [Responsive layout](../components/responsive-layout.mdx)).
+- Remember save data: `ctx.storage` lives in the player's browser storage, so each browser (and each website hosting the game) keeps its own saves. See [Storage API](../scripting/storage-api.mdx).
+
+## Related
+
+- [Embedding overview](../embedding/overview.mdx)
+- [Animation timeline](./animation-timeline.mdx)
+- [Web and desktop](../getting-started/web-and-desktop.mdx)

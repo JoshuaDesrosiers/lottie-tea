@@ -1,0 +1,109 @@
+---
+title: Shapes and paths
+sidebar_position: 3
+description: Create vector shapes, edit their points, and style them with solid or gradient fills, strokes, images, blend modes and clipping.
+---
+
+# Shapes and paths
+
+**Shapes** are Toasty's vector objects: resolution-independent outlines with a fill and an optional stroke. They're the building blocks of UI, icons, characters and most of the built-in demos (Crown Match is drawn entirely with shapes).
+
+## Creating shapes
+
+| Way | Result |
+|---|---|
+| **+ → 2D Object → Rectangle / Ellipse / Triangle / Star** | A preset shape in the scene, selected. Each new one is offset a little from the last so they don't stack exactly. |
+| **Add child** button on a row in Layers | A default rectangle inside that node. |
+| **+ → Import → SVG…** | Every shape in the SVG file as real nodes (groups stay groups). One undo step. |
+| [Paint mode](./paint-mode.mdx) in vector format | Your own drawing, placed as a group of shapes. |
+
+## The Shape section
+
+Select a shape and the Inspector starts with its **Shape** section.
+
+<Shot id="shape-inspector" caption="Inspector for a selected Star shape: the Shape section with Fill in edit mode (Solid/Gradient toggle, Linear gradient with three stops), Stroke enabled with Color, Width, Cap and Join, and the Path row with 10 points and Edit Points." />
+
+### Fill
+
+Click **Edit** next to **Fill** to open the fill editor, and **Done** to close it.
+
+- **Solid**: one colour (with alpha) from the colour picker.
+- **Gradient**: pick a kind and edit its stops.
+
+| Gradient kind | Looks like |
+|---|---|
+| **Linear** | A blend along a line |
+| **Radial** | Circles from a centre outward |
+| **Conic** | A sweep around a centre, like a colour wheel |
+| **Bilinear** | Square, corner-anchored bands (an "L" shape when the start sits at a corner) |
+
+The stop list shows one row per stop: its position (0 to 1), its colour, and a delete button. A gradient always keeps at least two stops. **Add Stop** inserts a new one in the middle of the biggest gap, already coloured to blend in.
+
+While a gradient is being edited, handles appear on the canvas: drag **Gradient start**, and **Gradient end** (Linear), **Gradient radius** (Radial) or **Gradient angle reference** (Conic) to place it.
+
+The small **copy** and **paste** icon buttons next to the toggle copy a gradient from one object and paste it onto another shape, text, group or goo, fitted to the new object's size.
+
+### Stroke
+
+Tick **Stroke** to give the outline a line. New strokes start 2 units wide, black, with Butt caps and Miter joins.
+
+| Setting | Options |
+|---|---|
+| **Color** | Any colour |
+| **Width** | 0 and up |
+| **Cap** | **Butt**, **Square**, **Round**: how open line ends look |
+| **Join** | **Miter**, **Round**, **Bevel**: how corners look |
+
+For dashed lines and "trim path" draw-on effects, add the **Stroke Style (dash, trim path)** component. See [Effects 2D](../components/effects-2d.mdx).
+
+### Path
+
+The **Path** row shows how many points the shape has. Click **Edit Points** (or double-click the shape on the canvas) to edit them; the button becomes **Done**.
+
+## Editing points
+
+In point-edit mode, the shape's anchors and curve handles appear on the canvas.
+
+| Action | How |
+|---|---|
+| Move a point | Drag it |
+| Move a curve handle | Drag it |
+| Break a smooth curve | Hold **Alt** while dragging a handle to move it on its own |
+| Add a point | Click on the outline |
+| Delete a point | Select it, press **Delete** or **Backspace** (this never deletes the whole shape) |
+| Smooth ↔ corner | Double-click a point |
+| Finish | **Escape**, or click **Done** |
+
+:::tip Animate the outline
+Shapes can morph: the path itself can be animated from a script (`ref.path`), and many demos use this for blobs and liquids. See [Nodes and refs](../scripting/nodes-and-refs.mdx).
+:::
+
+## Other shape settings
+
+Further down the Inspector:
+
+| Setting | What it does |
+|---|---|
+| **Id** | The node's unique name for scripts: `getCompByID('player')`. New nodes get an automatic id like `shape(3)`; rename it to something meaningful. |
+| **Classes** | Tags for finding groups of nodes from scripts: `getCompByClass('enemy')`. Type in **+ add class** and press Enter; click a tag's × to remove it. |
+| **Clip children to this shape** | The shape's children only show inside its outline (a mask). Sub-options: **Invisible mask** (the shape only shapes the clip and doesn't draw itself), **Invert (hide inside)** (children show everywhere *except* inside the shape), **Mask opacity** and **Hidden part opacity** (fade instead of a hard cut). |
+| **Z Index** | Draw order among siblings. |
+| **Sorting Layer** | Draw this node with a named layer regardless of its place in the tree. See [Sorting layers](../components/sorting-layers.mdx). |
+| **Position**, **Anchor**, **Rotation**, **Scale %** | The transform. See [Nodes and layers](./nodes-and-layers.mdx). |
+| **Motion Path** | Make this node follow another shape's outline; the progress is keyed in the timeline. See [Animation timeline](./animation-timeline.mdx). |
+| **Blend Mode** | **Normal**, **Multiply** (darken), **Screen** (lighten), **Add** (glow). |
+| **Image** | Fill the shape with an image, clipped by its outline. See [Images and sprites](./images-and-sprites.mdx). |
+| **Material** | **Lit** (2D lights affect it) or **Unlit** (always full brightness: HUD, UI, glow). Children inherit Unlit. |
+
+Then come its components and **Add Component**. Shapes can carry any 2D component: colliders, outlines, drop shadows, wiggle, and more. See [Components overview](../components/overview.mdx).
+
+## Editing many shapes at once
+
+Select several shapes (Ctrl+click or Shift+click). A combined box appears with handles to move, scale and rotate them together (Shift: uniform scale, rotation in 15° steps), and the Fill editor applies to all of them.
+
+## Related
+
+- [Nodes and layers](./nodes-and-layers.mdx)
+- [Paint mode](./paint-mode.mdx)
+- [Effects 2D](../components/effects-2d.mdx)
+- [Text and fonts](./text-and-fonts.mdx)

@@ -1,0 +1,69 @@
+---
+title: "1. The hero plan"
+sidebar_position: 1
+description: Plan an interactive landing page hero with two Toasty scenes - a day/night toggle tied to the site theme and a mood blob that reacts to a sign-up form - and how to fit them on one page.
+---
+
+# 1. The hero plan
+
+**Goal:** know the two scenes, what each one accepts and reports, and how the page will use them, before writing code.
+
+**What you'll learn**
+
+- The two scenes' contracts.
+- What a scene can do for a landing page that CSS animation can't easily do.
+- How to give a page two scenes when only one player runs at a time.
+
+## The two scenes
+
+### Day / night toggle
+
+<ToastyDemo game="/games/day-night.teab" height={260} caption="day-night.teab: click it to switch between day and night." />
+
+| Kind | Name | Notes |
+|---|---|---|
+| Property | `isNight` (Bool, default `false`) | Page → scene: the current theme. |
+| Input | `isNight` (Bool) | The state machine's switch. |
+| States | `Day`, `Night` | |
+| Event | `toggle` `{ isNight }` | Sent when the scene is clicked. |
+
+### Mood blob
+
+<ToastyDemo game="/games/mood-blob.teab" height={300} caption="mood-blob.teab: a soft character whose mood goes from sad (-1) to happy (1). Click it." />
+
+| Kind | Name | Notes |
+|---|---|---|
+| Property | `mood` (Number, −1..1, default `0`) | Page → scene: how the blob feels. |
+| Input | `jump` (Trigger) | A happy hop. |
+| States | `Sad`, `Neutral`, `Happy` | Entered as `mood` crosses thresholds. |
+| Event | `poke` `{ mood }` | Sent when the blob is clicked. |
+
+## What the page will do
+
+| Lesson | Page feature | Scene features used |
+|---|---|---|
+| 2 | A theme toggle: the scene *is* the dark-mode switch, and stays in sync with the site's theme, the OS preference and a saved choice. | `isNight` data + input, `toggle` event |
+| 3 | A sign-up form: the blob frowns at a weak password and cheers at a strong one, and hops on success. | `mood` data, `jump` trigger, `poke` event |
+| 4 | Scroll-linked data: the scene reacts as the visitor scrolls, and only runs while on screen. | data from scroll, `paused` |
+| 5 | Sequencing page UI from the animation: reveal the headline when night falls, enable the button when the blob is happy. | `onStateChange`, `waitForState` |
+| 6 | The same hero without React: plain HTML and the `<an1-player>` custom element. | everything, from HTML attributes and DOM events |
+
+## Why a scene, not CSS?
+
+A CSS animation plays what you wrote. A Toasty scene has **state**: it decides what to show from values it's given (a mood of 0.3 is "slightly happy" without anyone authoring that exact pose), it can be clicked, and it tells you what it's doing. That's what makes the "animation as UI" ideas in lessons 3 and 5 possible.
+
+## Two scenes, one player
+
+A page runs one Toasty player at a time; a second one replaces the first. The hero puts the day/night scene at the top and the mood blob next to the sign-up form further down. Two good ways to fit both:
+
+1. **Run whichever is on screen.** Mount the player only for the scene in view and show a still image (a poster) for the other. Lesson 4 builds a `useInView` hook for this.
+2. **Make them one project.** Put both scenes in one Toasty project (`Toggle` and `Mood` scenes) and switch with the `scene` prop as the visitor scrolls. Data you set stays put across switches.
+
+The live examples on these pages already behave like option 1: starting one card stops the others.
+
+## Check your work
+
+- You clicked both scenes above and saw `Day` / `Night` and the blob's reaction.
+- You can say which Property and which input the day/night scene has, and which event each scene sends.
+
+**Next:** [2. A theme-driven day/night toggle](./02-day-night-theme-toggle.mdx)

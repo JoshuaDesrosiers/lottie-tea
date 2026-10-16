@@ -1,0 +1,211 @@
+---
+title: Physics 2D
+sidebar_position: 2
+description: Rigidbody 2D, the four 2D colliders, physics materials, triggers, Hinge Joint 2D and Cloth 2D, with every field and the script calls that drive them.
+---
+
+# Physics 2D
+
+Toasty's 2D physics works the way Unity's does. A **Rigidbody 2D** makes a node a physical body that gravity pulls and things bump into. **Colliders** give it a shape. Nodes with a collider but no rigidbody are static scenery (floors, walls, platforms) that bodies land on.
+
+Under the hood the simulation is [Rapier](https://rapier.rs), stepped at a fixed 60 steps per second, only while **Playground** (or an exported game) is running. In Design nothing moves, so you can lay out a level without it falling apart.
+
+<Shot id="physics-2d-components" caption="A crate selected in the Physics Playground demo, showing its Rigidbody 2D and Box Collider 2D cards" />
+
+## Quick start
+
+1. Draw a wide rectangle for the floor. **Add Component → Physics 2D → Box Collider 2D**. Set its **Size** to match the rectangle.
+2. Draw a small square above it. Add a **Rigidbody 2D** and a **Box Collider 2D** sized to the square.
+3. Press **Play**. The square falls and lands on the floor.
+
+:::tip
+Colliders do not resize themselves to the art. A new Box Collider 2D is 32 x 32, a Circle Collider 2D has radius 16. Match the size to your shape, or scale the node: collider sizes scale with the node's scale.
+:::
+
+## Scene gravity
+
+Gravity belongs to the scene. Click empty canvas so nothing is selected and look at the Inspector's canvas settings:
+
+| Field | Meaning | Default |
+|---|---|---|
+| Gravity X / Y | Acceleration in world units (art pixels) per second squared. +Y is up. Each Rigidbody 2D multiplies it by its **Gravity Scale**. | (0, -313.92), which is Earth's -9.81 m/s² at 32 pixels per metre |
+
+For a top-down game set Y to 0 (or set each body's Gravity Scale to 0).
+
+## Rigidbody 2D
+
+One per node. It turns the node into a simulated body.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Body Type | **Dynamic**: simulated (gravity, collisions, forces). **Kinematic**: moved only by script or animation, pushes dynamic bodies out of the way, is not pushed back. **Static**: never moves. | Dynamic / Kinematic / Static | Dynamic |
+| Mass (kg) | How heavy the body is. Spread over its colliders by area. | more than 0 | 1 |
+| Linear Drag | Slows movement over time (air resistance). | 0 and up | 0 |
+| Angular Drag | Slows spinning over time. | 0 and up | 0.05 |
+| Gravity Scale | Multiplies the scene gravity. 0 floats (top-down games), negative falls upward. | any | 1 |
+| Collision | **Continuous** stops fast objects tunnelling through thin walls (bullets, fast balls). **Discrete** is cheaper. | Discrete / Continuous | Discrete |
+| Freeze X / Freeze Y | Locks movement along that axis. | on/off | off |
+| Freeze Rotation | Stops the body from tipping over. Turn this on for player characters. | on/off | off |
+
+Mass, drag, gravity scale, collision mode and the constraints only show for **Dynamic** bodies, because they do not affect the other types.
+
+### Bodies, children and colliders
+
+- A collider attaches to the **nearest node at or above it** that has a Rigidbody 2D. So a character can be one body with colliders on several child nodes (a capsule on the body, a circle on the head).
+- A collider with no rigidbody above it becomes its own **static** body.
+- Bodies in the **same hierarchy** (two or more bodies under one topmost body, like a ragdoll or a chain) do not collide with each other, because their limbs overlap at the joints by design.
+- Moving a Dynamic body's node from a script (`ref.x = ...`) teleports the body there. To move it physically, set its velocity or add forces instead.
+
+## Colliders
+
+All four colliders share an **Offset** (moves the shape relative to the node, in the node's own space), an **Is Trigger** switch and a built-in **physics material**.
+
+| Shared field | Meaning | Range | Default |
+|---|---|---|---|
+| Offset X / Y | Shifts the collision shape from the node's origin. | any | (0, 0) |
+| Is Trigger (detects overlaps, doesn't push) | A trigger reports when things enter and leave it but never pushes anything. Goals, pickups, damage zones. | on/off | off |
+| Friction | How grippy the surface is. 0 = ice. | 0 and up | 0.4 |
+| Bounciness | How much speed a bounce keeps. 0 = no bounce, 1 = bounces forever. | 0 to 1 | 0 |
+
+### Box Collider 2D
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Size X / Y | Width and height of the rectangle. | 0.1 and up | 32 x 32 |
+
+### Circle Collider 2D
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Radius | The circle's radius. Scales with the larger of the node's two scale values. | 0.1 and up | 16 |
+
+### Capsule Collider 2D
+
+A rectangle with fully rounded ends. The natural shape for characters: it slides up small steps instead of catching on them.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Size X / Y | Overall width and height, ends included. | 0.1 and up | 16 x 32 |
+| Direction | **Vertical**: the rounded ends are top and bottom. **Horizontal**: left and right. | Vertical / Horizontal | Vertical |
+
+### Polygon Collider 2D
+
+A shape made of your own points, in the node's space. The **convex hull** of the points is used, so dents are filled in. For a concave shape, add several polygon colliders to the same node.
+
+| Field | Meaning | Default |
+|---|---|---|
+| Points | One X/Y row per point. **+ Point** adds one halfway along the closing edge; the trash icon removes one (a polygon keeps at least 3). | a triangle: (-16, -16), (16, -16), (0, 16) |
+
+## Hinge Joint 2D
+
+Pins this node's body to another body (or to the world) at a point, leaving it free to rotate: elbows, knees, doors, chains, pendulums. The node needs a Rigidbody 2D (or a collider under one).
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Connected | The body this one hinges to. **Auto (parent / world)** uses the nearest parent with a Rigidbody 2D, or pins to the world if there is none. Only nodes with a Rigidbody 2D are listed. | | Auto |
+| Anchor X / Y | The hinge point, in this node's own space. A bone's joint is (0, 0). | any | (0, 0) |
+| Use Limits | Limits the swing. | on/off | on |
+| Angle min / max | Allowed swing in degrees, relative to the pose the joint was created in. | degrees | -60 / 60 |
+| Use Motor | Drives the hinge at a steady speed. | on/off | off |
+| Motor deg/s / max | Target speed in degrees per second, and the most torque the motor may use. | any / 0 and up | 0 / 100 |
+| Connected bodies collide | Lets the two hinged bodies collide with each other. | on/off | off |
+
+## Cloth 2D
+
+Soft fabric: a grid of points held together by springy links, pinned along an edge, pulled by gravity and blown by gusty wind. Flags, banners, curtains, capes, nets. It hangs at rest while you design and comes alive in Playground.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Size X / Y | The cloth at rest, centred on the node (a flag starts at the node and hangs to the right). | 1 and up | 220 x 150 |
+| Detail X / Y | Points across and down. More = smoother folds, more to simulate. | 2 to 64 each | 22 x 15 |
+| Pinned | Which points are nailed down; they follow the node as it moves. **Top edge (curtain)**, **Top corners (sag)**, **Left edge (flag)**, **Nothing (falls)**. | | Top edge |
+| Color | The fabric's colour (used when there is no image). | | red |
+| Pattern | **Solid**, **Stripes across**, **Stripes down**, **Checker**. | | Solid |
+| 2nd color | The pattern's second colour (patterns only). | | white |
+| Bands | How many stripes or squares across the cloth (patterns only). | 1 to 32 | 6 |
+| Image | Printed on the cloth instead of the colour: a flag, banner or poster. | any image | none |
+| Gravity | Downward pull, units per second squared. | -3000 to 3000 | 600 |
+| Wind X / Y | Steady wind: +X blows right, +Y blows up. | any | (120, 0) |
+| Gusts | 0 = steady wind, 1 = gusty, 2 = wild. | 0 to 2 | 0.5 |
+| Stiffness | Relaxation passes per step. Higher = less stretchy, costlier. | 1 to 30 | 6 |
+| Damping | How quickly motion dies down. 0 = floaty silk, 3 = heavy wet canvas. | 0 to 10 | 0.6 |
+| Tears at | Threads snap when stretched past this many times their length. 0 = never by stretching (scripts can still cut it). Try 1.8. | 0, or 1.05 to 10 | 0 |
+| Shading | How strongly folds and creases are shaded. | 0 to 1 | 0.6 |
+
+## Scripting physics
+
+Physics calls only do something while Playground is running; outside it they are harmless no-ops (reads return `null`). The full reference is [Physics API](../scripting/physics-api.mdx). Here is what each component gives you.
+
+### Rigidbody 2D
+
+| Call | What it does |
+|---|---|
+| `ref.velocity` | Linear velocity `{ x, y }` in units per second (+Y up), or `null` without a body. Assign `{ x, y }` or `[x, y]` to set it. |
+| `ref.angularVelocity` | Spin in degrees per second; assign to set it. |
+| `ref.addForce(x, y)` | A push spread over the next frame. Call it every frame for steady thrust. |
+| `ref.addImpulse(x, y)` | An instant kick: jumps, knockback, explosions. |
+| `ref.bodyType` | `'Dynamic'`, `'Kinematic'`, `'Static'` or `null`. Assign to switch, for example to hand a thrown prop to physics. |
+| `ref.ragdoll(on)` | For a rig built with **Make Ragdoll**: `true` makes this node and every body under it Dynamic (goes limp, keeping its momentum); `false` makes them Kinematic again (follows animation and IK). |
+| `ctx.raycast(x, y, dx, dy, maxDistance, ignore)` | The first non-trigger collider along a ray, as `{ ref, x, y, normalX, normalY, distance }`, or `null`. `ignore` is a ref whose body the ray skips, usually the caster itself. |
+| `ctx.collisions` | Contacts that began (`started: true`) or ended this frame, as `{ a, b, started, trigger }`. Covers both collisions and triggers. |
+
+This is the player controller from the built-in **Physics Playground** demo:
+
+```js
+const g = ctx.globals
+const keys = ctx.keysDown
+const player = getCompByID('player')
+
+if (player && player.velocity) {
+  // Run: steer horizontal velocity toward the target speed, keep gravity's y.
+  const dir = ((keys.has('d') || keys.has('right')) ? 1 : 0) - ((keys.has('a') || keys.has('left')) ? 1 : 0)
+  const v = player.velocity
+  const k = Math.min(1, ctx.deltaSeconds * 12)
+  player.velocity = { x: v.x + (dir * 170 - v.x) * k, y: v.y }
+
+  // Jump only when a short ray straight down finds something to stand on.
+  const ground = ctx.raycast(player.x, player.y, 0, -1, 18, player)
+  const jump = keys.has('space') || keys.has('w') || keys.has('up')
+  if (jump && !g.jumpHeld && ground) player.addImpulse(0, 340)
+  g.jumpHeld = jump
+}
+
+// Trigger: count every time the player enters the goal box.
+for (const c of ctx.collisions) {
+  const ids = [c.a && c.a.id, c.b && c.b.id]
+  if (c.started && c.trigger && ids.includes('player') && ids.includes('goal')) g.goals = (g.goals || 0) + 1
+}
+```
+
+### Hinge Joint 2D
+
+| Call | What it does |
+|---|---|
+| `ref.breakJoint()` | Breaks this node's hinge for the rest of the play session. The limb comes off (its own children stay attached to it) and flies free with its momentum. |
+
+### Cloth 2D
+
+| Call | What it does |
+|---|---|
+| `ref.grabCloth(x, y, radius)` | Takes hold of the free point nearest world `(x, y)` within `radius` (default 40). Returns `false` if none is there. |
+| `ref.dragCloth(x, y)` | Moves the grabbed point; call it every frame while dragging. |
+| `ref.releaseCloth()` | Lets go. |
+| `ref.tearCloth(x, y, radius)` | Cuts the threads around world `(x, y)` (radius default 12). Returns how many were cut. Drag it along the mouse to slice. |
+| `ref.setClothWind(x, y)` | Blows with this wind instead of the authored one; `setClothWind(null)` goes back. |
+| `ref.resetCloth()` | Mends it: back to hanging at rest. |
+
+```js
+// Grab the flag with the mouse and drag it around.
+const flag = getCompByID('flag')
+const g = ctx.globals
+const down = ctx.keysDown.has('mouse')
+if (down && !g.holding) g.holding = flag.grabCloth(ctx.mouseX, ctx.mouseY)
+if (g.holding) flag.dragCloth(ctx.mouseX, ctx.mouseY)
+if (!down && g.holding) { flag.releaseCloth(); g.holding = false }
+```
+
+## Related
+
+- [Goo and liquid](./goo-and-liquid.mdx): **Liquid 2D** is a particle fluid that flows round colliders and floats rigidbodies.
+- [Physics 3D](./physics-3d.mdx) for 3D bodies.
+- [Physics API](../scripting/physics-api.mdx) for every physics call in one place.

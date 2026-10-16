@@ -1,0 +1,70 @@
+---
+title: Scripting overview
+sidebar_position: 1
+description: What Toasty scripts are, where you write them, and a map of this reference section.
+---
+
+# Scripting overview
+
+Toasty games are scripted in **plain JavaScript**. A script is a short program attached to a **state** in a scene's state machine. While that state is active, the script runs once every frame. It reads the world through one object, `ctx`, and changes it through **refs**: small objects you get back from `getCompByID('player')` whose properties (`x`, `y`, `rotation`, `visible`, `textContent`, ...) you simply assign.
+
+```js
+// A state's Code program. Runs every frame while the state is active.
+const player = getCompByID('player')
+const speed = 200
+if (ctx.keysDown.has('right')) player.x += speed * ctx.deltaSeconds
+if (ctx.keysDown.has('left'))  player.x -= speed * ctx.deltaSeconds
+```
+
+That is the whole model. The rest of this section is reference.
+
+:::info This section is syntax-first
+Pages here are written as a reference: a signature, a parameter table, what it returns, a short example and the gotchas. For guided, build-a-game-from-scratch walkthroughs see the [courses](../courses/index.mdx). For what each component does in the editor (Rigidbody 2D, UI Button, Audio Source, ...) see [Components](../components/overview.mdx).
+:::
+
+## Three ways to program a state
+
+Every state can be a **Programmable State**. Its program is one of three kinds, picked with the tabs at the top of the program editor:
+
+| Tab | What it is | Runs where |
+|---|---|---|
+| **Code** | JavaScript, the subject of this section | Playground, the State Machine tab with **Run Programs** on, exported games and website embeds |
+| **Nodes** | A dataflow graph (math nodes wired into Set Property nodes) | Everywhere |
+| **Blocks** | Scratch-style blocks (when key pressed, forever, wait, ...) | Everywhere |
+
+Nodes and Code convert into each other for simple programs. Blocks are their own language; see [Blocks](./blocks.mdx).
+
+## Where you write code
+
+- **Inline, in the state.** Turn on **Programmable State** for a state in the state machine's side column, double-click the state's box on the graph, and pick the **Code** tab.
+- **In a project file.** In the **Code** mode (the IDE view), create a `.js` file under your project's files, then point the state at it: in the state's Code tab, the **Runs** dropdown lists every `.js` file. The state then stores `@file:Scripts/player.js` instead of inline text and runs that file.
+
+<Shot id="scripting-code-tab" caption="A Programmable State's Code tab, with the Runs picker and Monaco editor" />
+
+The editor is Monaco (the VS Code editor). Typing `ctx.` suggests the core members, and inside `getCompByID('` it suggests every node id in the scene; inside `getCompByClass('` it suggests every class.
+
+## Map of this section
+
+| Page | Covers |
+|---|---|
+| [How scripts run](./how-scripts-run.mdx) | The execution model in one page: frames, layers, snapshots, batching, Playground vs export |
+| [JavaScript basics](./javascript-basics.mdx) | Just enough JS for game scripts |
+| [ctx reference](./ctx-reference.mdx) | Alphabetical index of every `ctx` member and every ref property/method |
+| [Nodes and refs](./nodes-and-refs.mdx) | `getCompByID`, `getCompByClass`, `ctx.nodes`, every 2D ref property |
+| [Input](./input.mdx) | Keys, mouse, touch, wheel, tap, swipe, pointer lock |
+| [Time and frames](./time-and-frames.mdx) | `ctx.time`, `ctx.deltaSeconds`, timers, frame-rate independence |
+| [State machine control](./state-machine-control.mdx) | `ctx.setInput`, `ctx.fireTrigger`, `ctx.state`, `ctx.layer` |
+| [Props and data](./props-and-data.mdx) | Scene Properties (`ctx.props`) and page data (`ctx.data`) |
+| [Events and messages](./events-and-messages.mdx) | `ctx.on`, `ctx.emit`, On Click actions |
+| [Scenes and globals](./scenes-and-globals.mdx) | `ctx.loadScene`, `ctx.scene`, `ctx.globals`, the camera |
+| [Spawning and prefabs](./spawning-and-prefabs.mdx) | `ctx.spawn`, `ref.part`, `ref.destroy`, `spawnClone`, `deleteNode` |
+| [Physics API](./physics-api.mdx) | Velocity, forces, raycasts, collisions, ragdolls, joints |
+| [Audio API](./audio-api.mdx) | `ctx.playSound`, `ctx.playTone`, Audio Sources, volume |
+| [Storage API](./storage-api.mdx) | `ctx.storage` save data |
+| [UI and DOM](./ui-and-dom.mdx) | UI controls (`ref.clicked`, `ref.value`, ...) and HTML UI (`ref.dom`) |
+| [3D API](./3d-api.mdx) | 3D transforms, models and VRM avatars, 3D particles, voxels, glass, fog |
+| [Network API](./network-api.mdx) | `ctx.net` multiplayer |
+| [Debugging](./debugging.mdx) | `console.log`, `print`, the Console panel, error isolation, the F3 profiler |
+| [Blocks](./blocks.mdx) | The Blocks language and how each block maps to code |
+| [Patterns](./patterns.mdx) | Idioms: init-once, timers, cooldowns, pools, caching |
+| [Cheatsheet](./cheatsheet.mdx) | Everything on one page |

@@ -1,0 +1,144 @@
+---
+title: Particles 3D
+sidebar_position: 32
+description: The Particle System 3D component - orbit-based emitters for swirls, vortexes, sparks and smoke, ribbon trails, behaviours with life curves, and fluid mode where particles merge into liquid.
+---
+
+# Particles 3D
+
+**Particle System 3D** emits glowing (or smoky) camera-facing particles in 3D space. Add it to a [Node3D](./3d-basics.mdx) from **Add Component → Effects 3D**. Particles live in meters and move with (or away from) the node.
+
+It runs in Design mode too, so you see the effect while you tune it. Starting or stopping Playground clears every emitter and replays its **Burst on play**, the way 2D particle systems restart on Play. For 2D particles, see [Particles 2D](./particles-2d.mdx).
+
+<Shot id="particles3d-leer" caption="Reyna's Leer demo: the ink orb made of a fluid-mode Particle System 3D, with the Particle System 3D Inspector open beside it" />
+
+## The orbit model
+
+Most effects people want in 3D (magic swirling round an orb, a vortex, a portal ring, embers rising round a fire) are motion **around a centre**. So instead of plain velocities, each particle lives as:
+
+- an **orbit**: an angle around its own orbit axis (the node's local Y, tilted at random by up to **Tilt** per particle, so a swarm forms crossing bands instead of one flat disc), advancing at **Swirl** degrees per second;
+- a **radius** from that axis, growing at **Outward** speed and pulled back towards the emitter **Radius** by **Pull** (a spring, which makes a thick, stable band instead of particles flying off);
+- a **height** along the axis, climbing at **Rise**;
+- plus a free **drift** on top (**Drift**, **Gravity**, **Turbulence**).
+
+So **Swirl 0, Pull 0** is a classic fountain or explosion, and **Swirl 200, Pull 4, Tilt 40** is a thick magical vortex. Because particles are stored in orbit coordinates, a fast swirl stays exactly on its band with no drift.
+
+## Inspector fields
+
+The top row has **Emitting** and a **Burst ✦** button that previews a burst.
+
+### Emission
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Emitting** | Emits continuously at **Rate** while on. Bursts work either way. | On |
+| **Rate / s** | New particles per second. | 60 |
+| **Burst on play** (**#**, **Max**) | Particles emitted at once when play starts; **Max** is the hard cap on live particles (the oldest make way). | 0, 600 |
+| **Lifetime (s)** | Seconds each particle lives. | 1.6 |
+| **Lifetime ±** | Random lifetime spread, `0..1` (0.3 = ±30 %). | 0.3 |
+
+### Shape
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Shape** | Where particles are born: **Point** (the origin), **Sphere** (inside a ball), **Shell** (on a ball's surface), **Ring** (round a ring in the local XZ plane). | Ring |
+| **Radius (m)** | Emitter size. | 1 |
+| **Thickness** | Random spread around the radius for Ring and Shell. | 0.15 |
+
+### Motion
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Swirl (°/s)** | Orbit speed round the node's Y axis; negative = the other way; 0 = no swirl. | 120 |
+| **Swirl ±** | Random orbit-speed spread, `0..1`. | 0.2 |
+| **Tilt (°)** | Random tilt of each particle's orbit: 0 = one flat band, 90 = every direction (a ball of orbits). | 25 |
+| **Pull** | Spring back to the emitter radius: 0 = none, 3–6 = a tight, thick band. | 2 |
+| **Outward (m/s)** | Speed away from the orbit axis; negative = inward. | 0 |
+| **Rise (m/s)** | Climb along the orbit axis. | 0 |
+| **Drift (m/s)** | Constant world velocity X, Y, Z. | `(0, 0, 0)` |
+| **Gravity** | Downward acceleration, m/s²; negative floats up. | 0 |
+| **Turbulence** | Random wobble strength, m/s. | 0.15 |
+| **Move with the node (local space)** | On: particles move, turn and scale with the node. Off: they stay where they were born, leaving a trail behind a moving emitter. | On |
+
+### Look
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Blend** | **Additive** adds light: glow, magic, fire (black is invisible). **Alpha** covers what's behind: smoke, dust, ink. | Additive |
+| **Size start → end** | Diameter in meters at birth and at death. | 0.25 → 0.05 |
+| **Colour: birth** / **mid-life** / **death** | Colour (with alpha) over each particle's life: birth → mid over the first half, mid → death over the second. | violet → purple → transparent dark violet |
+| **Intensity** | Brightness multiplier; above 1 = hotter glow. | 1 |
+| **Hardness** | 0 = soft glowing blobs, 1 = crisp solid shapes (ink, droplets, tendrils). | 0 |
+| **Trail segments** | Ribbon trails: each particle drags a tapering band along its path, in this many segments. 0 = off. With trails, **Size** is the ribbon's width at its head. | 0 |
+| **Trail length (s)** | How many seconds of path the ribbon covers (shown when trails are on). | 0.3 |
+| **Stretch** | Smears each particle along its motion into a streak this many seconds of travel long. 0 = round; 0.05–0.2 = streaks. | 0 |
+| **Seed** | Random seed; the same seed gives the same pattern. | 7 |
+
+### Fluid
+
+Tick **Liquid surface (particles merge)** to draw all of this emitter's particles (and ribbons) as **one liquid** that merges where it touches: ink, slime, water, lava. The liquid is coloured by **Colour: birth**; each particle's alpha over life is how much liquid it adds.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Threshold** | Lower = fatter, more merged liquid; higher = thinner, separate drops. | 0.5 |
+| **Fluid group** | Fluid emitters with the same group number are one liquid: their blobs merge with each other (the group uses its first emitter's colours). | 0 |
+| **Gloss** | Wet highlight strength; 0 = matte. | 0.6 |
+| **Rim colour** | Colour where the liquid's surface turns away (alpha = strength). | pink-magenta, 0.8 |
+
+## Behaviours
+
+**Behaviours** adds extra forces on top of the emitter's own motion, applied in order. Click **Add behaviour** and pick one:
+
+| Behaviour | What it does | Strength range |
+|---|---|---|
+| **Converge** | Moves particles **onto** the point: at strength 1 they sit exactly on it, at 0.5 halfway. Gathers to a spot, sucks into a portal, forms on a target. | `0..1` |
+| **Attract** | Accelerates particles towards the point (m/s²). They overshoot and swing back, like gravity. | `0..30` |
+| **Repel** | Accelerates particles away from the point (m/s²). | `0..30` |
+| **Drag** | Slows particles down (their swirl and any push), per second. | `0..10` |
+
+Each behaviour row has an on / off checkbox, a remove button, and:
+
+| Field | Meaning | Default |
+|---|---|---|
+| **Strength** | Overall strength (units above). | 1 |
+| **Point space** | **Local**: relative to the emitter, moving, turning and scaling with it. **World**: a fixed spot in the scene. | Local |
+| **Point** | The X, Y, Z point Converge / Attract / Repel use. | `(0, 0, 0)` |
+| Curve | Strength over each particle's life, multiplied by **Strength**. | Ramp in |
+
+The curve is a small editor with presets:
+
+| Preset | Shape | Use |
+|---|---|---|
+| **Ramp in** | none at birth → full at death | gather by the end |
+| **Late** | free for the first 40 %, then ramps to full | "fly out freely, then converge" |
+| **Ramp out** | full at birth → none at death | "start gathered, then spread" |
+| **Pulse** | builds up mid-life, then lets go | a breathing swarm |
+| **Constant** | the same all life | a steady force |
+
+## Scripting
+
+| Member | Meaning |
+|---|---|
+| `ref.burst3(count)` | Emit `count` particles at once, on top of the steady rate: explosions, casts, impacts. |
+
+```js
+// Reyna's Leer: on Space, the "leapers" emitter (Emitting off) throws out a burst.
+const space = ctx.keysDown.has(' ') || ctx.keysDown.has('space')
+if (space && !g.spaceWas) getCompByID('leapers').burst3(14)
+g.spaceWas = space
+```
+
+For effects that only fire on events, turn **Emitting** off and drive the emitter with bursts.
+
+## Recipes
+
+| Effect | Settings to start from |
+|---|---|
+| Magic vortex | Ring, Swirl 200, Pull 4, Tilt 40, Additive, violet colours |
+| Fountain / explosion | Point, Swirl 0, Pull 0, Outward 3, Gravity 9.8 |
+| Rising embers | Ring, Swirl 30, Rise 1, Turbulence 0.4, orange → red → transparent |
+| Smoke | Sphere, Alpha blend, Rise 0.6, Size 0.3 → 1.2, grey with fading alpha |
+| Tendrils | Trail segments 12, Hardness 1, Alpha blend, dark colours |
+| Ink blob | Fluid on, Hardness 1, a dark **Colour: birth** |
+
+Load **+ → Demos → Reyna's Leer** to see a full fluid-mode effect: a core blob, crawling blobs, leapers pulled back with an **Attract** behaviour on a **Late** curve, and droplets that **Converge**, all in one fluid group.

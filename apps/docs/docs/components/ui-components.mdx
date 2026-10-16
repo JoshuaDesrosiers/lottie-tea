@@ -1,0 +1,189 @@
+---
+title: UI components
+sidebar_position: 20
+description: Build a game HUD and menus from ordinary shapes and text with UI Anchor, UI Stack and UI Button, and decide how your scene meets the screen.
+---
+
+# UI components
+
+Toasty doesn't have a separate "UI system" with its own widgets. A menu or HUD is made of the same **shapes, text and images** as the rest of your scene, plus a few components that give them UI behaviour:
+
+| Component | Inspector name | What it does |
+|---|---|---|
+| UI Anchor | **UI Anchor** | Pins a node to a point of the screen (a corner, an edge, the centre) with an offset. |
+| UI Stack | **UI Stack** | Lays its children out in a row or column, with spacing, padding and alignment. |
+| UI Button | **UI Button** | Hover / press feedback and click events your scripts read. |
+
+This page covers those three, plus the scene's **Screen** settings. Related pages:
+
+- [UI controls](./ui-controls.mdx): toggles, radio groups, sliders, scrollbars, scroll views, and the full state-style reference.
+- [Responsive layout](./responsive-layout.mdx): flexbox **UI Layout**, **UI Show When**, Fixed vs Responsive screens and `ctx.screen`.
+- [HTML UI](./html-ui.mdx): real HTML + CSS boxes inside your scene.
+- [Scripting: UI and DOM](../scripting/ui-and-dom.mdx): the script side of everything here.
+
+All of these components live in the **UI** and **Layout** sections of the **Add Component** menu. A node can carry at most one of each.
+
+## The HUD layer: children of the Camera
+
+UI that should stay on screen while the world scrolls (a score, a health bar, a pause button) goes **under the scene's active Camera**. A child of the camera moves with it, so it stays put on screen however the camera follows the player.
+
+The **+ → UI** menu does this for you: its items (except **Icon**) are placed under the active Camera when the scene has one.
+
+:::tip
+If your scene has no camera, add one first (a node with a **Camera** component, set as the scene's main camera). Then UI Anchors have a screen to pin to and **+ → UI** puts new items in the right place.
+:::
+
+<Shot id="ui-hud-under-camera" caption="The Layers panel of the UI & Sound Lab demo: title, counter, button stack and settings panel all nested under Main Camera" />
+
+## The + → UI menu
+
+**+ → UI** builds ready-made pieces, already wired with the right components and child names. Everything one item adds is a single undo step.
+
+| Menu item | What it adds |
+|---|---|
+| **Responsive Page** | A full-screen **UI Layout** page (column, fills the screen) with a 56-unit **Header** and a **Cards** row of three cards that stacks into a column on phones. See [Responsive layout](./responsive-layout.mdx). |
+| **Row Layout** / **Column Layout** | A group with a **UI Layout** (row or column, gap 12, centred) holding three 120 × 60 items. |
+| **HTML + CSS** | A group with an **HTML UI** component, starting as a sample card. See [HTML UI](./html-ui.mdx). |
+| **Button** | A 180 × 48 rounded panel with a **UI Button** and a "Button" text label child. |
+| **Toggle** | A 26 × 26 box with a **UI Toggle** (on), a **Checkmark** child and a label. |
+| **Slider** | A 220 × 8 track with a **UI Slider**, plus **Fill** and **Handle** children. |
+| **Scrollbar** | A 12 × 180 track with a **UI Scrollbar** and a **Handle** child. |
+| **Scroll View** | A clipped 260 × 200 viewport with a **UI Scroll View**, a **Content** child (a **UI Stack** of ten items) and a linked **Scrollbar**. |
+| **Panel** | A 320 × 220 dark rectangle. |
+| **Label** | A text node. |
+| **Stack** | A group with a **UI Stack**. |
+| **Icon** | A Text node drawn with the Material Symbols (Rounded) font, showing the `star` icon at size 96. Unlike the items above it's added at the scene root, not under the Camera. |
+
+The controls (Toggle, Slider, Scrollbar, Scroll View) find their parts **by child name**. That's covered in detail in [UI controls](./ui-controls.mdx#children-by-name).
+
+## UI Anchor
+
+**UI Anchor** pins a node to a point of the screen. A title anchored to the top-centre stays at the top-centre whether the game window is wide, tall, or zoomed. It's meant for children of the active Camera (the HUD layer).
+
+The anchor point is measured in the camera's view rectangle: `(0, 0)` is the **bottom-left** corner and `(1, 1)` the **top-right**. The offset is then added in world units, with **+y up**.
+
+Anchors are applied every frame, in Design mode too, so what you see while authoring is what you get in Playground and exported games.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Pin to** | A 3 × 3 grid of buttons: the nine common screen points (corners, edge midpoints, centre). Click one to set **Point**. | Centre |
+| **Point** | The exact screen point, `0..1` on each axis. `(0, 1)` is top-left, `(1, 0)` bottom-right. | `(0.5, 0.5)` |
+| **Offset** | Distance from that point in world units, +y up. For example `(16, -16)` from the top-left corner sits 16 units in and 16 down. | `(0, 0)` |
+
+Typical settings, taken from the UI & Sound Lab demo:
+
+| Element | Point | Offset |
+|---|---|---|
+| Title at the top | `(0.5, 1)` | `(0, -30)` |
+| Click counter bottom-right | `(1, 0)` | `(-80, 20)` |
+| Hint line at the bottom | `(0.5, 0)` | `(0, 18)` |
+
+:::note
+The offset is to the node's **origin**, not its edge. A text node is centred on its origin, so a long label anchored to a corner needs an offset of at least half its width to stay fully on screen.
+:::
+
+When the scene's Screen is **Responsive** (see below), the view rectangle changes shape with the window, and anchored nodes follow. With a **Fixed** screen the rectangle is always the design size.
+
+## UI Stack
+
+**UI Stack** lays out its children in a single column or row. It's the simple, fast option, like Unity's Horizontal / Vertical Layout Group. For wrapping, growing to fill space, or different layouts on phones, use **UI Layout** instead (see [Responsive layout](./responsive-layout.mdx)).
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Direction** | **Vertical** (children run down a column) or **Horizontal** (across a row). | Vertical |
+| **Align** | How children line up across the run: **Start**, **Center** or **End**. In a vertical stack that's left / centre / right edges; in a horizontal one, top / middle / bottom. | Center |
+| **Spacing** | Gap between neighbouring children, world units. | 8 |
+| **Padding** | Space before the first child, world units. | 0 |
+
+How it places children:
+
+- The run starts at the stack node's own origin and grows **down** (vertical) or **right** (horizontal).
+- Each child is sized from its current bounds and placed so that its centre lands in its slot. Children are positioned, never resized.
+- Hidden children are skipped and take no space, so hiding a row closes the gap.
+- Like anchors, stacks are applied every frame, Design mode included.
+
+A stack can also carry a **UI Anchor**. In the UI & Sound Lab demo, the column of sound buttons is a group with both: the anchor places the column, and the stack lays out the buttons inside it.
+
+```text
+Main Camera
+└── Buttons         UI Stack (spacing 10) + UI Anchor (point 0.5, 0.5; offset -180, 90)
+    ├── beep        rectangle + UI Button
+    │   └── beepLabel
+    ├── laser       rectangle + UI Button
+    ├── coin        ...
+    └── boom        ...
+```
+
+## UI Button
+
+**UI Button** turns any node into a button. It gives hover and press feedback (colour tint, image swap, a small scale "pop") and reports clicks to scripts.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Interactable** | Off shows the **Disabled** look and ignores the pointer (no clicks). | On |
+| **Transition** and the state fields | How each state looks: Normal, Highlighted (hovered), Pressed, Disabled. | Color Tint, Unity-style colours, press scale 0.95 |
+
+The state look is the same block used by every UI control. Its fields (**Transition**, **Normal**, **Highlighted**, **Pressed**, **Disabled**, **Multiplier**, **Fade**, **Tint children**, **Hover scale**, **Press scale**, and the Sprite Swap images) are documented once in [UI controls: state styles](./ui-controls.mdx#state-styles-how-a-control-looks).
+
+### What counts as a click
+
+The button's hit area is its own bounds (the shape's box, the text's box). A click is a press **and** release over the button: press, drag off, release, and nothing fires. That's the usual UI behaviour, and it means a player can back out of an accidental press.
+
+Buttons inside a [Scroll View](./ui-controls.mdx#ui-scroll-view) only respond inside the view's visible area, so rows scrolled out of sight can't be clicked.
+
+### Reading clicks in a script
+
+Give the button node an **Id** in the Inspector (the **Id** field near the top), then look it up with `getCompByID`. A button's ref has three read-only flags:
+
+| Property | True when |
+|---|---|
+| `ref.clicked` | On the one frame the button was clicked (pressed and released over it). |
+| `ref.hovered` | While the pointer is over it. |
+| `ref.pressed` | While it's held down. |
+
+```js
+// A Code program on the scene's state machine.
+if (getCompByID('play').clicked) {
+  ctx.loadScene('Level 1')
+}
+
+// Hover feedback of your own, on top of the built-in tint.
+const play = getCompByID('play')
+getCompByID('playHint').visible = play.hovered
+```
+
+The UI & Sound Lab demo reads four buttons the same way:
+
+```js
+const c = (id) => getCompByID(id)
+if (c('beep').clicked) ctx.playTone({ freq: 660, duration: 0.15, type: 'square' })
+if (c('laser').clicked) ctx.playTone({ freq: 1400, to: 180, duration: 0.25, type: 'sawtooth', volume: 0.25 })
+```
+
+:::tip
+To react to clicks without any code, add the **On Click (Events)** component next to the UI Button. It runs a list of actions (set a property, load a scene, play a sound and so on) when the button is clicked. See [Properties and bindings](../editor/properties-and-bindings.mdx).
+:::
+
+Turning a button off from a script is done by hiding it (`ref.visible = false`); hidden controls don't take clicks. **Interactable** itself is an authored setting.
+
+## Screen settings
+
+How the whole scene meets the window is set per scene. Select nothing (or the scene) and look at the **Canvas** section of the Inspector.
+
+| Inspector field | Meaning | Default |
+|---|---|---|
+| **Screen** | **Fixed**: the scene's design size (its Canvas **Size**), scaled to fit the window with bars where the shape doesn't match. **Responsive**: the view fills the whole page or window, and the visible world area follows the screen's shape. | Fixed |
+| **Match** (Responsive only) | Which design axis keeps its size on screen, `0..1`. **0** keeps the design's width (a taller screen shows more height), **1** keeps its height (a wider screen shows more width), **0.5** blends the two. | 0.5 |
+| **Compact below** | A width in CSS pixels. Screens narrower than this count as **compact** (phones): compact UI Layout styles and *Show When: Compact* nodes apply. | 700 px |
+
+<Shot id="ui-screen-settings" caption="The Inspector's Canvas section with Screen set to Responsive, showing the Match slider and Compact below field" />
+
+With **Fixed**, UI Anchors still work: they pin to the edges of the design-size view. With **Responsive**, they pin to the edges of the real window, which is what you want for a game that should use the whole screen on any device.
+
+The full story of Responsive screens, breakpoints and flexbox layouts is on the [Responsive layout](./responsive-layout.mdx) page.
+
+## Try it
+
+Load **+ → Demos → UI & Sound Lab** in the editor. It uses every component on this page plus all of the [UI controls](./ui-controls.mdx), and its Code program is a compact example of reading them. You can also play it right here:
+
+<ToastyDemo game="/games/ui-sound-lab.teab" height={360} caption="UI & Sound Lab: anchored title and counter, a UI Stack of buttons, a slider, toggles and a scroll view" />

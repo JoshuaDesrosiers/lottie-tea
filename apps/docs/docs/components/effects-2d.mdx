@@ -1,0 +1,206 @@
+---
+title: Effects 2D
+sidebar_position: 7
+description: Live 2D draw effects and motion components - Drop Shadow, Outline, Repeater, Mirror, Wiggle, Parallax, Pixel Snap, Stroke Style, Camera Shake - plus clipping, Group Fill and Tree 2D.
+---
+
+# Effects 2D
+
+These components change **how a node is drawn** without touching its shape or its saved position, like layer effects in Photoshop or Figma, or modifiers in After Effects and Rive. They are live: edit the node and the effect follows. Each one affects the node **and everything inside it**, so put a Drop Shadow on a group to shadow a whole character.
+
+| Section in Add Component | Components |
+|---|---|
+| Effects 2D | Drop Shadow, Outline, Repeater, Mirror (symmetry), Stroke Style (dash, trim path), Pixel Snap |
+| Motion | Wiggle, Parallax, Camera Shake |
+| Nature | Tree 2D |
+
+This page also covers clipping (Clip children, Clip Options, Clip Fade, the old Mask) and Group Fill. For the per-node **Light Flicker** see [Lighting 2D](./lighting-2d.mdx#light-flicker).
+
+<Shot id="effects-2d-stack" caption="A pixel-art character with Outline (1 px, Smooth off) and Drop Shadow (Softness 0); the Inspector shows both effect cards" />
+
+:::tip
+Every number on these cards can be keyframed with **+ Property** in the Timeline, which is how you build motion graphics: animate a Repeater's step, a Stroke Style's Trim End, a Wiggle's amount. See [Animation timeline](../editor/animation-timeline.mdx).
+:::
+
+## Drop Shadow
+
+A solid-colour copy drawn behind the node (and everything inside it).
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Colour | The shadow colour, alpha included. | | black at 45 % |
+| Offset (px) X / Y | How far the shadow is shifted. | any | (6, -6) |
+| Softness (px) | Feathers the edge. 0 = a hard pixel-art shadow. | 0 to 40 | 0 |
+
+## Outline
+
+An outline round the node's silhouette, drawn behind it.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Colour | Outline colour. | | near-black |
+| Width (px) | How far the silhouette grows. | 0.5 to 20 | 2 |
+| Smooth (16 directions) | Rounder corners on thick vector outlines. Off uses 8 directions, which keeps pixel art blocky. | on/off | off |
+
+1 px with Smooth off is the classic pixel-art outline.
+
+## Repeater
+
+Copies of the node, each stepping from the previous one by an offset, a turn and a scale, fading toward the last. Copies draw behind the original.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Copies | How many, the original included. | 1 to 64 | 5 |
+| Step offset X / Y | Distance between copies, in the node's space (px). | any | (40, 0) |
+| Step turn (°) | Rotation added per copy. | any | 0 |
+| Step scale | Scale multiplied per copy. | 0.1 to 2 | 1 |
+| Last opacity | Opacity of the last copy (the ones between fade evenly). | 0 to 1 | 0.3 |
+
+Combine with Wiggle, or animate the step, for motion graphics (spirals, echoes, speed ghosts).
+
+## Mirror
+
+Mirrored copies across the node's own axes, through its origin: symmetric characters, patterns, kaleidoscopes, tiles.
+
+| Field | Meaning | Default |
+|---|---|---|
+| Mirror left ↔ right | Adds a copy flipped across the node's vertical axis. | on |
+| Mirror top ↕ bottom | Adds a copy flipped across its horizontal axis. | off |
+
+Both on gives four-way symmetry. Move the node's origin to move the mirror line.
+
+## Stroke Style
+
+Dashed strokes and **Trim Path** for a Shape that has a stroke.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Dash (px, 0 = solid) | Dash length. 0 = a solid line. | 0 to 200 | 12 |
+| Gap (px) | Space between dashes. | 0 to 200 | 8 |
+| Dash offset | Slides the dash pattern along the path. Animate it for marching ants. | any | 0 |
+| Trim start | Where the visible part of the path starts, as a share of its length. | 0 to 1 | 0 |
+| Trim end | Where it ends. Keyframe 0 → 1 to draw a line on. | 0 to 1 | 1 |
+| Trim offset | Slides the visible window round closed paths. | 0 to 1 | 0 |
+
+:::tip
+Draw-on signature: set Dash to 0, keyframe **Trim end** from 0 at frame 0 to 1 a second later.
+:::
+
+## Pixel Snap
+
+Snaps drawn positions to whole pixels so pixel art never shimmers while it moves at fractional speeds.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Grid (px) | The grid positions snap to. Match your art's pixel size. | 0.5 to 16 | 1 |
+| Angle step (°, 0 = free) | Snaps rotation to steps of this many degrees. 0 = free rotation. | any | 0 |
+
+For whole-camera pixel-perfect rendering see the Camera's **Pixel Perfect** option in [Camera](../editor/camera.mdx), and the scene's **Resolution** setting.
+
+## Wiggle
+
+Smooth random motion, like After Effects' `wiggle()`: floating, idle sway, nervous shake. It moves the node's *drawing*, not its saved position.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Position (px) | Up to how far it drifts from where it is. | 0 to 100 | 6 |
+| Rotation (°) | Up to how much it turns. | 0 to 90 | 4 |
+| Scale | Up to how much it grows or shrinks (a fraction). | 0 to 1 | 0 |
+| Frequency (Hz) | How many times a second the motion changes direction. | 0 to 30 | 2 |
+| Seed | Different seeds keep copies out of sync. | 0 to 9999 | 0 |
+
+## Parallax
+
+Shifts the node by a factor of the active camera's position, for depth in side-scrollers.
+
+| Field | Meaning | Default |
+|---|---|---|
+| Factor (x, y) | 0 = part of the world (no parallax). 0.5 = a far layer that moves at half speed. 1 = stuck to the camera (sky). Negative = a near foreground layer that moves faster. | (0.5, 0.5) |
+
+A typical side-scroller: sky 0.95, far hills 0.7, near hills 0.4, the level 0, foreground grass -0.3.
+
+## Camera Shake
+
+Screen shake for a camera. Put it on the node that has the **Camera** component. It only runs in Playground and exported games.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Amplitude (px) | How far the view moves at full strength. | 0 to 100 | 14 |
+| Frequency (Hz) | Shakes per second. | 0 to 60 | 18 |
+| Recovery (s) | How long a kick takes to settle. | 0.05 to 5 | 0.6 |
+| Constant shake | A shake that never settles (an earthquake, an engine rumble). 0 = none. | 0 to 1 | 0 |
+
+Shake is kicked from a script with `ref.shake2(amount)` on the camera node. Kicks **add up**, and the strength is **squared** (the "trauma" model), so small hits stay small and big ones feel big.
+
+```js
+const cam = getCompByID('camera')
+// A light bump when the player lands, a big shake on an explosion.
+if (ctx.globals.justLanded) cam.shake2(0.25)
+if (ctx.globals.boom) cam.shake2(1)
+```
+
+`shake2()` with no argument kicks by 0.5.
+
+## Clipping and masks
+
+Clipping hides the parts of a node's children that fall outside a shape. Particles and goo are clipped too.
+
+### Clip children to this shape
+
+Tick **Clip children to this shape** in the Inspector of a Shape: its children only show inside it. With it on (or on a group that has a mask child) more toggles appear underneath. They are stored as the **Clip Options** and **Clip Fade** components.
+
+| Toggle | Meaning | Range | Default |
+|---|---|---|---|
+| Invisible mask | The clipping shape only shapes the clip; it does not draw itself. | on/off | off |
+| Invert (hide inside) | Hides the children *inside* the shape (a no-go area) and shows them everywhere else. | on/off | off |
+| Mask opacity | With Invisible mask on: how much of the mask shape still shows. 0 = fully invisible. | 0 to 100 % | 0 % |
+| Hidden part opacity | The clipped-away part of the children shows at this opacity instead of disappearing. 0 = a hard cut. | 0 to 100 % | 0 % |
+
+<Shot id="clip-children-toggles" caption="A circle shape with Clip children to this shape ticked, the Invisible mask, Invert, Mask opacity and Hidden part opacity controls below it" />
+
+### Mask (old)
+
+Older files may contain a **Mask (old — use Clip children)** component. It clips the node and everything under it by another Shape (or a group of shapes) chosen in **Mask shape**, with **Show only inside** or **Hide inside (no-go)**. It still loads and works, but is no longer offered in Add Component: use Clip children instead.
+
+## Group Fill
+
+Select a **group** that contains shapes or text: the Inspector shows a **Fill** field for it. The colour or gradient is painted onto every Shape and Text inside it, as one edit (a gradient is laid across the whole group, in the group's space). The group remembers it as a **Group Fill** component; edit it with the Fill field or its gradient handles on the canvas.
+
+## Tree 2D
+
+A procedural tree: pick a species and a seed and it grows a trunk, branches and foliage in flat toon colours. It sways in the wind, drops leaves, can grow in when play starts, and shakes when a script pokes it. The trunk's foot is at the node's origin.
+
+| Field | Meaning | Range | Default |
+|---|---|---|---|
+| Species | **Oak**, **Pine**, **Birch**, **Sakura**, **Palm**, **Willow**. Each grows by its own rules, and picking one also sets its natural colours. | | Oak |
+| Seed | Same seed and settings = the same tree. **Roll** picks a random one. | 0 and up | 7 |
+| Height | Roughly how tall, world units. | 20 to 2000 | 180 |
+| Spread | How wide the branches fan out (1 = natural). | 0.2 to 2 | 1 |
+| Foliage | How much foliage. 0 = bare winter branches. | 0 to 2 | 1 |
+| Bark | Trunk colour. | | the species' bark |
+| Leaves | Foliage colour. | | the species' leaves |
+| Accent | Blossom (sakura) and fruit colour. | | the species' accent |
+| Wind | Steady wind: leans the tree and carries falling leaves. + = right. | -1 to 1 | 0.2 |
+| Sway | How much it sways. 0 = still. | 0 to 3 | 1 |
+| Leaf fall (/s) | Leaves dropping per second, in play. | 0 to 30 | 0.3 |
+| Grow in | In play, grows from a sapling over this many seconds. | 0.2 to 60 s | off, 3 s |
+
+| Call | What it does |
+|---|---|
+| `ref.shakeTree(strength)` | Shakes it: it sways hard for a moment and drops leaves. 0.5 = a nudge, 2 = a big shake. |
+| `ref.regrowTree()` | Restarts it. With Grow in on, it grows from a sapling again. |
+
+```js
+// Shake the tree when the player walks into it
+// (the tree node 'oak' carries a trigger Box Collider 2D).
+for (const c of ctx.collisions) {
+  const ids = [c.a && c.a.id, c.b && c.b.id]
+  if (c.started && ids.includes('player') && ids.includes('oak')) getCompByID('oak').shakeTree(1.5)
+}
+```
+
+## Related
+
+- [Post effects](./post-effects.mdx) for whole-screen effects (bloom, CRT, palettes).
+- [Sorting layers](./sorting-layers.mdx) for draw order.
+- [Shader graph](./shader-graph.mdx) for custom per-sprite looks.
