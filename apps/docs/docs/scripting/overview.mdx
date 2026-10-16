@@ -16,6 +16,21 @@ if (ctx.keysDown.has('right')) player.x += speed * ctx.deltaSeconds
 if (ctx.keysDown.has('left'))  player.x -= speed * ctx.deltaSeconds
 ```
 
+Every page in this section has labs like the one below: the code on the left is a real Code program running in a small scene (an orange `player`, a blue `ball`, a `crate`, five coins and a text `label`). Edit it and press **Run** (or Ctrl+Enter).
+
+<ScriptLab
+  title="Your first script"
+  code={`// A state's Code program. Runs every frame while the state is active.
+const player = getCompByID('player')
+const speed = 200
+if (ctx.keysDown.has('right')) player.x += speed * ctx.deltaSeconds
+if (ctx.keysDown.has('left'))  player.x -= speed * ctx.deltaSeconds
+if (ctx.keysDown.has('up'))    player.y += speed * ctx.deltaSeconds
+if (ctx.keysDown.has('down'))  player.y -= speed * ctx.deltaSeconds
+ctx.props.message = 'player at ' + Math.round(player.x) + ', ' + Math.round(player.y)`}
+  hint="Press Run, click the stage so it receives keys, then use the arrow keys. Edit the speed and press Run again."
+/>
+
 That is the whole model. The rest of this section is reference.
 
 :::note Scripts need the full engine

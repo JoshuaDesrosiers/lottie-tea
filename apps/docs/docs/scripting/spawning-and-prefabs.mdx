@@ -16,6 +16,10 @@ description: Creating and removing objects at runtime with ctx.spawn, ref.part a
 
 Use **`ctx.spawn` + `ref.destroy`** for anything a game creates and removes while playing: bullets, enemies, pickups, particles-as-nodes. It's the Unity `Instantiate` / `Destroy` pair and cleans up after itself when play stops. See [Prefabs](../editor/prefabs.mdx) for making prefabs.
 
+:::note About the labs on this page
+`ctx.spawn` needs a **prefab asset**, and the Script Lab scene has none, so in the labs below `ctx.spawn` returns `null`. The labs use `ref.destroy`, `spawnClone` and `deleteNode` on the lab's own nodes instead. In your own project, make a prefab first (see [Prefabs](../editor/prefabs.mdx)).
+:::
+
 ## ctx.spawn
 
 ```ts
@@ -41,6 +45,20 @@ if (unit) g.units.push({ ref: unit, hp: 10, bar: unit.part('HP') })
 - The object is fully live: physics, lights, particles and its own state machines run.
 - The returned ref is usable **immediately**, the same frame. The new nodes appear in `ctx.nodes` and `getCompByClass` from the **next** frame.
 - Spawned refs have an empty `id` and no classes. Keep the ref yourself (in an array on `ctx.globals`) rather than looking it up again.
+
+The null check matters. This lab asks for a prefab the scene doesn't have and logs what comes back:
+
+<ScriptLab
+  title="ctx.spawn returns null for an unknown prefab"
+  code={`// The lab scene has no prefab assets, so this logs null.
+const g = ctx.globals.sp || (ctx.globals.sp = { tried: false })
+if (!g.tried) {
+  g.tried = true
+  const unit = ctx.spawn('Unit', 0, 0)
+  if (unit) print('spawned ' + unit.name)
+  else print('no prefab named Unit; ctx.spawn returned', unit)
+}`}
+/>
 
 ## ref.part
 
@@ -74,6 +92,23 @@ for (let i = g.bullets.length - 1; i >= 0; i--) {
 
 Don't use a ref after destroying it; drop it from your lists.
 
+On the lab's authored coins, `destroy` hides them. Click a coin to destroy it:
+
+<ScriptLab
+  title="Click a coin to destroy it"
+  code={`// Authored nodes are hidden, not removed: they are back when the scene loads again.
+if (ctx.tap) {
+  for (const coin of getCompByClass('coin')) {
+    const d = Math.hypot(coin.x - ctx.mouseX, coin.y - ctx.mouseY)
+    if (coin.visible && d < 14) {
+      coin.destroy()
+      print('destroyed ' + coin.id)
+    }
+  }
+}`}
+  hint="Click directly on a yellow coin."
+/>
+
 ## spawnClone and deleteNode
 
 ```ts
@@ -93,6 +128,30 @@ if (g.balls.length > 25) deleteNode(g.balls.shift())
 :::caution These are document edits
 `spawnClone` and `deleteNode` change the document itself, each as an undoable edit, exactly like duplicating or deleting in the editor. Call them for discrete events, never every frame. For runtime objects prefer `ctx.spawn` and `ref.destroy`, which leave your scene untouched when play stops.
 :::
+
+Here is the pair in action. Each click clones `coin0` at the pointer; **X** deletes the oldest clone:
+
+<ScriptLab
+  title="Clone on click, delete with X"
+  code={`const g = ctx.globals.clones || (ctx.globals.clones = { list: [], xWas: false })
+const template = getCompByID('coin0')
+if (ctx.tap && template) {
+  const copy = spawnClone(template)
+  if (copy) {
+    copy.x = ctx.mouseX
+    copy.y = ctx.mouseY
+    g.list.push(copy)
+    print('clones: ' + g.list.length)
+  }
+}
+const x = ctx.keysDown.has('x')
+if (x && !g.xWas && g.list.length > 0) {
+  deleteNode(g.list.shift())
+  print('deleted one, ' + g.list.length + ' left')
+}
+g.xWas = x`}
+  hint="Click the stage to clone, then press X (the stage must have focus)."
+/>
 
 The low-level `ctx.spawnClone(id)`, `ctx.deleteNode(id)`, `ctx.spawnPrefab(name, parentId, x, y)` and `ctx.destroyNode(id)` take internal ids; use the ref forms above.
 

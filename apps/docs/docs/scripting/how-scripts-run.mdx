@@ -39,6 +39,19 @@ if (ctx.tap) g.clicks++
 getCompByID('label').textContent = 'Clicks: ' + g.clicks
 ```
 
+Run it and click the stage: `local` never gets past 1, while the values on `ctx.globals` keep counting.
+
+<ScriptLab
+  title="Locals reset, globals survive"
+  code={`let local = 0                 // fresh every frame
+local++
+const g = ctx.globals.counter || (ctx.globals.counter = { clicks: 0, frames: 0 })
+g.frames++                    // survives to the next frame
+if (ctx.tap) g.clicks++
+ctx.props.message = 'Clicks: ' + g.clicks + '   frames: ' + g.frames + '   local: ' + local`}
+  hint="Click the stage to count clicks. local is always 1."
+/>
+
 ## 3. Every state machine layer runs its own program
 
 A state machine can have extra **layers** (each with its own active state). Each frame Toasty runs the active state's program on the **base layer first**, then on every extra layer in order. All of them share the same `ctx.globals` and see the same scene. Each program can tell where it is running with `ctx.layer` (`null` on the base layer) and `ctx.state`.
@@ -69,6 +82,23 @@ A ref is a plain object with settable properties. Assigning `coin.x = 10` moves 
 
 **Reads come from a snapshot.** At the start of each frame Toasty copies every node's transform, visibility, colour, image and z-index into a compact table (the "scene mirror"). A ref made this frame reads from it. When you write a property, the ref remembers the new value, so reading it back in the same frame gives what you wrote (`x += 1` twice adds 2).
 
+The lab below shows both rules: two writes in one frame accumulate, and a ref cached on `ctx.globals` keeps its old `y` while `worldY` stays fresh.
+
+<ScriptLab
+  title="Snapshot reads and cached refs"
+  code={`const fresh = getCompByID('ball')                     // made this frame
+const g = ctx.globals.refs || (ctx.globals.refs = { ball: fresh, was: false })
+const p = getCompByID('player')
+p.x += 1
+p.x += 1                                              // reads back the write: +2 per frame
+if (p.x > 240) p.x = -240
+const space = ctx.keysDown.has('space')
+if (space && !g.was) fresh.velocity = { x: 0, y: 280 }
+g.was = space
+ctx.props.message = 'fresh y ' + Math.round(fresh.y) + '   cached y ' + Math.round(g.ball.y) + '   cached worldY ' + Math.round(g.ball.worldY)`}
+  hint="Click the stage and press space to kick the ball. The cached ref's y never changes; its worldY does."
+/>
+
 **Writes are batched.** The most common writes (`x`, `y`, `rotation`, `visible`, `fillColor`, `image`, `zIndex`) are queued and sent to the engine in one call at the end of the frame. Other operations (scale, text, physics, raycasts, ...) flush the queue first, so order is always preserved. You never need to think about this, except to know that writing hundreds of positions per frame is cheap.
 
 :::caution Refs kept across frames
@@ -87,12 +117,40 @@ Besides `ctx`, every program can use these names directly:
 | `console.log/info/debug/warn/error`, `print` | Write to the game [Console](./debugging.mdx) |
 | `add`, `subtract`, `multiply`, `divide`, `greaterThan`, `lessThan`, `equals`, `and`, `or`, `not`, `select`, `lerp`, `clamp`, `random` | Math helpers (also what Nodes-to-Code conversion emits) |
 
+The helpers are bare names, with no import:
+
+<ScriptLab
+  title="Helpers in scope"
+  code={`const p = getCompByID('player')
+const t = (Math.sin(ctx.time) + 1) / 2               // 0..1 and back
+p.x = lerp(-200, 200, t)
+p.y = clamp(ctx.mouseY, -95, 60)                       // follows the mouse, within limits
+const second = Math.floor(ctx.time)
+p.fillColor = [random(second), 0.45, 0.25, 1]          // a repeatable colour per second
+ctx.props.message = 'random(' + second + ') = ' + random(second).toFixed(3)`}
+  hint="Move the mouse up and down over the stage."
+/>
+
 Scripts are ordinary, unsandboxed JavaScript running on the page, so `Math`, `performance.now()`, `setTimeout`, `JSON`, arrays, classes and the rest of the language all work.
 
 ## 7. Errors never take the game down
 
 - A program that **does not compile** is reported once in the Console (with its line) and skipped until you edit it.
 - A program that **throws** loses only that frame; every other program and the engine keep running. Repeated errors collapse into one Console row with a count.
+
+Hold space in the lab below: the program throws every frame while the key is down, the Console reports it once with a count, and the engine keeps going.
+
+<ScriptLab
+  title="An error that only costs one frame"
+  code={`const p = getCompByID('player')
+p.rotation += 90 * ctx.deltaSeconds
+ctx.props.message = 'Hold space to throw'
+if (ctx.keysDown.has('space')) {
+  const enemy = getCompByID('enemy')   // no node has this id: null
+  enemy.x = 0                          // TypeError on this line
+}`}
+  hint="Click the stage, then hold space. The error shows with its line number and a repeat count; the scene keeps running."
+/>
 
 See [Debugging](./debugging.mdx).
 

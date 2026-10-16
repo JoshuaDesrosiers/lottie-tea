@@ -24,6 +24,8 @@ Physics reads go **straight to the engine**, not the frame snapshot, so a veloci
 | `ctx.raycast(...)` | function | First collider along a ray |
 | `ctx.collisions` | array | Contacts that began or ended this frame |
 
+The labs on this page use the Script Lab scene: `ball` and `crate` have a Rigidbody 2D, `ground` is a static collider, and `player` has no body at all (its `velocity` reads `null`). Gravity is the default, about 314 world units/s² downwards.
+
 ## ref.velocity
 
 ```ts
@@ -41,6 +43,29 @@ if (v) {
   p.velocity = { x: v.x + (dir * 170 - v.x) * k, y: v.y }   // steer x, keep gravity's y
 }
 ```
+
+Steer the ball with the arrow keys and jump with Space. The jump uses a short `ctx.raycast` down to check for ground:
+
+<ScriptLab
+  title="Steer and jump the ball"
+  code={`const g = ctx.globals.phys || (ctx.globals.phys = { spaceWas: false })
+const ball = getCompByID('ball')
+const v = ball.velocity
+if (v) {
+  const dir = (ctx.keysDown.has('right') ? 1 : 0) - (ctx.keysDown.has('left') ? 1 : 0)
+  const k = Math.min(1, ctx.deltaSeconds * 8)
+  ball.velocity = { x: v.x + (dir * 220 - v.x) * k, y: v.y }   // steer x, keep gravity's y
+
+  const space = ctx.keysDown.has('space')
+  const ground = ctx.raycast(ball.x, ball.y, 0, -1, 20, ball)  // ignore the ball itself
+  if (space && !g.spaceWas && ground) {
+    ball.velocity = { x: ball.velocity.x, y: 300 }
+    print('jumped off ' + (ground.ref ? ground.ref.id : 'something'))
+  }
+  g.spaceWas = space
+}`}
+  hint="Click the stage, then use the arrow keys and Space."
+/>
 
 ## ref.angularVelocity
 
@@ -65,6 +90,25 @@ Call `addForce` every frame for steady thrust; use `addImpulse` once for jumps a
 if (ctx.keysDown.has('w')) ship.addForce(0, 900)
 if (jumpPressed && onGround) player.addImpulse(0, 340)
 ```
+
+Hold **W** to thrust the crate upwards with `addForce`, and press **K** for a sideways `addImpulse` kick. The crate's mass is 2, so a force above about 630 beats gravity, and an impulse of 500 changes its speed by roughly 250 units/s (impulse / mass):
+
+<ScriptLab
+  title="Thrust and kick the crate"
+  code={`const g = ctx.globals.thrust || (ctx.globals.thrust = { kWas: false })
+const crate = getCompByID('crate')
+if (ctx.keysDown.has('w')) crate.addForce(0, 1200)       // every frame while held
+const k = ctx.keysDown.has('k')
+if (k && !g.kWas) {
+  crate.addImpulse(-500, 300)                            // once per press
+  print('kick, velocity now', crate.velocity)
+}
+g.kWas = k
+// Keep it on screen: no flying out of the top
+const v = crate.velocity
+if (v && crate.y > 110 && v.y > 0) crate.velocity = { x: v.x, y: 0 }`}
+  hint="Click the stage, then hold W or press K."
+/>
 
 ## ctx.raycast
 
@@ -110,6 +154,26 @@ for (const c of ctx.collisions) {
 }
 ```
 
+This lab logs every contact as it begins and ends. Press Space to throw the ball up again:
+
+<ScriptLab
+  title="Log collision events"
+  code={`const g = ctx.globals.hits || (ctx.globals.hits = { spaceWas: false, count: 0 })
+for (const c of ctx.collisions) {
+  const a = c.a ? c.a.id : '?'
+  const b = c.b ? c.b.id : '?'
+  print((c.started ? 'began: ' : 'ended: ') + a + ' + ' + b)
+  if (c.started) {
+    g.count += 1
+    ctx.props.message = 'contacts: ' + g.count
+  }
+}
+const space = ctx.keysDown.has('space')
+if (space && !g.spaceWas) getCompByID('ball').velocity = { x: -120, y: 320 }
+g.spaceWas = space`}
+  hint="Click the stage, then press Space."
+/>
+
 Tracking "who is inside a zone":
 
 ```js
@@ -138,6 +202,24 @@ The Rigidbody 2D's body type (`null` without one). Assign to switch, e.g. hand a
 crate.bodyType = 'Dynamic'
 crate.velocity = { x: 300, y: 200 }
 ```
+
+Switch body types from the state machine. **Excited** makes the crate `Static` (frozen where it is); **Calm** hands it back to physics as `Dynamic`. Press **K** first to toss it into the air:
+
+<ScriptLab
+  title="Freeze the crate with bodyType"
+  code={`const g = ctx.globals.body || (ctx.globals.body = { last: null, kWas: false })
+const crate = getCompByID('crate')
+if (g.last !== ctx.state) {                // once per state change
+  g.last = ctx.state
+  crate.bodyType = ctx.state === 'Excited' ? 'Static' : 'Dynamic'
+  print(ctx.state + ': crate is ' + crate.bodyType)
+}
+const k = ctx.keysDown.has('k')
+if (k && !g.kWas && crate.bodyType === 'Dynamic') crate.addImpulse(0, 700)
+g.kWas = k`}
+  controls={[{ label: 'Freeze (Excited)', input: ['excited', true] }, { label: 'Release (Calm)', input: ['excited', false] }]}
+  hint="Click the stage and press K, then press Freeze while the crate is in the air."
+/>
 
 ## ref.ragdoll
 
@@ -194,6 +276,8 @@ if (ctx.tap) {
   g.launch.push({ id: 'shot0', v: { x: 0, y: 4, z: -12 } })
 }
 ```
+
+The 3D Script Lab scene has no Rigidbody 3D or Collider 3D, so there is no live lab for this section. The Physics 3D Lab demo in the editor runs these members.
 
 ### ctx.raycast3
 

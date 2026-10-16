@@ -34,6 +34,18 @@ const dx = (keys.has('d') || keys.has('right') ? 1 : 0) - (keys.has('a') || keys
 getCompByID('player').x += dx * 200 * ctx.deltaSeconds
 ```
 
+<ScriptLab
+  title="Held keys"
+  code={`const keys = ctx.keysDown
+const player = getCompByID('player')
+const dx = (keys.has('d') || keys.has('right') ? 1 : 0) - (keys.has('a') || keys.has('left') ? 1 : 0)
+const dy = (keys.has('w') || keys.has('up') ? 1 : 0) - (keys.has('s') || keys.has('down') ? 1 : 0)
+player.x += dx * 200 * ctx.deltaSeconds
+player.y += dy * 200 * ctx.deltaSeconds
+ctx.props.message = 'Held: ' + ([...keys].join(', ') || 'nothing')`}
+  hint="Click the stage, then use WASD or the arrow keys. The label lists every held key name, mouse buttons included."
+/>
+
 ### Key names
 
 Names are the browser's `KeyboardEvent.key`, **lowercased**, with five renamed:
@@ -75,6 +87,20 @@ if (jump && !g.jumpWas) doJump()       // only on the frame it goes down
 g.jumpWas = jump
 ```
 
+<ScriptLab
+  title="One jump per press"
+  code={`const g = ctx.globals.input || (ctx.globals.input = { jumpWas: false, jumps: 0 })
+const jump = ctx.keysDown.has('space')
+if (jump && !g.jumpWas) {                  // only on the frame it goes down
+  g.jumps++
+  getCompByID('ball').velocity = { x: 0, y: 260 }
+  print('jump ' + g.jumps)
+}
+g.jumpWas = jump
+ctx.props.message = 'Jumps: ' + g.jumps + ' (holding space does not repeat)'`}
+  hint="Click the stage, then tap or hold space."
+/>
+
 :::tip Ignore a key held over from the previous screen
 When you switch scenes or states with Enter or a click, the key is still down on the first frame of the new one. Start the "was" flag as `true` so the first press is ignored: `g.keyWas = true`. The built-in demos do exactly this.
 :::
@@ -94,6 +120,19 @@ cursor.x = ctx.mouseX
 cursor.y = ctx.mouseY
 ```
 
+<ScriptLab
+  title="Mouse position and buttons"
+  code={`const player = getCompByID('player')
+player.x = ctx.mouseX
+player.y = ctx.mouseY
+const k = ctx.keysDown
+player.fillColor = k.has('mouseleft') ? [0.25, 0.47, 0.95, 1]
+  : k.has('mouseright') ? [0.9, 0.2, 0.35, 1]
+  : [0.96, 0.55, 0.15, 1]
+ctx.props.message = 'mouse ' + Math.round(ctx.mouseX) + ', ' + Math.round(ctx.mouseY)`}
+  hint="Move over the stage; hold the left or right button to recolour the player."
+/>
+
 Point-in-rectangle hit test, the way the demos build simple buttons:
 
 ```js
@@ -102,6 +141,23 @@ function over(x, y, w, h) {
 }
 if (over(0, -90, 200, 64) && ctx.tap) startGame()
 ```
+
+The same hit test with `ctx.tap`, used to pick coins off the stage:
+
+<ScriptLab
+  title="Tap the coins"
+  code={`function over(x, y, w, h) {
+  return Math.abs(ctx.mouseX - x) < w / 2 && Math.abs(ctx.mouseY - y) < h / 2
+}
+for (const coin of getCompByClass('coin')) {
+  if (ctx.tap && coin.visible && over(coin.x, coin.y, 24, 24)) {
+    coin.visible = false
+    ctx.props.score += 1
+    print('tapped ' + coin.id)
+  }
+}
+ctx.props.message = 'Tap the coins. Score: ' + ctx.props.score`}
+/>
 
 For real buttons, prefer a **UI Button** component and `ref.clicked` ([UI and DOM](./ui-and-dom.mdx)).
 
@@ -135,6 +191,21 @@ const g = ctx.globals.zoom || (ctx.globals.zoom = { z: 1 })
 g.z = Math.max(0.25, Math.min(4, g.z * (1 - ctx.wheelY * 0.001)))
 ```
 
+<ScriptLab
+  title="Wheel and mouse movement"
+  code={`const g = ctx.globals.wheel || (ctx.globals.wheel = { z: 1, spin: 0 })
+g.z = Math.max(0.25, Math.min(4, g.z * (1 - ctx.wheelY * 0.001)))
+if (ctx.keysDown.has('mouse')) g.spin -= ctx.mouseDX            // drag to spin
+const p = getCompByID('player')
+p.x = 0
+p.y = -20
+p.scaleX = g.z
+p.scaleY = g.z
+p.rotation = g.spin
+ctx.props.message = 'scale ' + g.z.toFixed(2) + '   spin ' + Math.round(g.spin)`}
+  hint="Scroll over the stage to scale the player; drag sideways to spin it."
+/>
+
 UI Scroll Views read the wheel on their own; you don't need this for them.
 
 ## ctx.tap
@@ -164,6 +235,21 @@ if (ctx.swipe) {
 }
 ```
 
+<ScriptLab
+  title="Taps and swipes"
+  code={`const p = getCompByID('player')
+if (ctx.tap) print('tap at', Math.round(ctx.mouseX), Math.round(ctx.mouseY))
+if (ctx.swipe) {
+  const s = ctx.swipe
+  print('swipe', s.dir, 'dx', Math.round(s.dx), 'dy', Math.round(s.dy))
+  const move = { left: [-60, 0], right: [60, 0], up: [0, 60], down: [0, -60] }[s.dir]
+  p.x = clamp(p.x + move[0], -210, 210)
+  p.y = clamp(p.y + move[1], -95, 80)
+}
+ctx.props.message = 'Click for a tap, flick for a swipe'`}
+  hint="Click the stage for a tap; press, flick quickly and release for a swipe. The player steps in the swipe's direction."
+/>
+
 ## Pointer lock
 
 ```ts
@@ -178,6 +264,25 @@ Pointer lock hides the cursor and gives unlimited mouse movement. Browsers only 
 if (!ctx.pointerLocked) ctx.requestPointerLock()      // click to start looking around
 if (ctx.keysDown.has('tab')) ctx.exitPointerLock()    // back to a normal cursor
 ```
+
+<ScriptLab
+  title="Pointer lock"
+  code={`const g = ctx.globals.look || (ctx.globals.look = { x: 0, y: 0, was: false })
+if (!ctx.pointerLocked) ctx.requestPointerLock()       // arms it: the next click locks
+if (ctx.pointerLocked) {
+  g.x = clamp(g.x + ctx.mouseDX * 0.5, -220, 220)
+  g.y = clamp(g.y - ctx.mouseDY * 0.5, -120, 120)     // screen +y is down
+}
+const p = getCompByID('player')
+p.x = g.x
+p.y = g.y
+if (ctx.pointerLocked !== g.was) {
+  g.was = ctx.pointerLocked
+  print(g.was ? 'pointer locked' : 'pointer released')
+}
+ctx.props.message = ctx.pointerLocked ? 'Locked: move the mouse, Esc releases' : 'Click the stage to lock the pointer'`}
+  hint="Click the stage to lock the pointer, press Esc to release it."
+/>
 
 ## See also
 

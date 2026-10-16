@@ -77,6 +77,7 @@ mod demo_liquid;
 mod demo_torture;
 mod demo_3d;
 mod demo_games;
+mod demo_lab;
 mod demo_lite;
 mod demo_ui;
 mod demo_responsive;

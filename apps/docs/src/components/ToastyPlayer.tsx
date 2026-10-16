@@ -46,10 +46,14 @@ export interface ToastyPlayerProps {
   fit?: 'contain' | 'cover'
   keyboard?: 'focus' | 'window' | 'none'
   background?: string
+  /** Engine embed `program`: run this Code program in every state. */
+  program?: string
   className?: string
   style?: CSSProperties
   /** Docs only: start without waiting for a click. */
   autoStart?: boolean
+  /** Docs only: changing this number starts (or restarts) the player. */
+  startSignal?: number
   /** Docs only: what the Run poster says. */
   label?: ReactNode
   onReady?: (player: ToastyHandle) => void
@@ -58,6 +62,8 @@ export interface ToastyPlayerProps {
   onSceneChange?: (event: { scene: string; previous: string | null }) => void
   onPropChange?: (event: { name: string; value: unknown }) => void
   onError?: (error: unknown) => void
+  /** Console lines from the game's scripts (engine `log` event). */
+  onLog?: (event: { level: 'log' | 'warn' | 'error'; message: string; line?: number; count: number }) => void
 }
 
 // ---- One running player per page ----
@@ -111,6 +117,10 @@ export const ToastyPlayer = forwardRef<ToastyHandle | null, ToastyPlayerProps>(f
   useImperativeHandle(ref, () => player as ToastyHandle, [player])
 
   useEffect(() => {
+    if (props.startSignal) activeStore.set(id)
+  }, [props.startSignal])
+
+  useEffect(() => {
     if (props.autoStart && activeStore.get() === null) activeStore.set(id)
     return () => {
       if (activeStore.get() === id) activeStore.set(null)
@@ -141,6 +151,7 @@ export const ToastyPlayer = forwardRef<ToastyHandle | null, ToastyPlayerProps>(f
           fit: p.fit,
           keyboard: p.keyboard,
           background: p.background,
+          program: p.program,
         })
         if (cancelled) {
           instance.destroy()
@@ -152,6 +163,7 @@ export const ToastyPlayer = forwardRef<ToastyHandle | null, ToastyPlayerProps>(f
         instance.on('scene', (e) => latest.current.onSceneChange?.(e))
         instance.on('prop', (e) => latest.current.onPropChange?.(e))
         instance.on('error', (e) => latest.current.onError?.(e.error))
+        instance.on('log', (e) => latest.current.onLog?.(e))
         for (const [name, value] of changed(undefined, latest.current.inputs)) instance.setInput(name, value)
         sentInputs.current = latest.current.inputs ? { ...latest.current.inputs } : undefined
         setPlayer(instance)
@@ -171,7 +183,7 @@ export const ToastyPlayer = forwardRef<ToastyHandle | null, ToastyPlayerProps>(f
       engineQueue = engineQueue.then(() => doomed?.destroy())
       made = null
     }
-  }, [active, game, wasm, props.fit, props.keyboard, props.background])
+  }, [active, game, wasm, props.fit, props.keyboard, props.background, props.program, props.startSignal])
 
   useEffect(() => {
     if (!player) return

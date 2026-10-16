@@ -10,6 +10,8 @@ description: Scripting 3D nodes - transforms, look-at, model animation, VRM avat
 
 **Vectors:** where a method takes a vector (`Vec3` below) you can pass `{ x, y, z }` or `[x, y, z]`. Units are meters; angles are degrees.
 
+The labs on this page use the 3D Script Lab scene: a camera `cam3d` at (0, 2.6, 7), a sun, a floor, and three meshes: `cube` at (-2.2, 0.6, 0), `sphere` at (0, 0.6, 0) and `torus` at (2.2, 0.7, 0). It has no models, avatars, particles, voxels or glass, so those sections are reference only.
+
 ## Transform
 
 | Member | Type | Description |
@@ -33,6 +35,40 @@ cube.position3 = { ...p, y: 1 + Math.sin(ctx.time * 2) * 0.25 }   // bob
 cube.position3.x += 1
 ```
 
+Spin, bob and tumble the three meshes. Each assignment is a whole new object:
+
+<ScriptLab
+  scene="lab3d"
+  title="Spin, bob and tumble"
+  code={`const cube = getCompByID('cube')
+const sphere = getCompByID('sphere')
+const torus = getCompByID('torus')
+cube.rotation3 = { x: 0, y: ctx.time * 90, z: 0 }            // 90 degrees a second
+const p = sphere.position3
+sphere.position3 = { x: p.x, y: 0.6 + Math.abs(Math.sin(ctx.time * 3)) * 0.8, z: p.z }
+torus.rotation3 = { x: ctx.time * 60, y: ctx.time * 20, z: 0 }`}
+/>
+
+Move the cube with the arrow keys. The **Excited** state scales it up:
+
+<ScriptLab
+  scene="lab3d"
+  title="Move and scale the cube"
+  code={`const cube = getCompByID('cube')
+const p = cube.position3
+const step = 3 * ctx.deltaSeconds                            // 3 meters a second
+let dx = 0, dz = 0
+if (ctx.keysDown.has('left')) dx -= step
+if (ctx.keysDown.has('right')) dx += step
+if (ctx.keysDown.has('up')) dz -= step                       // -Z is away from the camera
+if (ctx.keysDown.has('down')) dz += step
+cube.position3 = { x: p.x + dx, y: p.y, z: p.z + dz }
+const s = ctx.state === 'Excited' ? 1.6 : 1
+cube.scale3 = { x: s, y: s, z: s }`}
+  controls={[{ label: 'Big (Excited)', input: ['excited', true] }, { label: 'Normal (Calm)', input: ['excited', false] }]}
+  hint="Click the stage, then use the arrow keys."
+/>
+
 ### lookAt3
 
 ```ts
@@ -45,6 +81,18 @@ Rotates the node so its forward axis points at the world point. Cameras and ligh
 const t = getCompByID('target').position3
 getCompByID('camera').lookAt3(t.x, t.y, t.z)
 ```
+
+Orbit the camera around the scene and keep it aimed at the sphere:
+
+<ScriptLab
+  scene="lab3d"
+  title="Orbit the camera with lookAt3"
+  code={`const cam = getCompByID('cam3d')
+const a = ctx.time * 0.5                                     // radians for Math.sin / cos
+cam.position3 = { x: Math.sin(a) * 7, y: 2.6, z: Math.cos(a) * 7 }
+cam.lookAt3(0, 0.6, 0)                                       // the sphere's centre
+getCompByID('cube').rotation3 = { x: 0, y: ctx.time * 45, z: 0 }`}
+/>
 
 A position written this frame reads back immediately from `position3`; on a later frame it reads the engine's value.
 
@@ -223,5 +271,23 @@ Applies until Playground stops. `null` restores the defaults. Usually the fog ma
 ```js
 ctx.setEnvironment3({ fog: [0.62, 0.78, 0.95], fogDensity: 1 / 60, ambient: [0.35, 0.38, 0.45] })
 ```
+
+Toggle fog from the state machine. The environment is set once per state change, not every frame:
+
+<ScriptLab
+  scene="lab3d"
+  title="Fog on and off"
+  code={`const g = ctx.globals.env || (ctx.globals.env = { last: null })
+if (g.last !== ctx.state) {
+  g.last = ctx.state
+  if (ctx.state === 'Excited') ctx.setEnvironment3({ fog: [0.86, 0.88, 0.92], fogDensity: 1 / 8, ambient: [0.5, 0.45, 0.4] })
+  else ctx.setEnvironment3(null)                             // back to the defaults
+  print('environment for ' + ctx.state)
+}
+const cam = getCompByID('cam3d')
+cam.position3 = { x: 0, y: 2.6, z: 7 + Math.sin(ctx.time) * 3 }   // dolly in and out
+cam.lookAt3(0, 0.6, 0)`}
+  controls={[{ label: 'Fog (Excited)', input: ['excited', true] }, { label: 'Clear (Calm)', input: ['excited', false] }]}
+/>
 
 The low-level `ctx.setTransform3D`, `ctx.setAnimation3D`, `ctx.burstParticles3D`, `ctx.setVoxels`/`setVoxel`/`setVoxelChunk`/`unloadVoxelChunk`, `ctx.model3.*` and `ctx.glass.*` take internal ids; they're what the ref members above call.

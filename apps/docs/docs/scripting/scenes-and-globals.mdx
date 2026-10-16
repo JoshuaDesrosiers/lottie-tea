@@ -58,6 +58,8 @@ function go(scene) {
 }
 ```
 
+The Script Lab game used on these pages contains only one scene, so the labs below can't switch scenes. They show `ctx.scene`, `ctx.globals` and the camera.
+
 ## ctx.globals
 
 ```ts
@@ -88,6 +90,27 @@ const S = ctx.globals.match3 || (ctx.globals.match3 = {})   // whole session
 const g = ctx.globals.m3scene || (ctx.globals.m3scene = {}) // this screen's cached refs
 ```
 
+Two namespaced keys, one for the session and one for this screen. State changes reset `ctx.time` but not `ctx.globals`:
+
+<ScriptLab
+  title="Session state on ctx.globals"
+  code={`const S = ctx.globals.game || (ctx.globals.game = { clicks: 0, stateChanges: 0 })   // whole session
+const g = ctx.globals.labScreen || (ctx.globals.labScreen = { state: null, was: false })
+if (g.state !== ctx.state) {
+  g.state = ctx.state
+  S.stateChanges++
+}
+if (ctx.tap) S.clicks++
+if (ctx.scene === 'Script Lab') {
+  ctx.props.message = ctx.scene + ': ' + S.clicks + ' clicks, ' + S.stateChanges + ' state entries'
+}
+const space = ctx.keysDown.has('space')
+if (space && !g.was) print('ctx.globals keys:', Object.keys(ctx.globals).join(', '))
+g.was = space`}
+  controls={[{ label: 'Excite', input: ['excited', true] }, { label: 'Calm', input: ['excited', false] }]}
+  hint="Click the stage to count, change state with the buttons, press space to list the globals keys."
+/>
+
 ## ctx.camera and ctx.setCamera
 
 ```ts
@@ -107,3 +130,23 @@ ctx.setCamera(c.panX + (p.x - c.panX) * k, c.panY + (p.y - c.panY) * k, c.zoom)
 :::note Scenes with a camera node
 When the scene has its own **Camera** node (the Main Camera), that camera decides what's shown. Move the camera node with its ref (`getCompByID('Main Camera').x = ...`) and use its components (Camera Shake via [`ref.shake2`](./nodes-and-refs.mdx)). `ctx.setCamera` is for scenes without one. See [Camera](../editor/camera.mdx).
 :::
+
+The lab scene has a Main Camera node (id `camera`), so camera-follow moves that node:
+
+<ScriptLab
+  title="Follow the player with the camera node"
+  code={`const p = getCompByID('player')
+const keys = ctx.keysDown
+const step = 220 * ctx.deltaSeconds
+if (keys.has('left')) p.x -= step
+if (keys.has('right')) p.x += step
+if (keys.has('up')) p.y += step
+if (keys.has('down')) p.y -= step
+
+const cam = getCompByID('camera')                     // the lab's Main Camera node
+const k = 1 - Math.exp(-4 * ctx.deltaSeconds)
+cam.x += (p.x - cam.x) * k
+cam.y += (p.y + 95 - cam.y) * k
+ctx.props.message = 'camera at ' + Math.round(cam.x) + ', ' + Math.round(cam.y)`}
+  hint="Click the stage, then drive off the edge with the arrow keys. The HUD box is a child of the camera, so it stays put."
+/>

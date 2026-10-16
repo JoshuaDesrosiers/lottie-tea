@@ -22,6 +22,22 @@ print('hp', g.hp, 'pos', { x: p.x, y: p.y })
 if (!getCompByID('player')) console.warn('no node with id "player" in', ctx.scene)
 ```
 
+Each lab on this docs site has the same Console under its stage. This one logs once at start (values, an object, a warning and an error message), then once a second:
+
+<ScriptLab
+  title="console.log, print, warn and error"
+  code={`const g = ctx.globals.dbg || (ctx.globals.dbg = { started: false })
+if (!g.started) {
+  g.started = true
+  print('hello from', ctx.scene, ctx.state)
+  console.log({ player: { x: getCompByID('player').x }, coins: getCompByClass('coin').length })
+  console.warn('a warning')
+  console.error('an error message (nothing was thrown)')
+}
+// Throttled: one line per second, not 60
+if (Math.floor(ctx.time) !== Math.floor(ctx.time - ctx.deltaSeconds)) print('t =', Math.floor(ctx.time))`}
+/>
+
 :::caution Don't log every frame
 A `print` in the frame body runs 60 times a second. Identical consecutive lines collapse into one row with a count, but changing values don't. Log on events (a click, a state entry), or throttle:
 
@@ -51,6 +67,28 @@ Open it from the bottom dock's **Console** tab (it stays visible while playing),
 | **Error in a callback** (DOM listener, `setTimeout`, promise) | Caught and reported as *Async*, with the location in your script |
 | **Engine error** | The frame is skipped and the loop carries on; reported as *Engine* |
 
+Break things on purpose. Line 4 throws every frame, so the Console shows one error with its **line number** and a climbing count, and line 5 never runs. Fix the id on line 3 and press Run: the player starts moving.
+
+<ScriptLab
+  title="A runtime error, with its line"
+  code={`// Line 4 throws every frame; line 5 never runs.
+const player = getCompByID('player')
+const typo = getCompByID('playr')        // wrong id: null
+typo.x = 0                               // TypeError on this line
+player.x = Math.sin(ctx.time) * 120`}
+/>
+
+A syntax error is different: the program doesn't compile, it's reported **once**, and nothing in it runs until you fix it (here, the missing `)` on line 3):
+
+<ScriptLab
+  title="A syntax error stops the whole program"
+  code={`const player = getCompByID('player')
+player.x = Math.sin(ctx.time) * 120
+if (ctx.time > 1 {
+  print('this never compiles')
+}`}
+/>
+
 So a typo never freezes the game, but a program that throws on line 3 every frame never reaches line 4. Fix the first error first.
 
 ## Common mistakes
@@ -74,6 +112,30 @@ So a typo never freezes the game, but a program that throws on line 3 every fram
 ```js
 if (ctx.keysDown.has('f9')) print(JSON.stringify(ctx.globals.myGame).slice(0, 500))
 ```
+
+Collect coins with the arrow keys, then press **I** to print the game state. Printing on the key's press edge keeps it to one line per press:
+
+<ScriptLab
+  title="Inspect ctx.globals"
+  code={`const g = ctx.globals.game || (ctx.globals.game = { coins: 0, taken: [], iWas: false })
+const p = getCompByID('player')
+const step = 160 * ctx.deltaSeconds
+if (ctx.keysDown.has('left')) p.x -= step
+if (ctx.keysDown.has('right')) p.x += step
+if (ctx.keysDown.has('up')) p.y += step
+if (ctx.keysDown.has('down')) p.y -= step
+for (const c of getCompByClass('coin')) {
+  if (c.visible && Math.hypot(c.x - p.x, c.y - p.y) < 24) {
+    c.visible = false
+    g.coins += 1
+    g.taken.push(c.id)
+  }
+}
+const i = ctx.keysDown.has('i')
+if (i && !g.iWas) print(JSON.stringify(ctx.globals.game).slice(0, 500))
+g.iWas = i`}
+  hint="Click the stage, move with the arrow keys, press I. Press F3 on the stage for the profiler."
+/>
 
 Scripts are real JavaScript running on the page, so a `debugger` statement pauses in the browser's DevTools when they're open (stack frames show as `an1script://Scene/Layer/State`).
 

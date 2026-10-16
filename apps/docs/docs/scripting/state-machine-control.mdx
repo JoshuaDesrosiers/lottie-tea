@@ -41,6 +41,21 @@ ctx.setInput('weapon', 'bow')                   // an Enum input
 - An unknown input name logs a warning to the browser console and does nothing.
 - Setting an input to the value it already has is harmless, but if you set many each frame, only send changes (see below).
 
+The script decides what is true (the player is right of centre) and the machine's `excited` transitions pick the state:
+
+<ScriptLab
+  title="Drive inputs from game values"
+  code={`const player = getCompByID('player')
+const keys = ctx.keysDown
+const dx = (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0)
+player.x = clamp(player.x + dx * 180 * ctx.deltaSeconds, -220, 220)
+ctx.setInput('excited', player.x > 0)              // Bool: Calm <-> Excited
+ctx.setInput('speed', Math.abs(dx) * 180)          // Number (no transition uses it here)
+player.fillColor = ctx.state === 'Excited' ? [0.9, 0.2, 0.35, 1] : [0.96, 0.55, 0.15, 1]
+ctx.props.message = 'state ' + ctx.state + ' (cross the middle to switch)'`}
+  hint="Click the stage, then move with the left and right arrow keys."
+/>
+
 ## ctx.fireTrigger
 
 ```ts
@@ -53,6 +68,24 @@ Shorthand for `ctx.setInput(name, true)` on a Trigger input.
 if (ctx.time > 3.6 && !g.started) { g.started = true; ctx.fireTrigger('begin') }
 if (ctx.keysDown.has('escape')) ctx.fireTrigger('pause')
 ```
+
+In the lab's machine no transition listens to `jump`, so the state stays put; in your scene a transition on the trigger would fire. The ball shows each press:
+
+<ScriptLab
+  title="Fire a trigger on a key press"
+  code={`const g = ctx.globals.trig || (ctx.globals.trig = { was: false, fired: 0 })
+const space = ctx.keysDown.has('space')
+if (space && !g.was) {
+  g.fired++
+  ctx.fireTrigger('jump')                 // same as ctx.setInput('jump', true)
+  getCompByID('ball').velocity = { x: 0, y: 260 }
+  print('fired jump #' + g.fired)
+}
+g.was = space
+ctx.props.message = 'jump fired ' + g.fired + ' times, state still ' + ctx.state`}
+  controls={[{ label: 'Fire jump from the page', fire: 'jump' }]}
+  hint="Click the stage, then press space."
+/>
 
 ## ctx.state and ctx.layer
 
@@ -68,6 +101,19 @@ const party = ctx.state === 'Party'
 star.rotation += (party ? 360 : 90) * ctx.deltaSeconds
 ```
 
+Both lab states run this same program; it branches on `ctx.state`:
+
+<ScriptLab
+  title="One program, two states"
+  code={`const party = ctx.state === 'Excited'
+const player = getCompByID('player')
+player.x = 0
+player.y = -40
+player.rotation += (party ? 360 : 90) * ctx.deltaSeconds
+ctx.props.message = 'state ' + ctx.state + ', layer ' + (ctx.layer ?? 'base (null)')`}
+  controls={[{ label: 'Excite', input: ['excited', true] }, { label: 'Calm', input: ['excited', false] }]}
+/>
+
 ## Only sending changes
 
 Each `setInput` call goes to the engine. When you mirror game values into inputs every frame, remember the last value you sent:
@@ -79,6 +125,20 @@ function syncInputs() {
   if (g.wave !== g.sentWave) { g.sentWave = g.wave; ctx.setInput('wave', g.wave) }
 }
 ```
+
+<ScriptLab
+  title="Send only changes"
+  code={`const g = ctx.globals.sync || (ctx.globals.sync = { sent: null, sends: 0 })
+const want = ctx.mouseX > 0                  // right half of the stage = excited
+if (want !== g.sent) {
+  g.sent = want
+  g.sends++
+  ctx.setInput('excited', want)
+  print('sent excited = ' + want)
+}
+ctx.props.message = ctx.state + ', ' + g.sends + ' setInput calls so far'`}
+  hint="Move the mouse across the middle of the stage."
+/>
 
 ## Layers
 

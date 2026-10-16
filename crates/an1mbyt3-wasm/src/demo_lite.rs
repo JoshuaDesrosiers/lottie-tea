@@ -40,7 +40,7 @@ const INK: [f32; 4] = [0.11, 0.11, 0.13, 1.0];
 const RED: [f32; 4] = [0.95, 0.23, 0.37, 1.0];
 const AMBER: [f32; 4] = [0.96, 0.65, 0.14, 1.0];
 const GREEN: [f32; 4] = [0.13, 0.63, 0.42, 1.0];
-const MOON: [f32; 4] = [0.86, 0.85, 0.95, 1.0];
+const MOON: [f32; 4] = [0.45, 0.43, 0.84, 1.0];
 const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 const CLEAR: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
 
@@ -557,7 +557,7 @@ pub(crate) fn build_theme(document: &mut Document) -> LiteDemo {
         .scale(s1, &[(0.0, 0.0, E::Linear)])
         .scale(s2, &[(0.0, 0.0, E::Linear)]);
     let mut dark = Anim::new("Dark", 0.7)
-        .morph(body, vec![(0.0, moon(15.0, 15.0), E::InOut), (0.4, moon(17.0, -6.0), E::Linear)])
+        .morph(body, vec![(0.0, moon(15.0, 15.0), E::InOut), (0.4, moon(18.0, -11.0), E::Linear)])
         .fill(body, &[(0.0, AMBER, E::InOut), (0.4, MOON, E::Linear)])
         .rot(body, &[(0.0, 0.0, E::InOut), (0.45, -30.0, E::Linear)])
         .rot(rays_group, &[(0.0, 0.0, E::In), (0.3, 90.0, E::Linear)])

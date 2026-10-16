@@ -119,6 +119,47 @@ g.was = down
 
 Blocks express "do this, wait, do that" naturally; Code needs a timer. Code reaches everything else (physics, UI, sound, storage, networking).
 
+Blocks programs don't run in the docs embed, so the labs on this page run the **Code twin** of a block stack instead. Here is the hop above, on the lab's `player` (the lab's `ball` has a Rigidbody, which would fight a direct `y` write):
+
+<ScriptLab
+  title="Code twin: when key space pressed, hop"
+  code={`// when key [space] pressed
+//   change [player] [y] by (40)
+//   wait (0.2) seconds
+//   change [player] [y] by (-40)
+const g = ctx.globals.hop || (ctx.globals.hop = { was: false, until: 0 })
+const player = getCompByID('player')
+const down = ctx.keysDown.has('space')
+if (down && !g.was && !g.until) { player.y += 40; g.until = ctx.time + 0.2 }
+if (g.until && ctx.time >= g.until) { player.y -= 40; g.until = 0 }
+g.was = down`}
+  hint="Click the stage, then press Space."
+/>
+
+A **for each node with class** loop with a **wait** between two passes becomes a loop over `getCompByClass` plus the same timer:
+
+<ScriptLab
+  title="Code twin: for each coin, grow, wait, shrink"
+  code={`// when key [space] pressed
+//   for each node with class [coin]
+//     set size of [current item] to (140) %
+//   wait (0.3) seconds
+//   for each node with class [coin]
+//     set size of [current item] to (100) %
+const g = ctx.globals.pulse || (ctx.globals.pulse = { was: false, until: 0 })
+const down = ctx.keysDown.has('space')
+if (down && !g.was && !g.until) {
+  for (const c of getCompByClass('coin')) { c.scaleX = 1.4; c.scaleY = 1.4 }
+  g.until = ctx.time + 0.3
+}
+if (g.until && ctx.time >= g.until) {
+  for (const c of getCompByClass('coin')) { c.scaleX = 1; c.scaleY = 1 }
+  g.until = 0
+}
+g.was = down`}
+  hint="Click the stage, then press Space."
+/>
+
 ## Nodes and Code
 
 The **Nodes** tab (a dataflow graph) and **Code** convert into each other:
@@ -131,6 +172,16 @@ const n4 = Math.sin(ctx.time);
 getCompByID('star').rotation = n3;
 getCompByID('star').y = multiply(n4, 20);
 ```
+
+Generated code is ordinary Code and runs as it is. The same output, pointed at the lab's `player`:
+
+<ScriptLab
+  title="Nodes to Code output, running"
+  code={`const n3 = multiply(ctx.time, 90);
+const n4 = Math.sin(ctx.time);
+getCompByID('player').rotation = n3;
+getCompByID('player').y = add(-60, multiply(n4, 20));`}
+/>
 
 - **Code -> Nodes** works only for code written in that same vocabulary: `getCompByID('id').prop` reads and assignments (x, y, rotation, scaleX, scaleY, anchorX, anchorY), `ctx.time`, `ctx.mouseX/Y`, `random(seed)`, numbers, `Math.min/max/sin/cos`, and `add`, `subtract`, `multiply`, `divide`, `greaterThan`, `lessThan`, `equals`, `and`, `or`, `not`, `select`, `lerp`, `clamp`. Anything else shows *Can't convert to Nodes* with the reason, and your code is left untouched.
 - Fill-colour properties and state-machine number/bool inputs have no Code equivalent; they come across as a commented `0` with a warning.

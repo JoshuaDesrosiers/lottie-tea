@@ -65,6 +65,8 @@ Script writes are picked up on the next frame, update the control's visuals, and
 
 The low-level `ctx.uiState(id)` and `ctx.setUiState(id, patch)` take internal ids; use the ref properties.
 
+The Script Lab scene has no UI components, so there is no live lab for this section; the **UI & Sound Lab** demo in the editor has every control. The `hud` node in the lab is an HTML UI node, used below.
+
 ---
 
 ## HTML UI: no-code wiring
@@ -114,6 +116,50 @@ if (dom) {
   if (el.textContent !== text) el.textContent = text
 }
 ```
+
+Try it on the lab's `hud` box (top right). The listener is added once per DOM, and the text is written only when it changes:
+
+<ScriptLab
+  title="Write to the HUD and count clicks"
+  code={`const g = ctx.globals.html || (ctx.globals.html = { wired: null, clicks: 0 })
+const dom = getCompByID('hud').dom          // null until the element first shows
+if (dom && g.wired !== dom) {
+  g.wired = dom
+  dom.querySelector('#title').textContent = 'HUD: CLICK ME'
+  dom.querySelector('.hud').addEventListener('click', () => { g.clicks += 1 })
+  print('listener added once')
+}
+if (dom) {
+  const text = 'clicks ' + g.clicks + ', time ' + Math.floor(ctx.time)
+  const out = dom.querySelector('#out')
+  if (out.textContent !== text) out.textContent = text
+}`}
+  hint="Click the white HUD box at the top right."
+/>
+
+Listener callbacks run outside the frame, so the safe pattern is to set a flag there and act on it in the next frame. This lab puts two buttons into the HUD:
+
+<ScriptLab
+  title="HTML buttons that drive the scene"
+  code={`const g = ctx.globals.btns || (ctx.globals.btns = { wired: null, jump: false, paint: false })
+const dom = getCompByID('hud').dom
+if (dom && g.wired !== dom) {
+  g.wired = dom
+  dom.querySelector('#out').innerHTML = '<button id="jump">Jump</button> <button id="paint">Paint</button>'
+  dom.querySelector('#jump').addEventListener('click', () => { g.jump = true })
+  dom.querySelector('#paint').addEventListener('click', () => { g.paint = true })
+}
+if (g.jump) {                                // act on the flag inside the frame
+  g.jump = false
+  getCompByID('ball').velocity = { x: 0, y: 300 }
+}
+if (g.paint) {
+  g.paint = false
+  getCompByID('player').fillColor = [Math.random(), Math.random(), Math.random(), 1]
+  print('painted the player')
+}`}
+  hint="Use the Jump and Paint buttons inside the HUD."
+/>
 
 **Gotchas**
 - **Add listeners once.** The script runs every frame; adding a listener each frame stacks thousands of them. Guard with a flag in `ctx.globals` (as above).

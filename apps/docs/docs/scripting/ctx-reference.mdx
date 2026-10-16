@@ -8,6 +8,27 @@ description: Alphabetical index of every ctx member, every node ref property and
 
 The complete list, alphabetical, with one-line descriptions and a link to the page with details, parameters and examples. "Low-level" members take internal node ids (`ctx.nodes[i].id`) and exist so refs can be built; use the ref form instead.
 
+Two playgrounds to try members from the tables below. The first one reads `ctx`; the buttons under the stage set an input and a Property the way a page would.
+
+<ScriptLab
+  title="ctx playground"
+  code={`// Try any ctx member here. Live values go to the label;
+// press space (after clicking the stage) to log a snapshot.
+const g = ctx.globals.pg || (ctx.globals.pg = { was: false })
+ctx.props.message = ctx.state + '  t=' + ctx.time.toFixed(1) + '  mouse ' + Math.round(ctx.mouseX) + ', ' + Math.round(ctx.mouseY)
+const space = ctx.keysDown.has('space')
+if (space && !g.was) {
+  print('scene:', ctx.scene, '| layer:', ctx.layer, '| state:', ctx.state)
+  print('nodes:', ctx.nodes.map((n) => n.elementId).join(', '))
+  print('keys held:', [...ctx.keysDown].join(', '))
+  print('props:', JSON.stringify(ctx.props), '| data:', JSON.stringify(ctx.data))
+  print('screen:', JSON.stringify(ctx.screen))
+}
+g.was = space`}
+  controls={[{ label: 'Excite', input: ['excited', true] }, { label: 'Calm', input: ['excited', false] }, { label: 'Score 10', set: ['score', 10] }]}
+  hint="Scene nodes: player, ball, crate, ground, coin0 to coin4, label, hud. Properties: score, message. Inputs: excited, jump, speed."
+/>
+
 ## Globals in scope
 
 | Name | Signature | Details |
@@ -118,6 +139,26 @@ Always in scope as bare names. They also form the vocabulary that Nodes-to-Code 
 ## Ref members
 
 `R` = readable, `W` = writable, `fn` = method.
+
+The second playground is for ref members. Swap `ball` and `player` for any id in the scene:
+
+<ScriptLab
+  title="Ref playground"
+  code={`// Try any ref member here. Space kicks the ball.
+const g = ctx.globals.rp || (ctx.globals.rp = { was: false })
+const player = getCompByID('player')
+const ball = getCompByID('ball')
+player.rotation += 90 * ctx.deltaSeconds
+player.fillColor = [0.96, 0.55 + Math.sin(ctx.time * 3) * 0.3, 0.15, 1]
+const space = ctx.keysDown.has('space')
+if (space && !g.was) {
+  ball.addImpulse(20, 150)
+  print(ball.id, 'classes:', ball.classes.length, '| body:', ball.bodyType, '| velocity:', JSON.stringify(ball.velocity))
+  print(player.id, 'at', Math.round(player.worldX), Math.round(player.worldY), '| rotation:', Math.round(player.rotation))
+}
+g.was = space`}
+  hint="Click the stage, then press space."
+/>
 
 | Member | | Type / signature | Applies to | Details |
 |---|---|---|---|---|

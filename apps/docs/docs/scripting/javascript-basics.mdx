@@ -18,6 +18,17 @@ lives = lives - 1
 
 Remember: your script runs **every frame from the top**, so `let lives = 3` resets to 3 every frame. State that must last goes on `ctx.globals` (see [How scripts run](./how-scripts-run.mdx)).
 
+Run this and watch the label: the `let` counter is stuck at 1.
+
+<ScriptLab
+  title="let resets, ctx.globals lasts"
+  code={`let frames = 0          // runs every frame, so this is always reset to 0
+frames = frames + 1
+const g = ctx.globals.basics || (ctx.globals.basics = { frames: 0 })
+g.frames = g.frames + 1
+ctx.props.message = 'let: ' + frames + '   ctx.globals: ' + g.frames`}
+/>
+
 ## Numbers and math
 
 ```js
@@ -40,6 +51,18 @@ const deg = rad * 180 / Math.PI
 `ref.rotation` is in **degrees**. `Math.sin`, `Math.cos` and `Math.atan2` use **radians**. Convert with `* 180 / Math.PI` and `* Math.PI / 180`.
 :::
 
+The player orbits the centre using `Math.cos` and `Math.sin`, and turns to match by converting the same angle to degrees:
+
+<ScriptLab
+  title="Trig in radians, rotation in degrees"
+  code={`const player = getCompByID('player')
+const angle = ctx.time * 2                  // radians: about 3 s per lap
+player.x = Math.cos(angle) * 140
+player.y = Math.sin(angle) * 70
+player.rotation = angle * 180 / Math.PI     // ref.rotation wants degrees
+ctx.props.message = 'angle ' + (angle % (2 * Math.PI)).toFixed(2) + ' rad'`}
+/>
+
 Toasty also puts a few helpers in scope: `lerp(a, b, t)` (t clamped to 0..1), `clamp(v, min, max)`, and `random(seed)` (a repeatable 0..1 value for a given seed). See [ctx reference](./ctx-reference.mdx#helpers).
 
 ## Strings
@@ -55,6 +78,16 @@ const pi = (3.14159).toFixed(2)       // "3.14"
 'hello'.startsWith('he')              // true
 String(7).padStart(3, '0')            // "007"
 ```
+
+Concatenation, `toFixed` and `padStart` build a typical HUD line:
+
+<ScriptLab
+  title="Formatting text"
+  code={`const seconds = ctx.time.toFixed(1)
+const score = String(Math.floor(ctx.time * 10)).padStart(5, '0')
+const name = 'ada'.toUpperCase()
+ctx.props.message = name + '  ' + seconds + ' s  SCORE ' + score`}
+/>
 
 ## Booleans and comparisons
 
@@ -90,6 +123,19 @@ for (const enemy of getCompByClass('enemy')) enemy.rotation += 90 * ctx.deltaSec
 for (const key in someObject) { /* object keys */ }
 ```
 
+A counted `for` loop and a `for...of` loop over the five coins:
+
+<ScriptLab
+  title="Loops over a class"
+  code={`const coins = getCompByClass('coin')
+for (let i = 0; i < coins.length; i++) {
+  coins[i].y = 40 + Math.sin(ctx.time * 3 + i) * 25   // each coin a little later
+}
+let above = 0
+for (const coin of coins) if (coin.y > 40) above++
+ctx.props.message = above + ' of ' + coins.length + ' coins are above the line'`}
+/>
+
 ## Functions
 
 ```js
@@ -101,6 +147,33 @@ const ref = (id) => getCompByID(id)  // a common shorthand in Toasty demos
 ```
 
 Functions you declare in a script are redeclared every frame, which is fine; they are cheap.
+
+Move the player with the arrow keys; a small function finds the nearest coin:
+
+<ScriptLab
+  title="A distance function"
+  code={`const player = getCompByID('player')
+const keys = ctx.keysDown
+const step = 180 * ctx.deltaSeconds
+if (keys.has('left')) player.x -= step
+if (keys.has('right')) player.x += step
+if (keys.has('up')) player.y += step
+if (keys.has('down')) player.y -= step
+
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+const coins = getCompByClass('coin')
+let nearest = coins[0]
+for (const coin of coins) if (distance(player, coin) < distance(player, nearest)) nearest = coin
+for (const coin of coins) {
+  const s = coin === nearest ? 1.6 : 1
+  coin.scaleX = s
+  coin.scaleY = s
+}
+ctx.props.message = 'nearest: ' + nearest.id + ' (' + Math.round(distance(player, nearest)) + ' units)'`}
+  hint="Click the stage, then move with the arrow keys. The nearest coin grows."
+/>
 
 ## Arrays
 
@@ -120,6 +193,24 @@ list.reduce((a, b) => a + b, 0)  // 6
 list.forEach((n, i) => print(i, n))
 list.splice(i, 1)         // remove item i
 ```
+
+`map`, `filter`, `forEach` and `reduce` on the coins. The `print` calls run once, behind a flag:
+
+<ScriptLab
+  title="Array methods"
+  code={`const coins = getCompByClass('coin')
+const xs = coins.map((c) => c.x)                       // [-120, -60, 0, 60, 120]
+const right = coins.filter((c) => c.x > 0)
+right.forEach((c) => { c.y = 40 + Math.abs(Math.sin(ctx.time * 4)) * 30 })
+const total = xs.reduce((a, b) => a + b, 0)
+const g = ctx.globals.arr || (ctx.globals.arr = {})
+if (!g.logged) {
+  g.logged = true
+  print('xs:', xs.join(', '))
+  print('right of centre:', right.map((c) => c.id).join(', '))
+  print('sum of xs:', total, ' some above 100?', xs.some((x) => x > 100))
+}`}
+/>
 
 ## Objects
 
@@ -145,12 +236,52 @@ const g = ctx.globals.myGame || (ctx.globals.myGame = { score: 0, enemies: [] })
 
 Read it as: "use `ctx.globals.myGame` if it exists, otherwise create it with these defaults". It runs every frame, but only creates the object the first time. See [Patterns](./patterns.mdx).
 
+The idiom in a small game: the `Set` of collected coins is created on the first frame and kept for the rest of the run.
+
+<ScriptLab
+  title="Create once, then collect coins"
+  code={`const g = ctx.globals.myGame || (ctx.globals.myGame = { taken: new Set() })
+const player = getCompByID('player')
+const step = 200 * ctx.deltaSeconds
+const keys = ctx.keysDown
+if (keys.has('left')) player.x -= step
+if (keys.has('right')) player.x += step
+if (keys.has('up')) player.y += step
+if (keys.has('down')) player.y -= step
+
+for (const coin of getCompByClass('coin')) {
+  const close = Math.hypot(player.x - coin.x, player.y - coin.y) < 24
+  if (close && !g.taken.has(coin.id)) {
+    g.taken.add(coin.id)
+    coin.visible = false
+    print('picked up ' + coin.id)
+  }
+}
+ctx.props.message = g.taken.size === 5 ? 'All coins collected' : 'Coins: ' + g.taken.size + ' / 5'`}
+  hint="Click the stage, then steer the player into the coins with the arrow keys."
+/>
+
 ## Optional chaining and defaults
 
 ```js
 const hp = save?.player?.hp ?? 100   // undefined/null anywhere -> 100
 const v = player.velocity || { x: 0, y: 0 }
 ```
+
+`?.` and `??` keep a missing node or a missing body from throwing:
+
+<ScriptLab
+  title="Optional chaining against missing nodes"
+  code={`const g = ctx.globals.opt || (ctx.globals.opt = {})
+if (!g.done) {
+  g.done = true
+  print('ball x:', getCompByID('ball')?.x ?? 'no ball')
+  print('ghost x:', getCompByID('ghost')?.x ?? 'no ghost')
+  print('player velocity:', getCompByID('player').velocity ?? 'null (no Rigidbody 2D)')
+}
+const v = getCompByID('ball').velocity || { x: 0, y: 0 }
+ctx.props.message = 'ball falls at ' + Math.round(-v.y) + ' units/s'`}
+/>
 
 ## Sets and Maps
 

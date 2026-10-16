@@ -28,6 +28,34 @@ description: Multiplayer with ctx.net - hosting, joining, sending JSON messages 
 | `send(data, to?)` | function | Send JSON to everyone else, or one player |
 | `nameOf(id)` | function | A player's name (`'?'` if unknown) |
 
+## Try it (offline)
+
+The docs lab is **offline**: there is no relay running for it, and a browser can't host. So this lab shows the safe checks a game makes: it logs `status` changes and events, and every call is harmless when nothing is connected. Press **J** to try joining `localhost:7777` and **H** to try hosting; both end in `'error'` with the reason in `ctx.net.error`. If an `an1mbyt3-server` relay is running on this machine on port 7777, **J** can connect for real.
+
+<ScriptLab
+  title="ctx.net status checks"
+  code={`const net = ctx.net
+const g = ctx.globals.net || (ctx.globals.net = { last: '', jWas: false, hWas: false })
+if (net.status !== g.last) {                 // log changes, not every frame
+  g.last = net.status
+  print('status: ' + net.status + (net.error ? ' (' + net.error + ')' : ''))
+  print('canHost ' + net.canHost + ', me ' + net.me + ', players ' + net.players.length)
+  ctx.props.message = 'net: ' + net.status
+}
+for (const e of net.events) {
+  print('event: ' + e.type)
+  if (e.type === 'connected') net.send({ k: 'hello' })   // send on an event, not every frame
+}
+const j = ctx.keysDown.has('j')
+if (j && !g.jWas) net.join('localhost:7777', { name: 'Docs' })
+g.jWas = j
+const h = ctx.keysDown.has('h')
+if (h && !g.hWas) net.host({ port: 7777 })
+g.hWas = h
+for (const m of net.messages) print(net.nameOf(m.from) + ' says', m.data)  // empty while offline`}
+  hint="Click the stage, then press J or H."
+/>
+
 ## host
 
 ```ts

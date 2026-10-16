@@ -27,6 +27,24 @@ if (ctx.props.lives <= 0) ctx.fireTrigger('gameOver')
 ctx.props.status = 'Level ' + g.level
 ```
 
+The lab declares `score` (Number) and `message` (Text); `label` has a Property Binding on `message`, so the script never touches the text node:
+
+<ScriptLab
+  title="Read and write scene Properties"
+  code={`const player = getCompByID('player')
+player.x = ctx.mouseX
+player.y = ctx.mouseY
+for (const coin of getCompByClass('coin')) {
+  if (coin.visible && Math.hypot(player.x - coin.x, player.y - coin.y) < 24) {
+    coin.visible = false
+    ctx.props.score += 10                     // a Number Property
+  }
+}
+ctx.props.message = 'Score: ' + ctx.props.score    // label is bound to message`}
+  controls={[{ label: 'score = 0', set: ['score', 0] }, { label: 'score = 100', set: ['score', 100] }]}
+  hint="Steer the player into the coins with the mouse. The buttons write score from the page."
+/>
+
 ### Types and coercion
 
 Every write is converted to the property's declared type, so a number stays a number however it was set.
@@ -42,6 +60,24 @@ Every write is converted to the property's declared type, so a number stays a nu
 ctx.props.tint = '#ff8800'          // stored as [1, 0.533, 0, 1]
 ctx.props.paused = 'on'             // stored as true
 ```
+
+Each write is converted to the declared type. The last line writes a Property the lab doesn't declare:
+
+<ScriptLab
+  title="Coercion and unknown names"
+  code={`const g = ctx.globals.co || (ctx.globals.co = {})
+if (!g.done) {
+  g.done = true
+  ctx.props.score = '42'
+  print('score = "42" ->', typeof ctx.props.score, ctx.props.score)
+  ctx.props.score = 'banana'
+  print('score = "banana" ->', ctx.props.score)
+  ctx.props.message = 7 * 6
+  print('message = 7 * 6 ->', typeof ctx.props.message, ctx.props.message)
+  print('declared:', Object.keys(ctx.props).join(', '), '| has lives?', 'lives' in ctx.props)
+  ctx.props.lives = 3          // not declared: a warning in the console
+}`}
+/>
 
 ### Lifetime
 
@@ -79,6 +115,58 @@ getCompByID('greeting').textContent = 'Hi, ' + (ctx.data.userName ?? 'friend')
 ```js
 // Works in the editor (default) and when embedded (page value):
 const count = Number(ctx.data.count ?? ctx.props.count ?? 0)
+```
+
+The buttons call `player.set(name, value)`, the way an embedding page would. `userName` only reaches `ctx.data`; `score` also fills the same-named Property:
+
+<ScriptLab
+  title="ctx.data from the page"
+  code={`const g = ctx.globals.d || (ctx.globals.d = { last: '' })
+const json = JSON.stringify(ctx.data)
+if (json !== g.last) {
+  g.last = json
+  print('ctx.data is now', json)
+}
+ctx.props.message = 'Hi, ' + (ctx.data.userName ?? 'friend') + '. score Property: ' + ctx.props.score`}
+  controls={[{ label: 'set userName = Ada', set: ['userName', 'Ada'] }, { label: 'set userName = Grace', set: ['userName', 'Grace'] }, { label: 'set score = 7', set: ['score', 7] }]}
+/>
+
+The page side, live: this React panel runs the same lab scene with a `program`, passes `userName` in through `data`, and listens to `onPropChange`. Type a name, run the stage, and steer the player into the coins with the mouse.
+
+```jsx live
+function PropsPanel() {
+  const program = `
+const player = getCompByID('player')
+player.x = ctx.mouseX
+player.y = ctx.mouseY
+for (const coin of getCompByClass('coin')) {
+  if (coin.visible && Math.hypot(player.x - coin.x, player.y - coin.y) < 24) {
+    coin.visible = false
+    ctx.props.score += 10
+  }
+}
+ctx.props.message = 'Hi, ' + (ctx.data.userName ?? 'friend') + '. Score ' + ctx.props.score
+`
+  const [name, setName] = React.useState('Ada')
+  const [props, setProps] = React.useState({})
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <ToastyPlayer
+        game="/games/lab.teab"
+        program={program}
+        data={{ userName: name }}
+        style={{ height: 270 }}
+        label="Run the props demo"
+        onPropChange={(e) => setProps((p) => ({ ...p, [e.name]: e.value }))}
+      />
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        data.userName
+        <input value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <code>onPropChange: {JSON.stringify(props)}</code>
+    </div>
+  )
+}
 ```
 
 See [Data binding](../embedding/data-binding.mdx) for the page side.

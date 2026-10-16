@@ -81,6 +81,53 @@ if (ctx.props.lives <= 0) {
 - Emit on **changes** (a click, a goal reached), not every frame.
 - A listener that throws on the page is caught and logged; it won't break the game.
 
+The panel below is a page talking to a running game in both directions. The program registers `buy` and `getCoins` with `ctx.on` and emits `bought` and `tap` events; the buttons call `player.call(...)`, and `onEvent` lists what arrives.
+
+```jsx live
+function EventsPanel() {
+  const program = `
+const g = ctx.globals.shop || (ctx.globals.shop = { coins: 30 })
+ctx.on('buy', (item) => {
+  if (g.coins < 10) return false
+  g.coins -= 10
+  ctx.emit('bought', { item, coins: g.coins })
+  return true
+})
+ctx.on('getCoins', () => g.coins)
+if (ctx.tap) {
+  g.coins += 5
+  ctx.emit('tap', { x: Math.round(ctx.mouseX), y: Math.round(ctx.mouseY), coins: g.coins })
+}
+ctx.props.message = 'Coins: ' + g.coins + ' (click the stage for +5)'
+`
+  const player = React.useRef(null)
+  const [events, setEvents] = React.useState([])
+  const [reply, setReply] = React.useState('')
+  const call = (name, arg) => {
+    if (!player.current) return setReply('Run the stage first')
+    setReply("call('" + name + "') returned " + JSON.stringify(player.current.call(name, arg)))
+  }
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <ToastyPlayer
+        ref={player}
+        game="/games/lab.teab"
+        program={program}
+        style={{ height: 270 }}
+        label="Run the events demo"
+        onEvent={(e) => setEvents((list) => [...list.slice(-5), e.name + ' ' + JSON.stringify(e.payload)])}
+      />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button onClick={() => call('buy', 'sword')}>player.call('buy', 'sword')</button>
+        <button onClick={() => call('getCoins')}>player.call('getCoins')</button>
+      </div>
+      <code>{reply || 'No call yet'}</code>
+      <pre style={{ margin: 0 }}>{events.length ? events.join('\n') : 'onEvent: nothing yet'}</pre>
+    </div>
+  )
+}
+```
+
 See [Listening to the game](../embedding/listening.mdx) for the page side.
 
 ## On Click actions (no-code events)
@@ -116,5 +163,26 @@ ctx.globals.events.push({ type: 'explode', x, y })
 // reader (another layer, later the same frame or next frame)
 for (const e of ctx.globals.events?.splice(0) ?? []) if (e.type === 'explode') boom(e.x, e.y)
 ```
+
+In the lab both halves sit in one program; in a game the writer and reader would usually be on different layers or scenes:
+
+<ScriptLab
+  title="A message queue on ctx.globals"
+  code={`// writer: queue a message on each click
+ctx.globals.events = ctx.globals.events || []
+if (ctx.tap) ctx.globals.events.push({ type: 'explode', x: ctx.mouseX, y: ctx.mouseY })
+
+// reader: take everything queued and act on it
+const player = getCompByID('player')
+for (const e of ctx.globals.events.splice(0)) {
+  if (e.type === 'explode') {
+    player.x = e.x
+    player.y = e.y
+    getCompByID('ball').velocity = { x: (e.x - 100) * 2, y: 300 }
+    print('explode at', Math.round(e.x), Math.round(e.y))
+  }
+}`}
+  hint="Click anywhere on the stage."
+/>
 
 For messages between players on different machines, see the [Network API](./network-api.mdx).

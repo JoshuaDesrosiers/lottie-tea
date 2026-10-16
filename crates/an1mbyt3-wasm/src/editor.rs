@@ -12723,11 +12723,16 @@ impl WasmEditor {
         to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
     }
 
-    /// The docs' small original games (`demo_games`): `toast-catch`, `hop`.
+    /// The docs' small original games (`demo_games`): `toast-catch`, `hop`;
+    /// and the Script Lab scenes (`demo_lab`): `lab`, `lab3d`.
     pub fn load_docs_game(&mut self, kind: &str) -> Result<JsValue, JsValue> {
-        let demo = crate::demo_games::build(&mut self.document, kind).ok_or_else(|| JsValue::from_str(&format!("unknown game \"{kind}\"")))?;
+        // The docs' Script Lab scenes (`lab`, `lab3d`) come through here too.
+        let scene = match crate::demo_games::build(&mut self.document, kind) {
+            Some(demo) => demo.scene,
+            None => crate::demo_lab::build(&mut self.document, kind).ok_or_else(|| JsValue::from_str(&format!("unknown game \"{kind}\"")))?.scene,
+        };
         migrate_document(&mut self.document);
-        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: demo.scene })
+        to_js_value(&crate::dto::AddArtboardResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_artboard: scene })
     }
 
     pub async fn load_ninja_demo(&mut self) -> Result<JsValue, JsValue> {

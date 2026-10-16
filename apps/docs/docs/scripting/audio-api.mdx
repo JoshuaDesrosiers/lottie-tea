@@ -37,6 +37,8 @@ ctx.playSound(name: string, options?: {
 
 **Returns** a [SoundHandle](#soundhandle), or `null` if there's no such sound (a warning goes to the browser console).
 
+The Script Lab scene has no imported sounds, so in the labs on this page `ctx.playSound` always returns `null`. `ctx.playTone` needs no asset and plays for real.
+
 ```js
 if (jumped) ctx.playSound('jump', { volume: 0.6, pitch: 0.9 + Math.random() * 0.2 })
 const g = ctx.globals.music || (ctx.globals.music = {})
@@ -67,6 +69,29 @@ ctx.playTone({ type: 'noise', duration: 0.6, volume: 0.5, release: 0.55 })     /
 ctx.playTone({ freq: 880, to: 1320, duration: 0.12, volume: 0.12 })             // pickup
 ```
 
+Try them. Each key plays on the **press edge**, never every frame (a tone per frame would stack 60 sounds a second):
+
+<ScriptLab
+  title="Tone presets on keys 1 to 4"
+  code={`const g = ctx.globals.sfx || (ctx.globals.sfx = { was: {} })
+const presets = {
+  '1': { freq: 660, duration: 0.15 },                                          // beep
+  '2': { freq: 1400, to: 180, duration: 0.25, type: 'sawtooth', volume: 0.25 }, // laser
+  '3': { type: 'noise', duration: 0.6, volume: 0.5, release: 0.55 },           // explosion
+  '4': { freq: 880, to: 1320, duration: 0.12, volume: 0.12 },                  // pickup
+}
+for (const key in presets) {
+  const down = ctx.keysDown.has(key)
+  if (down && !g.was[key]) print('tone ' + key, ctx.playTone(presets[key]) ? 'playing' : 'audio not ready')
+  g.was[key] = down
+}
+const five = ctx.keysDown.has('5')
+if (five && !g.was.five) print('playSound returned', ctx.playSound('jump'))   // no such asset here
+g.was.five = five
+if (ctx.tap) ctx.playTone({ freq: 440 + Math.random() * 440, type: 'triangle', duration: 0.1 })`}
+  hint="Click the stage (this also unlocks audio), then press 1, 2, 3, 4 or 5."
+/>
+
 ## SoundHandle
 
 What `playSound`, `playTone` and `ref.playAudio` return.
@@ -86,6 +111,25 @@ g.hum?.setPitch(0.8 + Math.abs(car.velocity?.x ?? 0) / 400)
 
 Keep handles in `ctx.globals`; a handle stored in a local variable is lost next frame (the sound keeps playing, you just can't stop it).
 
+Hold Space for a long tone and let go to stop it through its handle:
+
+<ScriptLab
+  title="Hold a tone, stop it with its handle"
+  code={`const g = ctx.globals.hum || (ctx.globals.hum = { h: null })
+const space = ctx.keysDown.has('space')
+if (space && !g.h) {
+  g.h = ctx.playTone({ freq: 220, type: 'sine', duration: 10, volume: 0.2 })
+  if (g.h) print('started, playing = ' + g.h.playing)
+}
+if (!space && g.h) {
+  g.h.stop()
+  print('stopped, playing = ' + g.h.playing)
+  g.h = null
+}
+getCompByID('player').scaleY = g.h ? 1.3 : 1`}
+  hint="Click the stage, then hold Space."
+/>
+
 ## ctx.stopAllSounds / ctx.setMasterVolume
 
 ```ts
@@ -97,6 +141,26 @@ ctx.setMasterVolume(volume: number): void   // 0..1 (negative clamps to 0)
 const volume = getCompByID('volume'), mute = getCompByID('mute')
 if (volume.changed || mute.changed) ctx.setMasterVolume(mute.isOn ? 0 : volume.value)
 ```
+
+Here the state machine drives the master volume: **Excited** is quiet, **Calm** is full volume. It's applied once per state change:
+
+<ScriptLab
+  title="Master volume from the state machine"
+  code={`const g = ctx.globals.vol || (ctx.globals.vol = { last: null, t: 0 })
+if (g.last !== ctx.state) {
+  g.last = ctx.state
+  const v = ctx.state === 'Excited' ? 0.15 : 1
+  ctx.setMasterVolume(v)
+  ctx.props.message = ctx.state + ': volume ' + v
+}
+g.t -= ctx.deltaSeconds
+if (g.t <= 0) {                              // a blip every half second
+  g.t = 0.5
+  ctx.playTone({ freq: 523, duration: 0.08, volume: 0.3 })
+}`}
+  controls={[{ label: 'Quiet (Excited)', input: ['excited', true] }, { label: 'Full (Calm)', input: ['excited', false] }]}
+  hint="Click the stage once so the browser allows audio. The master volume is shared by every lab on the page, so press Full before you move on."
+/>
 
 ## Audio Source nodes
 

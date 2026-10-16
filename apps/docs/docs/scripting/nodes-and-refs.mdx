@@ -53,6 +53,19 @@ if (label) label.textContent = 'Score: ' + ctx.props.score
 - Searches only the **current scene**. Nodes spawned this frame with `ctx.spawn` aren't in the index until next frame (use the ref `ctx.spawn` returned).
 - Monaco autocompletes ids inside `getCompByID('`.
 
+One ref by id, plus the `null` you get for an id that doesn't exist:
+
+<ScriptLab
+  title="getCompByID"
+  code={`const player = getCompByID('player')
+const ghost = getCompByID('ghost')          // no node has this id
+player.x = Math.sin(ctx.time) * 150
+player.fillColor = ctx.state === 'Excited' ? [0.9, 0.2, 0.35, 1] : [0.96, 0.55, 0.15, 1]
+if (ghost) ghost.x = 0                        // the usual null check
+ctx.props.message = 'ghost is ' + (ghost === null ? 'null' : 'here') + ', state ' + ctx.state`}
+  controls={[{ label: 'Excite', input: ['excited', true] }, { label: 'Calm', input: ['excited', false] }]}
+/>
+
 ## getCompByClass
 
 ```ts
@@ -75,6 +88,19 @@ for (const coin of getCompByClass('coin')) {
 - Builds a new ref for each match on every call. With many matches, call it once per frame and reuse the array.
 - Nodes spawned from prefabs have no classes on their spawned refs; keep the refs `ctx.spawn` returns in your own list instead.
 
+Every node with the class `coin`, in scene order:
+
+<ScriptLab
+  title="getCompByClass"
+  code={`const coins = getCompByClass('coin')          // call once per frame, reuse the array
+coins.forEach((coin, i) => {
+  const s = 1 + 0.35 * Math.sin(ctx.time * 4 + i)
+  coin.scaleX = s
+  coin.scaleY = s
+})
+ctx.props.message = coins.length + ' coins: ' + coins.map((c) => c.id).join(', ')`}
+/>
+
 ## Finding a node by name
 
 There's no `getCompByName`. Search `ctx.nodes` (every node in the scene this frame), then get a ref by its id:
@@ -83,6 +109,25 @@ There's no `getCompByName`. Search `ctx.nodes` (every node in the scene this fra
 const n = ctx.nodes.find((n) => n.name === 'Door')
 const door = n && getCompByID(n.elementId)
 ```
+
+This lab logs every node in the scene with its kind and components once, then finds the crate by name:
+
+<ScriptLab
+  title="Find by name, list ctx.nodes"
+  code={`const g = ctx.globals.nodes || (ctx.globals.nodes = {})
+if (!g.listed) {
+  g.listed = true
+  for (const n of ctx.nodes) {
+    const comps = n.behaviors.map((b) => b.behavior.kind).join(', ')
+    print(n.elementId + ' (' + n.kind + ')' + (comps ? ': ' + comps : ''))
+  }
+}
+const n = ctx.nodes.find((n) => n.name === 'crate')
+const crate = n && getCompByID(n.elementId)
+if (crate) crate.fillColor = [0.78, 0.55 + Math.sin(ctx.time * 4) * 0.2, 0.32, 1]
+const bodies = ctx.nodes.filter((n) => n.behaviors.some((b) => b.enabled && b.behavior.kind === 'Rigidbody2D')).length
+ctx.props.message = bodies + ' nodes have a Rigidbody 2D'`}
+/>
 
 ## ctx.nodes
 
@@ -165,6 +210,22 @@ p.visible = ctx.props.lives > 0
 p.zIndex = Math.round(-p.y)          // lower on screen draws on top
 ```
 
+Transform, visibility, draw order and the read-only world values, on the lab's nodes:
+
+<ScriptLab
+  title="Ref properties"
+  code={`const p = getCompByID('player')
+p.x = Math.sin(ctx.time) * 140
+p.y = -40
+p.rotation = ctx.time * 90                                  // degrees
+p.scaleX = 1 + Math.sin(ctx.time * 6) * 0.15
+p.scaleY = p.scaleX
+p.zIndex = 10                                               // above the coins
+getCompByID('coin2').visible = Math.floor(ctx.time * 2) % 2 === 0
+const crate = getCompByID('crate')
+ctx.props.message = 'crate world ' + Math.round(crate.worldX) + ', ' + Math.round(crate.worldY) + '  rot ' + Math.round(crate.worldRotation)`}
+/>
+
 **Notes**
 - Writes are untracked: they don't create undo steps, and leaving Playground puts the scene back as designed.
 - Setting `scaleX`, `scaleY`, `anchorX` or `anchorY` also re-sends the ref's current `x`/`y`. On a ref cached across frames for a node that physics or animation moves, that can snap it back to an old position; get a fresh ref each frame instead (see [How scripts run](./how-scripts-run.mdx)).
@@ -185,6 +246,20 @@ const tip = arm.worldPoint(40, 0)     // 40 units along the arm
 getCompByID('spark').x = tip.x
 getCompByID('spark').y = tip.y
 ```
+
+Here `coin0` rides on a point 50 units out from the spinning player. The snapshot is from the start of the frame, so the coin trails by one frame:
+
+<ScriptLab
+  title="worldPoint"
+  code={`const p = getCompByID('player')
+p.x = 0
+p.y = -30
+p.rotation = ctx.time * 120
+const tip = p.worldPoint(50, 0)      // 50 units along the player's local x axis
+const coin = getCompByID('coin0')
+coin.x = tip.x
+coin.y = tip.y`}
+/>
 
 ### path
 
@@ -208,6 +283,23 @@ getCompByID('wave').path = { commands: [
   { kind: 'Close' },
 ] }
 ```
+
+The player's rounded square, replaced every frame with a breathing triangle:
+
+<ScriptLab
+  title="Reshape a path"
+  code={`const w = 26
+const h = 18 + Math.sin(ctx.time * 3) * 14
+const p = getCompByID('player')
+p.x = 0
+p.y = -40
+p.path = { commands: [
+  { kind: 'MoveTo', value: { x: -w, y: -16 } },
+  { kind: 'LineTo', value: { x: w, y: -16 } },
+  { kind: 'LineTo', value: { x: 0, y: h } },
+  { kind: 'Close' },
+] }`}
+/>
 
 ---
 

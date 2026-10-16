@@ -52,6 +52,42 @@ if (levelWon) { S.unlocked = Math.max(S.unlocked, level + 1); S.coins += 25; per
 
 `Object.assign(defaults, saved)` means new fields you add later get their defaults for old saves.
 
+This lab uses the same pattern, and it **really saves**: `ctx.storage` writes to this browser's `localStorage` for the docs site. The run counter goes up every time the lab starts, and the best score survives reloading the page. Press **C** to delete the save.
+
+<ScriptLab
+  title="A save that survives a page reload"
+  code={`const g = ctx.globals.st || (ctx.globals.st = { init: false, sWas: false, cWas: false })
+function show() { ctx.props.message = 'runs ' + g.save.runs + '   score ' + ctx.props.score + '   best ' + g.save.best }
+if (!g.init) {
+  g.init = true
+  g.save = Object.assign({ runs: 0, best: 0 }, ctx.storage.get('docs.lab') || {})
+  g.save.runs += 1
+  ctx.storage.set('docs.lab', g.save)          // save on change, not every frame
+  print('loaded', g.save)
+  print('keys', ctx.storage.keys())
+  show()
+}
+const s = ctx.keysDown.has('space')           // Space scores a point
+if (s && !g.sWas) {
+  ctx.props.score += 1
+  if (ctx.props.score > g.save.best) {
+    g.save.best = ctx.props.score
+    ctx.storage.set('docs.lab', g.save)
+  }
+  show()
+}
+g.sWas = s
+const c = ctx.keysDown.has('c')               // C wipes the save
+if (c && !g.cWas) {
+  ctx.storage.remove('docs.lab')
+  g.save = { runs: 0, best: 0 }
+  print('save removed; keys now', ctx.storage.keys())
+  show()
+}
+g.cWas = c`}
+  hint="Click the stage, press Space a few times, then reload the page and run it again."
+/>
+
 ## Example: high score
 
 ```js

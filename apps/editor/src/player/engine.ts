@@ -38,6 +38,7 @@ import {
   setStateMachineBoolInput,
   setStateMachineEnumInput,
   setStateMachineNumberInput,
+  setStateProgram,
   setWasmBytes,
 } from '../ipc/wasmEditor'
 import { setPropertyDefs, sceneProps } from '../game/props'
@@ -50,6 +51,7 @@ import { responsiveView } from '../game/screen'
 import { htmlOverlay } from '../game/htmlOverlay'
 import { embedBridge } from '../game/embedBridge'
 import { callFunction } from '../game/events'
+import { gameConsole } from '../game/console'
 
 /** Bytes, or a URL to fetch them from. */
 export type Source = string | URL | ArrayBuffer | Uint8Array
@@ -78,6 +80,10 @@ export interface PlayerOptions {
   background?: string
   /** F3 / `?stats` frame profiler. Default off. */
   stats?: boolean
+  /** Replaces every state's program, in every scene, with this JavaScript
+   * (a Code program). For playgrounds and teaching: the same scene runs
+   * whatever code the page hands it. */
+  program?: string
 }
 
 export interface StateChange {
@@ -94,6 +100,9 @@ export interface PlayerEvents {
   prop: { name: string; value: unknown }
   event: { name: string; payload: unknown }
   error: { error: unknown }
+  /** A line in the game's console: `console.log` / `print` from scripts,
+   * script errors (with their line), warnings from actions. */
+  log: { level: 'log' | 'warn' | 'error'; message: string; line?: number; count: number }
 }
 
 export type PlayerEventType = keyof PlayerEvents
@@ -198,6 +207,15 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   setWasmBytes(wasmBytes)
   const editor = await createWasmEditor(canvas)
   let doc: DocumentSummary = await loadTeab(editor, gameBytes)
+  if (options.program !== undefined) {
+    const program = { kind: 'Code' as const, value: options.program }
+    for (const artboard of doc.artboards) {
+      for (const machine of artboard.stateMachines) {
+        for (const state of machine.states) doc = setStateProgram(editor, artboard.id, machine.id, state.name, program, null)
+        for (const layer of machine.layers ?? []) for (const state of layer.states) doc = setStateProgram(editor, artboard.id, machine.id, state.name, program, layer.name)
+      }
+    }
+  }
   setProjectFiles(doc.textFiles)
   setPropertyDefs(doc.properties)
   embedBridge.reset()
@@ -360,6 +378,19 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   // ---- game → page ----
   embedBridge.listen((name, payload) => dispatch('event', { name, payload }))
   cleanups.push(() => embedBridge.listen(null))
+  // Console lines (new ones and repeats) as `log` events.
+  const logCounts = new Map<number, number>()
+  for (const e of gameConsole.list()) logCounts.set(e.id, e.count)
+  cleanups.push(
+    gameConsole.subscribe(() => {
+      for (const e of gameConsole.list()) {
+        if (logCounts.get(e.id) === e.count) continue
+        logCounts.set(e.id, e.count)
+        const level = e.level === 'error' ? 'error' : e.level === 'warn' ? 'warn' : 'log'
+        dispatch('log', { level, message: e.message, line: e.origin.line, count: e.count })
+      }
+    }),
+  )
 
   // ---- frame loop ----
   const host = new ScriptHost()

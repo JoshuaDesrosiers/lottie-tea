@@ -6,6 +6,26 @@ description: The whole Toasty scripting API on one dense page.
 
 # Cheatsheet
 
+Try any line from this page in the lab below. Its nodes are `player`, `ball`, `crate`, `ground`, `coin0` to `coin4`, `label` and `hud`; Properties `score` and `message`; inputs `excited`, `jump` and `speed`.
+
+<ScriptLab
+  title="Try anything"
+  code={`const g = ctx.globals.try || (ctx.globals.try = { spaceWas: false })
+const p = getCompByID('player')
+p.x = Math.sin(ctx.time) * 120
+p.rotation = ctx.state === 'Excited' ? ctx.time * 360 : 0
+const space = ctx.keysDown.has('space')
+if (space && !g.spaceWas) {
+  getCompByID('ball').velocity = { x: 0, y: 300 }
+  ctx.playTone({ freq: 660, duration: 0.1 })
+  ctx.props.score += 1
+  ctx.props.message = 'Score ' + ctx.props.score
+}
+g.spaceWas = space`}
+  controls={[{ label: 'Excite', input: ['excited', true] }, { label: 'Calm', input: ['excited', false] }, { label: 'Score 10', set: ['score', 10] }]}
+  hint="Click the stage, then press Space."
+/>
+
 ```js
 // ───────── The model ─────────
 // A Code program belongs to a state; it runs top-to-bottom every frame while
