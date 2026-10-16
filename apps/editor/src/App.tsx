@@ -1865,13 +1865,32 @@ function App() {
     return { node: { ...owner, gradient }, commit }
   })()
 
+  // Whether camera frames + icons are drawn on the canvas (zoom bar toggle),
+  // remembered across sessions.
+  const [showCameraGizmos, setShowCameraGizmos] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('an1.showCameraGizmos') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const toggleCameraGizmos = () =>
+    setShowCameraGizmos((v) => {
+      try {
+        localStorage.setItem('an1.showCameraGizmos', v ? '0' : '1')
+      } catch {
+        // Not remembered; still toggles.
+      }
+      return !v
+    })
+
   // Every Camera node's frame — the scene's own width x height divided by
   // the camera's zoom, centered on its world position, axis-aligned (the
   // Playground view only follows a camera's position, not its rotation) —
   // so an author sees exactly what Playground will show before pressing
   // play. Hidden in Playground itself, where you're looking *through* it.
   const cameraFrames =
-    mode === 'Playground' || !activeArtboard || view3dActive
+    mode === 'Playground' || !activeArtboard || view3dActive || !showCameraGizmos
       ? []
       : activeArtboard.nodes
           .filter((n) => n.camera !== null)
@@ -4464,6 +4483,15 @@ ${list}${more}`)
           <ZoomInIcon />
         </button>
         <span className="mx-1 h-4 w-px bg-overlay/15" />
+        <button
+          onClick={toggleCameraGizmos}
+          title={showCameraGizmos ? 'Hide camera frames on the canvas' : 'Show camera frames on the canvas'}
+          aria-pressed={showCameraGizmos}
+          className={`rounded-md p-1 hover:bg-overlay/5 hover:text-ink ${showCameraGizmos ? 'text-ink' : 'text-ink-dim opacity-50'}`}
+        >
+          <CameraKindIcon />
+        </button>
+        <span className="mx-1 h-4 w-px bg-overlay/15" />
         <select
           value={previewScreen ? `${previewScreen.width}x${previewScreen.height}` : ''}
           onChange={(e) => {
@@ -4543,7 +4571,7 @@ ${list}${more}`)
       {cameraFrames.map((frame) => (
         <div
           key={`${frame.key}-icon`}
-          className={`pointer-events-none absolute flex items-center justify-center rounded-md border ${theme === 'light' ? 'border-orange-500 bg-orange-100 text-orange-600 shadow-sm' : 'border-amber-400/80 bg-amber-400/15 text-amber-500'}`}
+          className={`pointer-events-none absolute flex items-center justify-center rounded-md border ${theme === 'light' ? 'border-orange-500 bg-transparent text-orange-600' : 'border-amber-400/80 bg-transparent text-amber-500'}`}
           style={{ left: frame.iconLeft, top: frame.iconTop, width: frame.iconSize, height: frame.iconSize }}
         >
           <CameraKindIcon />
