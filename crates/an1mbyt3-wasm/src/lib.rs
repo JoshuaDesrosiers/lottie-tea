@@ -79,6 +79,7 @@ mod demo_3d;
 mod demo_games;
 mod demo_lab;
 mod demo_lite;
+mod demo_lite2;
 mod demo_ui;
 mod demo_responsive;
 mod demo_html;

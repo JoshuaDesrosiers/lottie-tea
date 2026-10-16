@@ -36,15 +36,15 @@ pub(crate) struct LiteDemo {
 // Palette (straight 0..1 RGBA, as the renderer writes it)
 // ---------------------------------------------------------------------
 
-const INK: [f32; 4] = [0.11, 0.11, 0.13, 1.0];
-const RED: [f32; 4] = [0.95, 0.23, 0.37, 1.0];
-const AMBER: [f32; 4] = [0.96, 0.65, 0.14, 1.0];
-const GREEN: [f32; 4] = [0.13, 0.63, 0.42, 1.0];
-const MOON: [f32; 4] = [0.45, 0.43, 0.84, 1.0];
-const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-const CLEAR: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
+pub(crate) const INK: [f32; 4] = [0.11, 0.11, 0.13, 1.0];
+pub(crate) const RED: [f32; 4] = [0.95, 0.23, 0.37, 1.0];
+pub(crate) const AMBER: [f32; 4] = [0.96, 0.65, 0.14, 1.0];
+pub(crate) const GREEN: [f32; 4] = [0.13, 0.63, 0.42, 1.0];
+pub(crate) const MOON: [f32; 4] = [0.45, 0.43, 0.84, 1.0];
+pub(crate) const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+pub(crate) const CLEAR: [f32; 4] = [0.0, 0.0, 0.0, 0.0];
 
-fn fade(c: [f32; 4], a: f32) -> [f32; 4] {
+pub(crate) fn fade(c: [f32; 4], a: f32) -> [f32; 4] {
     [c[0], c[1], c[2], a]
 }
 
@@ -53,7 +53,7 @@ fn fade(c: [f32; 4], a: f32) -> [f32; 4] {
 // ---------------------------------------------------------------------
 
 #[derive(Clone, Copy)]
-enum E {
+pub(crate) enum E {
     Linear,
     Out,
     InOut,
@@ -61,7 +61,7 @@ enum E {
     In,
 }
 
-fn ease(e: E) -> Easing {
+pub(crate) fn ease(e: E) -> Easing {
     let (x1, y1, x2, y2) = match e {
         E::Linear => return Easing::Linear,
         E::Out => (0.22, 1.0, 0.36, 1.0),
@@ -76,12 +76,12 @@ fn ease(e: E) -> Easing {
 // Paths
 // ---------------------------------------------------------------------
 
-fn v(x: f32, y: f32) -> Vec2 {
+pub(crate) fn v(x: f32, y: f32) -> Vec2 {
     Vec2::new(x, y)
 }
 
 /// An open polyline.
-fn line(points: &[(f32, f32)]) -> Path {
+pub(crate) fn line(points: &[(f32, f32)]) -> Path {
     let mut commands = vec![PathCommand::MoveTo(v(points[0].0, points[0].1))];
     commands.extend(points[1..].iter().map(|p| PathCommand::LineTo(v(p.0, p.1))));
     Path { commands }
@@ -89,7 +89,7 @@ fn line(points: &[(f32, f32)]) -> Path {
 
 /// A circle starting at the top, running clockwise on screen (so a trim
 /// path draws it like a clock hand).
-fn circle_cw(r: f32) -> Path {
+pub(crate) fn circle_cw(r: f32) -> Path {
     const K: f32 = 0.552_284_8;
     let k = r * K;
     Path {
@@ -105,7 +105,7 @@ fn circle_cw(r: f32) -> Path {
 }
 
 /// A rounded rectangle `w` × `h`, corner radius `r`, starting top-centre.
-fn round_rect(w: f32, h: f32, r: f32) -> Path {
+pub(crate) fn round_rect(w: f32, h: f32, r: f32) -> Path {
     const K: f32 = 0.552_284_8;
     let (x, y) = (w / 2.0, h / 2.0);
     let k = r * K;
@@ -126,7 +126,7 @@ fn round_rect(w: f32, h: f32, r: f32) -> Path {
 }
 
 /// A heart about `46 × 42` (scaled by `s`), point down, centred.
-fn heart(s: f32) -> Path {
+pub(crate) fn heart(s: f32) -> Path {
     let p = |x: f32, y: f32| v(x * s, (y - 4.0) * s);
     Path {
         commands: vec![
@@ -145,7 +145,7 @@ fn heart(s: f32) -> Path {
 /// The sun / moon body: a circle of radius `r` whose right half bulges out
 /// to `a` (`a = r` is a full circle; a negative `a` carves a crescent).
 /// Same command structure for every `a`, so it morphs.
-fn moon(r: f32, a: f32) -> Path {
+pub(crate) fn moon(r: f32, a: f32) -> Path {
     const K: f32 = 0.552_284_8;
     Path {
         commands: vec![
@@ -160,7 +160,7 @@ fn moon(r: f32, a: f32) -> Path {
 }
 
 /// A four-point sparkle.
-fn sparkle(r: f32) -> Path {
+pub(crate) fn sparkle(r: f32) -> Path {
     let i = r * 0.28;
     Path {
         commands: vec![
@@ -178,15 +178,15 @@ fn sparkle(r: f32) -> Path {
 // The scene kit
 // ---------------------------------------------------------------------
 
-struct Kit<'a> {
-    document: &'a mut Document,
+pub(crate) struct Kit<'a> {
+    pub(crate) document: &'a mut Document,
     inverses: Vec<Command>,
-    scene: ArtboardId,
+    pub(crate) scene: ArtboardId,
     animations: Vec<Animation>,
 }
 
 impl<'a> Kit<'a> {
-    fn new(document: &'a mut Document, name: &str, width: f32, height: f32) -> Self {
+    pub(crate) fn new(document: &'a mut Document, name: &str, width: f32, height: f32) -> Self {
         let mut inverses = Vec::new();
         let inverse = document.apply(Command::AddArtboard { name: name.into(), width, height });
         let Command::SetArtboardDeleted { artboard: scene, .. } = inverse else { unreachable!("AddArtboard's inverse is always a SetArtboardDeleted") };
@@ -206,18 +206,18 @@ impl<'a> Kit<'a> {
         kit
     }
 
-    fn add(&mut self, node: Node) -> NodeId {
+    pub(crate) fn add(&mut self, node: Node) -> NodeId {
         add_node(self.document, &mut self.inverses, self.scene, node)
     }
 
-    fn group(&mut self, id: &str, parent: Option<NodeId>, at: Vec2) -> NodeId {
+    pub(crate) fn group(&mut self, id: &str, parent: Option<NodeId>, at: Vec2) -> NodeId {
         let mut node = with_id(Node::new(id, parent, NodeKind::Group(Default::default())), id);
         node.transform.translation = at;
         self.add(node)
     }
 
     /// A filled shape (no stroke).
-    fn fill(&mut self, id: &str, parent: Option<NodeId>, path: Path, color: [f32; 4], at: Vec2) -> NodeId {
+    pub(crate) fn fill(&mut self, id: &str, parent: Option<NodeId>, path: Path, color: [f32; 4], at: Vec2) -> NodeId {
         let mut node = with_id(Node::new(id, parent, NodeKind::Shape(ShapeNode { path, fill_color: color, blend_mode: Default::default(), gradient: None, image: None, stroke: None })), id);
         node.transform.translation = at;
         self.add(node)
@@ -226,7 +226,7 @@ impl<'a> Kit<'a> {
     /// A stroked line with round caps and a Stroke Style (trim path, no
     /// dashes): `trim` is the starting (trim start, trim end).
     #[allow(clippy::too_many_arguments)]
-    fn stroke(&mut self, id: &str, parent: Option<NodeId>, path: Path, color: [f32; 4], width: f32, at: Vec2, trim: (f32, f32)) -> NodeId {
+    pub(crate) fn stroke(&mut self, id: &str, parent: Option<NodeId>, path: Path, color: [f32; 4], width: f32, at: Vec2, trim: (f32, f32)) -> NodeId {
         let stroke = Stroke { width, color, gradient: None, image: None, cap: StrokeCap::Round, join: StrokeJoin::Round };
         let mut node = with_id(Node::new(id, parent, NodeKind::Shape(ShapeNode { path, fill_color: CLEAR, blend_mode: Default::default(), gradient: None, image: None, stroke: Some(stroke) })), id);
         node.transform.translation = at;
@@ -239,7 +239,7 @@ impl<'a> Kit<'a> {
 
     /// The invisible pointer target: a UI Button (no look of its own) with
     /// On Click and Pointer Listeners actions.
-    fn hit(&mut self, path: Path, on_click: Vec<ActionKind>, hover_input: Option<&str>) -> NodeId {
+    pub(crate) fn hit(&mut self, path: Path, on_click: Vec<ActionKind>, hover_input: Option<&str>) -> NodeId {
         let mut node = with_id(Node::new("hit", None, NodeKind::Shape(ShapeNode { path, fill_color: CLEAR, blend_mode: Default::default(), gradient: None, image: None, stroke: None })), "hit");
         let style = UiStateStyle { highlighted_color: WHITE, pressed_color: WHITE, pressed_scale: 1.0, highlighted_scale: 1.0, ..Default::default() };
         node.behaviors.push(NodeBehaviorEntry { behavior: NodeBehavior::UiButton(UiButton { interactable: true, style }), enabled: true });
@@ -259,13 +259,13 @@ impl<'a> Kit<'a> {
         self.add(node)
     }
 
-    fn property(&mut self, name: &str, kind: PropKind, default: &str) {
+    pub(crate) fn property(&mut self, name: &str, kind: PropKind, default: &str) {
         let inverse = self.document.apply(Command::AddProperty { property: PropertyDef { artboard: self.scene, name: name.into(), kind, default: default.into(), deleted: false } });
         self.inverses.push(inverse);
     }
 
     /// Binds node `id`'s stroke colour (or fill colour) to the `ink` property.
-    fn bind(&mut self, nodes: &[NodeId], property: &str, target: BindTarget) {
+    pub(crate) fn bind(&mut self, nodes: &[NodeId], property: &str, target: BindTarget) {
         for &id in nodes {
             let binding = Binding { property: property.into(), target: target.clone(), format: String::new(), scale: 1.0, offset: 0.0 };
             if let Some(node) = self.document.artboard_mut(self.scene).and_then(|a| a.node_mut(id)) {
@@ -278,18 +278,18 @@ impl<'a> Kit<'a> {
         }
     }
 
-    fn ink(&mut self, strokes: &[NodeId]) {
+    pub(crate) fn ink(&mut self, strokes: &[NodeId]) {
         self.bind(strokes, "ink", BindTarget::ComponentField { component: "Shape".into(), field: "strokeColor".into() });
     }
 
     /// Registers an animation; returns its index for `finish`.
-    fn anim(&mut self, a: Anim) -> usize {
+    pub(crate) fn anim(&mut self, a: Anim) -> usize {
         self.animations.push(a.0);
         self.animations.len() - 1
     }
 
     /// Adds the animations and the state machine, commits the build.
-    fn finish(mut self, inputs: Vec<InputDef>, base: Vec<St>, layers: Vec<(&str, Vec<NodeId>, Vec<St>)>) -> LiteDemo {
+    pub(crate) fn finish(mut self, inputs: Vec<InputDef>, base: Vec<St>, layers: Vec<(&str, Vec<NodeId>, Vec<St>)>) -> LiteDemo {
         let mut ids = Vec::new();
         for animation in std::mem::take(&mut self.animations) {
             let inverse = self.document.apply(Command::AddAnimation { artboard: self.scene, animation });
@@ -332,107 +332,107 @@ impl<'a> Kit<'a> {
 }
 
 /// An animation under construction: `(time, value, easing out of it)` keys.
-struct Anim(Animation);
+pub(crate) struct Anim(pub(crate) Animation);
 
 impl Anim {
-    fn new(name: &str, duration: f32) -> Self {
+    pub(crate) fn new(name: &str, duration: f32) -> Self {
         let mut a = Animation::new(name);
         a.duration = duration;
         Anim(a)
     }
-    fn pos(mut self, node: NodeId, keys: &[(f32, f32, f32, E)]) -> Self {
+    pub(crate) fn pos(mut self, node: NodeId, keys: &[(f32, f32, f32, E)]) -> Self {
         self.0.tracks.push((node, PropertyTrack::Translation(Track::new(keys.iter().map(|k| Keyframe::new(k.0, v(k.1, k.2), ease(k.3))).collect()))));
         self
     }
     /// Rotation keys in degrees.
-    fn rot(mut self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
+    pub(crate) fn rot(mut self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
         self.0.tracks.push((node, PropertyTrack::Rotation(Track::new(keys.iter().map(|k| Keyframe::new(k.0, k.1.to_radians(), ease(k.2))).collect()))));
         self
     }
     /// Uniform scale keys.
-    fn scale(mut self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
+    pub(crate) fn scale(mut self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
         self.0.tracks.push((node, PropertyTrack::Scale(Track::new(keys.iter().map(|k| Keyframe::new(k.0, Vec2::splat(k.1), ease(k.2))).collect()))));
         self
     }
-    fn scale_xy(mut self, node: NodeId, keys: &[(f32, f32, f32, E)]) -> Self {
+    pub(crate) fn scale_xy(mut self, node: NodeId, keys: &[(f32, f32, f32, E)]) -> Self {
         self.0.tracks.push((node, PropertyTrack::Scale(Track::new(keys.iter().map(|k| Keyframe::new(k.0, v(k.1, k.2), ease(k.3))).collect()))));
         self
     }
-    fn fill(mut self, node: NodeId, keys: &[(f32, [f32; 4], E)]) -> Self {
+    pub(crate) fn fill(mut self, node: NodeId, keys: &[(f32, [f32; 4], E)]) -> Self {
         self.0.tracks.push((node, PropertyTrack::FillColor(Track::new(keys.iter().map(|k| Keyframe::new(k.0, k.1, ease(k.2))).collect()))));
         self
     }
-    fn morph(mut self, node: NodeId, keys: Vec<(f32, Path, E)>) -> Self {
+    pub(crate) fn morph(mut self, node: NodeId, keys: Vec<(f32, Path, E)>) -> Self {
         self.0.tracks.push((node, PropertyTrack::Path(Track::new(keys.into_iter().map(|k| Keyframe::new(k.0, k.1, ease(k.2))).collect()))));
         self
     }
     /// Any animatable field (`behavior/StrokeStyle2D/trimEnd`, …), 1 number.
-    fn field(mut self, node: NodeId, path: &str, keys: &[(f32, f32, E)]) -> Self {
+    pub(crate) fn field(mut self, node: NodeId, path: &str, keys: &[(f32, f32, E)]) -> Self {
         self.0.tracks.push((node, PropertyTrack::Field { path: path.into(), track: Track::new(keys.iter().map(|k| Keyframe::new(k.0, [k.1, 0.0, 0.0, 0.0], ease(k.2))).collect()) }));
         self
     }
-    fn color_field(mut self, node: NodeId, path: &str, keys: &[(f32, [f32; 4], E)]) -> Self {
+    pub(crate) fn color_field(mut self, node: NodeId, path: &str, keys: &[(f32, [f32; 4], E)]) -> Self {
         self.0.tracks.push((node, PropertyTrack::Field { path: path.into(), track: Track::new(keys.iter().map(|k| Keyframe::new(k.0, k.1, ease(k.2))).collect()) }));
         self
     }
-    fn trim_end(self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
+    pub(crate) fn trim_end(self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
         self.field(node, "behavior/StrokeStyle2D/trimEnd", keys)
     }
-    fn trim_start(self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
+    pub(crate) fn trim_start(self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
         self.field(node, "behavior/StrokeStyle2D/trimStart", keys)
     }
-    fn trim_offset(self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
+    pub(crate) fn trim_offset(self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
         self.field(node, "behavior/StrokeStyle2D/trimOffset", keys)
     }
-    fn stroke_width(self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
+    pub(crate) fn stroke_width(self, node: NodeId, keys: &[(f32, f32, E)]) -> Self {
         self.field(node, "kind/Shape/stroke/width", keys)
     }
-    fn stroke_color(self, node: NodeId, keys: &[(f32, [f32; 4], E)]) -> Self {
+    pub(crate) fn stroke_color(self, node: NodeId, keys: &[(f32, [f32; 4], E)]) -> Self {
         self.color_field(node, "kind/Shape/stroke/color", keys)
     }
 }
 
 /// A state: name, animation index, loop mode, transitions out.
-struct St {
-    name: &'static str,
-    anim: usize,
-    looping: LoopMode,
-    to: Vec<TransitionDef>,
+pub(crate) struct St {
+    pub(crate) name: &'static str,
+    pub(crate) anim: usize,
+    pub(crate) looping: LoopMode,
+    pub(crate) to: Vec<TransitionDef>,
 }
 
-fn st(name: &'static str, anim: usize, to: Vec<TransitionDef>) -> St {
+pub(crate) fn st(name: &'static str, anim: usize, to: Vec<TransitionDef>) -> St {
     St { name, anim, looping: LoopMode::Once, to }
 }
 
-fn st_loop(name: &'static str, anim: usize, to: Vec<TransitionDef>) -> St {
+pub(crate) fn st_loop(name: &'static str, anim: usize, to: Vec<TransitionDef>) -> St {
     St { name, anim, looping: LoopMode::Loop, to }
 }
 
-fn go(to: &str, condition: ConditionDef, fade: f32) -> TransitionDef {
+pub(crate) fn go(to: &str, condition: ConditionDef, fade: f32) -> TransitionDef {
     TransitionDef { to: to.into(), condition, direction: PlaybackDirection::Forward, duration_seconds: fade, interruptible: true }
 }
-fn when(input: &str, value: bool) -> ConditionDef {
+pub(crate) fn when(input: &str, value: bool) -> ConditionDef {
     ConditionDef::BoolIs { input: input.into(), value }
 }
-fn on_trigger(input: &str) -> ConditionDef {
+pub(crate) fn on_trigger(input: &str) -> ConditionDef {
     ConditionDef::Trigger { input: input.into() }
 }
-fn is(input: &str, value: &str) -> ConditionDef {
+pub(crate) fn is(input: &str, value: &str) -> ConditionDef {
     ConditionDef::EnumIs { input: input.into(), value: value.into() }
 }
-fn input(name: &str, kind: InputKind) -> InputDef {
+pub(crate) fn input(name: &str, kind: InputKind) -> InputDef {
     InputDef { name: name.into(), kind }
 }
 
 /// The standard hover layer: `Rest ⇄ Over` on the `hover` input, scaling
 /// `target` up a little.
-fn hover_layer(kit: &mut Kit, target: NodeId, over: f32) -> (&'static str, Vec<NodeId>, Vec<St>) {
+pub(crate) fn hover_layer(kit: &mut Kit, target: NodeId, over: f32) -> (&'static str, Vec<NodeId>, Vec<St>) {
     let rest = kit.anim(Anim::new("Hover off", 0.2).scale(target, &[(0.0, 1.0, E::Linear)]));
     let on = kit.anim(Anim::new("Hover on", 0.2).scale(target, &[(0.0, over, E::Linear)]));
     ("Hover", vec![target], vec![st("Rest", rest, vec![go("Over", when("hover", true), 0.16)]), st("Over", on, vec![go("Rest", when("hover", false), 0.2)])])
 }
 
-const INK_JSON: &str = "[0.11,0.11,0.13,1]";
+pub(crate) const INK_JSON: &str = "[0.11,0.11,0.13,1]";
 
 // ---------------------------------------------------------------------
 // 1. Like heart
@@ -541,8 +541,8 @@ pub(crate) fn build_theme(document: &mut Document) -> LiteDemo {
         rays.push(kit.stroke(&format!("ray{i}"), Some(rays_group), line(&[(c * 24.0, s * 24.0), (c * 32.0, s * 32.0)]), AMBER, 4.5, Vec2::ZERO, (0.0, 1.0)));
     }
     let body = kit.fill("body", None, moon(15.0, 15.0), AMBER, Vec2::ZERO);
-    let s1 = kit.fill("sparkle1", None, sparkle(7.0), MOON, v(20.0, 16.0));
-    let s2 = kit.fill("sparkle2", None, sparkle(4.5), MOON, v(28.0, -2.0));
+    let s1 = kit.fill("sparkle1", None, sparkle(7.0), MOON, v(17.0, 9.0));
+    let s2 = kit.fill("sparkle2", None, sparkle(4.5), MOON, v(23.0, -9.0));
     for id in [s1, s2] {
         if let Some(n) = kit.document.artboard_mut(kit.scene).and_then(|a| a.node_mut(id)) {
             n.transform.scale = Vec2::ZERO;
@@ -553,13 +553,16 @@ pub(crate) fn build_theme(document: &mut Document) -> LiteDemo {
         .morph(body, vec![(0.0, moon(15.0, 15.0), E::Linear)])
         .fill(body, &[(0.0, AMBER, E::Linear)])
         .rot(body, &[(0.0, 0.0, E::Linear)])
+        .pos(body, &[(0.0, 0.0, 0.0, E::Linear)])
         .rot(rays_group, &[(0.0, 0.0, E::Linear)])
         .scale(s1, &[(0.0, 0.0, E::Linear)])
         .scale(s2, &[(0.0, 0.0, E::Linear)]);
     let mut dark = Anim::new("Dark", 0.7)
-        .morph(body, vec![(0.0, moon(15.0, 15.0), E::InOut), (0.4, moon(18.0, -11.0), E::Linear)])
+        .morph(body, vec![(0.0, moon(15.0, 15.0), E::InOut), (0.4, moon(22.0, -5.0), E::Linear)])
         .fill(body, &[(0.0, AMBER, E::InOut), (0.4, MOON, E::Linear)])
-        .rot(body, &[(0.0, 0.0, E::InOut), (0.45, -30.0, E::Linear)])
+        .rot(body, &[(0.0, 0.0, E::Linear)])
+        // The crescent's weight sits left of centre; slide it right to balance.
+        .pos(body, &[(0.0, 0.0, 0.0, E::InOut), (0.4, 8.0, 0.0, E::Linear)])
         .rot(rays_group, &[(0.0, 0.0, E::In), (0.3, 90.0, E::Linear)])
         .scale(s1, &[(0.0, 0.0, E::Linear), (0.3, 0.0, E::Back), (0.55, 1.0, E::Linear)])
         .scale(s2, &[(0.0, 0.0, E::Linear), (0.4, 0.0, E::Back), (0.65, 1.0, E::Linear)]);
@@ -935,20 +938,20 @@ pub(crate) fn build(document: &mut Document, kind: &str) -> Option<LiteDemo> {
         "arrow" => build_arrow(document),
         "loader" => build_loader(document),
         "toasty" => build_mascot(document),
-        _ => return None,
+        other => return crate::demo_lite2::build(document, other),
     })
 }
 
 /// Every component name (the test walks them all).
 #[cfg(test)]
-pub(crate) const ALL: [&str; 10] = ["heart", "menu", "theme", "status", "bell", "download", "copy", "arrow", "loader", "toasty"];
+pub(crate) const ALL: [&str; 22] = ["heart", "menu", "theme", "status", "bell", "download", "copy", "arrow", "loader", "toasty", "toggle", "checkbox", "play", "volume", "bookmark", "eye", "lock", "trash", "send", "refresh", "chevron", "mic"];
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn every_component_builds_a_machine_with_its_states() {
+    pub(crate) fn every_component_builds_a_machine_with_its_states() {
         for kind in ALL {
             let mut document = Document::new();
             let demo = build(&mut document, kind).unwrap();

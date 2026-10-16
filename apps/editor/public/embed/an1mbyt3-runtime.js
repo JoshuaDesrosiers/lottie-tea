@@ -234,10 +234,23 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 	}
 	setInput(e, t) {
 		let n = this.file.stateMachine?.inputs.find((t) => t.name === e);
-		n && (n.kind === "trigger" ? t && this.triggers.add(e) : n.kind === "bool" ? this.inputs.set(e, t === !0 || t === "true" || t === 1 || t === "1") : n.kind === "number" ? this.inputs.set(e, Number(t) || 0) : this.inputs.set(e, String(t)), this.dirty = !0, s());
+		if (n) {
+			if (n.kind === "trigger") t && this.triggers.add(e);
+			else {
+				let r = n.kind === "bool" ? t === !0 || t === "true" || t === 1 || t === "1" : n.kind === "number" ? Number(t) || 0 : String(t);
+				this.inputs.get(e) !== r && (this.inputs.set(e, r), this.emit("input", {
+					name: e,
+					value: r
+				}));
+			}
+			this.dirty = !0, s();
+		}
 	}
 	fire(e) {
 		this.setInput(e, !0);
+	}
+	getInput(e) {
+		return this.inputs.get(e);
 	}
 	state(e = null) {
 		return this.layers.find((t) => t.name === e)?.current?.name ?? null;

@@ -1,0 +1,182 @@
+.page {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 48px 24px 72px;
+}
+.head {
+  max-width: 48rem;
+  margin-bottom: 28px;
+}
+.head h1 {
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  letter-spacing: -0.03em;
+  margin-bottom: 10px;
+}
+.head p {
+  color: var(--t-muted);
+  font-size: 1.02rem;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 14px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--t-line);
+  border-radius: 14px;
+  background: var(--t-surface);
+  overflow: hidden;
+  min-width: 0;
+}
+.stage {
+  display: grid;
+  place-items: center;
+  height: 190px;
+  background: radial-gradient(circle at 50% 45%, var(--t-subtle), var(--t-surface) 70%);
+  border-bottom: 1px solid var(--t-line);
+}
+.meta {
+  padding: 12px 14px 4px;
+}
+.meta h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.meta h3 code {
+  font-size: 0.78rem;
+  margin-right: 4px;
+}
+.meta p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--t-muted);
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 14px;
+  margin-top: auto;
+}
+.row,
+.rowWrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+.rowWrap {
+  flex-wrap: wrap;
+}
+.name {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.78rem;
+  color: var(--t-ink);
+}
+.row input[type='range'] {
+  flex: 1;
+  max-width: 140px;
+  accent-color: var(--ifm-color-primary);
+}
+.row input[type='color'] {
+  width: 34px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--t-line);
+  border-radius: 5px;
+  background: none;
+}
+.switch,
+.switchOn {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  background: var(--t-line-strong);
+  transition: background 0.15s;
+}
+.switchOn {
+  background: #16a34a;
+}
+.switch i,
+.switchOn i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.switchOn i {
+  transform: translateX(16px);
+}
+.fire,
+.sim,
+.seg,
+.segOn {
+  font: 500 12px/1 var(--ifm-font-family-base);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--t-line);
+  background: var(--t-surface);
+  color: var(--t-ink);
+  cursor: pointer;
+}
+.fire:hover,
+.sim:hover,
+.seg:hover {
+  border-color: var(--t-line-strong);
+}
+.segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.segOn {
+  background: var(--t-ink);
+  color: var(--t-bg);
+  border-color: transparent;
+}
+.sims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--t-line);
+  font: 11.5px/1.5 var(--ifm-font-family-monospace);
+  color: var(--t-muted);
+}
+.readout b {
+  color: var(--t-ink);
+  font-weight: 600;
+}
+.dim {
+  opacity: 0.75;
+}
+.event {
+  color: var(--ifm-color-primary);
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switchOn,
+  .switch i,
+  .switchOn i {
+    transition: none;
+  }
+}

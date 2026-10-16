@@ -182,7 +182,9 @@ export default function Home(): ReactNode {
                 Toasty Lite runtime
               </Link>
             </div>
-            <p className={styles.note}>Every animated element on this page is a Toasty Lite file. Try them.</p>
+            <p className={styles.note}>
+              Every animated element on this page is a Toasty Lite file. Try them, or open the <Link to="/playground">Playground</Link> for all 22 with live controls.
+            </p>
           </div>
           <ComponentWall />
         </section>

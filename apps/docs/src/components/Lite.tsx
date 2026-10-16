@@ -19,7 +19,9 @@ export interface LiteHandle {
   setInput(name: string, value: boolean | number | string): void
   fire(trigger: string): void
   state(layer?: string | null): string | null
-  on(type: 'event' | 'state' | 'prop', fn: (e: any) => void): () => void
+  getInput(name: string): boolean | number | string | undefined
+  readonly file: any
+  on(type: 'event' | 'state' | 'prop' | 'input', fn: (e: any) => void): () => void
   play(): void
   pause(): void
   destroy(): void

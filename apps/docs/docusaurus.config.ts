@@ -52,6 +52,7 @@ const config: Config = {
         {type: 'docSidebar', sidebarId: 'editor', position: 'left', label: 'Editor'},
         {type: 'docSidebar', sidebarId: 'scripting', position: 'left', label: 'Scripting'},
         {type: 'docSidebar', sidebarId: 'runtimes', position: 'left', label: 'Runtimes'},
+        {to: '/playground', label: 'Playground', position: 'left'},
         {type: 'docSidebar', sidebarId: 'usecases', position: 'left', label: 'Use cases'},
         {type: 'docSidebar', sidebarId: 'games', position: 'left', label: 'Games'},
         {type: 'docSidebar', sidebarId: 'courses', position: 'left', label: 'Courses'},

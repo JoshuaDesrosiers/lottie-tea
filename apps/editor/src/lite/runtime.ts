@@ -130,6 +130,8 @@ export interface LiteEvents {
   state: { layer: string | null; state: string; previous: string | null }
   /** A scene Property changed (by an action, or by `set`). */
   prop: { name: string; value: unknown }
+  /** A state machine input changed (from the page or an action). */
+  input: { name: string; value: boolean | number | string }
 }
 type LiteEventType = keyof LiteEvents
 
@@ -143,6 +145,8 @@ export interface LitePlayer {
   /** Sets a Bool / Number / Enum input; a Trigger fires when `value` is truthy. */
   setInput(name: string, value: boolean | number | string): void
   fire(trigger: string): void
+  /** A Bool / Number / Enum input's current value (`undefined` if none). */
+  getInput(name: string): boolean | number | string | undefined
   /** The current state of a layer (`null` = the base layer). */
   state(layer?: string | null): string | null
   on<T extends LiteEventType>(type: T, fn: (event: LiteEvents[T]) => void): () => void
@@ -522,14 +526,21 @@ class Player implements LitePlayer {
     if (!def) return
     if (def.kind === 'trigger') {
       if (value) this.triggers.add(name)
-    } else if (def.kind === 'bool') this.inputs.set(name, value === true || value === 'true' || value === 1 || value === '1')
-    else if (def.kind === 'number') this.inputs.set(name, Number(value) || 0)
-    else this.inputs.set(name, String(value))
+    } else {
+      const next = def.kind === 'bool' ? value === true || value === 'true' || value === 1 || value === '1' : def.kind === 'number' ? Number(value) || 0 : String(value)
+      if (this.inputs.get(name) !== next) {
+        this.inputs.set(name, next)
+        this.emit('input', { name, value: next })
+      }
+    }
     this.dirty = true
     schedule()
   }
   fire(trigger: string) {
     this.setInput(trigger, true)
+  }
+  getInput(name: string) {
+    return this.inputs.get(name)
   }
   state(layer: string | null = null) {
     return this.layers.find((l) => l.name === layer)?.current?.name ?? null
