@@ -11,6 +11,7 @@ import { LayersPanel } from './components/LayersPanel'
 import { ResourcesPanel } from './components/ResourcesPanel'
 import { ComponentsPanel } from './components/ComponentsPanel'
 import { EffectsPanel } from './components/EffectsPanel'
+import { TestAreaPanel } from './components/TestAreaPanel'
 import { CameraKindIcon, CloseIcon, LightKindIcon, TrailKindIcon, ZoomInIcon, ZoomOutIcon } from './components/icons'
 import { FloatingPanel } from './components/FloatingPanel'
 import { GradientHandle } from './components/GradientHandle'
@@ -441,6 +442,8 @@ function App() {
     // so they can tab/split with the rest too.
     components: { initialPosition: { x: LEFT_DOCK_OFFSET + 240, y: TOP_CLEARANCE }, initialRegion: null, defaultWidth: 280 },
     effects: { initialPosition: { x: LEFT_DOCK_OFFSET + 260, y: TOP_CLEARANCE + 40 }, initialRegion: null, defaultWidth: 240 },
+    // Test Area: the current scene, live as Toasty Lite, in mock UI.
+    testArea: { initialPosition: { x: width - 620, y: TOP_CLEARANCE + 20 }, initialRegion: null, defaultWidth: 320 },
   }, setCanvasFrozen)
 
   const [doc, setDoc] = useState<DocumentSummary | null>(null)
@@ -588,6 +591,7 @@ function App() {
       tilePalette: true,
       components: false,
       effects: false,
+      testArea: false,
     },
     (v): v is Record<PanelKey, boolean> => typeof v === 'object' && v !== null && Object.values(v).every((x) => typeof x === 'boolean'),
   )
@@ -4702,6 +4706,8 @@ ${list}${more}`)
           onToggleComponents={() => setPanelVisible((v) => ({ ...v, components: !v.components }))}
           effectsOpen={panelVisible.effects}
           onToggleEffects={() => setPanelVisible((v) => ({ ...v, effects: !v.effects }))}
+          testAreaOpen={!!panelVisible.testArea}
+          onToggleTestArea={() => setPanelVisible((v) => ({ ...v, testArea: !v.testArea }))}
           layersOpen={panelVisible.layers}
           onToggleLayers={() => setPanelVisible((v) => ({ ...v, layers: !v.layers }))}
           inspectorOpen={panelVisible.inspector}
@@ -5002,11 +5008,15 @@ ${list}${more}`)
             title: 'Effects',
             content: <EffectsPanel layers={artboards[0]?.postEffects ?? []} onChange={handleSetPostEffects} />,
           },
+          testArea: {
+            title: 'Test Area',
+            content: <TestAreaPanel editor={editorRef.current} doc={doc} artboardId={activeArtboard?.id ?? null} />,
+          },
         }
 
         const groupedKeys: PanelKey[] = (['left', 'right'] as const).flatMap((region) => (dock.groups[region] ? groupMemberKeys(dock.groups[region]!) : []))
         // Resources lives in the bottom dock now (see `bottomDockTab`).
-        const soloKeys = (['layers', 'inspector', 'tilePalette', 'components', 'effects'] as const).filter((key) => !groupedKeys.includes(key) && panelVisible[key])
+        const soloKeys = (['layers', 'inspector', 'tilePalette', 'components', 'effects', 'testArea'] as const).filter((key) => !groupedKeys.includes(key) && panelVisible[key])
 
         return (
           <>

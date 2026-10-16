@@ -424,6 +424,17 @@ export function PaneLayoutIcon() {
   )
 }
 
+/** Test Area: a small browser window with a play mark. */
+export function TestAreaIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth={STROKE} />
+      <path d="M1.5 5.5h13" stroke="currentColor" strokeWidth={STROKE} />
+      <path d="M6.5 7.5v4l3.5-2z" fill="currentColor" />
+    </svg>
+  )
+}
+
 export function CheckIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">

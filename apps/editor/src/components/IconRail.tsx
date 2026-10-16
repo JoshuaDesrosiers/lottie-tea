@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Theme, UiStyle } from '../theme'
-import { CanvasIcon, ClockIcon, EffectsIcon, GraphIcon, GroupKindIcon, ImageIcon, MenuIcon, MoonIcon, PaneLayoutIcon, SettingsIcon, SunIcon, TileGridIcon, WrenchIcon } from './icons'
+import { CanvasIcon, ClockIcon, EffectsIcon, GraphIcon, GroupKindIcon, ImageIcon, MenuIcon, MoonIcon, PaneLayoutIcon, SettingsIcon, SunIcon, TestAreaIcon, TileGridIcon, WrenchIcon } from './icons'
 import { RAIL_WIDTH, TITLE_BAR_HEIGHT } from '../layoutConstants'
 
 /**
@@ -40,6 +40,8 @@ export function IconRail({
   onToggleComponents,
   effectsOpen,
   onToggleEffects,
+  testAreaOpen,
+  onToggleTestArea,
   layersOpen,
   onToggleLayers,
   inspectorOpen,
@@ -62,6 +64,9 @@ export function IconRail({
   onToggleComponents: () => void
   effectsOpen: boolean
   onToggleEffects: () => void
+  /** The Test Area panel (scene live as Toasty Lite inside mock UI). */
+  testAreaOpen: boolean
+  onToggleTestArea: () => void
   /** "+ add panel" — the "customize the layout" ask: each of these toggles
    * a `DockablePanel` back open/closed, same `active`/`onClick` convention
    * Components/Effects already established here, now extended to every
@@ -125,6 +130,9 @@ export function IconRail({
       </RailButton>
       <RailButton active={effectsOpen} onClick={onToggleEffects} title="Effects">
         <EffectsIcon />
+      </RailButton>
+      <RailButton active={testAreaOpen} onClick={onToggleTestArea} title="Test Area: try this scene in a nav bar, sidebar or social post">
+        <TestAreaIcon />
       </RailButton>
       <RailButton active={timelineOpen} onClick={onToggleTimeline} title="Timeline">
         <ClockIcon />

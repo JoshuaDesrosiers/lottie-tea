@@ -5,14 +5,14 @@ import { MAX_PANEL_WIDTH, MIN_PANEL_WIDTH, RAIL_WIDTH, SNAP_THRESHOLD_PX } from 
 import type { Position } from './position'
 
 export type DockRegion = 'left' | 'right' | null
-export type PanelKey = 'layers' | 'inspector' | 'resources' | 'tilePalette' | 'components' | 'effects'
+export type PanelKey = 'layers' | 'inspector' | 'resources' | 'tilePalette' | 'components' | 'effects' | 'testArea'
 type FixedRegion = 'left' | 'right'
 
 /** Every dockable panel key, in a fixed order used anywhere this hook needs
  * to build a `Record<PanelKey, _>` from scratch — a plain array (not derived
  * from `config`'s own keys) since `config`'s type already pins its keys to
  * exactly this set; this is just the one place that set is spelled out. */
-const PANEL_KEYS: readonly PanelKey[] = ['layers', 'inspector', 'resources', 'tilePalette', 'components', 'effects']
+const PANEL_KEYS: readonly PanelKey[] = ['layers', 'inspector', 'resources', 'tilePalette', 'components', 'effects', 'testArea']
 const REGIONS: readonly FixedRegion[] = ['left', 'right']
 
 /** The left edge's snap zone starts after `IconRail`, not at the raw screen
@@ -214,6 +214,7 @@ export function useDockLayout(
     tilePalette: useRef<HTMLDivElement | null>(null),
     components: useRef<HTMLDivElement | null>(null),
     effects: useRef<HTMLDivElement | null>(null),
+    testArea: useRef<HTMLDivElement | null>(null),
   }
   const groupContainerRefs: Record<FixedRegion, RefObject<HTMLDivElement | null>> = {
     left: useRef<HTMLDivElement | null>(null),
@@ -327,6 +328,7 @@ export function useDockLayout(
     tilePalette: null,
     components: null,
     effects: null,
+    testArea: null,
   })
 
   /** The floating-drag move/drop logic, factored out so a panel that just
@@ -398,6 +400,7 @@ export function useDockLayout(
     tilePalette: null,
     components: null,
     effects: null,
+    testArea: null,
   })
 
   function makeResizeHandlers(key: PanelKey) {
@@ -437,6 +440,7 @@ export function useDockLayout(
     tilePalette: null,
     components: null,
     effects: null,
+    testArea: null,
   })
 
   function makeGroupedHeaderDragHandlers(key: PanelKey) {
