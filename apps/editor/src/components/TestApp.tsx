@@ -114,7 +114,7 @@ function palette(dark: boolean) {
 function sheet(dark: boolean) {
   const c = palette(dark)
   return `
-.ts{position:absolute;inset:0;overflow:auto;background:${c.page};color:${c.text};font:14px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+.ts{--ts-wire-chip:${c.surface};position:absolute;inset:0;overflow:auto;background:${c.page};color:${c.text};font:14px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
 .ts *{box-sizing:border-box}
 .ts p{margin:0}
 .ts-muted{color:${c.muted}}
@@ -183,13 +183,27 @@ function sheet(dark: boolean) {
 }
 
 /** A wireframe placeholder: a box with both diagonals crossed. */
-function Wire({ w, h, line, radius = 8 }: { w: number | string; h: number | string; line: string; radius?: number }) {
+function Wire({ w, h, line, radius = 8, glyph = true }: { w: number | string; h: number | string; line: string; radius?: number; glyph?: boolean }) {
+  // The box itself is CSS (a real pixel radius — an SVG rect stretched with
+  // preserveAspectRatio="none" turned the corners into ovals); only the
+  // corner-to-corner diagonals are a stretched SVG, which lines survive.
   return (
-    <svg width={w} height={h} style={{ display: 'block', flex: 'none', maxWidth: '100%' }} preserveAspectRatio="none" viewBox="0 0 100 100">
-      <rect x="1" y="1" width="98" height="98" rx={radius} fill="none" stroke={line} strokeWidth="2" vectorEffect="non-scaling-stroke" />
-      <line x1="4" y1="4" x2="96" y2="96" stroke={line} strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-      <line x1="96" y1="4" x2="4" y2="96" stroke={line} strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-    </svg>
+    <div style={{ position: 'relative', width: w, height: h, maxWidth: '100%', flex: 'none', border: `1.5px solid ${line}`, borderRadius: radius, overflow: 'hidden', background: `${line}22` }}>
+      <svg width="100%" height="100%" preserveAspectRatio="none" viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, display: 'block' }}>
+        <line x1="0" y1="0" x2="100" y2="100" stroke={line} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+        <line x1="100" y1="0" x2="0" y2="100" stroke={line} strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      </svg>
+      {glyph && (
+        // A small "image" glyph in the middle, on a chip that hides the crossing.
+        <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', display: 'grid', placeItems: 'center', width: 44, height: 44, borderRadius: 12, background: 'var(--ts-wire-chip)', border: `1.5px solid ${line}`, color: line }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <circle cx="9" cy="10" r="1.8" />
+            <path d="M3 17l5-5 4 4 3-3 6 6" />
+          </svg>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -293,7 +307,7 @@ export function TestApp({ s, live, onPage, frame, controls }: TestAppProps) {
       fallback
     )
   const img = (seed: string, w: number | string, h: number | string, radius = 0, style?: CSSProperties) =>
-    s.hifi ? <img className="ts-img" src={photo(seed, 900, 600)} alt="" style={{ width: w, height: h, borderRadius: radius, ...style }} /> : <div style={{ width: w, height: h, ...style }}><Wire w="100%" h="100%" line={c.ph} radius={radius ? 8 : 0} /></div>
+    s.hifi ? <img className="ts-img" src={photo(seed, 900, 600)} alt="" style={{ width: w, height: h, borderRadius: radius, ...style }} /> : <div style={{ width: w, height: h, ...style }}><Wire w="100%" h="100%" line={c.ph} radius={radius} /></div>
   const avatar = (seed: string, size: number) =>
     s.hifi ? <img src={photo(seed, 96, 96)} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flex: 'none', display: 'block' }} /> : <div style={{ width: size, height: size, borderRadius: '50%', border: `1.5px solid ${c.ph}`, flex: 'none' }} />
   const para = (i: number, style?: CSSProperties) =>
