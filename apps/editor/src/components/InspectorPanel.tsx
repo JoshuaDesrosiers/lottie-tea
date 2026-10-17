@@ -1,5 +1,6 @@
 import { Popover, Select, insideOrPopover, placeMenu } from './Select'
 import { showAlert } from './Dialogs'
+import { ImageEffectsFields } from './ImageEffectsFields'
 import { SpriteEditor } from './SpriteEditor'
 import { Slider } from './Slider'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -737,6 +738,10 @@ function BehaviorsFields({
             )}
           </div>
         )
+      }
+      case 'ImageEffects': {
+        const { kind: _k, ...config } = behavior
+        return editor && artboard ? <ImageEffectsFields config={config} editor={editor} images={images} ai={{ node, artboard: artboard.id, sourceImage: node.image ?? node.shapeImage ?? null, onDocumentChange }} onChange={(c) => replaceAt(index, { kind: 'ImageEffects', ...c })} /> : null
       }
       case 'ClipFade2D':
       case 'ClipOptions2D':

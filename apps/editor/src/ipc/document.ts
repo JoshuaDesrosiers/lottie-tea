@@ -1305,6 +1305,22 @@ export interface EventAction {
 export interface UiEventsConfig {
   onClick: EventAction[]
 }
+/**
+ * `an1mbyt3_core::ImageEffect` — one image effect, externally tagged:
+ * `{ Blur: { mode, radius, … } }`. Kinds: DropShadow, Stroke, Pattern,
+ * Halftone, Ascii, Grain, Glow, GradientMap, Blur, DepthMap, RibbedGlass,
+ * ScannerDrag, Code. Fields are camelCase (see the Rust structs).
+ */
+export type ImageEffect = Record<string, Record<string, unknown>>
+/** One entry of the Image Effects stack. */
+export interface ImageEffectLayer {
+  effect: ImageEffect
+  enabled: boolean
+}
+/** `an1mbyt3_core::ImageEffects` — a node's pixel-effect stack. */
+export interface ImageEffectsConfig {
+  effects: ImageEffectLayer[]
+}
 /** `an1mbyt3_core::UiListeners` — pointer enter / exit / down / up actions. */
 export interface UiListenersConfig {
   onEnter: EventAction[]
@@ -1632,6 +1648,7 @@ export type NodeBehavior =
   | ({ kind: 'Tree2D' } & Tree2DConfig)
   | ({ kind: 'UiEvents' } & UiEventsConfig)
   | ({ kind: 'UiListeners' } & UiListenersConfig)
+  | ({ kind: 'ImageEffects' } & ImageEffectsConfig)
   | ({ kind: 'PropertyBindings' } & PropertyBindingsConfig)
   | ({ kind: 'ParticleSystem3D' } & ParticleSystem3DConfig)
   | ({ kind: 'ParticleFluid2D' } & ParticleFluid2DConfig)

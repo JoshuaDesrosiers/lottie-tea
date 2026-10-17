@@ -17,7 +17,7 @@
 
 use std::cell::{Cell, OnceCell, RefCell};
 
-use super::{create_stencil_view, no_depth_write_stencil_state, DrawCall, Renderer, SceneOp, STENCIL_FORMAT, TRANSPARENT};
+use super::{create_stencil_view, LayerFx, no_depth_write_stencil_state, DrawCall, Renderer, SceneOp, STENCIL_FORMAT, TRANSPARENT};
 
 /// One pooled layer target (a nesting level).
 pub(super) struct LayerTarget {
@@ -139,6 +139,7 @@ impl Renderer {
         unmasked: &[DrawCall<'_>],
         masked: &[SceneOp<'_>],
         composites: &[(u32, f32)],
+        fx: Option<&LayerFx<'_>>,
     ) {
         let level = self.layers.level.get();
         self.layer_target(level, size);
@@ -150,6 +151,12 @@ impl Renderer {
         };
         self.layers.level.set(level + 1);
         self.draw_masked_scene_sized(encoder, &view, &stencil, wgpu::LoadOp::Clear(TRANSPARENT), unmasked, masked, None, size);
+        // The node's image effects run on the drawn layer; the composite
+        // below then pastes their result instead.
+        let view = match fx {
+            Some(fx) => self.run_layer_fx(encoder, level, size, &view, fx),
+            None => view,
+        };
         self.layers.level.set(level);
 
         let res = self.layer_resources();
@@ -176,6 +183,13 @@ impl Renderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            // Effects say how far they reach; nothing outside that is drawn.
+            if let Some([x, y, w, h]) = fx.and_then(|f| f.scissor()) {
+                if w == 0 || h == 0 {
+                    continue;
+                }
+                pass.set_scissor_rect(x, y, w, h);
+            }
             pass.set_pipeline(&res.pipeline);
             pass.set_bind_group(0, &bind, &[]);
             pass.set_stencil_reference(*depth);

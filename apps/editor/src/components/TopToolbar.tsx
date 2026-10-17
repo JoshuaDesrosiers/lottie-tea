@@ -372,6 +372,8 @@ function ShapesMenu({
         { kind: 'separator' },
         { kind: 'item', label: 'Game: Toast Catch', icon: <SparkleIcon />, onSelect: () => onLoadTemplate('toast-catch') },
         { kind: 'item', label: 'Game: Hop', icon: <SparkleIcon />, onSelect: () => onLoadTemplate('hop') },
+        { kind: 'separator' },
+        { kind: 'item', label: 'Image FX Lab (animated effects)', icon: <SparkleIcon />, onSelect: () => onLoadTemplate('image-fx') },
       ],
     },
   ]

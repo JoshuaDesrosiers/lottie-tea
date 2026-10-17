@@ -1147,6 +1147,26 @@ fn collect_unlit_subtree<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core
 /// `build_scene_ops`' body for a node that isn't being diverted to the
 /// unlit overlay.
 #[allow(clippy::too_many_arguments)]
+/// The world-space box an Image Effects layer is laid out against: the
+/// node's local bounds (a group's covers its children) through its world
+/// transform.
+fn image_effects_bounds(artboard: &an1mbyt3_core::Artboard, node_id: NodeId) -> (Vec2, Vec2) {
+    let (lo, hi) = crate::dto::local_bounds(artboard, node_id);
+    let Some(world) = artboard.try_world_transform(node_id) else { return (lo, hi) };
+    let m = world.to_affine2();
+    let (mut min, mut max) = (Vec2::splat(f32::INFINITY), Vec2::splat(f32::NEG_INFINITY));
+    for c in [lo, Vec2::new(hi.x, lo.y), hi, Vec2::new(lo.x, hi.y)] {
+        let p = m.transform_point2(c);
+        min = min.min(p);
+        max = max.max(p);
+    }
+    if !min.is_finite() || !max.is_finite() || (max - min).min_element() <= 1e-4 {
+        let p = m.transform_point2(Vec2::ZERO);
+        return (p - Vec2::splat(50.0), p + Vec2::splat(50.0));
+    }
+    (min, max)
+}
+
 fn build_scene_ops_lit<'a>(
     editor: &'a WasmEditor,
     artboard: &'a an1mbyt3_core::Artboard,
@@ -1175,6 +1195,38 @@ fn build_scene_ops_lit<'a>(
     // upstream of it.
     if !node.visible {
         return;
+    }
+
+    // Image Effects: the node and everything under it are drawn as one
+    // flattened layer (a scene of its own, from depth 0), the effect stack
+    // runs on that image, and the result is pasted here — at this depth, so
+    // masks above still clip it.
+    if let Some(effects) = node.image_effects() {
+        if editor.fx_building.get() != Some(node_id) {
+            let (mut layer_unmasked, mut layer_masked) = (Vec::new(), Vec::new());
+            let mut layer_islands = 0u32;
+            let outer = editor.fx_building.replace(Some(node_id));
+            // (No unlit split: everything the effects should touch stays in
+            // the layer.)
+            build_scene_ops_lit(editor, artboard, index, node, node_id, 0, 0, &mut layer_islands, &mut layer_unmasked, &mut layer_masked, None);
+            editor.fx_building.set(outer);
+            if layer_unmasked.is_empty() && layer_masked.is_empty() {
+                return;
+            }
+            let (min, max) = image_effects_bounds(artboard, node_id);
+            let depth_image = effects.effects.iter().filter(|l| l.enabled).find_map(|l| l.effect.depth_image()).and_then(|id| editor.image_cache.get(&id));
+            let fx = an1mbyt3_renderer::LayerFx::new(effects.effects.iter().filter(|l| l.enabled).map(|l| &l.effect).collect(), min, max, depth_image);
+            let island = if depth == 0 {
+                let fresh = *next_island;
+                *next_island += 1;
+                masked.push(an1mbyt3_renderer::SceneOp::Begin { island: fresh, after: unmasked.len() });
+                fresh
+            } else {
+                island
+            };
+            masked.push(an1mbyt3_renderer::SceneOp::Layer { unmasked: layer_unmasked, masked: layer_masked, composites: vec![(depth, 1.0)], island, fx: Some(Box::new(fx)) });
+            return;
+        }
     }
 
     let is_mask_target = index.is_mask_target(node_id);
@@ -1312,7 +1364,7 @@ fn build_scene_ops_lit<'a>(
         for &child_id in index.children(Some(node_id)) {
             build_scene_ops(editor, artboard, index, child_id, 0, 0, &mut layer_islands, &mut layer_unmasked, &mut layer_masked, unlit_split.as_deref_mut());
         }
-        masked.push(an1mbyt3_renderer::SceneOp::Layer { unmasked: layer_unmasked, masked: layer_masked, composites: vec![(child_depth, 1.0), (fade_depth, k)], island });
+        masked.push(an1mbyt3_renderer::SceneOp::Layer { unmasked: layer_unmasked, masked: layer_masked, composites: vec![(child_depth, 1.0), (fade_depth, k)], island, fx: None });
         return;
     }
 
@@ -2802,6 +2854,10 @@ pub struct WasmEditor {
     /// The scene walk's current sorting-layer pass (`None` = every layer)
     /// and whether it also collects the unlit overlay (only one pass may).
     scene_layer_filter: std::cell::Cell<Option<u32>>,
+    /// The node whose Image Effects layer is being built right now — its
+    /// own walk inside the layer must draw it normally, not start another
+    /// layer (see `build_scene_ops_lit`).
+    fx_building: std::cell::Cell<Option<NodeId>>,
     scene_collect_unlit: std::cell::Cell<bool>,
     /// Draw bindings for draw-effect copies (shadows, outlines, repeats,
     /// mirrors) — handed out during the scene walk, reset each frame.
@@ -3352,6 +3408,7 @@ impl WasmEditor {
             view3d_selected: None,
             multi_transform: None,
             scene_layer_filter: std::cell::Cell::new(None),
+            fx_building: std::cell::Cell::new(None),
             scene_collect_unlit: std::cell::Cell::new(true),
             effect_bindings: BindingArena::default(),
             effect_camera_pan: std::cell::Cell::new(Vec2::ZERO),
@@ -5920,6 +5977,25 @@ impl WasmEditor {
         to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node })
     }
 
+    /// Image Effects' "Cut out subject": a copy of Image node `node` drawing
+    /// `image` (the cut-out) instead — same parent, transform and size —
+    /// added on top, so the subject can sit in front of things placed
+    /// between the two (text behind a person). Undoable. Returns
+    /// `{ document, newNode }`.
+    pub fn add_cutout_layer(&mut self, artboard: JsValue, node: JsValue, image: JsValue) -> Result<JsValue, JsValue> {
+        let artboard_id: ArtboardId = parse_id(artboard)?;
+        let node_id: NodeId = parse_id(node)?;
+        let image_id: an1mbyt3_core::ImageId = parse_id(image)?;
+        let source = self.document.artboard(artboard_id).and_then(|a| a.node(node_id)).ok_or_else(|| JsValue::from_str("add_cutout_layer: unknown node"))?;
+        let NodeKind::Image(img) = &source.kind else { return Err(JsValue::from_str("add_cutout_layer: not an image node")) };
+        let mut copy = Node::new(format!("{} cutout", source.name), source.parent, NodeKind::Image(an1mbyt3_core::ImageNode { image: image_id, ..img.clone() }));
+        copy.transform = source.transform;
+        copy.z_index = source.z_index;
+        let inverse = self.document.apply(Command::AddNode { artboard: artboard_id, node: copy });
+        let Command::SetDeleted { node: new_node, .. } = inverse else { unreachable!("Command::AddNode's inverse is always a SetDeleted") };
+        to_js_value(&AddNodeResult { document: summarize_document(&self.document, self.active_animation, self.active_state_machine), new_node })
+    }
+
     /// `import_image` without placing anything on the canvas — the asset
     /// (or a GIF's frames + sprite group) only. Used when a file appears in
     /// the project's `Assets/` folder on disk (Unity-style drop-in import).
@@ -7770,6 +7846,35 @@ impl WasmEditor {
     /// "PolygonCollider2D") with Unity's defaults, as the frontend appends
     /// it to the node's component list. Rust owns the defaults so the UI
     /// never drifts from them.
+    /// A new image effect of `kind` (`"Blur"`, `"RibbedGlass"` …) with its
+    /// defaults — the Image Effects component's Add menu.
+    pub fn image_effect_default(&self, kind: &str) -> Result<JsValue, JsValue> {
+        let effect = an1mbyt3_core::default_image_effect(kind).ok_or_else(|| JsValue::from_str(&format!("image_effect_default: unknown effect {kind}")))?;
+        to_js_value(&effect)
+    }
+
+    /// A Code effect's `@param` / `@color` lines: `{ params, colors }`.
+    pub fn code_effect_params(&self, code: &str) -> Result<JsValue, JsValue> {
+        let (params, colors) = an1mbyt3_core::parse_code_params(code);
+        to_js_value(&serde_json::json!({ "params": params, "colors": colors }))
+    }
+
+    /// Why a Code effect doesn't compile (`undefined` = it does). `params` /
+    /// `colors` are its current names, in order.
+    pub fn code_effect_error(&self, code: &str, params: Vec<String>, colors: Vec<String>) -> Option<String> {
+        let mut src = String::new();
+        for (i, n) in params.iter().enumerate() {
+            src.push_str(&format!("//#param {i} {n}
+"));
+        }
+        for (i, n) in colors.iter().enumerate() {
+            src.push_str(&format!("//#color {i} {n}
+"));
+        }
+        src.push_str(code);
+        self.renderer.code_effect_error(&src)
+    }
+
     pub fn default_component(&self, kind: &str) -> Result<JsValue, JsValue> {
         use an1mbyt3_core::NodeBehavior as B;
         let behavior = match kind {
@@ -7836,6 +7941,7 @@ impl WasmEditor {
             "CameraShake2D" => B::CameraShake2D(an1mbyt3_core::CameraShake2D::default()),
             "ParticlePath2D" => B::ParticlePath2D(an1mbyt3_core::ParticlePath2D::default()),
             "Mask2D" => B::Mask2D(an1mbyt3_core::Mask2D::default()),
+            "ImageEffects" => B::ImageEffects(an1mbyt3_core::ImageEffects::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };

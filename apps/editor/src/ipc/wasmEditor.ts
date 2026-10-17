@@ -17,7 +17,7 @@
  */
 import { fetchFontFile } from '../game/googleFonts'
 import init, { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm.js'
-import type { ScreenSettings, ToonMaterialConfig, ToonStyle, FieldInfo,
+import type { ImageEffect, ScreenSettings, ToonMaterialConfig, ToonStyle, FieldInfo,
   AddAnimationResult,
   PrefabResult,
   Transform2D,
@@ -416,6 +416,26 @@ export function setCamera(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId
 
 /** A fresh component of `kind` with Rust's (Unity-matching) defaults —
  * the Add Component menu appends it to the node's component list. */
+/** Adds a copy of Image node `node` drawing `image` (a cut-out) on top. */
+export function addCutoutLayer(editor: WasmEditor, artboard: OpaqueId, node: OpaqueId, image: OpaqueId): DocumentSummary {
+  return (editor.add_cutout_layer(artboard, node, image) as { document: DocumentSummary }).document
+}
+
+/** A new image effect of `kind` with its defaults (Image Effects' Add menu). */
+export function imageEffectDefault(editor: WasmEditor, kind: string): ImageEffect {
+  return editor.image_effect_default(kind) as ImageEffect
+}
+
+/** A Code effect's `@param` / `@color` declarations. */
+export function codeEffectParams(editor: WasmEditor, code: string): { params: { name: string; value: number; min: number; max: number }[]; colors: { name: string; value: [number, number, number, number] }[] } {
+  return editor.code_effect_params(code) as ReturnType<typeof codeEffectParams>
+}
+
+/** Why a Code effect doesn't compile, or `undefined`. */
+export function codeEffectError(editor: WasmEditor, code: string, params: string[], colors: string[]): string | undefined {
+  return editor.code_effect_error(code, params, colors) ?? undefined
+}
+
 export function defaultComponent(editor: WasmEditor, kind: ComponentKind): NodeBehavior {
   return editor.default_component(kind) as NodeBehavior
 }

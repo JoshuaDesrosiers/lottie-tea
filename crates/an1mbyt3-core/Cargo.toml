@@ -18,3 +18,4 @@ taffy = "0.14"
 serde_json = { workspace = true }
 
 [dev-dependencies]
+postcard.workspace = true

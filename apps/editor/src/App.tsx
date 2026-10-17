@@ -2941,7 +2941,7 @@ function App() {
   const handleLoadTemplate = (kind: string) => {
     const editor = editorRef.current
     if (!editor) return
-    const game = kind === 'toast-catch' || kind === 'hop'
+    const game = kind === 'toast-catch' || kind === 'hop' || kind === 'image-fx'
     try {
       const result = (game ? editor.load_docs_game(kind) : editor.load_lite_component(kind)) as { newArtboard: OpaqueId; document: DocumentSummary }
       switchToScene(result.newArtboard, result.document)

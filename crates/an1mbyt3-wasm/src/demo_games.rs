@@ -301,6 +301,7 @@ pub(crate) fn build(document: &mut Document, kind: &str) -> Option<GameDemo> {
     Some(match kind {
         "toast-catch" => build_toast_catch(document),
         "hop" => build_hop(document),
+        "image-fx" => GameDemo { scene: crate::demo_imagefx::build_demo_imagefx(document).scene },
         _ => return None,
     })
 }

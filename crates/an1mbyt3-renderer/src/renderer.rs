@@ -19,7 +19,9 @@ pub use an1mbyt3_core::PostEffect;
 use an1mbyt3_core::Transform2D;
 use an1mbyt3_geometry::Mesh;
 
+mod layer_fx;
 mod layers;
+pub use layer_fx::LayerFx;
 mod lighting;
 mod post;
 mod three_d;
@@ -829,6 +831,7 @@ pub struct Renderer {
     post: post::PostChain,
     /// Flattened layers (see `renderer/layers.rs`).
     layers: layers::Layers,
+    layer_fx: layer_fx::LayerFxState,
     /// Point/nearest-filtered counterpart to `post_sampler` (which is fixed
     /// Linear) — used only for `render_with_post_effects`'s very last pass
     /// (the one writing to the swapchain) when `current_resolution_scale >
@@ -1069,7 +1072,10 @@ pub enum SceneOp<'a> {
     /// starting from depth 0) drawn together into an offscreen texture,
     /// then pasted into this island once per `composites` entry — at that
     /// stencil level, at that opacity. See `renderer/layers.rs`.
-    Layer { unmasked: Vec<DrawCall<'a>>, masked: Vec<SceneOp<'a>>, composites: Vec<(u32, f32)>, island: u32 },
+    ///
+    /// `fx`: an image-effect stack run on the layer before it's pasted
+    /// (`renderer/layer_fx.rs`).
+    Layer { unmasked: Vec<DrawCall<'a>>, masked: Vec<SceneOp<'a>>, composites: Vec<(u32, f32)>, island: u32, fx: Option<Box<LayerFx<'a>>> },
 }
 
 impl SceneOp<'_> {
@@ -1771,6 +1777,7 @@ impl Renderer {
             dynamic_scale: 1.0,
             post,
             layers: Default::default(),
+            layer_fx: Default::default(),
             textured_pipeline,
             material_resources: std::cell::OnceCell::new(),
             state_3d: Default::default(),
@@ -2695,6 +2702,8 @@ impl Renderer {
         unmasked: &[DrawCall<'_>],
         masked: &[SceneOp<'_>],
     ) -> Result<(), RenderError> {
+        // A new frame: layer effects reuse their uniform buffers from the start.
+        self.layer_fx_new_frame();
         for draw in chrome {
             let mvp = build_mvp(draw.transform.to_affine2(), viewport_size, camera);
             let uniforms = DrawUniforms::from_draw(mvp, draw);
@@ -2742,7 +2751,10 @@ impl Renderer {
                 SceneOp::WriteMask { mask, .. } => mask,
                 SceneOp::Draw { draw, .. } => draw,
                 SceneOp::Begin { .. } => continue,
-                SceneOp::Layer { unmasked, masked, .. } => {
+                SceneOp::Layer { unmasked, masked, fx, .. } => {
+                    if let Some(fx) = fx {
+                        fx.update_rect(viewport_size, camera);
+                    }
                     self.write_masked_scene_uniforms(viewport_size, camera, unmasked, masked);
                     continue;
                 }
@@ -2970,8 +2982,8 @@ impl Renderer {
             }
 
             drop(pass);
-            if let Some(SceneOp::Layer { unmasked: layer_unmasked, masked: layer_masked, composites, .. }) = masked.get(i).filter(|_| i < end) {
-                self.draw_layer(encoder, target_view, stencil_view, size, layer_unmasked, layer_masked, composites);
+            if let Some(SceneOp::Layer { unmasked: layer_unmasked, masked: layer_masked, composites, fx, .. }) = masked.get(i).filter(|_| i < end) {
+                self.draw_layer(encoder, target_view, stencil_view, size, layer_unmasked, layer_masked, composites, fx.as_deref());
                 i += 1;
             }
             }
@@ -3049,6 +3061,8 @@ impl Renderer {
         effects: &[PostEffect],
         lighting: Option<&Lighting<'_>>,
     ) -> Result<(), RenderError> {
+        // A new frame: layer effects reuse their uniform buffers from the start.
+        self.layer_fx_new_frame();
         let active: Vec<PostEffect> = effects.iter().copied().filter(|effect| *effect != PostEffect::None).collect();
         if active.is_empty() && self.current_resolution_scale == 1.0 && self.dynamic_scale == 1.0 && lighting.is_none() {
             return self.render_with_masks(viewport_size, camera, clear_color, chrome, unmasked, masked);

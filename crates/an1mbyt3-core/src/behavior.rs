@@ -195,6 +195,9 @@ pub enum NodeBehavior {
     /// [`crate::UiListeners`]: pointer enter / exit / down / up actions.
     /// (Appended last.)
     UiListeners(crate::UiListeners),
+    /// [`crate::ImageEffects`]: the node's pixel-effect stack (blur, glass,
+    /// ASCII, code …). (Appended last.)
+    ImageEffects(crate::ImageEffects),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

@@ -368,6 +368,15 @@ impl Node {
     }
 
     /// This node's clip fade (mask / hidden-part opacity), if any.
+    /// The node's Image Effects stack, if it has an enabled one with at
+    /// least one enabled effect (`None` = draw normally).
+    pub fn image_effects(&self) -> Option<&crate::ImageEffects> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::ImageEffects(value) if entry.enabled && value.is_active() => Some(value),
+            _ => None,
+        })
+    }
+
     pub fn clip_fade(&self) -> crate::ClipFade2D {
         self.behaviors
             .iter()

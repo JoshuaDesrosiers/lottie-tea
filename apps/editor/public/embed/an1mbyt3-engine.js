@@ -217,6 +217,11 @@ var g = class e {
 		if (a[2]) throw G(a[1]);
 		return G(a[0]);
 	}
+	add_cutout_layer(e, t, n) {
+		let r = q.wasmeditor_add_cutout_layer(this.__wbg_ptr, e, t, n);
+		if (r[2]) throw G(r[1]);
+		return G(r[0]);
+	}
 	add_demo_hover_animation(e, t, n) {
 		let r = q.wasmeditor_add_demo_hover_animation(this.__wbg_ptr, e, t, n);
 		if (r[2]) throw G(r[1]);
@@ -421,6 +426,15 @@ var g = class e {
 		var n = V(t) ? 0 : U(t, q.__wbindgen_malloc), r = K;
 		let i = q.wasmeditor_cloth_wind(this.__wbg_ptr, e, n, r);
 		if (i[1]) throw G(i[0]);
+	}
+	code_effect_error(e, t, n) {
+		let r = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = Ye(t, q.__wbindgen_malloc), o = K, s = Ye(n, q.__wbindgen_malloc), c = K, l = q.wasmeditor_code_effect_error(this.__wbg_ptr, r, i, a, o, s, c), u;
+		return l[0] !== 0 && (u = z(l[0], l[1]), q.__wbindgen_free(l[0], l[1] * 1, 1)), u;
+	}
+	code_effect_params(e) {
+		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_code_effect_params(this.__wbg_ptr, t, n);
+		if (r[2]) throw G(r[1]);
+		return G(r[0]);
 	}
 	commit_bone_pose(e, t, n) {
 		let r = U(n, q.__wbindgen_malloc), i = K, a = q.wasmeditor_commit_bone_pose(this.__wbg_ptr, e, t, r, i);
@@ -648,6 +662,11 @@ var g = class e {
 		let r = W(n, q.__wbindgen_malloc, q.__wbindgen_realloc), i = K, a = q.wasmeditor_group_nodes(this.__wbg_ptr, e, t, r, i);
 		if (a[2]) throw G(a[1]);
 		return G(a[0]);
+	}
+	image_effect_default(e) {
+		let t = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), n = K, r = q.wasmeditor_image_effect_default(this.__wbg_ptr, t, n);
+		if (r[2]) throw G(r[1]);
+		return G(r[0]);
 	}
 	import_audio(e, t) {
 		let n = W(e, q.__wbindgen_malloc, q.__wbindgen_realloc), r = K, i = H(t, q.__wbindgen_malloc), a = K, o = q.wasmeditor_import_audio(this.__wbg_ptr, n, r, i, a);
@@ -3005,6 +3024,9 @@ function v() {
 			},
 			__wbg_setPipeline_c41bf46790f27f9e: function(e, t) {
 				e.setPipeline(t);
+			},
+			__wbg_setScissorRect_42511fefb18b86ef: function(e, t, n, r, i) {
+				e.setScissorRect(t >>> 0, n >>> 0, r >>> 0, i >>> 0);
 			},
 			__wbg_setStencilReference_66c74be6232bb9da: function(e, t) {
 				e.setStencilReference(t >>> 0);
