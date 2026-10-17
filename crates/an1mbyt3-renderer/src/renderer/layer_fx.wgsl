@@ -532,6 +532,35 @@ fn composite_shadow(px: vec2<f32>) -> vec4<f32> {
     return a + shadow * (1.0 - a.a);
 }
 
+// ---- Background / clip ------------------------------------------------------
+// background: p0: x radius px, y padding px, z image opacity; c0 colour;
+// aux = the background image (k.w = has one), stretched over the box.
+fn background(px: vec2<f32>) -> vec4<f32> {
+    let content = sa(px);
+    let pad = u.p[0].y;
+    let lo = u.rect.xy - vec2<f32>(pad);
+    let size = u.rect.zw + vec2<f32>(pad * 2.0);
+    let center = lo + size * 0.5;
+    let r = min(u.p[0].x, min(size.x, size.y) * 0.5);
+    let q = abs(px - center) - (size * 0.5 - vec2<f32>(r));
+    let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
+    let inside = 1.0 - smoothstep(-0.75, 0.75, d);
+    var bg = pm(u.c[0]);
+    if (u.k.w > 0.5) {
+        let uv = clamp((px - lo) / max(size, vec2<f32>(1.0)), vec2<f32>(0.0), vec2<f32>(1.0));
+        let img = textureSampleLevel(aux_tex, aux_samp, uv, 0.0);
+        let k = u.p[0].z * img.a;
+        bg = vec4<f32>(img.rgb * k, k) + bg * (1.0 - k);
+    }
+    bg = bg * inside;
+    return content + bg * (1.0 - content.a);
+}
+
+// clip: a = the effected image, b = the original content (its alpha masks).
+fn clip_to_shape(px: vec2<f32>) -> vec4<f32> {
+    return sa(px) * sb(px).a;
+}
+
 @fragment
 fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let px = pos.xy;
@@ -550,6 +579,8 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
         case 11: { return depth_map(px); }
         case 12: { return ribbed(px); }
         case 13: { return scanner(px); }
+        case 14: { return background(px); }
+        case 15: { return clip_to_shape(px); }
         default: { return sa(px); }
     }
 }

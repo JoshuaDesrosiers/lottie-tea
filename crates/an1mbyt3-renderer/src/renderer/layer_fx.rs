@@ -42,6 +42,15 @@ pub struct LayerFx<'a> {
     pub world_max: Vec2,
     /// A depth image for Blur (Depth) / Depth Map, if the node has one.
     pub depth: Option<&'a GpuImageTexture>,
+    /// Background behind the content: colour, image (+ its opacity),
+    /// corner radius and padding (node units). See [`LayerFx::with_background`].
+    background: [f32; 4],
+    background_image: Option<&'a GpuImageTexture>,
+    background_image_opacity: f32,
+    background_radius: f32,
+    background_padding: f32,
+    /// Mask the result to the content's own alpha.
+    clip: bool,
     /// The box in fractions of the target (x, y, w, h; y down) — filled in
     /// when the frame's uniforms are written (that's where the camera is).
     rect: Cell<[f32; 4]>,
@@ -52,7 +61,41 @@ pub struct LayerFx<'a> {
 
 impl<'a> LayerFx<'a> {
     pub fn new(effects: Vec<&'a ImageEffect>, world_min: Vec2, world_max: Vec2, depth: Option<&'a GpuImageTexture>) -> Self {
-        Self { effects, world_min, world_max, depth, rect: Cell::new([0.0, 0.0, 1.0, 1.0]), scissor: Cell::new(None) }
+        Self {
+            effects,
+            world_min,
+            world_max,
+            depth,
+            background: [0.0; 4],
+            background_image: None,
+            background_image_opacity: 0.0,
+            background_radius: 0.0,
+            background_padding: 0.0,
+            clip: false,
+            rect: Cell::new([0.0, 0.0, 1.0, 1.0]),
+            scissor: Cell::new(None),
+        }
+    }
+
+    /// Adds a background (colour, image + opacity, corner radius and padding
+    /// in node units) drawn behind the content before the effects.
+    pub fn with_background(mut self, color: [f32; 4], image: Option<&'a GpuImageTexture>, image_opacity: f32, radius: f32, padding: f32) -> Self {
+        self.background = color;
+        self.background_image = image;
+        self.background_image_opacity = image_opacity;
+        self.background_radius = radius;
+        self.background_padding = padding;
+        self
+    }
+
+    /// Masks the final image to the content's own alpha.
+    pub fn with_clip(mut self, clip: bool) -> Self {
+        self.clip = clip;
+        self
+    }
+
+    fn has_background(&self) -> bool {
+        self.background[3] > 0.0 || (self.background_image.is_some() && self.background_image_opacity > 0.0)
     }
 
     /// The scissor box from the last run (`None` = whole target).
@@ -100,6 +143,8 @@ const MODE_GRADIENT_MAP: f32 = 10.0;
 const MODE_DEPTH_MAP: f32 = 11.0;
 const MODE_RIBBED: f32 = 12.0;
 const MODE_SCANNER: f32 = 13.0;
+const MODE_BACKGROUND: f32 = 14.0;
+const MODE_CLIP: f32 = 15.0;
 
 /// A pass's input: the layer itself or scratch target `n`.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -115,6 +160,8 @@ struct Pass {
     dst: usize,
     /// `Some(source)` = a Code effect's own pipeline.
     code: Option<String>,
+    /// Bind the background image (not the depth image) as the aux texture.
+    aux_background: bool,
 }
 
 pub(super) struct FxResources {
@@ -278,7 +325,8 @@ impl Renderer {
         }
         let res = self.fx_resources();
         let targets = self.fx_targets(level, size);
-        let aux = fx.depth.map(|t| &t.bind_group).unwrap_or(&res.white.bind_group);
+        let depth_aux = fx.depth.map(|t| &t.bind_group).unwrap_or(&res.white.bind_group);
+        let background_aux = fx.background_image.map(|t| &t.bind_group).unwrap_or(&res.white.bind_group);
         let view = |s: Src| match s {
             Src::Layer => layer,
             Src::T(i) => &targets[i],
@@ -318,7 +366,7 @@ impl Renderer {
             }
             rp.set_pipeline(&pipeline);
             rp.set_bind_group(0, &bind, &[]);
-            rp.set_bind_group(1, aux, &[]);
+            rp.set_bind_group(1, if pass.aux_background { background_aux } else { depth_aux }, &[]);
             rp.draw(0..3, 0..1);
             drop(rp);
             last = Src::T(pass.dst);
@@ -347,6 +395,7 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
     // How far past the node's box each effect can reach (target px).
     let extent = rect[2].max(rect[3]);
     let margin: f32 = 3.0
+        + if fx.has_background() { fx.background_padding.max(0.0) * ppu } else { 0.0 }
         + fx
             .effects
             .iter()
@@ -378,9 +427,19 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
     let pick = |avoid: &[Src]| (0..SCRATCH).find(|i| !avoid.contains(&Src::T(*i))).unwrap_or(0);
     let single = |passes: &mut Vec<Pass>, cur: &mut Src, u: FxUniform, code: Option<String>| {
         let dst = pick(&[*cur]);
-        passes.push(Pass { u, a: *cur, b: *cur, dst, code });
+        passes.push(Pass { u, a: *cur, b: *cur, dst, code, aux_background: false });
         *cur = Src::T(dst);
     };
+
+    // The background goes in first, behind the content.
+    if fx.has_background() {
+        let mut u = base(MODE_BACKGROUND, 1.0, 0.0, fx.background_image.is_some());
+        u.p[0] = [fx.background_radius.max(0.0) * ppu, fx.background_padding * ppu, fx.background_image_opacity.clamp(0.0, 1.0), 0.0];
+        u.c[0] = linear_rgba(fx.background);
+        let dst = pick(&[cur]);
+        passes.push(Pass { u, a: cur, b: cur, dst, code: None, aux_background: true });
+        cur = Src::T(dst);
+    }
 
     for effect in &fx.effects {
         match effect {
@@ -390,15 +449,15 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
                 // Offset is in node units, y up in the world → down on screen.
                 u.p[2] = [0.0, e.offset[0] * ppu, -e.offset[1] * ppu, e.spread * ppu];
                 let t1 = pick(&[cur]);
-                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None });
+                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux_background: false });
                 let mut v = base(MODE_BLUR_V, 1.0, 0.0, has_depth);
                 v.p[0] = u.p[0];
                 let t2 = pick(&[cur, Src::T(t1)]);
-                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None });
+                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None, aux_background: false });
                 let mut c = base(MODE_SHADOW_COMPOSITE, 1.0, 0.0, has_depth);
                 c.c[0] = linear_rgba(e.color);
                 let dst = pick(&[cur, Src::T(t2)]);
-                passes.push(Pass { u: c, a: cur, b: Src::T(t2), dst, code: None });
+                passes.push(Pass { u: c, a: cur, b: Src::T(t2), dst, code: None, aux_background: false });
                 cur = Src::T(dst);
             }
             ImageEffect::Stroke(e) => {
@@ -463,16 +522,16 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
                 u.p[0] = [e.radius * ppu, 0.0, 0.0, 0.0];
                 u.p[2] = [e.threshold, 0.0, 0.0, 0.0];
                 let t1 = pick(&[cur]);
-                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None });
+                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux_background: false });
                 let mut v = base(MODE_BLUR_V, 1.0, 0.0, has_depth);
                 v.p[0] = u.p[0];
                 let t2 = pick(&[cur, Src::T(t1)]);
-                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None });
+                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None, aux_background: false });
                 let mut c = base(MODE_GLOW_COMPOSITE, 1.0, 0.0, has_depth);
                 c.p[0] = [e.intensity, 0.0, 0.0, 0.0];
                 c.c[0] = linear_rgba(e.tint);
                 let dst = pick(&[cur, Src::T(t2)]);
-                passes.push(Pass { u: c, a: cur, b: Src::T(t2), dst, code: None });
+                passes.push(Pass { u: c, a: cur, b: Src::T(t2), dst, code: None, aux_background: false });
                 cur = Src::T(dst);
             }
             ImageEffect::GradientMap(e) => {
@@ -496,11 +555,11 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
                 u.p[0] = [e.radius * ppu, mode, e.focus, e.focus_range];
                 u.p[1] = [e.start[0], e.start[1], e.end[0], e.end[1]];
                 let t1 = pick(&[cur]);
-                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None });
+                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux_background: false });
                 let mut v = u;
                 v.a[0] = MODE_BLUR_V;
                 let dst = pick(&[cur, Src::T(t1)]);
-                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst, code: None });
+                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst, code: None, aux_background: false });
                 cur = Src::T(dst);
             }
             ImageEffect::DepthMap(e) => {
@@ -547,6 +606,12 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
                 }
             }
         }
+    }
+    // Clip last: the result masked by the content's own (untouched) alpha.
+    if fx.clip {
+        let u = base(MODE_CLIP, 1.0, 0.0, false);
+        let dst = pick(&[cur, Src::Layer]);
+        passes.push(Pass { u, a: cur, b: Src::Layer, dst, code: None, aux_background: false });
     }
     (passes, scissor)
 }

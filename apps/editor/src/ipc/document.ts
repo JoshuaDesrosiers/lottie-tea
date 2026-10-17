@@ -1320,6 +1320,16 @@ export interface ImageEffectLayer {
 /** `an1mbyt3_core::ImageEffects` — a node's pixel-effect stack. */
 export interface ImageEffectsConfig {
   effects: ImageEffectLayer[]
+  /** Background colour behind the content (alpha 0 = none). */
+  background: [number, number, number, number]
+  /** Background image (covers the box, over the colour). */
+  backgroundImage: OpaqueId | null
+  backgroundImageOpacity: number
+  /** Corner radius / padding of the background box (node units). */
+  backgroundRadius: number
+  backgroundPadding: number
+  /** Mask the result to the element's own shape. */
+  clipToShape: boolean
 }
 /** `an1mbyt3_core::UiListeners` — pointer enter / exit / down / up actions. */
 export interface UiListenersConfig {

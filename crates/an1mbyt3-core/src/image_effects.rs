@@ -35,17 +35,48 @@ use serde::{Deserialize, Serialize};
 
 use crate::ImageId;
 
-/// The **Image Effects** component: the ordered effect stack.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+/// The **Image Effects** component: the ordered effect stack, plus a
+/// background behind the element and clipping to the element's shape.
+///
+/// - **Background**: a colour and / or image filling the element's box
+///   (rounded by `background_radius`, grown by `background_padding`)
+///   behind its content, before the effects run — so glass, blur, ASCII …
+///   have something to work on in the element's empty areas.
+/// - **Clip to shape**: the final image is masked by the element's own
+///   silhouette (its drawn alpha), so effects never spill outside it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ImageEffects {
     pub effects: Vec<ImageEffectLayer>,
+    /// Background colour (alpha 0 = none).
+    pub background: [f32; 4],
+    /// Background image, covering the box (drawn over the colour).
+    pub background_image: Option<ImageId>,
+    /// 0..1 opacity of the background image.
+    pub background_image_opacity: f32,
+    /// Corner radius of the background box (node units).
+    pub background_radius: f32,
+    /// Grows the background box on every side (node units).
+    pub background_padding: f32,
+    /// Mask the result to the element's own shape.
+    pub clip_to_shape: bool,
+}
+
+impl Default for ImageEffects {
+    fn default() -> Self {
+        Self { effects: Vec::new(), background: [0.0; 4], background_image: None, background_image_opacity: 1.0, background_radius: 0.0, background_padding: 0.0, clip_to_shape: false }
+    }
 }
 
 impl ImageEffects {
     /// Whether anything would actually render differently.
     pub fn is_active(&self) -> bool {
-        self.effects.iter().any(|l| l.enabled)
+        self.effects.iter().any(|l| l.enabled) || self.has_background() || self.clip_to_shape
+    }
+
+    /// Whether a background is drawn.
+    pub fn has_background(&self) -> bool {
+        self.background[3] > 0.0 || (self.background_image.is_some() && self.background_image_opacity > 0.0)
     }
 }
 
@@ -640,7 +671,10 @@ mod tests {
 
     #[test]
     fn postcard_round_trip() {
-        let fx = ImageEffects { effects: ["Blur", "RibbedGlass", "ScannerDrag", "Code", "GradientMap"].iter().map(|k| ImageEffectLayer { effect: default_image_effect(k).unwrap(), enabled: true }).collect() };
+        let fx = ImageEffects { background: [0.1, 0.2, 0.3, 1.0], clip_to_shape: true, background_radius: 12.0, ..Default::default() };
+        let back: ImageEffects = postcard::from_bytes(&postcard::to_allocvec(&fx).unwrap()).unwrap();
+        assert_eq!(fx, back);
+        let fx = ImageEffects { effects: ["Blur", "RibbedGlass", "ScannerDrag", "Code", "GradientMap"].iter().map(|k| ImageEffectLayer { effect: default_image_effect(k).unwrap(), enabled: true }).collect(), ..Default::default() };
         let bytes = postcard::to_allocvec(&fx).unwrap();
         let back: ImageEffects = postcard::from_bytes(&bytes).unwrap();
         assert_eq!(fx, back);

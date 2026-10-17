@@ -470,6 +470,47 @@ function StopsField({ stops, onChange }: { stops: { position: number; color: Rgb
   )
 }
 
+/** The element's own settings: background behind it, clip to its shape. */
+function ElementFields({ config, set, editor, images }: { config: ImageEffectsConfig; set: (p: Partial<ImageEffectsConfig>) => void; editor: WasmEditor; images: ImageAssetSummary[] }) {
+  const bg = (config.background ?? [0, 0, 0, 0]) as Rgba
+  const hasBg = bg[3] > 0 || !!config.backgroundImage
+  const num = (label: string, key: 'backgroundRadius' | 'backgroundPadding' | 'backgroundImageOpacity', min: number, max: number, step: number, unit?: string) =>
+    row(
+      label,
+      <>
+        <div className="min-w-0 flex-1">
+          <Slider value={Math.min(max, Math.max(min, Number(config[key] ?? 0)))} min={min} max={max} step={step} onChange={(v) => set({ [key]: v })} />
+        </div>
+        <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-ink-dim">{fmt(Number(config[key] ?? 0), unit)}</span>
+      </>,
+      key,
+    )
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-panel-border p-1.5">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-ink">
+        <Icon d="M4 4h16v16H4z" />
+        Element
+      </div>
+      {row('Background', <ColorSwatch value={bg} onChange={(c) => set({ background: c })} />, 'bg')}
+      {row(
+        'Bg image',
+        <div className="min-w-0 flex-1">
+          <ImageAssetPicker editor={editor} images={images} value={config.backgroundImage ?? null} onChange={(id) => set({ backgroundImage: id })} />
+        </div>,
+        'bgimg',
+      )}
+      {config.backgroundImage && num('Image opacity', 'backgroundImageOpacity', 0, 1, 0.01, '%')}
+      {hasBg && num('Radius', 'backgroundRadius', 0, 200, 1)}
+      {hasBg && num('Padding', 'backgroundPadding', -50, 200, 1)}
+      {!hasBg && <p className="text-[10px] leading-snug text-ink-dim">Give it a colour (alpha above 0) or an image to fill the element's box behind its content.</p>}
+      <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Masks the final result (background and effects too) to the element's own drawn shape">
+        <input type="checkbox" checked={!!config.clipToShape} onChange={(e) => set({ clipToShape: e.target.checked })} />
+        Clip to element shape
+      </label>
+    </div>
+  )
+}
+
 /** The Add menu (grouped like an image editor's). */
 function AddEffect({ onAdd }: { onAdd: (kind: string) => void }) {
   const [open, setOpen] = useState(false)
@@ -513,16 +554,18 @@ function AddEffect({ onAdd }: { onAdd: (kind: string) => void }) {
 export function ImageEffectsFields({ config, onChange, editor, images, ai }: { config: ImageEffectsConfig; onChange: (c: ImageEffectsConfig) => void; editor: WasmEditor; images: ImageAssetSummary[]; ai: AiContext }) {
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({})
   const effects = config.effects
-  const setAt = (i: number, patch: Partial<(typeof effects)[number]>) => onChange({ effects: effects.map((e, k) => (k === i ? { ...e, ...patch } : e)) })
+  const setAt = (i: number, patch: Partial<(typeof effects)[number]>) => onChange({ ...config, effects: effects.map((e, k) => (k === i ? { ...e, ...patch } : e)) })
+  const setConfig = (patch: Partial<ImageEffectsConfig>) => onChange({ ...config, ...patch })
   const move = (i: number, d: number) => {
     const j = i + d
     if (j < 0 || j >= effects.length) return
     const next = [...effects]
     ;[next[i], next[j]] = [next[j], next[i]]
-    onChange({ effects: next })
+    onChange({ ...config, effects: next })
   }
   return (
     <div className="flex flex-col gap-2">
+      <ElementFields config={config} set={setConfig} editor={editor} images={images} />
       {effects.length === 0 && <p className="text-[11px] leading-snug text-ink-dim">The node is drawn as an image and these effects run on it, in order. Every value can be keyframed.</p>}
       {effects.map((layer, i) => {
         const kind = kindOf(layer.effect)
@@ -545,7 +588,7 @@ export function ImageEffectsFields({ config, onChange, editor, images, ai }: { c
               <button onClick={() => move(i, 1)} title="Move down" className="rounded px-1 text-ink-dim hover:bg-overlay/10 hover:text-ink">
                 ↓
               </button>
-              <button onClick={() => onChange({ effects: effects.filter((_, k) => k !== i) })} title="Remove" className="rounded px-1 text-ink-dim hover:bg-red-500/10 hover:text-red-400">
+              <button onClick={() => onChange({ ...config, effects: effects.filter((_, k) => k !== i) })} title="Remove" className="rounded px-1 text-ink-dim hover:bg-red-500/10 hover:text-red-400">
                 ✕
               </button>
             </div>
@@ -564,7 +607,7 @@ export function ImageEffectsFields({ config, onChange, editor, images, ai }: { c
           }}
         />
       )}
-      <AddEffect onAdd={(kind) => onChange({ effects: [...effects, { effect: imageEffectDefault(editor, kind), enabled: true }] })} />
+      <AddEffect onAdd={(kind) => onChange({ ...config, effects: [...effects, { effect: imageEffectDefault(editor, kind), enabled: true }] })} />
     </div>
   )
 }

@@ -1466,7 +1466,7 @@ export const COMPONENT_LABEL: Record<ComponentKind, string> = {
   Tree2D: 'Tree 2D',
   UiEvents: 'On Click (Events)',
   UiListeners: 'Pointer Listeners (hover / press)',
-  ImageEffects: 'Image Effects',
+  ImageEffects: 'Image Effects (background, clip, FX)',
   ParticleSystem3D: 'Particle System 3D',
   ParticleFluid2D: 'Particle Fluid 2D (goo)',
   Goo2D: 'Goo 2D (liquid group)',

@@ -1215,7 +1215,10 @@ fn build_scene_ops_lit<'a>(
             }
             let (min, max) = image_effects_bounds(artboard, node_id);
             let depth_image = effects.effects.iter().filter(|l| l.enabled).find_map(|l| l.effect.depth_image()).and_then(|id| editor.image_cache.get(&id));
-            let fx = an1mbyt3_renderer::LayerFx::new(effects.effects.iter().filter(|l| l.enabled).map(|l| &l.effect).collect(), min, max, depth_image);
+            let background_image = effects.background_image.and_then(|id| editor.image_cache.get(&id));
+            let fx = an1mbyt3_renderer::LayerFx::new(effects.effects.iter().filter(|l| l.enabled).map(|l| &l.effect).collect(), min, max, depth_image)
+                .with_background(effects.background, background_image, effects.background_image_opacity, effects.background_radius, effects.background_padding)
+                .with_clip(effects.clip_to_shape);
             let island = if depth == 0 {
                 let fresh = *next_island;
                 *next_island += 1;

@@ -38,7 +38,8 @@ fn rgb(hex: u32) -> [f32; 4] {
 
 /// A panel: a group carrying `effects`, at `at`.
 fn panel(kit: &mut Kit, id: &str, at: Vec2, effects: Vec<ImageEffect>) -> NodeId {
-    let fx = ImageEffects { effects: effects.into_iter().map(|effect| ImageEffectLayer { effect, enabled: true }).collect() };
+    // Clipped to the panel's rounded shape: glass, drag and glow stay inside it.
+    let fx = ImageEffects { effects: effects.into_iter().map(|effect| ImageEffectLayer { effect, enabled: true }).collect(), clip_to_shape: true, ..Default::default() };
     let mut node = with_id(Node::with_components(id, None, vec![NodeBehavior::ImageEffects(fx)]), id);
     node.transform.translation = at;
     kit.add(node)
