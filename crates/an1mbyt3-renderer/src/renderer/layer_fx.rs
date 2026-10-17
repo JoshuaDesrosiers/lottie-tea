@@ -57,6 +57,10 @@ pub struct LayerFx<'a> {
     clip: bool,
     /// Feather the edges inward (node units, 0 = off).
     feather: f32,
+    /// How the finished layer blends onto the scene (the element's own blend
+    /// mode — inside the layer it's drawn Normal, since there's nothing
+    /// under it there to multiply / screen against).
+    pub(super) blend: an1mbyt3_core::BlendMode,
     /// The box in fractions of the target (x, y, w, h; y down) — filled in
     /// when the frame's uniforms are written (that's where the camera is).
     rect: Cell<[f32; 4]>,
@@ -80,6 +84,7 @@ impl<'a> LayerFx<'a> {
             background_padding: 0.0,
             clip: false,
             feather: 0.0,
+            blend: an1mbyt3_core::BlendMode::Normal,
             rect: Cell::new([0.0, 0.0, 1.0, 1.0]),
             scissor: Cell::new(None),
         }
@@ -105,6 +110,12 @@ impl<'a> LayerFx<'a> {
     /// Masks the final image to the content's own alpha.
     pub fn with_clip(mut self, clip: bool) -> Self {
         self.clip = clip;
+        self
+    }
+
+    /// The blend mode the finished layer composites with.
+    pub fn with_blend(mut self, blend: an1mbyt3_core::BlendMode) -> Self {
+        self.blend = blend;
         self
     }
 

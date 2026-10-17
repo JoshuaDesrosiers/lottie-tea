@@ -29,7 +29,12 @@ pub(super) struct LayerTarget {
 /// Layer pipeline + pool, created on first use.
 pub(super) struct LayerResources {
     layout: wgpu::BindGroupLayout,
+    /// Composite pipelines: Normal (premultiplied over), Multiply, Screen,
+    /// Add — all on premultiplied colour.
     pipeline: wgpu::RenderPipeline,
+    multiply: wgpu::RenderPipeline,
+    screen: wgpu::RenderPipeline,
+    add: wgpu::RenderPipeline,
 }
 
 #[derive(Default)]
@@ -81,11 +86,16 @@ impl Renderer {
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("an1mbyt3 layer composite"), bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
             let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("an1mbyt3 layer composite"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
             let face = wgpu::StencilFaceState { compare: wgpu::CompareFunction::Equal, fail_op: wgpu::StencilOperation::Keep, depth_fail_op: wgpu::StencilOperation::Keep, pass_op: wgpu::StencilOperation::Keep };
-            let premultiplied = wgpu::BlendState {
-                color: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One, dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha, operation: wgpu::BlendOperation::Add },
-                alpha: wgpu::BlendComponent { src_factor: wgpu::BlendFactor::One, dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha, operation: wgpu::BlendOperation::Add },
-            };
-            let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            let comp = |src: wgpu::BlendFactor, dst: wgpu::BlendFactor| wgpu::BlendComponent { src_factor: src, dst_factor: dst, operation: wgpu::BlendOperation::Add };
+            let over_alpha = comp(wgpu::BlendFactor::One, wgpu::BlendFactor::OneMinusSrcAlpha);
+            let premultiplied = wgpu::BlendState { color: over_alpha, alpha: over_alpha };
+            // Multiply (premultiplied): src·dst + dst·(1 − srcα).
+            let multiply = wgpu::BlendState { color: comp(wgpu::BlendFactor::Dst, wgpu::BlendFactor::OneMinusSrcAlpha), alpha: over_alpha };
+            // Screen: src + dst·(1 − src).
+            let screen = wgpu::BlendState { color: comp(wgpu::BlendFactor::One, wgpu::BlendFactor::OneMinusSrc), alpha: over_alpha };
+            // Add: src + dst (alpha kept).
+            let add = wgpu::BlendState { color: comp(wgpu::BlendFactor::One, wgpu::BlendFactor::One), alpha: comp(wgpu::BlendFactor::Zero, wgpu::BlendFactor::One) };
+            let make = |blend: wgpu::BlendState| device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("an1mbyt3 layer composite"),
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState { module: &shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &[] },
@@ -96,12 +106,12 @@ impl Renderer {
                     module: &shader,
                     entry_point: Some("fs_main"),
                     compilation_options: Default::default(),
-                    targets: &[Some(wgpu::ColorTargetState { format: self.render_format, blend: Some(premultiplied), write_mask: wgpu::ColorWrites::ALL })],
+                    targets: &[Some(wgpu::ColorTargetState { format: self.render_format, blend: Some(blend), write_mask: wgpu::ColorWrites::ALL })],
                 }),
                 multiview_mask: None,
                 cache: None,
             });
-            LayerResources { layout, pipeline }
+            LayerResources { layout, pipeline: make(premultiplied), multiply: make(multiply), screen: make(screen), add: make(add) }
         })
     }
 
@@ -190,7 +200,13 @@ impl Renderer {
                 }
                 pass.set_scissor_rect(x, y, w, h);
             }
-            pass.set_pipeline(&res.pipeline);
+            let pipeline = match fx.map(|f| f.blend).unwrap_or_default() {
+                an1mbyt3_core::BlendMode::Normal => &res.pipeline,
+                an1mbyt3_core::BlendMode::Multiply => &res.multiply,
+                an1mbyt3_core::BlendMode::Screen => &res.screen,
+                an1mbyt3_core::BlendMode::Add => &res.add,
+            };
+            pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &bind, &[]);
             pass.set_stencil_reference(*depth);
             pass.draw(0..3, 0..1);

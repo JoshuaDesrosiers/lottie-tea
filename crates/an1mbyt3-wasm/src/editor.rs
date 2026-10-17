@@ -1248,6 +1248,28 @@ fn build_scene_ops_lit<'a>(
             if layer_unmasked.is_empty() && layer_masked.is_empty() {
                 return;
             }
+            // The element's own blend mode applies when the finished layer
+            // meets the scene; inside the layer it draws Normal (blending
+            // against the empty layer turned Multiply into black).
+            let node_blend = match &node.kind {
+                NodeKind::Shape(s) => s.blend_mode,
+                NodeKind::Image(i) => i.blend_mode,
+                _ => BlendMode::Normal,
+            };
+            if node_blend != BlendMode::Normal {
+                for draw in layer_unmasked.iter_mut() {
+                    if draw.blend_mode == node_blend {
+                        draw.blend_mode = BlendMode::Normal;
+                    }
+                }
+                for op in layer_masked.iter_mut() {
+                    if let an1mbyt3_renderer::SceneOp::Draw { draw, .. } = op {
+                        if draw.blend_mode == node_blend {
+                            draw.blend_mode = BlendMode::Normal;
+                        }
+                    }
+                }
+            }
             let (min, max) = image_effects_bounds(artboard, node_id);
             let depth_image = effects.effects.iter().filter(|l| l.enabled).find_map(|l| l.effect.depth_image()).and_then(|id| editor.image_cache.get(&id));
             let background_image = effects.background_image.and_then(|id| editor.image_cache.get(&id));
@@ -1260,7 +1282,8 @@ fn build_scene_ops_lit<'a>(
                 .with_textures(textures)
                 .with_background(effects.background, background_image, effects.background_image_opacity, effects.background_radius, effects.background_padding)
                 .with_clip(effects.clip_to_shape)
-                .with_feather(effects.feather);
+                .with_feather(effects.feather)
+                .with_blend(node_blend);
             let island = if depth == 0 {
                 let fresh = *next_island;
                 *next_island += 1;
