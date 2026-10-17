@@ -1259,7 +1259,8 @@ fn build_scene_ops_lit<'a>(
             let fx = an1mbyt3_renderer::LayerFx::new(enabled.into_iter().map(std::borrow::Cow::Borrowed).collect(), min, max, depth_image)
                 .with_textures(textures)
                 .with_background(effects.background, background_image, effects.background_image_opacity, effects.background_radius, effects.background_padding)
-                .with_clip(effects.clip_to_shape);
+                .with_clip(effects.clip_to_shape)
+                .with_feather(effects.feather);
             let island = if depth == 0 {
                 let fresh = *next_island;
                 *next_island += 1;

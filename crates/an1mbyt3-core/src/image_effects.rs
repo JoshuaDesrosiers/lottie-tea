@@ -60,18 +60,22 @@ pub struct ImageEffects {
     pub background_padding: f32,
     /// Mask the result to the element's own shape.
     pub clip_to_shape: bool,
+    /// Feathers the element's edges inward over this distance (node units,
+    /// 0 = sharp): fully there inside, fading to nothing at the edge — a
+    /// soft clip, so gradients / images / effects come in gradually.
+    pub feather: f32,
 }
 
 impl Default for ImageEffects {
     fn default() -> Self {
-        Self { effects: Vec::new(), background: [0.0; 4], background_image: None, background_image_opacity: 1.0, background_radius: 0.0, background_padding: 0.0, clip_to_shape: false }
+        Self { effects: Vec::new(), background: [0.0; 4], background_image: None, background_image_opacity: 1.0, background_radius: 0.0, background_padding: 0.0, clip_to_shape: false, feather: 0.0 }
     }
 }
 
 impl ImageEffects {
     /// Whether anything would actually render differently.
     pub fn is_active(&self) -> bool {
-        self.effects.iter().any(|l| l.enabled) || self.has_background() || self.clip_to_shape
+        self.effects.iter().any(|l| l.enabled) || self.has_background() || self.clip_to_shape || self.feather > 0.0
     }
 
     /// Whether a background is drawn.

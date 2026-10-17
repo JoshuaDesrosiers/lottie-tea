@@ -588,7 +588,7 @@ function StopsField({ stops, onChange }: { stops: { position: number; color: Rgb
 function ElementFields({ config, set, editor, images }: { config: ImageEffectsConfig; set: (p: Partial<ImageEffectsConfig>) => void; editor: WasmEditor; images: ImageAssetSummary[] }) {
   const bg = (config.background ?? [0, 0, 0, 0]) as Rgba
   const hasBg = bg[3] > 0 || !!config.backgroundImage
-  const num = (label: string, key: 'backgroundRadius' | 'backgroundPadding' | 'backgroundImageOpacity', min: number, max: number, step: number, unit?: string) =>
+  const num = (label: string, key: 'backgroundRadius' | 'backgroundPadding' | 'backgroundImageOpacity' | 'feather', min: number, max: number, step: number, unit?: string) =>
     row(
       label,
       <>
@@ -617,6 +617,8 @@ function ElementFields({ config, set, editor, images }: { config: ImageEffectsCo
       {hasBg && num('Radius', 'backgroundRadius', 0, 200, 1)}
       {hasBg && num('Padding', 'backgroundPadding', -50, 200, 1)}
       {!hasBg && <p className="text-[10px] leading-snug text-ink-dim">Give it a colour (alpha above 0) or an image to fill the element's box behind its content.</p>}
+      {num('Feather', 'feather', 0, 200, 0.5, 'u')}
+      {(config.feather ?? 0) > 0 && <p className="text-[10px] leading-snug text-ink-dim">Edges fade in over this distance, so a gradient or image eases in instead of stopping sharply.</p>}
       <label className="flex items-center gap-1.5 text-[11px] text-ink-dim" title="Masks the final result (background and effects too) to the element's own drawn shape">
         <input type="checkbox" checked={!!config.clipToShape} onChange={(e) => set({ clipToShape: e.target.checked })} />
         Clip to element shape

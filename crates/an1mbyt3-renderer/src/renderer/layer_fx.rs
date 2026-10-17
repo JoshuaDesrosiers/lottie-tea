@@ -55,6 +55,8 @@ pub struct LayerFx<'a> {
     background_padding: f32,
     /// Mask the result to the content's own alpha.
     clip: bool,
+    /// Feather the edges inward (node units, 0 = off).
+    feather: f32,
     /// The box in fractions of the target (x, y, w, h; y down) — filled in
     /// when the frame's uniforms are written (that's where the camera is).
     rect: Cell<[f32; 4]>,
@@ -77,6 +79,7 @@ impl<'a> LayerFx<'a> {
             background_radius: 0.0,
             background_padding: 0.0,
             clip: false,
+            feather: 0.0,
             rect: Cell::new([0.0, 0.0, 1.0, 1.0]),
             scissor: Cell::new(None),
         }
@@ -102,6 +105,12 @@ impl<'a> LayerFx<'a> {
     /// Masks the final image to the content's own alpha.
     pub fn with_clip(mut self, clip: bool) -> Self {
         self.clip = clip;
+        self
+    }
+
+    /// Fades the edges inward over `feather` node units.
+    pub fn with_feather(mut self, feather: f32) -> Self {
+        self.feather = feather.max(0.0);
         self
     }
 
@@ -157,6 +166,7 @@ const MODE_SCANNER: f32 = 13.0;
 const MODE_BACKGROUND: f32 = 14.0;
 const MODE_CLIP: f32 = 15.0;
 const MODE_TEXTURE: f32 = 16.0;
+const MODE_FEATHER: f32 = 17.0;
 
 /// The image a pass samples as `aux_tex`.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -678,6 +688,23 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
         let u = base(MODE_CLIP, 1.0, 0.0, false);
         let dst = pick(&[cur, Src::Layer]);
         passes.push(Pass { u, a: cur, b: Src::Layer, dst, code: None, aux: Aux::Depth });
+    }
+    // Feather: blur the shape's coverage (not its colour, so the fade
+    // doesn't depend on how transparent the fill is), then use it as a soft
+    // mask that reaches 0 at the edge and 1 a feather's width inside.
+    if fx.feather > 0.0 {
+        let radius = fx.feather * ppu * 2.0;
+        let mut h = base(MODE_BLUR_H, 1.0, 4.0, false);
+        h.p[0] = [radius, 0.0, 0.0, 0.0];
+        let t1 = pick(&[cur, Src::Layer]);
+        passes.push(Pass { u: h, a: Src::Layer, b: Src::Layer, dst: t1, code: None, aux: Aux::Depth });
+        let mut v = base(MODE_BLUR_V, 1.0, 0.0, false);
+        v.p[0] = h.p[0];
+        let t2 = pick(&[cur, Src::T(t1)]);
+        passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None, aux: Aux::Depth });
+        let apply = base(MODE_FEATHER, 1.0, 0.0, false);
+        let dst = pick(&[cur, Src::T(t2)]);
+        passes.push(Pass { u: apply, a: cur, b: Src::T(t2), dst, code: None, aux: Aux::Depth });
     }
     (passes, scissor)
 }

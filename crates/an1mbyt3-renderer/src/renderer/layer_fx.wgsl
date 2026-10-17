@@ -98,6 +98,10 @@ fn blur_input(px: vec2<f32>) -> vec4<f32> {
         let k = smoothstep(u.p[2].x, u.p[2].x + 0.15, l);
         return pm(vec4<f32>(c.rgb * k, c.a * k));
     }
+    if (variant > 3.5 && variant < 4.5) {
+        // Feather: the shape's coverage (anything drawn = 1).
+        return vec4<f32>(0.0, 0.0, 0.0, clamp(sa(px).a * 40.0, 0.0, 1.0));
+    }
     if (variant > 1.5 && variant < 2.5) {
         // Shadow: the alpha, offset; spread fattens it.
         let a = sa(px - u.p[2].yz).a;
@@ -719,6 +723,14 @@ fn background(px: vec2<f32>) -> vec4<f32> {
     return content + bg * (1.0 - content.a);
 }
 
+// feather: a = the image, b = blurred coverage (alpha). The edge sits at
+// 0.5 coverage; fully opaque at 1 (a feather's width inside).
+fn feather(px: vec2<f32>) -> vec4<f32> {
+    let cov = sb(px).a;
+    let m = smoothstep(0.5, 1.0, cov);
+    return sa(px) * m;
+}
+
 // clip: a = the effected image, b = the original content (its alpha masks).
 fn clip_to_shape(px: vec2<f32>) -> vec4<f32> {
     return sa(px) * sb(px).a;
@@ -745,6 +757,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
         case 14: { return background(px); }
         case 15: { return clip_to_shape(px); }
         case 16: { return texture_fx(px); }
+        case 17: { return feather(px); }
         default: { return sa(px); }
     }
 }

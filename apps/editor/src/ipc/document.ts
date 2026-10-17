@@ -1333,6 +1333,8 @@ export interface ImageEffectsConfig {
   backgroundPadding: number
   /** Mask the result to the element's own shape. */
   clipToShape: boolean
+  /** Feather the edges inward over this distance (node units, 0 = sharp). */
+  feather: number
 }
 /** `an1mbyt3_core::UiListeners` — pointer enter / exit / down / up actions. */
 export interface UiListenersConfig {
