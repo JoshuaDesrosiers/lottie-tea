@@ -152,3 +152,21 @@ body {
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* Canvas handles (transform, gradient, vector points …): an invisible hit
+   area around each small handle, bigger on touch / pen screens, so a
+   fingertip or stylus can grab them. The visual stays the same size. */
+.an1-hit {
+  touch-action: none;
+}
+.an1-hit::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+}
+@media (any-pointer: coarse) {
+  .an1-hit::before {
+    inset: -12px;
+  }
+}

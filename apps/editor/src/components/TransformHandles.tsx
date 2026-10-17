@@ -650,7 +650,7 @@ export function TransformHandles({
         <div
           key={i}
           onMouseDown={(event) => startScaleDrag(localCorners[i], localCorners[(i + 2) % 4], event)}
-          className="pointer-events-auto absolute rounded-[2px] border border-[rgba(109,140,255,0.9)] bg-white"
+          className="an1-hit pointer-events-auto absolute rounded-[2px] border border-[rgba(109,140,255,0.9)] bg-white"
           style={{
             left: corner.x - HANDLE_SIZE_PX / 2,
             top: corner.y - HANDLE_SIZE_PX / 2,
@@ -680,7 +680,7 @@ export function TransformHandles({
           <div
             key={i}
             onMouseDown={(event) => startScaleDrag(localEdges[i].dragged, localEdges[i].anchor, event)}
-            className="pointer-events-auto absolute rounded-[2px] border border-[rgba(109,140,255,0.9)] bg-white"
+            className="an1-hit pointer-events-auto absolute rounded-[2px] border border-[rgba(109,140,255,0.9)] bg-white"
             style={{ left: edge.x - width / 2, top: edge.y - height / 2, width, height, cursor: edgeCursors[i] }}
           />
         )
@@ -688,7 +688,7 @@ export function TransformHandles({
 
       <div
         onMouseDown={handleRotateMouseDown}
-        className="pointer-events-auto absolute rounded-full border border-[rgba(109,140,255,0.9)] bg-white"
+        className="an1-hit pointer-events-auto absolute rounded-full border border-[rgba(109,140,255,0.9)] bg-white"
         style={{
           left: rotateHandleScreen.x - ROTATE_HANDLE_RADIUS_PX,
           top: rotateHandleScreen.y - ROTATE_HANDLE_RADIUS_PX,
@@ -705,7 +705,7 @@ export function TransformHandles({
           anchor's own world position, dragged or not). */}
       <div
         onMouseDown={handleAnchorMouseDown}
-        className="pointer-events-auto absolute flex items-center justify-center rounded-full border border-[rgba(255,196,0,0.9)] bg-white/80"
+        className="an1-hit pointer-events-auto absolute flex items-center justify-center rounded-full border border-[rgba(255,196,0,0.9)] bg-white/80"
         style={{
           left: screenCenter.x - ANCHOR_HANDLE_RADIUS_PX,
           top: screenCenter.y - ANCHOR_HANDLE_RADIUS_PX,

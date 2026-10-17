@@ -1,3 +1,4 @@
+import { HandleHit } from './HandleHit'
 import { useState } from 'react'
 import type { RefObject } from 'react'
 import { screenToWorld, worldToScreen, type Camera, type CanvasSize } from '../camera'
@@ -266,8 +267,8 @@ export function GradientHandle({
           const stopLocal = pointAtT(gradient.kind, gradient.start, gradient.end, stop.offset)
           const p = localToScreen(stopLocal.x, stopLocal.y)
           return (
+            <HandleHit key={index}>
             <circle
-              key={index}
               cx={p.x}
               cy={p.y}
               r={6}
@@ -277,6 +278,7 @@ export function GradientHandle({
               className="pointer-events-auto cursor-grab"
               onPointerDown={(e) => startDrag(e, { kind: 'stop', index })}
             />
+            </HandleHit>
           )
         })}
         {sortedStops.slice(0, -1).map((stop, index) => {
@@ -290,8 +292,8 @@ export function GradientHandle({
           const midpointLocal = pointAtT(gradient.kind, gradient.start, gradient.end, globalT)
           const p = localToScreen(midpointLocal.x, midpointLocal.y)
           return (
+            <HandleHit key={index}>
             <rect
-              key={index}
               x={p.x - 4}
               y={p.y - 4}
               width={8}
@@ -303,19 +305,20 @@ export function GradientHandle({
               className="pointer-events-auto cursor-grab"
               onPointerDown={(e) => startDrag(e, { kind: 'midpoint', index })}
             />
+            </HandleHit>
           )
         })}
       </svg>
       <div
         onPointerDown={(e) => startDrag(e, { kind: 'start' })}
         title="Gradient start"
-        className="pointer-events-auto absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-move rounded-sm border-2 border-white bg-accent"
+        className="an1-hit pointer-events-auto absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-move rounded-sm border-2 border-white bg-accent"
         style={{ left: startScreen.x, top: startScreen.y }}
       />
       <div
         onPointerDown={(e) => startDrag(e, { kind: 'end' })}
         title={gradient.kind === 'Linear' ? 'Gradient end' : gradient.kind === 'Radial' ? 'Gradient radius' : 'Gradient angle reference'}
-        className="pointer-events-auto absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-move rounded-full border-2 border-white bg-accent"
+        className="an1-hit pointer-events-auto absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-move rounded-full border-2 border-white bg-accent"
         style={{ left: endScreen.x, top: endScreen.y }}
       />
     </div>

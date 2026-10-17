@@ -1,3 +1,4 @@
+import { HandleHit } from './HandleHit'
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { screenToWorld, worldToScreen, type Camera, type CanvasSize } from '../camera'
@@ -670,8 +671,8 @@ export function PathEditOverlay({
           const isSelected = selectedAnchor === index
 
           const anchorPoint = (
+            <HandleHit key="anchor">
             <circle
-              key="anchor"
               cx={p.x}
               cy={p.y}
               r={isSelected ? 5.5 : 4.5}
@@ -682,6 +683,7 @@ export function PathEditOverlay({
               onPointerDown={(e) => startDrag(e, { commandIndex: index, field: 'point' })}
               onDoubleClick={(e) => handleDoubleClick(e, index)}
             />
+            </HandleHit>
           )
 
           if (command.kind !== 'CubicTo') {
@@ -717,6 +719,7 @@ export function PathEditOverlay({
               {showC1 && <line x1={c1.x} y1={c1.y} x2={s0.x} y2={s0.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />}
               {showC2 && <line x1={c2.x} y1={c2.y} x2={p.x} y2={p.y} stroke="rgba(122,140,255,0.45)" strokeWidth={1} />}
               {showC1 && (
+                <HandleHit>
                 <circle
                   cx={c1.x}
                   cy={c1.y}
@@ -727,8 +730,10 @@ export function PathEditOverlay({
                   className="pointer-events-auto cursor-grab active:cursor-grabbing"
                   onPointerDown={(e) => startDrag(e, { commandIndex: index, field: 'control1' })}
                 />
+                </HandleHit>
               )}
               {showC2 && (
+                <HandleHit>
                 <circle
                   cx={c2.x}
                   cy={c2.y}
@@ -739,6 +744,7 @@ export function PathEditOverlay({
                   className="pointer-events-auto cursor-grab active:cursor-grabbing"
                   onPointerDown={(e) => startDrag(e, { commandIndex: index, field: 'control2' })}
                 />
+                </HandleHit>
               )}
               {!duplicateEnd && anchorPoint}
               <title>Double-click a point to switch it between smooth and corner</title>

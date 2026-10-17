@@ -4677,7 +4677,7 @@ ${list}${more}`)
           (below), simply covering this with its own opaque `bg-canvas` —
           same "swap by painting over, not by unmounting" fix as the
           paper.js unmount-order bug just above it. */}
-      <div ref={canvasViewportRef} className="absolute overflow-hidden" style={viewportInsets}>
+      <div ref={canvasViewportRef} className="absolute touch-none overflow-hidden" style={viewportInsets}>
       <div
         className="absolute inset-0"
         onDragOver={(e) => {
