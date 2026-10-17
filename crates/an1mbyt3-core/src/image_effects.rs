@@ -127,7 +127,7 @@ impl ImageEffect {
             ImageEffect::Blur(_) => "Blur",
             ImageEffect::DepthMap(_) => "Depth Map",
             ImageEffect::RibbedGlass(_) => "Ribbed Glass",
-            ImageEffect::ScannerDrag(_) => "Scanner Drag",
+            ImageEffect::ScannerDrag(_) => "Slit Scan",
             ImageEffect::Code(_) => "Code",
         }
     }
@@ -229,8 +229,8 @@ impl Default for Pattern {
             smooth: 0.0,
             angle: 0.0,
             power: 0.6,
-            color: [0.427, 0.871, 0.525, 1.0],
-            background: [0.024, 0.396, 0.973, 1.0],
+            color: [1.0, 0.45, 0.38, 1.0],
+            background: [0.04, 0.22, 0.27, 1.0],
         }
     }
 }
@@ -375,9 +375,9 @@ impl Default for GradientMap {
             smooth: 0.5,
             offset: 0.0,
             stops: vec![
-                GradientMapStop { position: 0.0, color: [0.169, 0.063, 0.333, 1.0] },
-                GradientMapStop { position: 0.5, color: [0.831, 0.267, 0.435, 1.0] },
-                GradientMapStop { position: 1.0, color: [1.0, 0.765, 0.443, 1.0] },
+                GradientMapStop { position: 0.0, color: [0.05, 0.07, 0.16, 1.0] },
+                GradientMapStop { position: 0.5, color: [0.1, 0.62, 0.62, 1.0] },
+                GradientMapStop { position: 1.0, color: [0.98, 0.94, 0.82, 1.0] },
             ],
         }
     }
@@ -477,11 +477,11 @@ pub struct RibbedGlass {
 
 impl Default for RibbedGlass {
     fn default() -> Self {
-        Self { shape: RibShape::Lines, distortion: 0.55, size: 60.0, curve: 0.57, echo: 0.25, widening: -0.5, angle: 54.0, dispersion: 0.0, wave: 0.47, wavelength: 400.0, center: [0.5, 0.5] }
+        Self { shape: RibShape::Lines, distortion: 0.5, size: 40.0, curve: 0.8, echo: 0.1, widening: 0.0, angle: 20.0, dispersion: 0.15, wave: 0.25, wavelength: 320.0, center: [0.5, 0.5] }
     }
 }
 
-/// **Scanner Drag**: as if the picture were moved along `points` while a
+/// **Slit Scan** (`ScannerDrag`): as if the picture were moved along `points` while a
 /// scanner swept down it — each row is captured at a different point of
 /// the drag, smearing / bending the image along the path.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -502,7 +502,7 @@ pub struct ScannerDrag {
 
 impl Default for ScannerDrag {
     fn default() -> Self {
-        Self { intensity: 0.5, fringe: 0.25, timing: 0.66, points: vec![[0.2, 0.9], [0.45, 0.85], [0.55, 0.55], [0.75, 0.15]], angle: 0.0 }
+        Self { intensity: 0.4, fringe: 0.2, timing: 0.5, points: vec![[0.3, 0.8], [0.5, 0.6], [0.45, 0.35], [0.65, 0.2]], angle: 0.0 }
     }
 }
 
@@ -551,24 +551,21 @@ pub struct CodeEffect {
 }
 
 /// The starter code a new Code effect gets.
-pub const CODE_EFFECT_TEMPLATE: &str = "// @param wave 0 40 8
-// @param speed 0 5 1
-// @param glitch 0 1 0.3
-// @param scan 0 1 0.25
-// @color tint #D6ECFF
+pub const CODE_EFFECT_TEMPLATE: &str = "// @param ripple 0 1 0.5
+// @param speed 0 4 1
+// @param rings 2 30 10
+// @param tint_mix 0 1 0.35
+// @color tint #FFB37A
 
+// Rings ripple out from the middle; the colour warms where they crest.
 float4 effect(float2 uv) {
-    float t = time * speed;
-    float band = floor(uv.y * 24.0) + floor(t * 6.0);
-    float rnd = fract(sin(band * 12.9898) * 43758.5453);
-    float shift = step(1.0 - glitch * 0.5, rnd) * (rnd - 0.5) * 0.08;
-    float2 w = float2(sin(uv.y * 12.0 + t * 3.0) * wave * 0.001 + shift, 0.0);
-    float4 c = sample(uv + w);
-    c.r = sample(uv + w + float2(0.004 * glitch, 0.0)).r;
-    c.b = sample(uv + w - float2(0.004 * glitch, 0.0)).b;
-    float sl = 0.5 + 0.5 * sin(uv.y * 900.0);
-    c.rgb = c.rgb * (1.0 - scan * sl * 0.5);
-    c.rgb = c.rgb * tint.rgb;
+    float2 d = uv - float2(0.5, 0.5);
+    float r = length(d);
+    float wave = sin(r * rings * 6.2832 - time * speed * 3.0);
+    float2 push = d / max(r, 0.001) * wave * ripple * 0.015;
+    float4 c = sample(uv + push);
+    float crest = smoothstep(0.6, 1.0, wave) * tint_mix;
+    c.rgb = mix(c.rgb, c.rgb * tint.rgb * 1.3, crest);
     return c;
 }
 ";
@@ -655,11 +652,11 @@ mod tests {
     fn code_params_parse() {
         let (p, c) = parse_code_params(CODE_EFFECT_TEMPLATE);
         assert_eq!(p.len(), 4);
-        assert_eq!(p[0].name, "wave");
-        assert_eq!((p[0].min, p[0].max, p[0].value), (0.0, 40.0, 8.0));
+        assert_eq!(p[0].name, "ripple");
+        assert_eq!((p[0].min, p[0].max, p[0].value), (0.0, 1.0, 0.5));
         assert_eq!(c.len(), 1);
         assert_eq!(c[0].name, "tint");
-        assert!((c[0].value[0] - 0xD6 as f32 / 255.0).abs() < 1e-6);
+        assert!((c[0].value[0] - 1.0).abs() < 1e-6);
     }
 
     #[test]

@@ -2,13 +2,13 @@
  * Inspector UI for the **Image Effects** component (`an1mbyt3_core::ImageEffects`):
  * a node's stack of pixel effects — Drop Shadow, Stroke, Pattern, Halftone,
  * ASCII, Grain, Glow, Gradient Map, Blur (plain / progressive / depth),
- * Depth Map, Ribbed Glass, Scanner Drag and Code.
+ * Depth Map, Ribbed Glass, Slit Scan and Code.
  *
  * - An **Add** menu grouped like an image editor's effects menu.
  * - Each effect is a card: show / hide, reorder, remove, collapse.
  * - Fields come from a small schema (`FX`): sliders, colours, toggles,
  *   segmented modes; plus pads for positions — Ribbed Glass's centre, the
- *   progressive blur's start → end line, and Scanner Drag's path (click to
+ *   progressive blur's start → end line, and Slit Scan's path (click to
  *   add a point, drag to move, double-click to remove).
  * - Gradient Map edits its stops; Code edits its source (Apply re-reads the
  *   `@param` / `@color` lines, keeping values of params that kept their
@@ -139,7 +139,7 @@ const FX: Record<string, FxSchema> = {
     help: 'Drag the dot to move the centre (rings, widening).',
   },
   ScannerDrag: {
-    label: 'Scanner Drag',
+    label: 'Slit Scan',
     icon: 'M4 7V4h16v3M4 17v3h16v-3M3 12h18',
     fields: [['intensity', 'Intensity', 'slider', 0.01, 0, 2, '%'], ['fringe', 'Fringe', 'slider', 0.01, 0, 1, '%'], ['timing', 'Timing', 'slider', 0.01, 0.02, 0.98, '%'], ['angle', 'Sweep angle', 'slider', 1, -180, 180, '°']],
     help: 'Draw the drag path: click to add a point, drag to move, double-click to remove. Animate Timing to replay the drag.',

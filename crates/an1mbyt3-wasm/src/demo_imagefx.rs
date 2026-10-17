@@ -10,8 +10,8 @@
 //! | ASCII | ASCII, mono (cell size) |
 //! | Pattern | checker pattern (scale, power) + progressive blur |
 //! | Glow | glow (intensity) + grain |
-//! | Scanner Drag | scanner drag (timing) |
-//! | Code | the Code effect's glitch template (its own `time`) + gradient map |
+//! | Slit Scan | slit scan (timing) |
+//! | Code | the Code effect's ripple template (its own `time`) + gradient map |
 
 use an1mbyt3_core::image_effects::{Ascii, Blur, BlurMode, CodeEffect, Glow, GradientMap, Grain, Pattern, RibbedGlass, ScannerDrag, Stroke as StrokeFx, StrokePosition};
 use an1mbyt3_core::{Document, FontAsset, FontId, GradientDef, GradientKind, GradientStop, ImageEffect, ImageEffectLayer, ImageEffects, InputDef, Node, NodeBehavior, NodeId, NodeKind, Path, PathCommand, ShapeNode, Stroke, StrokeCap, StrokeJoin};
@@ -172,8 +172,8 @@ pub(crate) fn build_demo_imagefx(document: &mut Document) -> LiteDemo {
         vec![ImageEffect::Pattern(Pattern { scale: 16.0, ..Default::default() }), ImageEffect::Blur(Blur { mode: BlurMode::Progressive, radius: 10.0, start: [0.5, 0.45], end: [0.5, 1.0], ..Default::default() })],
     );
     gshape(&mut kit, "pt_bg", pattern, round_rect(W, H, 14.0), grad(GradientKind::Radial, v(60.0, 40.0), v(300.0, 0.0), &[(0.0, rgb(0xffffff)), (1.0, rgb(0x9a9a9a))]), v(0.0, 0.0));
-    kit.add(text_node(Some(pattern), "pt_king", "king of", font, 56.0, rgb(0x0b0b0b), v(-40.0, 70.0)));
-    kit.add(text_node(Some(pattern), "pt_street", "the street", font, 56.0, rgb(0x0b0b0b), v(-20.0, -100.0)));
+    kit.add(text_node(Some(pattern), "pt_top", "toasty", font, 64.0, rgb(0x0b0b0b), v(-40.0, 70.0)));
+    kit.add(text_node(Some(pattern), "pt_bottom", "studio", font, 64.0, rgb(0x0b0b0b), v(-30.0, -100.0)));
     figure(&mut kit, pattern, "pt_fig", v(110.0, -20.0), 0x6b4a3a, 0x2b2b2b, 0x111111);
     label(&mut kit, font, "label_pattern", "Pattern + Progressive Blur", v(cols[2], rows[0] - 160.0));
 
@@ -190,14 +190,14 @@ pub(crate) fn build_demo_imagefx(document: &mut Document) -> LiteDemo {
     kit.add(text_node(Some(glow), "gl_word", "NEON", font, 44.0, rgb(0xfff3a0), v(0.0, -105.0)));
     label(&mut kit, font, "label_glow", "Glow + Grain", v(cols[0], rows[1] - 160.0));
 
-    // 5. Scanner drag on a figure.
+    // 5. Slit scan on a figure.
     let scanner = panel(&mut kit, "scanner", v(cols[1], rows[1]), vec![ImageEffect::ScannerDrag(ScannerDrag { intensity: 0.45, ..Default::default() })]);
     backdrop(&mut kit, scanner, "sc", 0x0a1220, 0x2f6fd0, v(40.0, -10.0));
-    kit.add(text_node(Some(scanner), "sc_word", "supertest", font, 50.0, rgb(0xffffff), v(-40.0, 95.0)));
+    kit.add(text_node(Some(scanner), "sc_word", "drift", font, 56.0, rgb(0xffffff), v(-40.0, 95.0)));
     figure(&mut kit, scanner, "sc_fig", v(30.0, -20.0), 0xf1c9a5, 0xe8322f, 0x2f5fa8);
-    label(&mut kit, font, "label_scanner", "Scanner Drag", v(cols[1], rows[1] - 160.0));
+    label(&mut kit, font, "label_scanner", "Slit Scan", v(cols[1], rows[1] - 160.0));
 
-    // 6. Code (glitch) + gradient map + stroke.
+    // 6. Code (ripple) + gradient map + stroke.
     let code = panel(
         &mut kit,
         "code",
@@ -206,7 +206,7 @@ pub(crate) fn build_demo_imagefx(document: &mut Document) -> LiteDemo {
     );
     landscape(&mut kit, code, "cd", 0x0b2a5a, 0x7fc8ff, 0xf4fbff, 0x35587e, 0x14243a);
     figure(&mut kit, code, "cd_fig", v(-90.0, -30.0), 0xffffff, 0xdddddd, 0x888888);
-    kit.add(text_node(Some(code), "cd_word", "GLITCH", font, 46.0, rgb(0xffffff), v(50.0, -105.0)));
+    kit.add(text_node(Some(code), "cd_word", "RIPPLE", font, 46.0, rgb(0xffffff), v(50.0, -105.0)));
     label(&mut kit, font, "label_code", "Code (custom shader) + Gradient Map", v(cols[2], rows[1] - 160.0));
 
     // One looping animation keyframing the effects.
