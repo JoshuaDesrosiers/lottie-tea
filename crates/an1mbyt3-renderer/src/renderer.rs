@@ -2352,6 +2352,7 @@ impl Renderer {
         let uniforms = match processing.effect {
             // (Scene-only effects bake as a plain copy into an image.)
             PostEffect::None
+            | PostEffect::Texture(_)
             | PostEffect::Blur { .. }
             | PostEffect::Glow { .. }
             | PostEffect::Anaglyph { .. }

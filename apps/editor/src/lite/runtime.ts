@@ -432,7 +432,7 @@ class Player implements LitePlayer {
   private size = { w: 1, h: 1, dpr: 1 }
   /** `presses` / `releases` count events since the last frame, so a click
    * whose down and up land in the same frame is never missed. */
-  private pointer: { x: number; y: number; inside: boolean; down: boolean; presses: number; releases: number } = { x: 0, y: 0, inside: false, down: false, presses: 0, releases: 0 }
+  private pointer: { x: number; y: number; inside: boolean; down: boolean; presses: number; releases: number; leaving: boolean } = { x: 0, y: 0, inside: false, down: false, presses: 0, releases: 0, leaving: false }
   private worlds: DOMMatrix[] = []
   private cleanups: (() => void)[] = []
   private lastPose: Pose = new Map()
@@ -487,13 +487,18 @@ class Player implements LitePlayer {
       // even when nothing was animating.
       schedule()
     }
+    // Touch fires pointerleave right after pointerup, in the same frame:
+    // leaving at once would hit-test the tap with the pointer already gone
+    // (a tap showed hover but never clicked). So a leave waits until the
+    // next frame has handled any press / release first.
     const leave = () => {
-      this.pointer.inside = false
-      this.pointer.down = false
+      this.pointer.leaving = true
       this.dirty = true
+      schedule()
     }
     const down = (e: PointerEvent) => {
       move(e)
+      this.pointer.leaving = false
       this.pointer.down = true
       this.pointer.presses++
     }
@@ -506,7 +511,16 @@ class Player implements LitePlayer {
     this.canvas.addEventListener('pointerleave', leave)
     this.canvas.addEventListener('pointerdown', down)
     this.canvas.addEventListener('pointerup', up)
+    // A scroll that takes over the touch: treat as leaving, no click.
+    const cancel = () => {
+      this.pointer.down = false
+      this.pointer.presses = 0
+      this.pointer.releases = 0
+      leave()
+    }
+    this.canvas.addEventListener('pointercancel', cancel)
     this.cleanups.push(() => {
+      this.canvas.removeEventListener('pointercancel', cancel)
       this.canvas.removeEventListener('pointermove', move)
       this.canvas.removeEventListener('pointerleave', leave)
       this.canvas.removeEventListener('pointerdown', down)
@@ -784,7 +798,7 @@ class Player implements LitePlayer {
       }
       if (!hover && n.hover) run(n.def.listeners?.exit)
       n.hover = hover
-      n.pressed = pressed
+      n.pressed = pressed && !this.pointer.leaving
       const targetScale = pressed ? b.pressedScale : hover ? b.hoverScale : 1
       const targetTint = !b.interactable ? b.normalColor : pressed ? b.pressedColor : hover ? b.hoverColor : b.normalColor
       const k = b.fade > 0 ? Math.min(1, dt / b.fade) : 1
@@ -794,6 +808,15 @@ class Player implements LitePlayer {
       n.lookScale = ns
       n.lookTint = nt
     })
+    // A deferred leave (see `leave`): now that this frame handled the press,
+    // the pointer is gone — next frame runs the exits.
+    if (this.pointer.leaving) {
+      this.pointer.leaving = false
+      this.pointer.inside = false
+      this.pointer.down = false
+      this.dirty = true
+      schedule()
+    }
     return changed
   }
 

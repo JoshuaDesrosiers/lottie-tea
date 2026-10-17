@@ -551,6 +551,14 @@ export function PathEditOverlay({
     setDragging(null)
     setLivePath(null)
   }
+  // A cancelled pointer (chiefly `input/touchGestures.ts` taking the finger
+  // over because a second one landed for a pinch): drop the drag without
+  // committing, and put the live preview back to the committed `path`.
+  const handlePointerCancel = () => {
+    if (livePath) onPreviewPath(path)
+    setDragging(null)
+    setLivePath(null)
+  }
   const startDrag = (e: React.PointerEvent, ref: PointRef) => {
     e.stopPropagation()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
@@ -621,7 +629,7 @@ export function PathEditOverlay({
   }
 
   return (
-    <div ref={rootRef} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} className="pointer-events-none absolute inset-0">
+    <div ref={rootRef} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerCancel} className="pointer-events-none absolute inset-0">
       <svg className="absolute inset-0 h-full w-full overflow-visible">
         {outline && (
           <>

@@ -198,6 +198,8 @@ pub enum NodeBehavior {
     /// [`crate::ImageEffects`]: the node's pixel-effect stack (blur, glass,
     /// ASCII, code …). (Appended last.)
     ImageEffects(crate::ImageEffects),
+    /// [`crate::Reference2D`]: a design-only reference object. (Appended last.)
+    Reference2D(crate::Reference2D),
 }
 
 /// One collider attached to a node, any shape — what physics iterates.

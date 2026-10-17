@@ -110,6 +110,8 @@ pub enum ImageEffect {
     RibbedGlass(RibbedGlass),
     ScannerDrag(ScannerDrag),
     Code(CodeEffect),
+    /// A texture laid over the element, clipped to its shape (appended).
+    Texture(Texture),
 }
 
 impl ImageEffect {
@@ -129,12 +131,14 @@ impl ImageEffect {
             ImageEffect::RibbedGlass(_) => "Ribbed Glass",
             ImageEffect::ScannerDrag(_) => "Slit Scan",
             ImageEffect::Code(_) => "Code",
+            ImageEffect::Texture(_) => "Texture",
         }
     }
 
     /// The depth image this effect reads, if any.
     pub fn depth_image(&self) -> Option<ImageId> {
         match self {
+            ImageEffect::Texture(_) => None,
             ImageEffect::Blur(b) => b.depth_image,
             ImageEffect::DepthMap(d) => d.depth_image,
             _ => None,
@@ -623,6 +627,87 @@ pub fn parse_hex(hex: &str) -> Option<[f32; 4]> {
     }
 }
 
+/// Where a [`Texture`]'s pattern comes from: built-in procedural surfaces
+/// (resolution-free, seamless, some animated) or an imported image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum TextureSource {
+    /// Woven artist's canvas.
+    #[default]
+    Canvas,
+    /// Fibrous paper.
+    Paper,
+    /// Fine linen cross-weave.
+    Linen,
+    /// Soft fractal noise.
+    Noise,
+    /// Flowing sine waves.
+    Waves,
+    /// Swirling, animated fluid (domain-warped noise).
+    Fluid,
+    /// Veined marble.
+    Marble,
+    /// Speckled concrete.
+    Concrete,
+    /// Dust specks and fine scratches (old film / print).
+    Dust,
+    /// Brushed metal streaks.
+    Brushed,
+    /// An imported image (`Texture::image`), tiled.
+    Image,
+}
+
+/// How a texture combines with what's under it — the usual layer blend modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum TextureBlend {
+    Normal,
+    Multiply,
+    Screen,
+    Overlay,
+    #[default]
+    SoftLight,
+    HardLight,
+    ColorDodge,
+    ColorBurn,
+    Darken,
+    Lighten,
+    Difference,
+    LinearLight,
+}
+
+/// **Texture**: a surface laid over the element, clipped to its shape —
+/// like Affinity's / Illustrator's texture fills. On a node it's one entry
+/// of its Image Effects; on the scene (post effects) it's a global texture
+/// laid over the whole frame last.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Texture {
+    pub source: TextureSource,
+    /// The image for `TextureSource::Image`.
+    pub image: Option<ImageId>,
+    pub blend: TextureBlend,
+    pub opacity: f32,
+    /// Size of one tile / feature in node units.
+    pub scale: f32,
+    /// Degrees.
+    pub rotation: f32,
+    /// Offset in tiles (animate it to slide the texture).
+    pub offset: [f32; 2],
+    /// Pushes the texture's contrast, -1..1.
+    pub contrast: f32,
+    /// Multiplies the texture's colour (procedural ones are grey).
+    pub tint: [f32; 4],
+    /// Animation speed for Fluid / Waves / Noise (0 = still).
+    pub speed: f32,
+    /// Extra fine detail, 0..1.
+    pub detail: f32,
+}
+
+impl Default for Texture {
+    fn default() -> Self {
+        Self { source: TextureSource::Canvas, image: None, blend: TextureBlend::SoftLight, opacity: 0.6, scale: 60.0, rotation: 0.0, offset: [0.0, 0.0], contrast: 0.0, tint: [1.0; 4], speed: 0.3, detail: 0.5 }
+    }
+}
+
 /// A new effect of the named kind (`"Blur"`, `"Ribbed Glass"`'s
 /// `"RibbedGlass"` …) with its defaults — the editor's Add menu.
 pub fn default_image_effect(kind: &str) -> Option<ImageEffect> {
@@ -640,6 +725,7 @@ pub fn default_image_effect(kind: &str) -> Option<ImageEffect> {
         "RibbedGlass" => ImageEffect::RibbedGlass(RibbedGlass::default()),
         "ScannerDrag" => ImageEffect::ScannerDrag(ScannerDrag::default()),
         "Code" => ImageEffect::Code(CodeEffect::default()),
+        "Texture" => ImageEffect::Texture(Texture::default()),
         _ => return None,
     })
 }
@@ -661,7 +747,7 @@ mod tests {
 
     #[test]
     fn every_kind_has_a_default() {
-        for k in ["DropShadow", "Stroke", "Pattern", "Halftone", "Ascii", "Grain", "Glow", "GradientMap", "Blur", "DepthMap", "RibbedGlass", "ScannerDrag", "Code"] {
+        for k in ["DropShadow", "Stroke", "Pattern", "Halftone", "Ascii", "Grain", "Glow", "GradientMap", "Blur", "DepthMap", "RibbedGlass", "ScannerDrag", "Code", "Texture"] {
             assert!(default_image_effect(k).is_some(), "{k}");
         }
     }

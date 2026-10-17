@@ -1,6 +1,8 @@
 import { Popover, insideOrPopover } from './Select'
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import type { PostEffect, PostEffectLayer } from '../ipc/document'
+import type { ImageAssetSummary, PostEffect, PostEffectLayer } from '../ipc/document'
+import type { WasmEditor } from '../ipc/wasmEditor'
+import { TextureFields } from './ImageEffectsFields'
 import { POST_EFFECT_DEFAULTS, hexPalette } from '../ipc/document'
 import { ColorSwatch } from './ColorPicker'
 import { NumberField } from './InspectorPanel'
@@ -65,8 +67,15 @@ function AddEffectMenu({ onAdd }: { onAdd: (kind: Exclude<PostEffect['kind'], 'N
  * plain `NumberField` (no dedicated slider UI yet; every one of these is
  * already a free-typed/scroll-nudged number field, same as every other
  * numeric Inspector control). */
-export function EffectParams({ effect, onChange }: { effect: PostEffect; onChange: (effect: PostEffect) => void }) {
+export function EffectParams({ effect, onChange, editor = null, images = [] }: { effect: PostEffect; onChange: (effect: PostEffect) => void; editor?: WasmEditor | null; images?: ImageAssetSummary[] }) {
   switch (effect.kind) {
+    case 'Texture':
+      return (
+        <div className="flex w-full flex-col gap-1">
+          <TextureFields value={effect.texture} onChange={(texture) => onChange({ ...effect, texture: texture as typeof effect.texture })} editor={editor} images={images} />
+          <p className="text-[10px] leading-snug text-ink-dim">Laid over the whole scene, on top of everything — a finishing grain / paper / canvas feel. Shows while designing too.</p>
+        </div>
+      )
     case 'None':
       return null
     case 'Blur':
@@ -213,7 +222,11 @@ function EffectRow({
   onMoveDown,
   isFirst,
   isLast,
+  editor,
+  images,
 }: {
+  editor: WasmEditor | null
+  images: ImageAssetSummary[]
   layer: PostEffectLayer
   onChange: (layer: PostEffectLayer) => void
   onRemove: () => void
@@ -261,7 +274,7 @@ function EffectRow({
         </button>
       </div>
       <div className="mt-1.5 flex flex-col gap-1">
-        <EffectParams effect={layer.effect} onChange={(effect) => onChange({ ...layer, effect })} />
+        <EffectParams effect={layer.effect} editor={editor} images={images} onChange={(effect) => onChange({ ...layer, effect })} />
       </div>
     </div>
   )
@@ -277,7 +290,7 @@ function EffectRow({
  * completely ordinary, fully-supported case: each addition just appends
  * another independent `PostEffectLayer`, chained after the first by
  * `Renderer::render_with_post_effects`, not merged/deduplicated. */
-export function EffectsPanel({ layers, onChange }: { layers: PostEffectLayer[]; onChange: (layers: PostEffectLayer[]) => void }) {
+export function EffectsPanel({ layers, onChange, editor = null, images = [] }: { layers: PostEffectLayer[]; onChange: (layers: PostEffectLayer[]) => void; editor?: WasmEditor | null; images?: ImageAssetSummary[] }) {
   const updateAt = (index: number, layer: PostEffectLayer) => {
     onChange(layers.map((l, i) => (i === index ? layer : l)))
   }
@@ -306,6 +319,8 @@ export function EffectsPanel({ layers, onChange }: { layers: PostEffectLayer[]; 
           onMoveDown={() => swap(index, index + 1)}
           isFirst={index === 0}
           isLast={index === layers.length - 1}
+          editor={editor}
+          images={images}
         />
       ))}
       <AddEffectMenu onAdd={add} />

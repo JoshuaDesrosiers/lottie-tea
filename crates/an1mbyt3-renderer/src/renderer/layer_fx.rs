@@ -16,10 +16,11 @@
 //! pass — so it never contends with the scene's post chain for uniform slots
 //! or ping-pong targets.
 
+use std::borrow::Cow;
 use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::HashMap;
 
-use an1mbyt3_core::image_effects::{AsciiCharset, BlurMode, HalftoneShape, PatternForm, RibShape, StrokePosition};
+use an1mbyt3_core::image_effects::{AsciiCharset, BlurMode, HalftoneShape, PatternForm, RibShape, StrokePosition, TextureBlend, TextureSource};
 use an1mbyt3_core::ImageEffect;
 use glam::Vec2;
 
@@ -34,8 +35,11 @@ fn shader_header() -> &'static str {
 
 /// What the editor attaches to a `SceneOp::Layer` to run effects on it.
 pub struct LayerFx<'a> {
-    /// The enabled effects, in order.
-    pub effects: Vec<&'a ImageEffect>,
+    /// The enabled effects, in order (borrowed from a node, or owned — the
+    /// scene's global texture).
+    pub effects: Vec<Cow<'a, ImageEffect>>,
+    /// Per effect: the image a Texture effect samples (`None` = none).
+    pub textures: Vec<Option<&'a GpuImageTexture>>,
     /// The node's (subtree's) world-space bounding box — effect positions
     /// and sizes are relative to it / in its units.
     pub world_min: Vec2,
@@ -60,8 +64,9 @@ pub struct LayerFx<'a> {
 }
 
 impl<'a> LayerFx<'a> {
-    pub fn new(effects: Vec<&'a ImageEffect>, world_min: Vec2, world_max: Vec2, depth: Option<&'a GpuImageTexture>) -> Self {
+    pub fn new(effects: Vec<Cow<'a, ImageEffect>>, world_min: Vec2, world_max: Vec2, depth: Option<&'a GpuImageTexture>) -> Self {
         Self {
+            textures: vec![None; effects.len()],
             effects,
             world_min,
             world_max,
@@ -85,6 +90,12 @@ impl<'a> LayerFx<'a> {
         self.background_image_opacity = image_opacity;
         self.background_radius = radius;
         self.background_padding = padding;
+        self
+    }
+
+    /// The images Texture effects sample, one slot per effect (same order).
+    pub fn with_textures(mut self, textures: Vec<Option<&'a GpuImageTexture>>) -> Self {
+        self.textures = textures;
         self
     }
 
@@ -145,6 +156,16 @@ const MODE_RIBBED: f32 = 12.0;
 const MODE_SCANNER: f32 = 13.0;
 const MODE_BACKGROUND: f32 = 14.0;
 const MODE_CLIP: f32 = 15.0;
+const MODE_TEXTURE: f32 = 16.0;
+
+/// The image a pass samples as `aux_tex`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Aux {
+    Depth,
+    Background,
+    /// Effect `i`'s texture image.
+    Texture(usize),
+}
 
 /// A pass's input: the layer itself or scratch target `n`.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -160,8 +181,8 @@ struct Pass {
     dst: usize,
     /// `Some(source)` = a Code effect's own pipeline.
     code: Option<String>,
-    /// Bind the background image (not the depth image) as the aux texture.
-    aux_background: bool,
+    /// Which image is bound as the aux texture.
+    aux: Aux,
 }
 
 pub(super) struct FxResources {
@@ -366,7 +387,12 @@ impl Renderer {
             }
             rp.set_pipeline(&pipeline);
             rp.set_bind_group(0, &bind, &[]);
-            rp.set_bind_group(1, if pass.aux_background { background_aux } else { depth_aux }, &[]);
+            let aux = match pass.aux {
+                Aux::Depth => depth_aux,
+                Aux::Background => background_aux,
+                Aux::Texture(i) => fx.textures.get(i).copied().flatten().map(|t| &t.bind_group).unwrap_or(&res.white.bind_group),
+            };
+            rp.set_bind_group(1, aux, &[]);
             rp.draw(0..3, 0..1);
             drop(rp);
             last = Src::T(pass.dst);
@@ -399,7 +425,7 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
         + fx
             .effects
             .iter()
-            .map(|e| match e {
+            .map(|e| match e.as_ref() {
                 ImageEffect::DropShadow(e) => (e.offset[0].abs().max(e.offset[1].abs()) + e.blur + e.spread) * ppu * 1.3,
                 ImageEffect::Stroke(e) => e.width * ppu + 2.0,
                 ImageEffect::Glow(e) => e.radius * ppu * 1.3,
@@ -427,7 +453,7 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
     let pick = |avoid: &[Src]| (0..SCRATCH).find(|i| !avoid.contains(&Src::T(*i))).unwrap_or(0);
     let single = |passes: &mut Vec<Pass>, cur: &mut Src, u: FxUniform, code: Option<String>| {
         let dst = pick(&[*cur]);
-        passes.push(Pass { u, a: *cur, b: *cur, dst, code, aux_background: false });
+        passes.push(Pass { u, a: *cur, b: *cur, dst, code, aux: Aux::Depth });
         *cur = Src::T(dst);
     };
 
@@ -437,27 +463,27 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
         u.p[0] = [fx.background_radius.max(0.0) * ppu, fx.background_padding * ppu, fx.background_image_opacity.clamp(0.0, 1.0), 0.0];
         u.c[0] = linear_rgba(fx.background);
         let dst = pick(&[cur]);
-        passes.push(Pass { u, a: cur, b: cur, dst, code: None, aux_background: true });
+        passes.push(Pass { u, a: cur, b: cur, dst, code: None, aux: Aux::Background });
         cur = Src::T(dst);
     }
 
-    for effect in &fx.effects {
-        match effect {
+    for (index, effect) in fx.effects.iter().enumerate() {
+        match effect.as_ref() {
             ImageEffect::DropShadow(e) => {
                 let mut u = base(MODE_BLUR_H, 1.0, 2.0, has_depth);
                 u.p[0] = [e.blur * ppu * 0.5, 0.0, 0.0, 0.0];
                 // Offset is in node units, y up in the world → down on screen.
                 u.p[2] = [0.0, e.offset[0] * ppu, -e.offset[1] * ppu, e.spread * ppu];
                 let t1 = pick(&[cur]);
-                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux_background: false });
+                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux: Aux::Depth });
                 let mut v = base(MODE_BLUR_V, 1.0, 0.0, has_depth);
                 v.p[0] = u.p[0];
                 let t2 = pick(&[cur, Src::T(t1)]);
-                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None, aux_background: false });
+                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None, aux: Aux::Depth });
                 let mut c = base(MODE_SHADOW_COMPOSITE, 1.0, 0.0, has_depth);
                 c.c[0] = linear_rgba(e.color);
                 let dst = pick(&[cur, Src::T(t2)]);
-                passes.push(Pass { u: c, a: cur, b: Src::T(t2), dst, code: None, aux_background: false });
+                passes.push(Pass { u: c, a: cur, b: Src::T(t2), dst, code: None, aux: Aux::Depth });
                 cur = Src::T(dst);
             }
             ImageEffect::Stroke(e) => {
@@ -522,16 +548,16 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
                 u.p[0] = [e.radius * ppu, 0.0, 0.0, 0.0];
                 u.p[2] = [e.threshold, 0.0, 0.0, 0.0];
                 let t1 = pick(&[cur]);
-                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux_background: false });
+                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux: Aux::Depth });
                 let mut v = base(MODE_BLUR_V, 1.0, 0.0, has_depth);
                 v.p[0] = u.p[0];
                 let t2 = pick(&[cur, Src::T(t1)]);
-                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None, aux_background: false });
+                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst: t2, code: None, aux: Aux::Depth });
                 let mut c = base(MODE_GLOW_COMPOSITE, 1.0, 0.0, has_depth);
                 c.p[0] = [e.intensity, 0.0, 0.0, 0.0];
                 c.c[0] = linear_rgba(e.tint);
                 let dst = pick(&[cur, Src::T(t2)]);
-                passes.push(Pass { u: c, a: cur, b: Src::T(t2), dst, code: None, aux_background: false });
+                passes.push(Pass { u: c, a: cur, b: Src::T(t2), dst, code: None, aux: Aux::Depth });
                 cur = Src::T(dst);
             }
             ImageEffect::GradientMap(e) => {
@@ -555,11 +581,11 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
                 u.p[0] = [e.radius * ppu, mode, e.focus, e.focus_range];
                 u.p[1] = [e.start[0], e.start[1], e.end[0], e.end[1]];
                 let t1 = pick(&[cur]);
-                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux_background: false });
+                passes.push(Pass { u, a: cur, b: cur, dst: t1, code: None, aux: Aux::Depth });
                 let mut v = u;
                 v.a[0] = MODE_BLUR_V;
                 let dst = pick(&[cur, Src::T(t1)]);
-                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst, code: None, aux_background: false });
+                passes.push(Pass { u: v, a: Src::T(t1), b: Src::T(t1), dst, code: None, aux: Aux::Depth });
                 cur = Src::T(dst);
             }
             ImageEffect::DepthMap(e) => {
@@ -591,6 +617,46 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
                     single(&mut passes, &mut cur, u, None);
                 }
             }
+            ImageEffect::Texture(t) => {
+                let has_image = t.source == TextureSource::Image && fx.textures.get(index).copied().flatten().is_some();
+                let mut u = base(MODE_TEXTURE, t.opacity.clamp(0.0, 1.0), 0.0, has_image);
+                let source = match t.source {
+                    TextureSource::Canvas => 0.0,
+                    TextureSource::Paper => 1.0,
+                    TextureSource::Linen => 2.0,
+                    TextureSource::Noise => 3.0,
+                    TextureSource::Waves => 4.0,
+                    TextureSource::Fluid => 5.0,
+                    TextureSource::Marble => 6.0,
+                    TextureSource::Concrete => 7.0,
+                    TextureSource::Dust => 8.0,
+                    TextureSource::Brushed => 9.0,
+                    TextureSource::Image => 10.0,
+                };
+                let blend = match t.blend {
+                    TextureBlend::Normal => 0.0,
+                    TextureBlend::Multiply => 1.0,
+                    TextureBlend::Screen => 2.0,
+                    TextureBlend::Overlay => 3.0,
+                    TextureBlend::SoftLight => 4.0,
+                    TextureBlend::HardLight => 5.0,
+                    TextureBlend::ColorDodge => 6.0,
+                    TextureBlend::ColorBurn => 7.0,
+                    TextureBlend::Darken => 8.0,
+                    TextureBlend::Lighten => 9.0,
+                    TextureBlend::Difference => 10.0,
+                    TextureBlend::LinearLight => 11.0,
+                };
+                u.p[0] = [source, blend, (t.scale * ppu).max(1.0), t.rotation];
+                u.p[1] = [t.offset[0], t.offset[1], t.contrast, t.speed];
+                u.p[2] = [t.detail, 0.0, 0.0, 0.0];
+                // Tint is applied to the texture as authored (not linearised:
+                // it multiplies a grey surface the way a swatch would).
+                u.c[0] = t.tint;
+                let dst = pick(&[cur]);
+                passes.push(Pass { u, a: cur, b: cur, dst, code: None, aux: Aux::Texture(index) });
+                cur = Src::T(dst);
+            }
             ImageEffect::Code(e) => {
                 let mut u = base(MODE_COPY, e.amount, 0.0, has_depth);
                 for (i, p) in e.params.iter().take(8).enumerate() {
@@ -611,7 +677,7 @@ fn plan_passes(fx: &LayerFx<'_>, size: (u32, u32), time: f32, code_ok: &dyn Fn(&
     if fx.clip {
         let u = base(MODE_CLIP, 1.0, 0.0, false);
         let dst = pick(&[cur, Src::Layer]);
-        passes.push(Pass { u, a: cur, b: Src::Layer, dst, code: None, aux_background: false });
+        passes.push(Pass { u, a: cur, b: Src::Layer, dst, code: None, aux: Aux::Depth });
     }
     (passes, scissor)
 }

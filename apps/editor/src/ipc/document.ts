@@ -971,6 +971,8 @@ export type PostEffect =
   | { kind: 'LensDistortion'; strength: number; zoom: number }
   | { kind: 'Palette'; colors: [number, number, number, number][]; dither: number; scale: number; mix: number }
   | { kind: 'PixelScatter'; amount: number; size: number; speed: number }
+  /** Global texture over the whole scene (`an1mbyt3_core::Texture`). */
+  | { kind: 'Texture'; texture: { source: string; image: OpaqueId | null; blend: string; opacity: number; scale: number; rotation: number; offset: [number, number]; contrast: number; tint: [number, number, number, number]; speed: number; detail: number } }
 
 /** Mirrors `crates/an1mbyt3-wasm/src/dto.rs`'s `PostEffectLayerDto` — one
  * entry in an artboard's post-processing stack. `enabled` lets an entry be
@@ -994,6 +996,7 @@ export function hexPalette(hexes: string): [number, number, number, number][] {
 
 export const POST_EFFECT_DEFAULTS: Record<PostEffect['kind'], PostEffect> = {
   None: { kind: 'None' },
+  Texture: { kind: 'Texture', texture: { source: 'Canvas', image: null, blend: 'SoftLight', opacity: 0.45, scale: 80, rotation: 0, offset: [0, 0], contrast: 0, tint: [1, 1, 1, 1], speed: 0.3, detail: 0.5 } },
   Blur: { kind: 'Blur', radius: 4 },
   Glow: { kind: 'Glow', radius: 6, threshold: 0.7, intensity: 1 },
   Pixelate: { kind: 'Pixelate', blockSize: 8 },
@@ -1659,6 +1662,7 @@ export type NodeBehavior =
   | ({ kind: 'UiEvents' } & UiEventsConfig)
   | ({ kind: 'UiListeners' } & UiListenersConfig)
   | ({ kind: 'ImageEffects' } & ImageEffectsConfig)
+  | ({ kind: 'Reference2D' } & { opacity: number; locked: boolean; showWhenPlaying: boolean })
   | ({ kind: 'PropertyBindings' } & PropertyBindingsConfig)
   | ({ kind: 'ParticleSystem3D' } & ParticleSystem3DConfig)
   | ({ kind: 'ParticleFluid2D' } & ParticleFluid2DConfig)

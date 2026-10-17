@@ -6,7 +6,7 @@ import { createStore, combineReducers } from 'redux'
 // scratchfoundation/scratch-paint per the user's own explicit choice —
 // see this component's own doc comment for the integration seam and the
 // AGPL-3.0 licensing note that comes with it).
-import ScratchPaintEditor, { ScratchPaintReducer, setOnionSkin, setOverSkin, setPickSource, startEyeDropper } from '../vendor/scratch-paint/index.js'
+import ScratchPaintEditor, { ScratchPaintReducer, endPaperDrag, paintHistoryStep, pinchView, setOnionSkin, setOverSkin, setPickSource, startEyeDropper } from '../vendor/scratch-paint/index.js'
 // @ts-expect-error — plain JS (no declaration file), same reasoning as the
 // scratch-paint import above.
 import { PaintToolPalette } from './PaintToolPalette.jsx'
@@ -16,6 +16,7 @@ import { BLANK_PNG, celAt, gridCanvas, onionSkin, referenceCanvas, renderFrame, 
 import { PaintFrameStrip } from './PaintFrameStrip'
 import { PaintBrushBar } from './PaintBrushBar'
 import { DEFAULT_VIEW, PaintCanvasBar, type PaintView } from './PaintCanvasBar'
+import { createTouchGestures } from '../input/touchGestures'
 
 /** Every one of scratch-paint's ~17 tool-mode containers (`SelectMode`/
  * `BrushMode`/etc., mounted invisibly by `paint-editor.jsx` — see that
@@ -257,6 +258,10 @@ export function PaintAssetEditor({
   onClose: () => void
 }) {
   const store = useMemo(() => createStore(combineReducers({ scratchPaint: ScratchPaintReducer })), [])
+  /** The always-mounted outer wrapper — the touch-gesture surface (see the
+   * touch-gesture effect below; only touches on paper.js's canvas inside it
+   * are actually tracked). */
+  const paintSurfaceRef = useRef<HTMLDivElement>(null)
 
   // ---- Frames: which cel scratch-paint has loaded ----
   const loads = useRef(0)
@@ -348,6 +353,79 @@ export function PaintAssetEditor({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   })
+
+  // Tablet / phone gestures on the paint canvas (`input/touchGestures.ts`
+  // has the recognizer and its rationale) — the same vocabulary as the main
+  // artboard canvas:
+  // - **One finger** draws with the current tool, untouched: paper.js
+  //   tracks touches itself (`touch*` events), so no mouse bridge here.
+  // - **Two-finger pinch / drag** zooms about the pinch centre and pans
+  //   (`pinchView` — scratch-paint's own wheel/ctrl+wheel helpers).
+  // - **Two-finger tap** = paint's own Undo, **three-finger tap** = Redo
+  //   (`paintHistoryStep` — the Ctrl+Z / Ctrl+Shift+Z path).
+  // The first finger of a pinch has already started a stroke (or a select
+  // drag, a shape…) by the time the second one lands, so `onGestureStart`
+  // ends it (`endPaperDrag`) and, if that left an undo snapshot behind
+  // (compared against the stack recorded in `onSingleStart`), undoes it —
+  // a pinch never leaves a stray dab. `blockTouchEvents` keeps paper.js
+  // from seeing any of the gesture's fingers after that. History steps run
+  // through a short serial queue: each one's Ctrl+Z handler reads Redux
+  // state through react-redux props, which only refresh after a render, so
+  // back-to-back steps (the stroke rollback, then a two-finger tap's own
+  // undo) need a beat between them. Long-press isn't wired: scratch-paint
+  // has no context action. `touch-action: none` is on the canvas itself
+  // (`paper-canvas.module.css`). Mouse and pen input never reach any of it.
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
+  useEffect(() => {
+    const surface = paintSurfaceRef.current
+    if (!surface) return
+    let undoBefore: unknown = null
+    let queue = Promise.resolve()
+    const historyStep = (redo: boolean) => {
+      queue = queue.then(
+        () =>
+          new Promise<void>((resolve) => {
+            window.setTimeout(() => {
+              paintHistoryStep(redo)
+              resolve()
+            }, 40)
+          }),
+      )
+    }
+    const undoState = () => (store.getState() as { scratchPaint: { undo: unknown } }).scratchPaint.undo
+    return createTouchGestures(surface, {
+      enabled: () => visibleRef.current,
+      // Only the paper.js canvas itself — not the tool palette, brush bar,
+      // frame strip or text-edit overlay that share this wrapper.
+      accept: (target) => target === paper.view?.element,
+      blockTouchEvents: true,
+      onSingleStart: () => {
+        undoBefore = undoState()
+      },
+      onGestureStart: (interrupted) => {
+        if (!interrupted) return
+        endPaperDrag(interrupted.last.x, interrupted.last.y)
+        // The snapshot (if any) lands synchronously in most tools, but let
+        // the queue's delay cover any that defer it.
+        queue = queue.then(
+          () =>
+            new Promise<void>((resolve) => {
+              window.setTimeout(() => {
+                if (undoState() !== undoBefore) paintHistoryStep(false)
+                resolve()
+              }, 40)
+            }),
+        )
+      },
+      onPinchPan: (scaleDelta, centroid, panDelta) => pinchView(store, scaleDelta, centroid.x, centroid.y, panDelta.x, panDelta.y),
+      onTwoFingerTap: () => historyStep(false),
+      onThreeFingerTap: () => historyStep(true),
+    })
+    // Mount-only in practice (`store` never changes): the surface is the
+    // always-mounted outer div, and `accept` looks paper's canvas up live,
+    // so it doesn't matter that scratch-paint itself mounts later.
+  }, [store])
 
   // What's shown around the cel being drawn: under it, the onion skin
   // (neighbouring frames, tinted) and this frame's lower layers; over it,
@@ -457,7 +535,7 @@ export function PaintAssetEditor({
 
   return (
     // `select-none`: drags on the canvas otherwise select (and tint) page text.
-    <div className={visible ? 'absolute inset-0 select-none bg-canvas' : 'hidden'}>
+    <div ref={paintSurfaceRef} className={visible ? 'absolute inset-0 select-none bg-canvas' : 'hidden'}>
       {hasBeenVisible && (
         <PaintErrorBoundary onClose={onClose}>
           <Provider store={store}>

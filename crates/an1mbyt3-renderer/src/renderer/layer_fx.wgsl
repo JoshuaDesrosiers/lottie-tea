@@ -532,6 +532,169 @@ fn composite_shadow(px: vec2<f32>) -> vec4<f32> {
     return a + shadow * (1.0 - a.a);
 }
 
+// ---- Texture ----------------------------------------------------------------
+// p0: x source, y blend, z scale px (one tile), w rotation; p1: xy offset
+// (tiles), z contrast, w speed; p2: x detail; c0 tint; k.y opacity;
+// k.w = has image (source 10 samples aux, tiled).
+//
+// Procedural surfaces are grey around 0.5 (neutral for Overlay / Soft Light)
+// and seamless; tile space `q` is in units of the texture's scale.
+fn vnoise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let w = f * f * (3.0 - 2.0 * f);
+    let a = hash12(i);
+    let b = hash12(i + vec2<f32>(1.0, 0.0));
+    let c = hash12(i + vec2<f32>(0.0, 1.0));
+    let d = hash12(i + vec2<f32>(1.0, 1.0));
+    return mix(mix(a, b, w.x), mix(c, d, w.x), w.y);
+}
+
+fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
+    var v = 0.0;
+    var amp = 0.5;
+    var q = p;
+    for (var i = 0; i < octaves; i = i + 1) {
+        v = v + vnoise(q) * amp;
+        q = rot(q, 37.0) * 2.03 + vec2<f32>(17.1, 9.2);
+        amp = amp * 0.5;
+    }
+    return v;
+}
+
+fn texture_value(q: vec2<f32>, source: i32, t: f32, detail: f32) -> vec3<f32> {
+    let oct = 3 + i32(round(detail * 3.0));
+    switch source {
+        case 0: {
+            // Canvas: a fine over-under weave. Each thread is round (lit
+            // across its width), threads vary in thickness and tone, and the
+            // whole thing sits on soft fibre noise.
+            let tq = q * 16.0;
+            let cell = floor(tq);
+            let f = fract(tq) - 0.5;
+            let over = (i32(cell.x) + i32(cell.y)) & 1;
+            let tx = 0.42 + (vnoise(vec2<f32>(cell.y * 2.3, 1.0)) - 0.5) * 0.12;
+            let ty = 0.42 + (vnoise(vec2<f32>(3.0, cell.x * 2.9)) - 0.5) * 0.12;
+            let warp = sqrt(max(0.0, 1.0 - pow(f.y / tx, 2.0)));
+            let weft = sqrt(max(0.0, 1.0 - pow(f.x / ty, 2.0)));
+            // The thread on top hides the one beneath; gaps between show dark.
+            let top = select(weft, warp, over == 1);
+            let under = select(warp, weft, over == 1) * 0.55;
+            var v = max(top, under);
+            // Tone varies along each thread (slubs) and between threads.
+            v = v * (0.82 + 0.3 * vnoise(vec2<f32>(tq.x * 0.35 + cell.y * 7.0, tq.y * 0.35 + cell.x * 7.0)));
+            let fibre = fbm(q * 22.0, oct) - 0.5;
+            return vec3<f32>(0.24 + v * 0.5 + fibre * 0.12);
+        }
+        case 1: {
+            // Paper: soft clouds, long fibres, fine tooth.
+            let clouds = fbm(q * 1.5, oct);
+            let fibres = fbm(vec2<f32>(q.x * 2.0, q.y * 14.0), 3);
+            let tooth = vnoise(q * 40.0);
+            return vec3<f32>(0.4 + clouds * 0.18 + fibres * 0.1 + tooth * 0.08 * (0.5 + detail));
+        }
+        case 2: {
+            // Linen: fine, slightly irregular cross-hatch.
+            let tq = q * 14.0;
+            let a = 0.5 + 0.5 * sin(tq.x * 6.2831853 + vnoise(tq * vec2<f32>(0.3, 2.0)) * 2.0);
+            let b = 0.5 + 0.5 * sin(tq.y * 6.2831853 + vnoise(tq * vec2<f32>(2.0, 0.3)) * 2.0);
+            return vec3<f32>(0.35 + (a * b) * 0.25 + (a + b) * 0.08 + (fbm(q * 5.0, 3) - 0.5) * 0.15);
+        }
+        case 3: {
+            return vec3<f32>(fbm(q * 2.0 + vec2<f32>(t * 0.2, t * 0.13), oct));
+        }
+        case 4: {
+            // Waves: flowing sine bands, softly bent by noise.
+            let bend = fbm(q * 0.7 + vec2<f32>(0.0, t * 0.1), 3) * 3.0;
+            let w = sin((q.y + sin(q.x * 1.3 + t) * 0.35) * 6.2831853 + bend);
+            return vec3<f32>(0.5 + w * 0.32);
+        }
+        case 5: {
+            // Fluid: domain-warped noise, slowly churning.
+            var p = q * 1.2;
+            let a = vec2<f32>(fbm(p + vec2<f32>(0.0, t * 0.15), 4), fbm(p + vec2<f32>(5.2, 1.3) - vec2<f32>(t * 0.12, 0.0), 4));
+            let b = vec2<f32>(fbm(p + a * 3.0 + vec2<f32>(1.7, 9.2) + t * 0.08, 4), fbm(p + a * 3.0 + vec2<f32>(8.3, 2.8), 4));
+            let v = fbm(p + b * 2.5, oct);
+            return vec3<f32>(0.25 + v * 0.7);
+        }
+        case 6: {
+            // Marble: veins along a turbulent sine.
+            let turb = fbm(q * 1.4, oct) * 6.0;
+            let vein = abs(sin((q.x + q.y * 0.4) * 3.0 + turb));
+            let v = pow(vein, 0.35);
+            return vec3<f32>(0.32 + v * 0.42 + (fbm(q * 8.0, 3) - 0.5) * 0.08);
+        }
+        case 7: {
+            // Concrete: mottled base, pits and specks.
+            let base = fbm(q * 2.5, oct);
+            let pits = smoothstep(0.78, 0.86, vnoise(q * 18.0));
+            let specks = step(0.985, hash12(floor(q * 60.0)));
+            return vec3<f32>(0.36 + base * 0.28 - pits * 0.18 + specks * 0.15);
+        }
+        case 8: {
+            // Dust: mostly neutral with specks and thin scratches.
+            let cell = floor(q * 30.0);
+            let r = hash12(cell);
+            let f = fract(q * 30.0) - 0.5;
+            let speck = step(0.97, r) * (1.0 - smoothstep(0.05, 0.25, length(f)));
+            let lane = floor(q.x * 7.0);
+            let lr = hash12(vec2<f32>(lane, 3.0));
+            let scratch = step(0.86, lr) * (1.0 - smoothstep(0.0, 0.015, abs(fract(q.x * 7.0) - lr))) * step(0.3, vnoise(vec2<f32>(lane, q.y * 2.0)));
+            return vec3<f32>(0.5 - speck * 0.35 + scratch * 0.3 + (vnoise(q * 3.0) - 0.5) * 0.06);
+        }
+        case 9: {
+            // Brushed metal: long horizontal streaks.
+            let streak = fbm(vec2<f32>(q.x * 0.3, q.y * 40.0), oct);
+            return vec3<f32>(0.3 + streak * 0.45);
+        }
+        default: { return vec3<f32>(0.5); }
+    }
+}
+
+fn blend_channel(b: f32, s: f32, mode: i32) -> f32 {
+    switch mode {
+        case 1: { return b * s; }
+        case 2: { return 1.0 - (1.0 - b) * (1.0 - s); }
+        case 3: { return select(1.0 - 2.0 * (1.0 - b) * (1.0 - s), 2.0 * b * s, b < 0.5); }
+        case 4: {
+            let d = select(sqrt(b), ((16.0 * b - 12.0) * b + 4.0) * b, b <= 0.25);
+            return select(b + (2.0 * s - 1.0) * (d - b), b - (1.0 - 2.0 * s) * b * (1.0 - b), s <= 0.5);
+        }
+        case 5: { return select(1.0 - 2.0 * (1.0 - b) * (1.0 - s), 2.0 * b * s, s < 0.5); }
+        case 6: { return select(min(1.0, b / max(1.0 - s, 0.0001)), 1.0, s >= 1.0); }
+        case 7: { return select(1.0 - min(1.0, (1.0 - b) / max(s, 0.0001)), 0.0, s <= 0.0); }
+        case 8: { return min(b, s); }
+        case 9: { return max(b, s); }
+        case 10: { return abs(b - s); }
+        case 11: { return clamp(b + 2.0 * s - 1.0, 0.0, 1.0); }
+        default: { return s; }
+    }
+}
+
+fn texture_fx(px: vec2<f32>) -> vec4<f32> {
+    let src = unpm(sa(px));
+    if (src.a <= 0.0001) { return sa(px); }
+    let scale = max(u.p[0].z, 1.0);
+    let q = rot(px - u.rect.xy, -u.p[0].w) / scale + u.p[1].xy;
+    let source = i32(u.p[0].x + 0.5);
+    let t = u.a.y * u.p[1].w;
+    var tex = vec4<f32>(0.5, 0.5, 0.5, 1.0);
+    if (source == 10) {
+        if (u.k.w > 0.5) {
+            tex = textureSampleLevel(aux_tex, aux_samp, fract(q), 0.0);
+        }
+    } else {
+        tex = vec4<f32>(texture_value(q, source, t, u.p[2].x), 1.0);
+    }
+    var c = clamp((tex.rgb - 0.5) * (1.0 + u.p[1].z * 1.5) + 0.5, vec3<f32>(0.0), vec3<f32>(1.0));
+    c = c * u.c[0].rgb;
+    let mode = i32(u.p[0].y + 0.5);
+    let blended = vec3<f32>(blend_channel(src.r, c.r, mode), blend_channel(src.g, c.g, mode), blend_channel(src.b, c.b, mode));
+    let k = u.k.y * tex.a * u.c[0].a;
+    // Clipped to the element: the texture never changes its alpha.
+    return pm(vec4<f32>(mix(src.rgb, blended, k), src.a));
+}
+
 // ---- Background / clip ------------------------------------------------------
 // background: p0: x radius px, y padding px, z image opacity; c0 colour;
 // aux = the background image (k.w = has one), stretched over the box.
@@ -581,6 +744,7 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
         case 13: { return scanner(px); }
         case 14: { return background(px); }
         case 15: { return clip_to_shape(px); }
+        case 16: { return texture_fx(px); }
         default: { return sa(px); }
     }
 }

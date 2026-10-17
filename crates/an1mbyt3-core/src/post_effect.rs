@@ -135,6 +135,11 @@ pub enum PostEffect {
     /// two-colour [`PostEffect::GradientMap`] (which still loads and is
     /// edited as two stops).
     GradientMapStops { colors: [[f32; 4]; GRADIENT_MAP_MAX], offsets: [f32; GRADIENT_MAP_MAX], count: u32, mix: f32 },
+    /// **Global texture**: a [`crate::image_effects::Texture`] laid over the
+    /// whole frame (canvas, paper, grain …) for a finished, tactile look.
+    /// Not a post-chain op: the editor draws the scene as one layer and
+    /// runs the texture on it (`renderer/layer_fx.rs`). (Appended last.)
+    Texture(crate::image_effects::Texture),
 }
 
 /// The most stops a [`PostEffect::GradientMapStops`] holds.

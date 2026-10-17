@@ -153,7 +153,8 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 		inside: !1,
 		down: !1,
 		presses: 0,
-		releases: 0
+		releases: 0,
+		leaving: !1
 	};
 	worlds = [];
 	cleanups = [];
@@ -215,14 +216,18 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 			let t = this.canvas.getBoundingClientRect();
 			this.pointer.x = e.clientX - t.left, this.pointer.y = e.clientY - t.top, this.pointer.inside = !0, this.dirty = !0, s();
 		}, c = () => {
-			this.pointer.inside = !1, this.pointer.down = !1, this.dirty = !0;
+			this.pointer.leaving = !0, this.dirty = !0, s();
 		}, l = (e) => {
-			o(e), this.pointer.down = !0, this.pointer.presses++;
+			o(e), this.pointer.leaving = !1, this.pointer.down = !0, this.pointer.presses++;
 		}, d = (e) => {
 			o(e), this.pointer.down = !1, this.pointer.releases++;
 		};
-		this.canvas.addEventListener("pointermove", o), this.canvas.addEventListener("pointerleave", c), this.canvas.addEventListener("pointerdown", l), this.canvas.addEventListener("pointerup", d), this.cleanups.push(() => {
-			this.canvas.removeEventListener("pointermove", o), this.canvas.removeEventListener("pointerleave", c), this.canvas.removeEventListener("pointerdown", l), this.canvas.removeEventListener("pointerup", d);
+		this.canvas.addEventListener("pointermove", o), this.canvas.addEventListener("pointerleave", c), this.canvas.addEventListener("pointerdown", l), this.canvas.addEventListener("pointerup", d);
+		let p = () => {
+			this.pointer.down = !1, this.pointer.presses = 0, this.pointer.releases = 0, c();
+		};
+		this.canvas.addEventListener("pointercancel", p), this.cleanups.push(() => {
+			this.canvas.removeEventListener("pointercancel", p), this.canvas.removeEventListener("pointermove", o), this.canvas.removeEventListener("pointerleave", c), this.canvas.removeEventListener("pointerdown", l), this.canvas.removeEventListener("pointerup", d);
 		}), this.resize(), r.add(this), s();
 	}
 	set(e, t) {
@@ -431,10 +436,10 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 			let c = o === n, l = c && this.pointer.down, u = (e) => e && this.runActions(e, o);
 			c && !a.hover && u(a.def.listeners?.enter);
 			let d = c && (r > 0 || l && !a.pressed);
-			d && !a.pressed && u(a.def.listeners?.down), (a.pressed || d) && (i > 0 || !this.pointer.down) && (u(a.def.listeners?.up), c && u(a.def.listeners?.click)), !c && a.hover && u(a.def.listeners?.exit), a.hover = c, a.pressed = l;
+			d && !a.pressed && u(a.def.listeners?.down), (a.pressed || d) && (i > 0 || !this.pointer.down) && (u(a.def.listeners?.up), c && u(a.def.listeners?.click)), !c && a.hover && u(a.def.listeners?.exit), a.hover = c, a.pressed = l && !this.pointer.leaving;
 			let f = l ? s.pressedScale : c ? s.hoverScale : 1, p = s.interactable ? l ? s.pressedColor : c ? s.hoverColor : s.normalColor : s.normalColor, m = s.fade > 0 ? Math.min(1, e / s.fade) : 1, h = a.lookScale + (f - a.lookScale) * m, g = a.lookTint.map((e, t) => e + (p[t] - e) * m);
 			(Math.abs(h - a.lookScale) > 1e-4 || g.some((e, t) => Math.abs(e - a.lookTint[t]) > 1e-4)) && (t = !0), a.lookScale = h, a.lookTint = g;
-		}), t;
+		}), this.pointer.leaving && (this.pointer.leaving = !1, this.pointer.inside = !1, this.pointer.down = !1, this.dirty = !0, s()), t;
 	}
 	runActions(e, t) {
 		for (let n of e) switch (n.type) {

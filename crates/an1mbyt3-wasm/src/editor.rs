@@ -1197,6 +1197,39 @@ fn build_scene_ops_lit<'a>(
         return;
     }
 
+    // Reference objects: design-time only. Hidden while playing (unless
+    // asked) and in every export; faded as one layer (so overlapping parts
+    // don't stack darker) at the reference's opacity.
+    if let Some(reference) = node.reference() {
+        if editor.exporting || (editor.effects_live() && !reference.show_when_playing) {
+            return;
+        }
+        let k = reference.opacity.clamp(0.0, 1.0);
+        if k <= 0.0 {
+            return;
+        }
+        if k < 0.999 && editor.reference_building.get() != Some(node_id) {
+            let (mut layer_unmasked, mut layer_masked) = (Vec::new(), Vec::new());
+            let mut layer_islands = 0u32;
+            let outer = editor.reference_building.replace(Some(node_id));
+            build_scene_ops_lit(editor, artboard, index, node, node_id, 0, 0, &mut layer_islands, &mut layer_unmasked, &mut layer_masked, None);
+            editor.reference_building.set(outer);
+            if layer_unmasked.is_empty() && layer_masked.is_empty() {
+                return;
+            }
+            let island = if depth == 0 {
+                let fresh = *next_island;
+                *next_island += 1;
+                masked.push(an1mbyt3_renderer::SceneOp::Begin { island: fresh, after: unmasked.len() });
+                fresh
+            } else {
+                island
+            };
+            masked.push(an1mbyt3_renderer::SceneOp::Layer { unmasked: layer_unmasked, masked: layer_masked, composites: vec![(depth, k)], island, fx: None });
+            return;
+        }
+    }
+
     // Image Effects: the node and everything under it are drawn as one
     // flattened layer (a scene of its own, from depth 0), the effect stack
     // runs on that image, and the result is pasted here — at this depth, so
@@ -1216,7 +1249,13 @@ fn build_scene_ops_lit<'a>(
             let (min, max) = image_effects_bounds(artboard, node_id);
             let depth_image = effects.effects.iter().filter(|l| l.enabled).find_map(|l| l.effect.depth_image()).and_then(|id| editor.image_cache.get(&id));
             let background_image = effects.background_image.and_then(|id| editor.image_cache.get(&id));
-            let fx = an1mbyt3_renderer::LayerFx::new(effects.effects.iter().filter(|l| l.enabled).map(|l| &l.effect).collect(), min, max, depth_image)
+            let enabled: Vec<&an1mbyt3_core::ImageEffect> = effects.effects.iter().filter(|l| l.enabled).map(|l| &l.effect).collect();
+            let textures = enabled.iter().map(|e| match e {
+                an1mbyt3_core::ImageEffect::Texture(t) => t.image.and_then(|id| editor.image_cache.get(&id)),
+                _ => None,
+            }).collect();
+            let fx = an1mbyt3_renderer::LayerFx::new(enabled.into_iter().map(std::borrow::Cow::Borrowed).collect(), min, max, depth_image)
+                .with_textures(textures)
                 .with_background(effects.background, background_image, effects.background_image_opacity, effects.background_radius, effects.background_padding)
                 .with_clip(effects.clip_to_shape);
             let island = if depth == 0 {
@@ -2861,6 +2900,8 @@ pub struct WasmEditor {
     /// own walk inside the layer must draw it normally, not start another
     /// layer (see `build_scene_ops_lit`).
     fx_building: std::cell::Cell<Option<NodeId>>,
+    /// Same, for a Reference object's faded layer.
+    reference_building: std::cell::Cell<Option<NodeId>>,
     scene_collect_unlit: std::cell::Cell<bool>,
     /// Draw bindings for draw-effect copies (shadows, outlines, repeats,
     /// mirrors) — handed out during the scene walk, reset each frame.
@@ -3412,6 +3453,7 @@ impl WasmEditor {
             multi_transform: None,
             scene_layer_filter: std::cell::Cell::new(None),
             fx_building: std::cell::Cell::new(None),
+            reference_building: std::cell::Cell::new(None),
             scene_collect_unlit: std::cell::Cell::new(true),
             effect_bindings: BindingArena::default(),
             effect_camera_pan: std::cell::Cell::new(Vec2::ZERO),
@@ -4840,6 +4882,29 @@ impl WasmEditor {
             for (_, u, m) in layer_parts.drain(..) {
                 append_scene_parts(&mut unmasked, &mut masked, u, m);
             }
+            // Global texture (the scene's post stack): the whole scene is
+            // drawn as one layer and the texture laid over it, clipped to
+            // what's drawn — shown in Design too, so the look is visible
+            // while working.
+            let global: Vec<an1mbyt3_core::Texture> = artboard
+                .post_effects()
+                .iter()
+                .filter(|l| l.enabled)
+                .filter_map(|l| match l.effect {
+                    an1mbyt3_core::PostEffect::Texture(t) => Some(t),
+                    _ => None,
+                })
+                .collect();
+            if !global.is_empty() && !(unmasked.is_empty() && masked.is_empty()) {
+                let half = Vec2::new(artboard.width, artboard.height) * 0.5;
+                let textures = global.iter().map(|t| t.image.and_then(|id| self.image_cache.get(&id))).collect();
+                let fx = an1mbyt3_renderer::LayerFx::new(global.into_iter().map(|t| std::borrow::Cow::Owned(an1mbyt3_core::ImageEffect::Texture(t))).collect(), -half, half, None).with_textures(textures);
+                let island = next_island;
+                let scene_unmasked = std::mem::take(&mut unmasked);
+                let scene_masked = std::mem::take(&mut masked);
+                masked.push(an1mbyt3_renderer::SceneOp::Begin { island, after: 0 });
+                masked.push(an1mbyt3_renderer::SceneOp::Layer { unmasked: scene_unmasked, masked: scene_masked, composites: vec![(0, 1.0)], island, fx: Some(Box::new(fx)) });
+            }
         }
         let light_casters = if lighting_on {
             crate::lighting2d::collect_casters(artboard, |id| crate::dto::local_bounds(artboard, id), |id| self.caster_local_outline(artboard, id))
@@ -4981,7 +5046,8 @@ impl WasmEditor {
         // Machine preview): Design shows the scene as authored, and stays
         // light.
         let mut effects: Vec<an1mbyt3_core::PostEffect> = if self.effects_live() {
-            artboard.post_effects().iter().filter(|layer| layer.enabled).map(|layer| layer.effect).collect()
+            // (A global Texture isn't a chain op — see the scene build.)
+            artboard.post_effects().iter().filter(|layer| layer.enabled && !matches!(layer.effect, an1mbyt3_core::PostEffect::Texture(_))).map(|layer| layer.effect).collect()
         } else {
             Vec::new()
         };
@@ -7945,6 +8011,7 @@ impl WasmEditor {
             "ParticlePath2D" => B::ParticlePath2D(an1mbyt3_core::ParticlePath2D::default()),
             "Mask2D" => B::Mask2D(an1mbyt3_core::Mask2D::default()),
             "ImageEffects" => B::ImageEffects(an1mbyt3_core::ImageEffects::default()),
+            "Reference2D" => B::Reference2D(an1mbyt3_core::Reference2D::default()),
             "AudioSource" => B::AudioSource(an1mbyt3_core::AudioSource { clip: self.document.audio_assets().next().map(|(id, _)| id), ..Default::default() }),
             other => return Err(JsValue::from_str(&format!("default_component: unknown component {other}"))),
         };
@@ -12220,7 +12287,19 @@ impl WasmEditor {
         // draw-order walk. `Shape`/`Image`/`Text` (its glyph box) and gizmo-only
         // objects have a bounds check here; `Bone`/`Instance` and plain
         // groups are picked through their content or the Layers panel.
-        let hit = artboard_ref.pickable_nodes().collect::<Vec<_>>().into_iter().rev().find_map(|(node_id, node)| {
+        // Locked reference objects (and what's inside them) let clicks pass
+        // through — they're picked in the Layers panel.
+        let locked_reference = |mut id: NodeId| loop {
+            let Some(n) = artboard_ref.node(id) else { return false };
+            if n.reference().is_some_and(|r| r.locked) {
+                return true;
+            }
+            match n.parent {
+                Some(p) => id = p,
+                None => return false,
+            }
+        };
+        let hit = artboard_ref.pickable_nodes().filter(|(id, _)| !locked_reference(*id)).collect::<Vec<_>>().into_iter().rev().find_map(|(node_id, node)| {
             let (min, max) = match &node.kind {
                 NodeKind::Shape(shape) => shape.path.bounds(),
                 NodeKind::Image(image) => (Vec2::new(-image.width / 2.0, -image.height / 2.0), Vec2::new(image.width / 2.0, image.height / 2.0)),

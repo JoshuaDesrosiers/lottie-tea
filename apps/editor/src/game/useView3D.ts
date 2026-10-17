@@ -228,6 +228,26 @@ export function useView3D(options: {
         editor.view3d_hover(artboardId, -1e6, -1e6, -1)
       }
     }
+    // A cancelled pointer — chiefly `input/touchGestures.ts` taking a
+    // finger over when a second one lands for a pinch — abandons the drag
+    // instead of committing it: the gizmo / bone preview goes back to where
+    // it started (the same "put the original back" `onUp` does before its
+    // commit), nothing is committed, and the drag can't resume under a later
+    // finger.
+    const onCancel = (e: PointerEvent) => {
+      if (!drag) return
+      stop(e)
+      const cancelled = drag
+      drag = null
+      keys.clear()
+      const { editor, artboardId } = latest.current
+      if (!editor || !artboardId) return
+      if (cancelled.kind === 'gizmo' && cancelled.moved) sendPreview(cancelled.node, cancelled.original)
+      if (cancelled.kind === 'bone' && cancelled.moved) {
+        editor.preview_vrm_pose_bone(artboardId, cancelled.node.id, cancelled.pose, cancelled.bone, cancelled.start[0], cancelled.start[1], cancelled.start[2])
+      }
+      editor.view3d_hover(artboardId, -1e6, -1e6, -1)
+    }
     const onWheel = (e: WheelEvent) => {
       stop(e)
       const { editor } = latest.current
@@ -276,6 +296,7 @@ export function useView3D(options: {
     canvas.addEventListener('pointerdown', onDown, { capture: true })
     canvas.addEventListener('pointermove', onMove, { capture: true })
     canvas.addEventListener('pointerup', onUp, { capture: true })
+    canvas.addEventListener('pointercancel', onCancel, { capture: true })
     canvas.addEventListener('wheel', onWheel, { capture: true, passive: false })
     canvas.addEventListener('dblclick', onDouble, { capture: true })
     for (const type of ['mousedown', 'mouseup', 'click', 'contextmenu']) canvas.addEventListener(type, swallow, { capture: true })
@@ -286,6 +307,7 @@ export function useView3D(options: {
       canvas.removeEventListener('pointerdown', onDown, { capture: true })
       canvas.removeEventListener('pointermove', onMove, { capture: true })
       canvas.removeEventListener('pointerup', onUp, { capture: true })
+      canvas.removeEventListener('pointercancel', onCancel, { capture: true })
       canvas.removeEventListener('wheel', onWheel, { capture: true })
       canvas.removeEventListener('dblclick', onDouble, { capture: true })
       for (const type of ['mousedown', 'mouseup', 'click', 'contextmenu']) canvas.removeEventListener(type, swallow, { capture: true })

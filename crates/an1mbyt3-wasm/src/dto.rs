@@ -2001,6 +2001,8 @@ pub enum PostEffectDto {
     /// The frontend edits a plain colour list (at most `PALETTE_MAX`).
     Palette { colors: Vec<[f32; 4]>, dither: f32, scale: f32, mix: f32 },
     PixelScatter { amount: f32, size: f32, speed: f32 },
+    /// The global texture (`an1mbyt3_core::Texture`, camelCase fields).
+    Texture { texture: an1mbyt3_core::Texture },
 }
 
 /// One Gradient Map stop.
@@ -2014,6 +2016,7 @@ impl From<&PostEffect> for PostEffectDto {
     fn from(effect: &PostEffect) -> Self {
         match *effect {
             PostEffect::None => PostEffectDto::None,
+            PostEffect::Texture(texture) => PostEffectDto::Texture { texture },
             PostEffect::Blur { radius } => PostEffectDto::Blur { radius },
             PostEffect::Glow { radius, threshold, intensity } => PostEffectDto::Glow { radius, threshold, intensity },
             PostEffect::Pixelate { block_size } => PostEffectDto::Pixelate { block_size },
@@ -2079,6 +2082,7 @@ impl From<PostEffectDto> for PostEffect {
                 fixed[..count].copy_from_slice(&colors[..count]);
                 PostEffect::Palette { colors: fixed, count: count as u32, dither, scale, mix }
             }
+            PostEffectDto::Texture { texture } => PostEffect::Texture(texture),
         }
     }
 }
@@ -2313,6 +2317,7 @@ pub enum NodeBehaviorDto {
     UiEvents(an1mbyt3_core::UiEvents),
     UiListeners(an1mbyt3_core::UiListeners),
     ImageEffects(an1mbyt3_core::ImageEffects),
+    Reference2D(an1mbyt3_core::Reference2D),
     PropertyBindings(an1mbyt3_core::PropertyBindings),
     ParticleSystem3D(an1mbyt3_core::ParticleSystem3D),
     ParticleFluid2D(an1mbyt3_core::ParticleFluid2D),
@@ -2398,6 +2403,7 @@ impl From<&an1mbyt3_core::NodeBehavior> for NodeBehaviorDto {
             an1mbyt3_core::NodeBehavior::UiEvents(e) => NodeBehaviorDto::UiEvents(e.clone()),
             an1mbyt3_core::NodeBehavior::UiListeners(e) => NodeBehaviorDto::UiListeners(e.clone()),
             an1mbyt3_core::NodeBehavior::ImageEffects(e) => NodeBehaviorDto::ImageEffects(e.clone()),
+            an1mbyt3_core::NodeBehavior::Reference2D(e) => NodeBehaviorDto::Reference2D(*e),
             an1mbyt3_core::NodeBehavior::PropertyBindings(b) => NodeBehaviorDto::PropertyBindings(b.clone()),
             an1mbyt3_core::NodeBehavior::ParticleSystem3D(p) => NodeBehaviorDto::ParticleSystem3D(p.clone()),
             an1mbyt3_core::NodeBehavior::ParticleFluid2D(p) => NodeBehaviorDto::ParticleFluid2D(*p),
@@ -2477,6 +2483,7 @@ impl From<NodeBehaviorDto> for an1mbyt3_core::NodeBehavior {
             NodeBehaviorDto::UiEvents(e) => an1mbyt3_core::NodeBehavior::UiEvents(e),
             NodeBehaviorDto::UiListeners(e) => an1mbyt3_core::NodeBehavior::UiListeners(e),
             NodeBehaviorDto::ImageEffects(e) => an1mbyt3_core::NodeBehavior::ImageEffects(e),
+            NodeBehaviorDto::Reference2D(e) => an1mbyt3_core::NodeBehavior::Reference2D(e),
             NodeBehaviorDto::PropertyBindings(b) => an1mbyt3_core::NodeBehavior::PropertyBindings(b),
             NodeBehaviorDto::ParticleSystem3D(p) => an1mbyt3_core::NodeBehavior::ParticleSystem3D(p),
             NodeBehaviorDto::ParticleFluid2D(p) => an1mbyt3_core::NodeBehavior::ParticleFluid2D(p),

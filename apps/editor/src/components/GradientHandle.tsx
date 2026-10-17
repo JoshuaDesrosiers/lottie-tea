@@ -175,6 +175,14 @@ export function GradientHandle({
     setLiveGradient(null)
   }
 
+  // A cancelled pointer (chiefly `input/touchGestures.ts` taking the finger
+  // over because a second one landed for a pinch): abandon the live edit —
+  // nothing was sent to `onSetGradient` yet, so dropping it is a full revert.
+  const handlePointerCancel = () => {
+    setDragging(null)
+    setLiveGradient(null)
+  }
+
   const startDrag = (e: React.PointerEvent, next: Dragging) => {
     e.stopPropagation()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
@@ -200,7 +208,7 @@ export function GradientHandle({
   }
 
   return (
-    <div className="pointer-events-none absolute inset-0" onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
+    <div className="pointer-events-none absolute inset-0" onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerCancel}>
       <svg className="absolute inset-0 h-full w-full overflow-visible">
         {gradient.kind === 'Radial' && (
           <circle

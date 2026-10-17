@@ -2,7 +2,7 @@ import PaintEditor from './containers/paint-editor.jsx';
 import ScratchPaintReducer from './reducers/scratch-paint-reducer';
 import {setOnionSkin, setOverSkin, setPickSource} from './helper/layer';
 import {brushSettings, setBrushSettings, onBrushSettings} from './helper/an1-brush';
-import {currentColors, setPaintColor, startEyeDropper} from './helper/an1-actions';
+import {currentColors, setPaintColor, startEyeDropper, pinchView, paintHistoryStep, endPaperDrag} from './helper/an1-actions';
 
 export {
     PaintEditor as default,
@@ -15,5 +15,8 @@ export {
     onBrushSettings,
     currentColors,
     setPaintColor,
-    startEyeDropper
+    startEyeDropper,
+    pinchView,
+    paintHistoryStep,
+    endPaperDrag
 };

@@ -252,3 +252,23 @@ mod tests {
         }
     }
 }
+
+/// **Reference**: marks a node (and everything under it) as a reference
+/// object — a sketch, photo or mock-up to trace and line things up with. It
+/// shows only while designing, at `opacity`, and never in Playground, the
+/// player or any export. `locked` lets clicks pass through it on the canvas
+/// (select it in the Layers panel instead).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Reference2D {
+    pub opacity: f32,
+    pub locked: bool,
+    /// Also show it while playing (still never exported).
+    pub show_when_playing: bool,
+}
+
+impl Default for Reference2D {
+    fn default() -> Self {
+        Self { opacity: 0.5, locked: true, show_when_playing: false }
+    }
+}

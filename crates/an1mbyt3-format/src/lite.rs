@@ -55,6 +55,11 @@ pub fn export_lite(document: &Document, artboard: Option<ArtboardId>) -> Option<
         if board.is_effectively_deleted(id) {
             continue;
         }
+        // Reference objects are design-time only: never exported (nor
+        // anything inside them).
+        if board.node(id).is_some_and(|n| n.reference().is_some()) {
+            continue;
+        }
         order.push(id);
         stack.extend(board.sorted_children(Some(id)).into_iter().rev());
     }

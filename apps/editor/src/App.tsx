@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Mo
 import { screenToWorld, worldToScreen } from './camera'
 import { DEMO_SVG } from './demoScene'
 import { CanvasArea } from './components/CanvasArea'
+import { createTouchGestures } from './input/touchGestures'
 import { SnapGuides } from './components/SnapGuides'
 import { DockablePanel } from './components/DockablePanel'
 import { DockGroup } from './components/DockGroup'
@@ -133,6 +134,7 @@ import {
   resizeTilemap,
   setTilemapCellSize,
   setNodeBehaviors,
+  defaultComponent,
   addScript,
   setScriptFields,
   addArtboard,
@@ -383,6 +385,11 @@ function App() {
   const width = typeof window !== 'undefined' ? window.innerWidth : 1200
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  /** The canvas viewport — `CanvasArea` plus every on-canvas overlay
+   * (`TransformHandles`, `PathEditOverlay`, `DrawPathOverlay`, the zoom
+   * widget, …). Touch gestures (`input/touchGestures.ts`) track fingers
+   * that land anywhere inside it — see the touch-gesture effect below. */
+  const canvasViewportRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<WasmEditor | null>(null)
   // `TimelinePanel`'s playback tick — see that component's own doc comment
   // for why `frame()`'s already-reliable rAF loop drives it directly
@@ -2426,6 +2433,27 @@ function App() {
     })().catch((err) => console.error('Image import failed', err))
   }
 
+  /** Import → Reference image: a picture to trace or match against — the
+   * imported image node gets a Reference component (faded, locked, never
+   * played or exported). */
+  const handleImportReference = () => {
+    const artboard = artboards[0]
+    const editor = editorRef.current
+    if (!editor || !artboard) return
+    ;(async () => {
+      const path = await pickOpenImagePath()
+      if (!path) return
+      const bytes = await readBinaryFile(path)
+      const filename = path.split(/[\/]/).pop() ?? path
+      const result = await project.importImage(filename, bytes, artboard.id)
+      if (!result.newNode) return setDoc(result.document)
+      const node = result.document.artboards.find((a) => a.id.idx === artboard.id.idx)?.nodes.find((n) => n.id.idx === result.newNode!.idx && n.id.version === result.newNode!.version)
+      const behaviors = [...(node?.behaviors ?? []), { behavior: defaultComponent(editor, 'Reference2D'), enabled: true }]
+      setDoc(setNodeBehaviors(editor, artboard.id, result.newNode, behaviors))
+      setSelection({ artboardId: artboard.id, nodeId: result.newNode })
+    })().catch((err) => console.error('Reference import failed', err))
+  }
+
   /** Import → Audio: a sound file into the document (and the project's
    * `Assets/Sounds/` when one is open). */
   const handleImportAudio = () => {
@@ -3699,6 +3727,93 @@ function App() {
     applyHistoryStep(wasmRedo(editorRef.current))
   }
 
+  // Latest undo/redo handlers and 3D-view flag for the mount-only touch-
+  // gesture effect below — refreshed every render (both handlers close over
+  // fresh state), same "ref instead of re-subscribing" pattern as
+  // `modeRef`/`cameraRef`.
+  const touchActionsRef = useRef({ undo: handleUndo, redo: handleRedo, view3d: view3dActive })
+  touchActionsRef.current = { undo: handleUndo, redo: handleRedo, view3d: view3dActive }
+
+  // Tablet / phone gestures on the canvas viewport (`input/touchGestures.ts`
+  // has the full recognizer and its rationale):
+  // - **Two-finger pinch / drag** zooms about the pinch centre and pans —
+  //   the same `camera` state (and `zoomAtCanvasPoint` math) the wheel,
+  //   trackpad pinch and zoom widget drive. In the 3D scene view it drives
+  //   that view's own camera instead (`view3d_pan` / `view3d_zoom_at`, what
+  //   its middle-drag and wheel use).
+  // - **Two-finger tap** = `handleUndo`, **three-finger tap** = `handleRedo`
+  //   (the toolbar's / Ctrl+Z's own handlers).
+  // - **One finger** keeps working the current tool: `emulateMouse`
+  //   re-dispatches it as mouse events, since the canvas select/drag/pan
+  //   (`handleCanvasMouseDown` + the window mousemove/mouseup listeners)
+  //   and `TransformHandles` are mouse-driven and Chromium never sends
+  //   mouse events for a touch *drag*, only for a tap.
+  // When a second finger lands mid-drag, `onGestureStart` cancels this
+  // component's own node drag (preview put back at its pre-drag origin, no
+  // commit) and drag-pan; the recognizer then pointer-cancels / rewinds
+  // whatever overlay the first finger was using. Long-press isn't wired:
+  // the canvas has no right-click / context action to map it to.
+  // Design mode only — Playground's pointer belongs to the game (its
+  // scripts read "mouse" and their own `PointerGestures`), and Paint/Code
+  // cover this viewport with their own surfaces. Mouse and pen input never
+  // reach any of this (`pointerType === 'touch'` only). Mount-only: reads
+  // everything live through refs.
+  useEffect(() => {
+    const viewport = canvasViewportRef.current
+    if (!viewport) return
+    return createTouchGestures(viewport, {
+      enabled: () => modeRef.current === 'Design',
+      emulateMouse: true,
+      onGestureStart: () => {
+        // A one-finger empty-canvas pan hands straight over to the
+        // two-finger pan (the camera stays where it got to).
+        panRef.current = null
+        const drag = dragRef.current
+        const editor = editorRef.current
+        if (drag && editor) {
+          // Same preview call the mousemove handler uses, back to the
+          // pre-drag translations — nothing was committed yet, so this
+          // fully undoes the interrupted drag without an undo entry.
+          previewNodeTranslation(editor, drag.artboardId, drag.nodeId, drag.origin.x, drag.origin.y)
+          for (const other of drag.others) previewNodeTranslation(editor, drag.artboardId, other.nodeId, other.origin.x, other.origin.y)
+        }
+        // Cleared before the recognizer's synthetic `mouseup` arrives, so the
+        // window mouseup handler finds nothing to commit or click-pick.
+        dragRef.current = null
+        setDragTranslation(null)
+        setSnapGuides((guides) => (guides.x === null && guides.y === null ? guides : { x: null, y: null }))
+      },
+      onPinchPan: (scaleDelta, centroid, panDelta) => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        const rect = canvas.getBoundingClientRect()
+        const canvasX = centroid.x - rect.left
+        const canvasY = centroid.y - rect.top
+        if (touchActionsRef.current.view3d) {
+          const editor = editorRef.current
+          if (!editor) return
+          editor.view3d_pan(panDelta.x, panDelta.y)
+          // `view3d_zoom_at` takes a wheel-style delta (positive = out); a
+          // trackpad pinch's ctrl+wheel reaches it ×4 — `-ln(scale) × 400`
+          // is roughly the same feel per unit of finger spread.
+          if (scaleDelta !== 1) editor.view3d_zoom_at(-Math.log(scaleDelta) * 400, canvasX, canvasY)
+          return
+        }
+        // Pan first (content follows the fingers — same sign convention as
+        // the one-finger drag-pan in the window mousemove handler), then zoom
+        // about the fingers' *current* midpoint: together the world point
+        // that was under the old midpoint ends up under the new one.
+        if (panDelta.x !== 0 || panDelta.y !== 0) {
+          setCamera((cam) => ({ ...cam, pan: { x: cam.pan.x - panDelta.x / cam.zoom, y: cam.pan.y + panDelta.y / cam.zoom } }))
+        }
+        if (scaleDelta !== 1) zoomAtCanvasPoint(canvasX, canvasY, scaleDelta)
+      },
+      onTwoFingerTap: () => touchActionsRef.current.undo(),
+      onThreeFingerTap: () => touchActionsRef.current.redo(),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Project folders (Unity-style: the project is a folder of files on disk,
   // autosaved) — see `project/useProject.tsx`. Single-file `.tea`/`.teab`
   // documents are still importable/exportable from the File menu.
@@ -4503,7 +4618,7 @@ ${list}${more}`)
           (below), simply covering this with its own opaque `bg-canvas` —
           same "swap by painting over, not by unmounting" fix as the
           paper.js unmount-order bug just above it. */}
-      <div className="absolute overflow-hidden" style={viewportInsets}>
+      <div ref={canvasViewportRef} className="absolute overflow-hidden" style={viewportInsets}>
       <div
         className="absolute inset-0"
         onDragOver={(e) => {
@@ -4913,6 +5028,7 @@ ${list}${more}`)
         onAddParticleSystem={handleAddParticleSystem}
         onImportSvg={handleImportSvg}
         onImportImage={handleImportImage}
+        onImportReference={handleImportReference}
         onLoadDemo={handleLoadDemo}
         onLoadGeometryDashDemo={handleLoadGeometryDashDemo}
         onLoadNinjaDemo={handleLoadNinjaDemo}
@@ -5154,7 +5270,7 @@ ${list}${more}`)
           },
           effects: {
             title: 'Effects',
-            content: <EffectsPanel layers={artboards[0]?.postEffects ?? []} onChange={handleSetPostEffects} />,
+            content: <EffectsPanel layers={artboards[0]?.postEffects ?? []} onChange={handleSetPostEffects} editor={editorRef.current} images={doc?.images ?? []} />,
           },
           testArea: {
             title: 'Test Area',

@@ -15,4 +15,9 @@
        untouched (per an1mbyt3's own request: keep the artwork white, only
        the surface it sits on should match the app's own theme). */
     background-color: var(--color-canvas);
+    /* an1mbyt3: the browser must never scroll / page-zoom from a touch on
+       the canvas — one finger draws (paper.js's own touch handling) and two
+       fingers pinch / pan the view (`input/touchGestures.ts`, wired up in
+       `PaintAssetEditor.tsx`). */
+    touch-action: none;
 }

@@ -24,7 +24,7 @@ import { cutOutSubject, estimateDepth } from '../ai/vision'
 import { showAlert } from './Dialogs'
 import { ColorSwatch } from './ColorPicker'
 import { ImageAssetPicker } from './ImageAssetPicker'
-import { Popover, insideOrPopover } from './Select'
+import { Popover, Select, insideOrPopover } from './Select'
 import { Slider } from './Slider'
 
 type Rgba = [number, number, number, number]
@@ -46,9 +46,15 @@ interface FxSchema {
 }
 
 /** The effects, in Add-menu order; `null` = a separator. */
-const MENU: (string | null)[] = ['DropShadow', 'Stroke', null, 'Pattern', 'Halftone', 'Ascii', null, 'Grain', null, 'Glow', null, 'GradientMap', null, 'Blur', 'DepthMap', null, 'RibbedGlass', 'ScannerDrag', null, 'Code']
+const MENU: (string | null)[] = ['Texture', null, 'DropShadow', 'Stroke', null, 'Pattern', 'Halftone', 'Ascii', null, 'Grain', null, 'Glow', null, 'GradientMap', null, 'Blur', 'DepthMap', null, 'RibbedGlass', 'ScannerDrag', null, 'Code']
 
 const FX: Record<string, FxSchema> = {
+  Texture: {
+    label: 'Texture',
+    icon: 'M4 4h16v16H4zM4 9h16M4 14h16M9 4v16M14 4v16',
+    fields: [],
+    help: 'Laid over the element and clipped to its shape. Animate Offset / Rotation / Opacity like any value.',
+  },
   DropShadow: {
     label: 'Drop Shadow',
     icon: 'M8 4h11v11H8zM5 8v12h12',
@@ -234,6 +240,113 @@ function Pad({ points, onChange, line, onAdd, onRemove }: { points: [number, num
   )
 }
 
+/** Texture settings (`an1mbyt3_core::Texture`) — shared by the per-element
+ * Texture effect and the scene's global texture. */
+export interface TextureSettings {
+  source: string
+  image: OpaqueId | null
+  blend: string
+  opacity: number
+  scale: number
+  rotation: number
+  offset: [number, number]
+  contrast: number
+  tint: [number, number, number, number]
+  speed: number
+  detail: number
+}
+
+export const TEXTURE_SOURCES: [string, string][] = [
+  ['Canvas', 'Canvas'],
+  ['Paper', 'Paper'],
+  ['Linen', 'Linen'],
+  ['Noise', 'Noise'],
+  ['Waves', 'Sine waves'],
+  ['Fluid', 'Fluid (animated)'],
+  ['Marble', 'Marble'],
+  ['Concrete', 'Concrete'],
+  ['Dust', 'Dust & scratches'],
+  ['Brushed', 'Brushed metal'],
+  ['Image', 'Image…'],
+]
+export const TEXTURE_BLENDS: [string, string][] = [
+  ['Normal', 'Normal'],
+  ['Multiply', 'Multiply'],
+  ['Screen', 'Screen'],
+  ['Overlay', 'Overlay'],
+  ['SoftLight', 'Soft Light'],
+  ['HardLight', 'Hard Light'],
+  ['ColorDodge', 'Color Dodge'],
+  ['ColorBurn', 'Color Burn'],
+  ['Darken', 'Darken'],
+  ['Lighten', 'Lighten'],
+  ['Difference', 'Difference'],
+  ['LinearLight', 'Linear Light'],
+]
+
+/** The fields of a texture: source (procedural or an image), blend, opacity,
+ * scale / rotation / offset, contrast, tint, animation speed, detail. */
+export function TextureFields({ value, onChange, editor, images }: { value: TextureSettings; onChange: (t: TextureSettings) => void; editor: WasmEditor | null; images: ImageAssetSummary[] }) {
+  const set = (patch: Partial<TextureSettings>) => onChange({ ...value, ...patch })
+  const slider = (label: string, key: 'opacity' | 'scale' | 'rotation' | 'contrast' | 'speed' | 'detail', min: number, max: number, step: number, unit?: string) =>
+    row(
+      label,
+      <>
+        <div className="min-w-0 flex-1">
+          <Slider value={Math.min(max, Math.max(min, Number(value[key] ?? 0)))} min={min} max={max} step={step} onChange={(v) => set({ [key]: v })} />
+        </div>
+        <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-ink-dim">{fmt(Number(value[key] ?? 0), unit)}</span>
+      </>,
+      key,
+    )
+  const selectCls = 'min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-0.5 text-[11px] text-ink outline-none'
+  const animated = ['Fluid', 'Waves', 'Noise'].includes(value.source)
+  return (
+    <div className="flex flex-col gap-1.5">
+      {row(
+        'Texture',
+        <Select value={value.source} onChange={(e) => set({ source: e.target.value })} className={selectCls}>
+          {TEXTURE_SOURCES.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </Select>,
+        'source',
+      )}
+      {value.source === 'Image' &&
+        (editor ? (
+          row(
+            'Image',
+            <div className="min-w-0 flex-1">
+              <ImageAssetPicker editor={editor} images={images} value={value.image ?? null} onChange={(id) => set({ image: id })} />
+            </div>,
+            'image',
+          )
+        ) : null)}
+      {value.source === 'Image' && <p className="text-[10px] leading-snug text-ink-dim">Import any picture (File → Import → Image, or drop it in Resources) and pick it here — it tiles across the element.</p>}
+      {row(
+        'Blend',
+        <Select value={value.blend} onChange={(e) => set({ blend: e.target.value })} className={selectCls}>
+          {TEXTURE_BLENDS.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </Select>,
+        'blend',
+      )}
+      {slider('Opacity', 'opacity', 0, 1, 0.01, '%')}
+      {slider('Scale', 'scale', 4, 600, 1, 'u')}
+      {slider('Rotation', 'rotation', -180, 180, 1, '°')}
+      {slider('Contrast', 'contrast', -1, 1, 0.01, '%')}
+      {value.source !== 'Image' && slider('Detail', 'detail', 0, 1, 0.01, '%')}
+      {animated && slider('Speed', 'speed', 0, 3, 0.01, 'x')}
+      {row('Tint', <ColorSwatch value={value.tint} onChange={(c) => set({ tint: c })} />, 'tint')}
+    </div>
+  )
+}
+
 /** The Code effect's source editor. */
 function CodeFields({ editor, params, onChange }: { editor: WasmEditor; params: Record<string, unknown>; onChange: (p: Record<string, unknown>) => void }) {
   const code = String(params.code ?? '')
@@ -403,6 +516,7 @@ function EffectBody({ kind, params, onChange, editor, images, ai }: { kind: stri
       {kind === 'DepthMap' && depthPicker}
       {kind === 'GradientMap' && <StopsField stops={(params.stops ?? []) as { position: number; color: Rgba }[]} onChange={(stops) => set('stops', stops)} />}
       {kind === 'Code' && <CodeFields editor={editor} params={params} onChange={onChange} />}
+      {kind === 'Texture' && <TextureFields value={params as unknown as TextureSettings} onChange={(t) => onChange(t as unknown as Record<string, unknown>)} editor={editor} images={images} />}
       {schema.help && <p className="text-[10px] leading-snug text-ink-dim">{schema.help}</p>}
     </div>
   )

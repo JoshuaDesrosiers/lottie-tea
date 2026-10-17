@@ -74,9 +74,16 @@ export function BoneGizmos({ nodes, selectedId, camera, canvasSize, toWorld, onS
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    // A cancelled pointer (chiefly `input/touchGestures.ts` taking the
+    // finger over for a pinch) ends the drag like a release: the posed
+    // bones are already previewed, so committing them as one undo step is
+    // the clean exit (one undo puts them back) — leaving `drag` set would
+    // let the next finger silently carry on posing.
+    window.addEventListener('pointercancel', onUp)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
     }
   }, [])
 

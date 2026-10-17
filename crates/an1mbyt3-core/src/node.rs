@@ -368,6 +368,14 @@ impl Node {
     }
 
     /// This node's clip fade (mask / hidden-part opacity), if any.
+    /// The node's Reference settings, if it's a reference object.
+    pub fn reference(&self) -> Option<crate::Reference2D> {
+        self.behaviors.iter().find_map(|entry| match &entry.behavior {
+            crate::NodeBehavior::Reference2D(value) if entry.enabled => Some(*value),
+            _ => None,
+        })
+    }
+
     /// The node's Image Effects stack, if it has an enabled one with at
     /// least one enabled effect (`None` = draw normally).
     pub fn image_effects(&self) -> Option<&crate::ImageEffects> {

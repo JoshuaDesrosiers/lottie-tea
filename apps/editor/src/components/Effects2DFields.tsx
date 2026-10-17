@@ -29,6 +29,10 @@ type Spec =
   | [string, string, 'int', number, number]
 
 export const SIMPLE_COMPONENT_FIELDS: Record<string, { fields: Spec[]; help: string }> = {
+  Reference2D: {
+    fields: [['opacity', 'Opacity', 'slider', 0.01, 0, 1], ['locked', 'Locked (clicks pass through)', 'toggle'], ['showWhenPlaying', 'Show while playing', 'toggle']],
+    help: 'A reference object: shown while you design, never exported. Locked ones are selected from the Layers panel.',
+  },
   DropShadow2D: {
     fields: [['color', 'Colour', 'color'], ['offset', 'Offset (px)', 'xy', 1], ['softness', 'Softness (px)', 'slider', 0.5, 0, 40]],
     help: 'A solid copy behind this (and everything inside it). Softness 0 = a hard pixel-art shadow.',

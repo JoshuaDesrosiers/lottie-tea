@@ -122,6 +122,7 @@ function ShapesMenu({
   onAddText,
   onImportSvg,
   onImportImage,
+  onImportReference,
   onImportModel,
   onImportAudio,
   onLoadDemo,
@@ -167,6 +168,8 @@ function ShapesMenu({
   onAddText: (icon?: boolean) => void
   onImportSvg: () => void
   onImportImage: () => void
+  onImportReference?: () => void
+  /** Import → Reference image (design-only, faded, locked). */
   /** Import → 3D Model: a glTF / GLB file as a new 3D node. */
   onImportModel: () => void
   /** Import → Audio: a sound file. */
@@ -298,6 +301,7 @@ function ShapesMenu({
       children: [
         { kind: 'item', label: 'SVG…', icon: <OpenIcon />, onSelect: onImportSvg },
         { kind: 'item', label: 'Image…', icon: <ImageIcon />, onSelect: onImportImage },
+        ...(onImportReference ? [{ kind: 'item' as const, label: 'Reference image… (design only)', icon: <ImageIcon />, onSelect: onImportReference }] : []),
         { kind: 'item', label: '3D Model (glTF / GLB / VRM)…', icon: <CameraKindIcon />, onSelect: onImportModel },
         { kind: 'item', label: 'Audio…', icon: <SparkleIcon />, onSelect: onImportAudio },
       ],
@@ -588,6 +592,7 @@ export function TopToolbar({
   onAddParticleSystem,
   onImportSvg,
   onImportImage,
+  onImportReference,
   onImportModel,
   onImportAudio,
   onLoadDemo,
@@ -649,6 +654,7 @@ export function TopToolbar({
   onAddParticleSystem: () => void
   onImportSvg: () => void
   onImportImage: () => void
+  onImportReference?: () => void
   /** Import → 3D Model: a glTF / GLB file as a new 3D node. */
   onImportModel: () => void
   /** Import → Audio: a sound file. */
@@ -772,6 +778,7 @@ export function TopToolbar({
               onAddParticleSystem={onAddParticleSystem}
               onImportSvg={onImportSvg}
               onImportImage={onImportImage}
+              onImportReference={onImportReference}
               onImportModel={onImportModel}
               onImportAudio={onImportAudio}
               onLoadDemo={onLoadDemo}

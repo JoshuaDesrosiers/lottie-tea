@@ -134,8 +134,8 @@ pub use shader_graph::{compile_wgsl, ShaderDomain, ShaderEdgeDef, ShaderGraphDef
 pub use node::{BoneNode, CameraNode, CameraVignette, GroupNode, PixelCropFrame, PixelGridSnapping, PixelPerfect, ImageNode, Node, NodeKind, ShapeNode, Stroke, StrokeCap, StrokeJoin, TextNode};
 pub mod effects2d;
 pub mod image_effects;
-pub use image_effects::{default_image_effect, parse_code_params, ImageEffect, ImageEffectLayer, ImageEffects, CODE_EFFECT_TEMPLATE};
-pub use effects2d::{ClipFade2D, ClipOptions2D, Mask2D, DropShadow2D, Outline2D, Repeater2D, Mirror2D, Wiggle2D, Parallax2D, PixelSnap2D, StrokeStyle2D, CameraShake2D, noise1};
+pub use image_effects::{default_image_effect, parse_code_params, ImageEffect, ImageEffectLayer, ImageEffects, Texture, TextureBlend, TextureSource, CODE_EFFECT_TEMPLATE};
+pub use effects2d::{Reference2D, ClipFade2D, ClipOptions2D, Mask2D, DropShadow2D, Outline2D, Repeater2D, Mirror2D, Wiggle2D, Parallax2D, PixelSnap2D, StrokeStyle2D, CameraShake2D, noise1};
 pub use document::SortingLayerDef;
 pub use light2d::{LightFlicker2D, LightLayers2D, SortingLayer2D};
 pub use particle::{ParticlePath2D, ParticleLook2D, ParticleShape2D, EmitterShape, ParticleBurst, ParticleEmission, ParticleMain, ParticleRange, ParticleSystemNode, SimulationSpace, SizeKeyframe};

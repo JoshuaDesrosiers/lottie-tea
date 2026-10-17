@@ -154,6 +154,16 @@ export function DrawPathOverlay({
       finish(pointsRef.current)
     }
   }
+  // A cancelled pointer (chiefly `input/touchGestures.ts` taking the finger
+  // over because a second one landed for a pinch) throws the in-progress
+  // freehand stroke away rather than finishing it. Click-to-place points
+  // already placed are kept — each was its own deliberate tap.
+  const onPointerCancel = () => {
+    if (options.mode === 'freehand' && drawing.current) {
+      drawing.current = false
+      setPoints([])
+    }
+  }
 
   // Preview (screen space).
   const preview = [...points, ...(options.mode === 'points' && hoverPoint && points.length ? [hoverPoint] : [])]
@@ -178,7 +188,7 @@ export function DrawPathOverlay({
   const nearStart = options.mode === 'points' && hoverPoint && points.length > 2 && closeEnough(points[0], hoverPoint)
 
   return (
-    <div className="absolute inset-0 z-30" style={{ cursor: 'crosshair', touchAction: 'none' }} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerLeave={() => setHoverPoint(null)}>
+    <div className="absolute inset-0 z-30" style={{ cursor: 'crosshair', touchAction: 'none' }} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onPointerCancel} onPointerLeave={() => setHoverPoint(null)}>
       <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
         {d && <path d={d} fill="none" stroke="rgb(56 189 248)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />}
         {options.mode === 'points' &&
