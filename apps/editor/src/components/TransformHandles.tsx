@@ -703,9 +703,12 @@ export function TransformHandles({
           `screenCenter` (already exactly `worldToScreen` of `translation`,
           which — per `Transform2D::to_affine2`'s invariant — is always the
           anchor's own world position, dragged or not). */}
+      {/* (No enlarged hit area here, unlike the other handles: the pivot
+          sits at the node's centre — where a pen or finger naturally lands
+          to drag the node itself — so it stays a small, precise target.) */}
       <div
         onMouseDown={handleAnchorMouseDown}
-        className="an1-hit pointer-events-auto absolute flex items-center justify-center rounded-full border border-[rgba(255,196,0,0.9)] bg-white/80"
+        className="pointer-events-auto absolute flex items-center justify-center rounded-full border border-[rgba(255,196,0,0.9)] bg-white/80"
         style={{
           left: screenCenter.x - ANCHOR_HANDLE_RADIUS_PX,
           top: screenCenter.y - ANCHOR_HANDLE_RADIUS_PX,

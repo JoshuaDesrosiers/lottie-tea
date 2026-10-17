@@ -5042,35 +5042,15 @@ ${list}${more}`)
           onToggleLayers={() => setPanelVisible((v) => ({ ...v, layers: !v.layers }))}
           inspectorOpen={panelVisible.inspector}
           onToggleInspector={() => setPanelVisible((v) => ({ ...v, inspector: !v.inspector }))}
-          resourcesOpen={mode === 'Design' && bottomDockOpen && bottomDockTab === 'Resources'}
-          onToggleResources={() => {
-            setMode('Design')
-            if (bottomDockOpen && bottomDockTab === 'Resources') setBottomDockOpen(false)
-            else {
-              setBottomDockTab('Resources')
+          bottomOpen={mode === 'Design' && bottomDockOpen}
+          onToggleBottom={() => {
+            if (mode !== 'Design') {
+              setMode('Design')
               setBottomDockOpen(true)
-            }
+            } else setBottomDockOpen((open) => !open)
           }}
           tilePaletteOpen={panelVisible.tilePalette}
           onToggleTilePalette={() => setPanelVisible((v) => ({ ...v, tilePalette: !v.tilePalette }))}
-          timelineOpen={mode === 'Design' && bottomDockOpen && bottomDockTab === 'Animate'}
-          onToggleTimeline={() => {
-            setMode('Design')
-            if (bottomDockOpen && bottomDockTab === 'Animate') setBottomDockOpen(false)
-            else {
-              setBottomDockTab('Animate')
-              setBottomDockOpen(true)
-            }
-          }}
-          stateMachineOpen={mode === 'Design' && bottomDockOpen && bottomDockTab === 'StateMachine'}
-          onToggleStateMachine={() => {
-            setMode('Design')
-            if (bottomDockOpen && bottomDockTab === 'StateMachine') setBottomDockOpen(false)
-            else {
-              setBottomDockTab('StateMachine')
-              setBottomDockOpen(true)
-            }
-          }}
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
           uiStyle={uiStyle}

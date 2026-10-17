@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Theme, UiStyle } from '../theme'
-import { CanvasIcon, ClockIcon, EffectsIcon, GraphIcon, GroupKindIcon, ImageIcon, MenuIcon, MoonIcon, PaneLayoutIcon, SettingsIcon, SunIcon, TestAreaIcon, TileGridIcon, WrenchIcon } from './icons'
+import { CanvasIcon, EffectsIcon, GroupKindIcon, MenuIcon, MoonIcon, PaneLayoutIcon, SettingsIcon, SunIcon, TestAreaIcon, TileGridIcon, WrenchIcon } from './icons'
 import { RAIL_WIDTH, TITLE_BAR_HEIGHT } from '../layoutConstants'
 
 /**
@@ -46,14 +46,10 @@ export function IconRail({
   onToggleLayers,
   inspectorOpen,
   onToggleInspector,
-  resourcesOpen,
-  onToggleResources,
+  bottomOpen,
+  onToggleBottom,
   tilePaletteOpen,
   onToggleTilePalette,
-  timelineOpen,
-  onToggleTimeline,
-  stateMachineOpen,
-  onToggleStateMachine,
   theme,
   onToggleTheme,
   uiStyle,
@@ -76,19 +72,13 @@ export function IconRail({
   onToggleLayers: () => void
   inspectorOpen: boolean
   onToggleInspector: () => void
-  resourcesOpen: boolean
-  onToggleResources: () => void
+  /** The bottom bar (Animate / State Machine / Resources / Shader /
+   * Console tabs): one rail button shows or hides the whole bar, keeping
+   * whichever tab was open — the tabs themselves pick what it shows. */
+  bottomOpen: boolean
+  onToggleBottom: () => void
   tilePaletteOpen: boolean
   onToggleTilePalette: () => void
-  /** The bottom dock's Animate tab — Animate/State Machine used to be their
-   * own top-level `Mode`s; they're one dockable, tabbed bottom area now (see
-   * `TopToolbar`'s own doc comment), so they get the same rail-icon open/
-   * close convention as every other dockable panel instead of a mode-switch
-   * button. */
-  timelineOpen: boolean
-  onToggleTimeline: () => void
-  stateMachineOpen: boolean
-  onToggleStateMachine: () => void
   theme: Theme
   onToggleTheme: () => void
   /** Glass (floating panes over the canvas) vs Solid (hard panes enclosing
@@ -119,9 +109,6 @@ export function IconRail({
       <RailButton active={inspectorOpen} onClick={onToggleInspector} title="Inspector">
         <SettingsIcon />
       </RailButton>
-      <RailButton active={resourcesOpen} onClick={onToggleResources} title="Resources">
-        <ImageIcon />
-      </RailButton>
       <RailButton active={tilePaletteOpen} onClick={onToggleTilePalette} title="Tile Palette">
         <TileGridIcon />
       </RailButton>
@@ -134,11 +121,8 @@ export function IconRail({
       <RailButton active={testAreaOpen} onClick={onToggleTestArea} title="Test Area: try this scene inside a phone or desktop app">
         <TestAreaIcon />
       </RailButton>
-      <RailButton active={timelineOpen} onClick={onToggleTimeline} title="Timeline">
-        <ClockIcon />
-      </RailButton>
-      <RailButton active={stateMachineOpen} onClick={onToggleStateMachine} title="State Machine">
-        <GraphIcon />
+      <RailButton active={bottomOpen} onClick={onToggleBottom} title={bottomOpen ? 'Hide the bottom bar (Animate, State Machine, Resources …)' : 'Show the bottom bar (Animate, State Machine, Resources …)'}>
+        <BottomBarIcon />
       </RailButton>
         </>
       )}
@@ -153,6 +137,17 @@ export function IconRail({
         {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
       </RailButton>
     </div>
+  )
+}
+
+/** A window with its bottom strip filled — "the bottom bar". */
+function BottomBarIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <path d="M3 14h18" />
+      <path d="M6 17h5" />
+    </svg>
   )
 }
 
