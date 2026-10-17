@@ -24,7 +24,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObjec
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { DocumentSummary } from '../ipc/document'
 import { listProjectFiles, pathExists, pickOpenPath, type ProjectEntry, pickSavePath, readBinaryFile, readFileRaw, readTextFile, recoveryDir, removeFile, revealInExplorer, writeBinaryFile, writeFileRaw, writeTextFile } from '../ipc/nativeFile'
-import { documentInstance, documentRevision, importAudio, importImage, loadTea, loadTeab, saveTea, saveTeab } from '../ipc/wasmEditor'
+import { documentInstance, documentRevision, importAudio, importImage, importImageAsset, loadTea, loadTeab, saveTea, saveTeab } from '../ipc/wasmEditor'
 import type { ImportImageResult, OpaqueId } from '../ipc/document'
 import type { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm'
 import type { FileMenuActions } from '../components/TopToolbar'
@@ -527,8 +527,9 @@ export function useProject({ editorRef, ready, playing, onReplaced, onChanged }:
     if (!editor) throw new Error('editor not ready')
     const session = sessionRef.current
     if (!session) {
-      if (!artboard) throw new Error('no scene to place the image in')
-      return importImage(editor, artboard, fileName, bytes)
+      // No project folder: the asset lives in the document only (and, with
+      // a scene, gets a node too).
+      return artboard ? importImage(editor, artboard, fileName, bytes) : importImageAsset(editor, fileName, bytes)
     }
     const result = await importImageIntoProject(editor, session, fileName, bytes, artboard)
     void listFiles()

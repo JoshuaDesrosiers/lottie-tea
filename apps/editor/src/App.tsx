@@ -2433,6 +2433,65 @@ function App() {
     })().catch((err) => console.error('Image import failed', err))
   }
 
+  /**
+   * Files dragged in from the OS (onto the canvas or the Resources panel):
+   * - images (PNG / JPEG / GIF / WebP / BMP) are imported as assets (into
+   *   the project's `Assets/Images` when one is open) and, dropped on the
+   *   canvas, placed as sprites right where they were dropped (several
+   *   files fan out a little);
+   * - SVGs on the canvas are imported as editable vector shapes;
+   * - audio files are imported as sounds.
+   * `canvasPoint` is the drop point in canvas pixels, `null` = Resources
+   * (asset only, nothing placed).
+   */
+  const handleDropFiles = async (files: File[], canvasPoint: { x: number; y: number } | null) => {
+    const editor = editorRef.current
+    const artboard = activeArtboard
+    if (!editor || !artboard) return
+    const size = canvasSizeRef.current
+    let placed = 0
+    let lastNode: OpaqueId | null = null
+    let skipped: string[] = []
+    for (const file of files) {
+      const name = file.name
+      const lower = name.toLowerCase()
+      try {
+        if (/\.(png|jpe?g|gif|webp|bmp)$/.test(lower) || (file.type.startsWith('image/') && !lower.endsWith('.svg'))) {
+          const bytes = new Uint8Array(await file.arrayBuffer())
+          const result = await project.importImage(name, bytes, null)
+          setDoc(result.document)
+          const image = result.newImages[0]
+          if (canvasPoint && image && !result.newSpriteGroup) {
+            const at = { x: canvasPoint.x + placed * 24, y: canvasPoint.y + placed * 24 }
+            const world = mouseToWorld(editor, artboard.id, at.x, at.y, cameraRef.current, size)
+            const node = addImageNode(editor, artboard.id, null, image, world.x, world.y)
+            setDoc(node.document)
+            lastNode = node.newNode
+            placed++
+          }
+        } else if (lower.endsWith('.svg')) {
+          if (!canvasPoint) {
+            skipped.push(`${name} (drop SVGs on the canvas)`)
+            continue
+          }
+          const result = importSvg(editor, artboard.id, await file.text())
+          setDoc(result.document)
+          lastNode = result.newNodes[0] ?? lastNode
+        } else if (/\.(mp3|wav|ogg|m4a|flac)$/.test(lower)) {
+          const result = await project.importAudio(name, new Uint8Array(await file.arrayBuffer()))
+          setDoc(result.document)
+        } else {
+          skipped.push(name)
+        }
+      } catch (err) {
+        console.error('Dropped file failed to import', name, err)
+        skipped.push(`${name} (${err instanceof Error ? err.message : String(err)})`)
+      }
+    }
+    if (lastNode) selectSingle(artboard.id, lastNode)
+    if (skipped.length) void showAlert(`Couldn't add: ${skipped.join(', ')}`, { title: 'Some files were skipped' })
+  }
+
   /** Import → Reference image: a picture to trace or match against — the
    * imported image node gets a Reference component (faded, locked, never
    * played or exported). */
@@ -4622,17 +4681,25 @@ ${list}${more}`)
       <div
         className="absolute inset-0"
         onDragOver={(e) => {
-          if (e.dataTransfer.types.includes(ASSET_DRAG_MIME)) {
+          if (e.dataTransfer.types.includes(ASSET_DRAG_MIME) || e.dataTransfer.types.includes('Files')) {
             e.preventDefault()
             e.dataTransfer.dropEffect = 'copy'
           }
         }}
         onDrop={(e) => {
-          const raw = e.dataTransfer.getData(ASSET_DRAG_MIME)
-          if (!raw || !canvasRef.current) return
-          e.preventDefault()
+          if (!canvasRef.current) return
           const rect = canvasRef.current.getBoundingClientRect()
-          handlePlaceAssetAt(JSON.parse(raw) as DraggedAsset, { x: e.clientX - rect.left, y: e.clientY - rect.top })
+          const at = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+          // Files from the OS: images / SVGs placed where they're dropped.
+          if (e.dataTransfer.files.length > 0) {
+            e.preventDefault()
+            void handleDropFiles(Array.from(e.dataTransfer.files), at)
+            return
+          }
+          const raw = e.dataTransfer.getData(ASSET_DRAG_MIME)
+          if (!raw) return
+          e.preventDefault()
+          handlePlaceAssetAt(JSON.parse(raw) as DraggedAsset, at)
         }}
       >
         <CanvasArea canvasRef={canvasRef} onMouseDown={handleCanvasMouseDown} onDoubleClick={handleCanvasDoubleClick} />
@@ -5226,6 +5293,7 @@ ${list}${more}`)
             content: (
               <ResourcesPanel
                 editor={editorRef.current}
+                onDropFiles={(files) => void handleDropFiles(files, null)}
                 sounds={doc?.audio ?? []}
                 onImportAudio={handleImportAudio}
                 onDeleteAudio={handleDeleteAudio}
@@ -5401,6 +5469,7 @@ ${list}${more}`)
               selectedAssetId={selectedAssetId}
               onSelectAsset={handleSelectAsset}
               onImportImage={handleImportImage}
+              onDropFiles={(files) => void handleDropFiles(files, null)}
               onPlacePrefab={handlePlacePrefab}
               onPlaceImage={(id) => handlePlaceAssetAt({ kind: 'image', id }, null)}
               onPlaceDrawing={(id) => handlePlaceAssetAt({ kind: 'drawing', id }, null)}

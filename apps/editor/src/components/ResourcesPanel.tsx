@@ -338,7 +338,10 @@ export function ResourcesPanel({
   sounds,
   onImportAudio,
   onDeleteAudio,
+  onDropFiles,
 }: {
+  /** Files dropped on the panel from the OS (images, SVGs, sounds). */
+  onDropFiles?: (files: File[]) => void
   editor: WasmEditor | null
   /** Imported sounds. */
   sounds: AudioSummary[]
@@ -381,6 +384,8 @@ export function ResourcesPanel({
   // Sprite groups start collapsed (a sheet can hold dozens of frames); the
   // set tracks the ones the user has opened.
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  // A file being dragged over the panel (from the OS): highlight the drop.
+  const [dropping, setDropping] = useState(false)
 
   if (!editor) return null
 
@@ -388,8 +393,29 @@ export function ResourcesPanel({
   const standalone = images.filter((image) => !groupedIds.has(idKey(image.id)))
   const imagesById = new Map(images.map((image) => [idKey(image.id), image]))
 
+  const hasFiles = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes('Files')
   return (
-    <div className="flex flex-col gap-3 overflow-x-hidden">
+    <div
+      className={`relative flex flex-col gap-3 overflow-x-hidden rounded-md ${dropping ? 'ring-2 ring-accent ring-offset-2 ring-offset-transparent' : ''}`}
+      onDragOver={(e) => {
+        if (!onDropFiles || !hasFiles(e)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setDropping(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false)
+      }}
+      onDrop={(e) => {
+        setDropping(false)
+        if (!onDropFiles || !hasFiles(e)) return
+        e.preventDefault()
+        onDropFiles(Array.from(e.dataTransfer.files))
+      }}
+    >
+      {dropping && (
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-md bg-accent/10 text-xs font-medium text-accent">Drop to add to Resources</div>
+      )}
       <div className="flex items-center gap-2 rounded-md border border-panel-border px-2 py-1.5">
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-medium text-ink">{projectName ?? 'Unsaved document'}</div>

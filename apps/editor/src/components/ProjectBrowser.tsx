@@ -147,6 +147,7 @@ export function ProjectBrowser({
   onNewProject,
   onOpenProject,
   onRefresh,
+  onDropFiles,
 }: {
   editor: WasmEditor | null
   doc: DocumentSummary | null
@@ -173,10 +174,14 @@ export function ProjectBrowser({
   onNewProject: () => void
   onOpenProject: () => void
   onRefresh: () => void
+  /** Files dropped here from the OS (images, SVGs, sounds) — imported as assets. */
+  onDropFiles?: (files: File[]) => void
 }) {
   // Which file holds which item — recomputed shortly after the document
   // changes (it serializes the document, so not on every keystroke).
   const [index, setIndex] = useState<ProjectFileListing[]>([])
+  // A file dragged in from the OS is over the panel.
+  const [dropping, setDropping] = useState(false)
   useEffect(() => {
     if (!editor || !doc) return
     const timer = window.setTimeout(() => {
@@ -330,8 +335,27 @@ export function ProjectBrowser({
 
   const breadcrumb = current.split('/')
 
+  const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer.types).includes('Files')
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1.5">
+    <div
+      className={`relative flex h-full min-h-0 flex-col gap-1.5 rounded-md ${dropping ? 'ring-2 ring-accent' : ''}`}
+      onDragOver={(e) => {
+        if (!onDropFiles || !hasFiles(e)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setDropping(true)
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false)
+      }}
+      onDrop={(e) => {
+        setDropping(false)
+        if (!onDropFiles || !hasFiles(e)) return
+        e.preventDefault()
+        onDropFiles(Array.from(e.dataTransfer.files))
+      }}
+    >
+      {dropping && <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-md bg-accent/10 text-xs font-medium text-accent">Drop to add to Resources</div>}
       {/* Toolbar */}
       <div className="flex shrink-0 items-center gap-2">
         <span className="shrink-0 text-[11px] font-semibold text-ink" title={projectFolder ?? 'Not saved as a project yet'}>

@@ -1201,7 +1201,9 @@ fn build_scene_ops_lit<'a>(
     // asked) and in every export; faded as one layer (so overlapping parts
     // don't stack darker) at the reference's opacity.
     if let Some(reference) = node.reference() {
-        if editor.exporting || (editor.effects_live() && !reference.show_when_playing) {
+        // (Only Playground / the player and exports hide it — the State
+        // Machine and Animate previews are still designing.)
+        if editor.exporting || (editor.playground_active && !reference.show_when_playing) {
             return;
         }
         let k = reference.opacity.clamp(0.0, 1.0);
