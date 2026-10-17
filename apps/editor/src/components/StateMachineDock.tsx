@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { STATE_MACHINE_DOCK_HEIGHT } from '../layoutConstants'
 import { useLayoutMetrics } from '../layoutMetrics'
-import type { ArtboardSummary, Blend1DDef, ConditionDef, InputKind, LoopMode, OpaqueId, PlaybackDirection, ProgramDef, StateMachineDefSummary, StateMachineSummary } from '../ipc/document'
+import type { ArtboardSummary, Blend1DDef, DocumentSummary, ConditionDef, InputKind, LoopMode, OpaqueId, PlaybackDirection, ProgramDef, StateMachineDefSummary, StateMachineSummary } from '../ipc/document'
+import type { WasmEditor } from '../ipc/wasmEditor'
 import { FloatingPanel } from './FloatingPanel'
 import { ProgramEditorPanel } from './ProgramEditorPanel'
 import { StateMachineGraph } from './StateMachineGraph'
@@ -60,6 +61,8 @@ export function StateMachineDock({
   onSetStateProgram,
   programsEnabled,
   onToggleProgramsEnabled,
+  editor,
+  onDocumentChange,
   isPlayground = false,
   onResetLayout,
   height = STATE_MACHINE_DOCK_HEIGHT,
@@ -98,6 +101,9 @@ export function StateMachineDock({
    * Playground — see `isPlayground`. */
   programsEnabled: boolean
   onToggleProgramsEnabled: (enabled: boolean) => void
+  /** For the panel's Listeners section. */
+  editor?: WasmEditor | null
+  onDocumentChange?: (doc: DocumentSummary) => void
   /** `true` when this dock is rendered for the Playground tab instead of
    * the State Machine tab — programs always run there (no toggle to show;
    * `programsEnabled` is forced `true` and displayed as a disabled,
@@ -170,6 +176,8 @@ export function StateMachineDock({
             onSetBoolInput={onSetBoolInput}
             onSetNumberInput={onSetNumberInput}
             onSetEnumInput={onSetEnumInput}
+            editor={editor}
+            onDocumentChange={onDocumentChange}
           />
         </div>
         <div className="min-w-0 flex-1">

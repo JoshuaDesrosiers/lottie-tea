@@ -17,6 +17,7 @@
  *   browser has a save dialog, otherwise the file is downloaded on write.
  */
 import type { ProjectEntry } from './nativeFile'
+import { showAlert, showPrompt } from '../components/Dialogs'
 
 type DirHandle = FileSystemDirectoryHandle
 type FileHandle = FileSystemFileHandle
@@ -193,7 +194,7 @@ export async function pickProjectFolder(): Promise<string | null> {
     }
   }
   // No folder access (Firefox / Safari): projects live in browser storage.
-  const name = window.prompt('This browser keeps projects in its own storage. Project name:', 'My Project')
+  const name = await showPrompt('This browser keeps projects in its own storage. Project name:', 'My Project', { title: 'New project' })
   if (!name) return null
   return `web-opfs:projects/${name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'My Project'}`
 }
@@ -318,7 +319,7 @@ export const pickSaveGifPath = (suggestedName: string) => pickSave(suggestedName
 export const pickSaveHtmlPath = (suggestedName: string) => pickSave(suggestedName, 'Web page', ['html'])
 export const pickSaveFilePath = (suggestedName: string, filterName: string, extensions: string[]) => pickSave(suggestedName, filterName, extensions)
 export const pickSaveExePath = async (_suggestedName: string): Promise<string | null> => {
-  window.alert('Exporting a desktop app (.exe) needs the an1mbyt3 desktop app. In the browser, use Export → Game → Web page instead.')
+  void showAlert('Exporting a desktop app (.exe) needs the an1mbyt3 desktop app. In the browser, use Export → Game → Web page instead.')
   return null
 }
 

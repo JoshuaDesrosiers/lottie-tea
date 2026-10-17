@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { showAlert } from './Dialogs'
 import type { DocumentSummary, ImageAssetSummary, MaterialSummary, Node3D, Node3DContent, OpaqueId, Primitive3D, ToonStyle, Vec3Tuple } from '../ipc/document'
 import { addToonMaterial, modelClips, modelExtractMaterials, materialToon, pickAndImportHumanoidAnimation, setMaterialToon, type WasmEditor } from '../ipc/wasmEditor'
 import { ToonMaterialFields } from './ToonMaterialFields'
@@ -238,7 +239,7 @@ export function Node3DFields({
               onClick={() =>
                 pickAndImportHumanoidAnimation(editor, artboardId, nodeId)
                   .then((doc) => doc && onDocumentChange(doc))
-                  .catch((err) => window.alert(`Couldn't use that animation: ${err}`))
+                  .catch((err) => void showAlert(`Couldn't use that animation: ${err}`))
               }
               className="rounded bg-overlay/10 px-2 py-1 text-[11px] text-ink hover:bg-accent/20 hover:text-accent"
               title="Play any humanoid animation on this avatar: a VRMA file, or a GLB / VRM with a humanoid skeleton (Mixamo → Blender → GLB works)"

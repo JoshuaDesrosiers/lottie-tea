@@ -1,4 +1,5 @@
 import { Select } from './components/Select'
+import { showAlert, showPrompt } from './components/Dialogs'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { screenToWorld, worldToScreen } from './camera'
 import { DEMO_SVG } from './demoScene'
@@ -1716,7 +1717,7 @@ function App() {
                     if (!editor) return
                     const result = editor.view3d_align_camera(activeArtboard.id, selection?.nodeId ?? null)
                     if (result) setDoc(result as DocumentSummary)
-                    else window.alert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
+                    else void showAlert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
                   },
                 },
                 {
@@ -1724,7 +1725,7 @@ function App() {
                   title: 'Look through the Playground camera (the amber one, or the selected Camera 3D): see exactly what Playground will show.',
                   onClick: () => {
                     const editor = editorRef.current
-                    if (editor && !editor.view3d_look_through(activeArtboard.id, selection?.nodeId ?? null)) window.alert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
+                    if (editor && !editor.view3d_look_through(activeArtboard.id, selection?.nodeId ?? null)) void showAlert('This scene has no Camera 3D yet: add one from + → 3D → Camera 3D.')
                   },
                 },
               ]}
@@ -2230,7 +2231,7 @@ function App() {
     try {
       setDoc(bindSpriteSkin(editorRef.current, selection.artboardId, selection.nodeId, rootBone, 8, 8))
     } catch (err) {
-      window.alert(String(err))
+      void showAlert(String(err))
     }
   }
 
@@ -2436,7 +2437,7 @@ function App() {
       setDoc(result.document)
     })().catch((err) => {
       console.error('Audio import failed', err)
-      window.alert(`Couldn't import that sound: ${err}`)
+      void showAlert(`Couldn't import that sound: ${err}`)
     })
   }
 
@@ -2473,7 +2474,7 @@ function App() {
       setSelection({ artboardId: artboard.id, nodeId: result.newNode })
     })().catch((err) => {
       console.error('3D model import failed', err)
-      window.alert(`Couldn't import that model: ${err}`)
+      void showAlert(`Couldn't import that model: ${err}`)
     })
   }
 
@@ -2492,9 +2493,9 @@ function App() {
     ;(async () => {
       const path = await pickOpenImagePath()
       if (!path) return
-      const tileWidthInput = window.prompt('Tile width (pixels)?', '16')
+      const tileWidthInput = await showPrompt('Tile width (pixels)?', '16', { title: 'New tilemap' })
       if (tileWidthInput === null) return
-      const tileHeightInput = window.prompt('Tile height (pixels)?', tileWidthInput)
+      const tileHeightInput = await showPrompt('Tile height (pixels)?', tileWidthInput, { title: 'New tilemap' })
       if (tileHeightInput === null) return
       const tileWidthPx = Math.max(1, Math.round(Number(tileWidthInput)) || 16)
       const tileHeightPx = Math.max(1, Math.round(Number(tileHeightInput)) || 16)
@@ -2682,7 +2683,7 @@ function App() {
         switchToScene(result.newArtboard, result.document)
         setMode('Playground')
       })
-      .catch((err) => window.alert(String(err)))
+      .catch((err) => void showAlert(String(err)))
       .finally(() => {
         demoLoadingRef.current = false
       })
@@ -3582,7 +3583,7 @@ function App() {
       setMultiSelectedIds([result.newNode])
       setSelectionScope(null)
     } catch (err) {
-      alert(err instanceof Error ? err.message : String(err))
+      void showAlert(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -3627,7 +3628,7 @@ function App() {
     try {
       setDoc(reparentNode(editorRef.current, artboardId, nodeId, parent))
     } catch (err) {
-      alert(err instanceof Error ? err.message : String(err))
+      void showAlert(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -3641,7 +3642,7 @@ function App() {
     try {
       setDoc(reparentNodeBefore(editorRef.current, artboardId, nodeId, parent, before))
     } catch (err) {
-      alert(err instanceof Error ? err.message : String(err))
+      void showAlert(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -3664,7 +3665,7 @@ function App() {
     try {
       setDoc(setGroupMask(editorRef.current, artboardId, groupId, mask))
     } catch (err) {
-      alert(err instanceof Error ? err.message : String(err))
+      void showAlert(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -3800,7 +3801,7 @@ function App() {
       else await exportDesktopGame(path, html)
     } catch (err) {
       console.error('Export Game failed', err)
-      window.alert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
+      void showAlert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -3821,10 +3822,10 @@ function App() {
     try {
       const folder = `${parent.replace(/[\\/]+$/, '')}/${stem}-embed`
       await exportEmbed(editor, folder, title, activeArtboard.name, getDocumentSummary(editor))
-      window.alert(`Website embed saved to ${folder} — see its README.md`)
+      void showAlert(`Website embed saved to ${folder} — see its README.md`)
     } catch (err) {
       console.error('Export embed failed', err)
-      window.alert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
+      void showAlert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 
@@ -3845,13 +3846,13 @@ function App() {
       if (skipped.length) {
         const list = skipped.slice(0, 12).map((s) => `• ${s}`).join('\n')
         const more = skipped.length > 12 ? `\n…and ${skipped.length - 12} more` : ''
-        window.alert(`Exported. Toasty Lite left out what needs the full engine:
+        void showAlert(`Exported. Toasty Lite left out what needs the full engine:
 
 ${list}${more}`)
       }
     })().catch((err) => {
       console.error('Toasty Lite export failed', err)
-      window.alert(`Toasty Lite export failed: ${err instanceof Error ? err.message : String(err)}`)
+      void showAlert(`Toasty Lite export failed: ${err instanceof Error ? err.message : String(err)}`)
     })
   }
 
@@ -3874,7 +3875,7 @@ ${list}${more}`)
       }
     })().catch((err) => {
       console.error('Animation export failed', err)
-      alert(err instanceof GifExportError ? err.message : `${info.label} export failed — see the console for details.`)
+      void showAlert(err instanceof GifExportError ? err.message : `${info.label} export failed — see the console for details.`)
     })
   }
 
@@ -5423,6 +5424,8 @@ ${list}${more}`)
           onDeleteStateMachine={handleDeleteStateMachine}
           onRenameStateMachine={handleRenameStateMachine}
           onAddInput={handleAddStateMachineInput}
+          editor={editorRef.current}
+          onDocumentChange={setDoc}
           onSetBoolInput={handleSetBoolInput}
           onSetNumberInput={handleSetNumberInput}
           onSetEnumInput={handleSetEnumInput}

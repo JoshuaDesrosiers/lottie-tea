@@ -1,4 +1,5 @@
 import { Popover, Select, insideOrPopover, placeMenu } from './Select'
+import { showAlert } from './Dialogs'
 import { SpriteEditor } from './SpriteEditor'
 import { Slider } from './Slider'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -48,6 +49,7 @@ import type { ScreenSettings,
 } from '../ipc/document'
 import { POST_EFFECT_DEFAULTS } from '../ipc/document'
 import type { WasmEditor } from '../ipc/wasmEditor'
+import type { InputKind } from '../ipc/document'
 import { ColorSwatch } from './ColorPicker'
 import { GradientClipboardButtons } from './GradientClipboard'
 import { LightLayersFields, SimpleComponentFields, SIMPLE_COMPONENT_FIELDS, SortingLayerField } from './Effects2DFields'
@@ -92,7 +94,7 @@ import { AntialiasFields, Goo2DFields } from './GooFields'
 import { VrmPosesFields } from './VrmPosesFields'
 import { pickAndImportHumanoidAnimation } from '../ipc/wasmEditor'
 import { ParticleBehaviors2DFields, ParticleFluid2DFields, ParticleSystem3DFields } from './Particle3DFields'
-import { addGoogleFont, burstParticles3D, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
+import { addGoogleFont, addStateMachineInput, burstParticles3D, addTextNode, defaultComponent, deleteNode, renameNode, setNodeTranslation, setTextContent, setTextFont, setTextSize } from '../ipc/wasmEditor'
 import { gameConsole } from '../game/console'
 import { ImageAssetPicker } from './ImageAssetPicker'
 import { ChevronDownIcon, CloseIcon, EditIcon, PlayIcon, TrashIcon } from './icons'
@@ -679,6 +681,11 @@ function BehaviorsFields({
     return definition ? definition.name : 'Script (missing)'
   }
   const replaceAt = (index: number, behavior: NodeBehavior) => onChange(behaviors.map((b, i) => (i === index ? { ...b, behavior } : b)))
+  // Event actions' "+ New input…": declares it on the active state machine.
+  const onAddInput = (name: string, kind: InputKind) => {
+    const sm = artboard?.activeStateMachine
+    if (editor && artboard && sm) onDocumentChange(addStateMachineInput(editor, artboard.id, sm, name, kind))
+  }
   // Liquids' "Antialias edges" toggle lives on the liquid's own fields but
   // is stored as the node's Antialias 2D component (null = hard edges).
   const antialiasEntry = behaviors.find((b) => b.behavior.kind === 'Antialias2D' && b.enabled)
@@ -839,11 +846,11 @@ function BehaviorsFields({
       }
       case 'UiEvents': {
         const { kind: _k, ...config } = behavior
-        return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
+        return <UiEventsFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties, onAddInput }} onChange={(c) => replaceAt(index, { kind: 'UiEvents', ...c })} />
       }
       case 'UiListeners': {
         const { kind: _k, ...config } = behavior
-        return <UiListenersFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties }} onChange={(c) => replaceAt(index, { kind: 'UiListeners', ...c })} />
+        return <UiListenersFields config={config} ctx={{ artboard, self: node, sceneNames, soundNames: sounds.map((s) => s.name), properties, onAddInput }} onChange={(c) => replaceAt(index, { kind: 'UiListeners', ...c })} />
       }
       case 'GroupFill':
         return <p className="text-[10px] leading-snug text-ink-dim">This group&apos;s fill, painted onto every shape and text inside it. Edit it with the Fill field above (or its gradient handles on the canvas).</p>
@@ -907,7 +914,7 @@ function BehaviorsFields({
           if (!editor || !artboard) return
           pickAndImportHumanoidAnimation(editor, artboard.id, node.id)
             .then((doc) => doc && onDocumentChange(doc))
-            .catch((err) => window.alert(`Couldn't use that animation: ${err}`))
+            .catch((err) => void showAlert(`Couldn't use that animation: ${err}`))
         }
         return (
           <div className="flex flex-col gap-1.5">

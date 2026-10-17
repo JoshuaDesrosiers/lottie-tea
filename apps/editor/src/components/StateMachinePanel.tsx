@@ -1,6 +1,8 @@
 import { Popover, Select, insideOrPopover } from './Select'
 import { useEffect, useRef, useState } from 'react'
-import type { ArtboardSummary, InputKind, OpaqueId, StateMachineDefSummary } from '../ipc/document'
+import type { ArtboardSummary, DocumentSummary, InputKind, OpaqueId, StateMachineDefSummary } from '../ipc/document'
+import type { WasmEditor } from '../ipc/wasmEditor'
+import { StateMachineListeners } from './StateMachineListeners'
 import { ChevronDownIcon, EditIcon, PlusIcon, TrashIcon } from './icons'
 
 /** Shared control styling for every text/select input in this panel — a
@@ -163,6 +165,8 @@ export function StateMachinePanel({
   onSetBoolInput,
   onSetNumberInput,
   onSetEnumInput,
+  editor = null,
+  onDocumentChange,
 }: {
   artboard: ArtboardSummary | null
   onFireTrigger: (name: string) => void
@@ -174,6 +178,9 @@ export function StateMachinePanel({
   onSetBoolInput: (name: string, value: boolean) => void
   onSetNumberInput: (name: string, value: number) => void
   onSetEnumInput: (name: string, value: string) => void
+  /** For the Listeners section (writes nodes' event components). */
+  editor?: WasmEditor | null
+  onDocumentChange?: (doc: DocumentSummary) => void
 }) {
   const [newInputName, setNewInputName] = useState('')
   const [newInputKind, setNewInputKind] = useState<InputKind>('Bool')
@@ -303,6 +310,8 @@ export function StateMachinePanel({
           </button>
         </div>
       )}
+
+      {activeMachine && onDocumentChange && <StateMachineListeners artboard={artboard} editor={editor} onDocumentChange={onDocumentChange} />}
     </div>
   )
 }

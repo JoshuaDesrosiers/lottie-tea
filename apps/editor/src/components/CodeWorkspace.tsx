@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { showConfirm } from './Dialogs'
 import type { ArtboardSummary, DocumentSummary, NodeSummary, OpaqueId, ProgramDef, TextFileSummary } from '../ipc/document'
 import { addTextFile, deleteTextFile, renameTextFile, setStateProgram, setTextFileText, type WasmEditor } from '../ipc/wasmEditor'
 import { fileRef, fileRefPath, patchProjectFile } from '../game/projectFiles'
@@ -240,10 +241,10 @@ export function CodeWorkspace({
 
   /** Removes a state's program (the state goes back to just playing its
    * animation). Undo brings it back. */
-  const removeScript = (entry: StateEntry) => {
+  const removeScript = async (entry: StateEntry) => {
     if (!editor) return
     const where = `${entry.artboard.name} › ${entry.stateMachine.name}${entry.layer ? ` › ${entry.layer}` : ''} › ${entry.state}`
-    if (!window.confirm(`Delete the code in ${where}? The state keeps playing its animation. (Undo brings it back.)`)) return
+    if (!(await showConfirm(`Delete the code in ${where}? The state keeps playing its animation. (Undo brings it back.)`, { title: 'Delete script', okLabel: 'Delete', danger: true }))) return
     const key = stateTabKey(entry.artboard.id, entry.stateMachine.id, entry.layer, entry.state)
     const draft = scriptDrafts.current.get(key)
     if (draft) window.clearTimeout(draft.timer)
@@ -252,9 +253,9 @@ export function CodeWorkspace({
     onDocumentChange(setStateProgram(editor, entry.artboard.id, entry.stateMachine.id, entry.state, null, entry.layer))
   }
 
-  const remove = (f: TextFileSummary) => {
+  const remove = async (f: TextFileSummary) => {
     if (!editor) return
-    if (!window.confirm(`Delete ${f.path}? (Undo brings it back.)`)) return
+    if (!(await showConfirm(`Delete ${f.path}? (Undo brings it back.)`, { title: 'Delete file', okLabel: 'Delete', danger: true }))) return
     onDocumentChange(deleteTextFile(editor, f.id))
   }
 

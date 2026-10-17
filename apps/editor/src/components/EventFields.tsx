@@ -1,6 +1,6 @@
 import { Select } from './Select'
 import { useState } from 'react'
-import type { UiListenersConfig, ActionKind, ArtboardSummary, BindTarget, DocumentSummary, EventAction, NodeSummary, OpaqueId, PropertyBinding, PropertyBindingsConfig, PropertySummary, UiEventsConfig } from '../ipc/document'
+import type { InputKind, UiListenersConfig, ActionKind, ArtboardSummary, BindTarget, DocumentSummary, EventAction, NodeSummary, OpaqueId, PropertyBinding, PropertyBindingsConfig, PropertySummary, UiEventsConfig } from '../ipc/document'
 import { addProperty, deleteProperty, updateProperty, type WasmEditor } from '../ipc/wasmEditor'
 import { COMPONENT_METHODS, describeAction } from '../game/events'
 
@@ -45,10 +45,11 @@ function actionChoices(target: NodeSummary | null | undefined, artboard: Artboar
     for (const m of COMPONENT_METHODS[kind] ?? []) out.push({ group: kind, value: `call:${kind}:${m.method}`, label: m.label })
     for (const f of componentFields(target, kind)) out.push({ group: kind, value: `field:${kind}:${f}`, label: `Set ${f}` })
   }
-  const inputs = artboard?.stateMachines.flatMap((m) => m.inputs) ?? []
-  if (inputs.length) {
-    out.push({ group: 'State machine', value: 'trigger', label: 'Fire trigger' })
+  // Always offered — even before the state machine has any inputs: the
+  // input pickers below can create one on the spot ("+ New input…").
+  if (artboard) {
     out.push({ group: 'State machine', value: 'input', label: 'Set input' })
+    out.push({ group: 'State machine', value: 'trigger', label: 'Fire trigger' })
     out.push({ group: 'State machine', value: 'toggleInput', label: 'Toggle input (Bool)' })
   }
   out.push({ group: 'Scene', value: 'property', label: 'Set property' })
@@ -117,13 +118,109 @@ export interface EventContext {
   sceneNames: string[]
   soundNames: string[]
   properties: PropertySummary[]
+  /** Declares a new input on the active state machine (the input pickers'
+   * "+ New input…"). Absent = no way to create one from here. */
+  onAddInput?: (name: string, kind: InputKind) => void
+}
+
+/** Every input on the scene's state machines, with its kind. */
+export function sceneInputs(artboard: ArtboardSummary | null): { name: string; kind: InputKind }[] {
+  const out: { name: string; kind: InputKind }[] = []
+  for (const m of artboard?.stateMachines ?? []) for (const i of m.inputs) if (!out.some((o) => o.name === i.name)) out.push({ name: i.name, kind: i.kind })
+  return out
+}
+
+const NEW = '\u0000new'
+
+/**
+ * Picks a state machine input by name, and can declare a new one in place:
+ * the last option, "+ New … input", swaps the picker for a name field
+ * (Enter creates it on the active state machine and selects it). `kinds`
+ * limits both what's listed and what can be created (a trigger picker
+ * only shows / makes triggers).
+ */
+export function InputPicker({ value, onChange, artboard, kinds, onAddInput, className = sel }: { value: string; onChange: (name: string) => void; artboard: ArtboardSummary | null; kinds: InputKind[]; onAddInput?: (name: string, kind: InputKind) => void; className?: string }) {
+  const [creating, setCreating] = useState(false)
+  const [name, setName] = useState('')
+  const [kind, setKind] = useState<InputKind>(kinds[0])
+  const options = sceneInputs(artboard).filter((i) => kinds.includes(i.kind))
+  const hasMachine = !!artboard?.activeStateMachine
+  const commit = () => {
+    const n = name.trim()
+    if (n && onAddInput) {
+      if (!options.some((o) => o.name === n)) onAddInput(n, kind)
+      onChange(n)
+    }
+    setCreating(false)
+    setName('')
+  }
+  if (creating)
+    return (
+      <span className="flex min-w-0 flex-1 items-center gap-1">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') commit()
+            if (e.key === 'Escape') setCreating(false)
+          }}
+          onBlur={commit}
+          placeholder="input name"
+          className={inp}
+        />
+        {kinds.length > 1 && (
+          <Select value={kind} onChange={(e) => setKind(e.target.value as InputKind)} className="w-20 rounded bg-overlay/10 px-1 py-1 text-[11px] text-ink outline-none">
+            {kinds.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </Select>
+        )}
+      </span>
+    )
+  return (
+    <Select
+      value={value}
+      onChange={(e) => {
+        if (e.target.value === NEW) {
+          setKind(kinds[0])
+          setCreating(true)
+        } else onChange(e.target.value)
+      }}
+      className={className}
+      title={hasMachine ? undefined : 'Create a state machine first (State Machine tab)'}
+    >
+      <option value="">{options.length ? 'Input…' : '(no inputs yet)'}</option>
+      {options.map((o) => (
+        <option key={o.name} value={o.name}>
+          {o.name} ({o.kind})
+        </option>
+      ))}
+      {value && !options.some((o) => o.name === value) && <option value={value}>{value} (missing)</option>}
+      {onAddInput && hasMachine && <option value={NEW}>+ New {kinds.length === 1 ? kinds[0].toLowerCase() : ''} input…</option>}
+    </Select>
+  )
+}
+
+/** The value box for "Set input", shaped by the input's kind. */
+export function InputValueField({ kind, value, onChange }: { kind: InputKind | undefined; value: string; onChange: (value: string) => void }) {
+  if (kind === 'Bool')
+    return (
+      <Select value={value === 'false' ? 'false' : 'true'} onChange={(e) => onChange(e.target.value)} className="w-20 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </Select>
+    )
+  if (kind === 'Number') return <input type="number" step="any" value={value} onChange={(e) => onChange(e.target.value)} placeholder="0" className={`${inp} max-w-[90px]`} />
+  return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={kind === 'Enum' ? 'value (e.g. Run)' : 'true / 3 / Run'} className={inp} />
 }
 
 /** One action row's argument field(s). */
 function ActionArgs({ action, onChange, ctx }: { action: ActionKind; onChange: (a: ActionKind) => void; ctx: EventContext }) {
   if (action === 'ToggleVisible' || 'SetVisible' in action) return null
-  const triggers = ctx.artboard?.stateMachines.flatMap((m) => m.inputs.filter((i) => i.kind === 'Trigger').map((i) => i.name)) ?? []
-  const inputs = ctx.artboard?.stateMachines.flatMap((m) => m.inputs.filter((i) => i.kind !== 'Trigger').map((i) => i.name)) ?? []
   const props = ctx.properties.filter((p) => ctx.artboard && sameId(p.artboard, ctx.artboard.id))
   const pick = (value: string, options: string[], set: (v: string) => void, empty: string) => (
     <Select value={value} onChange={(e) => set(e.target.value)} className={sel}>
@@ -150,14 +247,25 @@ function ActionArgs({ action, onChange, ctx }: { action: ActionKind; onChange: (
     const arg = COMPONENT_METHODS[f.component]?.find((m) => m.method === f.method)?.arg
     return arg ? text(f.arg, (value) => onChange({ CallMethod: { ...f, arg: value } }), arg) : null
   }
-  if ('FireTrigger' in action) return pick(action.FireTrigger.input, triggers, (input) => onChange({ FireTrigger: { input } }), 'Trigger…')
-  if ('ToggleInput' in action) return pick(action.ToggleInput.input, inputs, (input) => onChange({ ToggleInput: { input } }), 'Bool input…')
+  if ('FireTrigger' in action) return <InputPicker value={action.FireTrigger.input} onChange={(input) => onChange({ FireTrigger: { input } })} artboard={ctx.artboard} kinds={['Trigger']} onAddInput={ctx.onAddInput} />
+  if ('ToggleInput' in action) return <InputPicker value={action.ToggleInput.input} onChange={(input) => onChange({ ToggleInput: { input } })} artboard={ctx.artboard} kinds={['Bool']} onAddInput={ctx.onAddInput} />
   if ('SetInput' in action) {
     const f = action.SetInput
+    const kind = sceneInputs(ctx.artboard).find((i) => i.name === f.input)?.kind
     return (
       <>
-        {pick(f.input, inputs, (input) => onChange({ SetInput: { ...f, input } }), 'Input…')}
-        {text(f.value, (value) => onChange({ SetInput: { ...f, value } }), 'true / 3 / Run')}
+        <InputPicker
+          value={f.input}
+          onChange={(input) => {
+            // A Bool input defaults to "true" (the usual hover-on value).
+            const k = sceneInputs(ctx.artboard).find((i) => i.name === input)?.kind
+            onChange({ SetInput: { input, value: f.value || (k === 'Bool' ? 'true' : k === 'Number' ? '1' : '') } })
+          }}
+          artboard={ctx.artboard}
+          kinds={['Bool', 'Number', 'Enum']}
+          onAddInput={ctx.onAddInput}
+        />
+        <InputValueField kind={kind} value={f.value} onChange={(value) => onChange({ SetInput: { ...f, value } })} />
       </>
     )
   }
