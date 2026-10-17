@@ -83,6 +83,12 @@ export function BlockProgramEditor({ program, nodes, onChange }: { program: Bloc
       sounds: false,
     })
     workspaceRef.current = workspace
+    // Dropdowns (node / property pickers, key lists…) are bounded by the
+    // workspace's own box by default, so in a small Blocks panel they got
+    // squashed or pushed off-screen and you had to move the canvas to
+    // reach them. Bound them by the whole window instead: Blockly then
+    // places them above or below the field, wherever there's room.
+    Blockly.DropDownDiv.setBoundsElement(document.body)
     loadProgramIntoWorkspace(workspace, program)
 
     // The flyout (the popup list of draggable blocks a toolbox category

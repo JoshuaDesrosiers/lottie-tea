@@ -1,3 +1,4 @@
+import { Select } from './Select'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Slider } from './Slider'
 import type { Store } from 'redux'
@@ -85,7 +86,7 @@ export function PaintCanvasBar({ store, view, onChange, below }: { store: Store;
           Grid
         </button>
         {view.grid && (
-          <select
+          <Select
             value={view.gridSize}
             onChange={(e) => onChange({ ...view, gridSize: Number(e.target.value) })}
             className="h-6 rounded bg-overlay/10 px-1 text-[11px] text-ink outline-none"
@@ -96,7 +97,7 @@ export function PaintCanvasBar({ store, view, onChange, below }: { store: Store;
                 {size / 2}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         {divider}
         {/* Reference image */}

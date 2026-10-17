@@ -131,7 +131,7 @@ export function IconRail({
       <RailButton active={effectsOpen} onClick={onToggleEffects} title="Effects">
         <EffectsIcon />
       </RailButton>
-      <RailButton active={testAreaOpen} onClick={onToggleTestArea} title="Test Area: try this scene in a nav bar, sidebar or social post">
+      <RailButton active={testAreaOpen} onClick={onToggleTestArea} title="Test Area: try this scene inside a phone or desktop app">
         <TestAreaIcon />
       </RailButton>
       <RailButton active={timelineOpen} onClick={onToggleTimeline} title="Timeline">

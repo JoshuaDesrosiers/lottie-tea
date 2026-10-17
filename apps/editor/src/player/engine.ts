@@ -44,7 +44,7 @@ import {
 import { setPropertyDefs, sceneProps } from '../game/props'
 import { setProjectFiles } from '../game/projectFiles'
 import type { ArtboardSummary, DocumentSummary, OpaqueId } from '../ipc/document'
-import { normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from '../game/scriptHost'
+import { forwardMouseKeys, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from '../game/scriptHost'
 import { adaptiveResolution, renderDpr } from '../game/adaptiveResolution'
 import { PerfMeter } from '../game/perf'
 import { responsiveView } from '../game/screen'
@@ -343,6 +343,7 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     gestures.down(e)
     keys.add('mouse')
     syncMouseButtons(keys, e)
+    forwardMouseKeys(keys, (k, p) => setKeyDown(editor, k, p))
     if (keyboard === 'focus') canvas.focus({ preventScroll: true })
     if (pointerLockArmed && document.pointerLockElement !== canvas) void canvas.requestPointerLock()
   })
@@ -351,9 +352,11 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     if (keys.has('mouse')) gestures.up(e)
     syncMouseButtons(keys, e)
     if (!e.buttons) keys.delete('mouse')
+    forwardMouseKeys(keys, (k, p) => setKeyDown(editor, k, p))
   })
   listen(window, 'pointercancel', () => {
     for (const k of ['mouse', 'mouseleft', 'mouseright', 'mousemiddle']) keys.delete(k)
+    forwardMouseKeys(keys, (k, p) => setKeyDown(editor, k, p))
   })
   listen(canvas, 'contextmenu', (e) => e.preventDefault())
   let wheel = { x: 0, y: 0 }

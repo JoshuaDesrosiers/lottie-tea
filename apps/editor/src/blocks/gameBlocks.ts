@@ -60,6 +60,8 @@ const COLOUR = {
   sensing: '#3ba99c', // muted teal
   operators: '#5cae74', // muted sage
   looks: '#b06a94', // muted mauve
+  variables: '#c49a45', // muted ochre
+  machine: '#7d8fb3', // muted slate: state-machine input writes
 } as const
 
 function encodeNodeId(id: OpaqueId): string {
@@ -185,6 +187,9 @@ const KEY_OPTIONS: [string, string][] = [
   ['escape', 'escape'],
   ['tab', 'tab'],
   ['shift', 'shift'],
+  ['mouse (any button)', 'mouse'],
+  ['left mouse', 'mouseleft'],
+  ['right mouse', 'mouseright'],
   ...'abcdefghijklmnopqrstuvwxyz'.split('').map((c): [string, string] => [c, c]),
   ...'0123456789'.split('').map((d): [string, string] => [d, d]),
 ]
@@ -381,6 +386,7 @@ export function defineGameBlocks(): void {
       tooltip: "Reads a live boolean input this node's own state machine declares.",
     },
     { type: 'an1_pi', message0: 'π', output: null, colour: COLOUR.operators, tooltip: 'The constant pi (~3.14159).' },
+    { type: 'an1_timer', message0: 'timer', output: null, colour: COLOUR.sensing, tooltip: 'Seconds since this state became active (starts again from 0 every time the state is entered).' },
     {
       type: 'an1_math_fn',
       message0: '%1 of %2',
@@ -558,6 +564,254 @@ export function defineGameBlocks(): void {
       this.setTooltip('True if this node overlaps *any* node tagged with this class (Inspector’s Classes field) — one reporter for "touching any enemy/coin/etc." instead of a ForEachNode + Touching loop for every pairwise check.')
     },
   }
+
+  // ---- Motion: Scratch's direction-based movement ------------------------
+  // All of these take the same dynamic node dropdown as `an1_go_to_xy`, so
+  // they're built imperatively (see `withNumberShadow`'s comment above).
+  // "Direction" is the node's own `rotation`: 0 faces +x (right), counter-
+  // clockwise positive, the engine's native convention (Scratch's is
+  // clockwise-from-up; adopting it here would make these blocks disagree
+  // with the Inspector's rotation field and `get rotation`).
+
+  /** A one-line statement block: a leading label, the node dropdown, then
+   * an optional trailing label. The shape every node-only motion/looks
+   * block below shares. */
+  const nodeStatement = (type: string, before: string, after: string, colour: string, tooltip: string) => {
+    Blockly.Blocks[type] = {
+      init(this: Blockly.Block) {
+        const row = this.appendDummyInput().appendField(before).appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE')
+        if (after) row.appendField(after)
+        this.setInputsInline(true)
+        this.setPreviousStatement(true, null)
+        this.setNextStatement(true, null)
+        this.setColour(colour)
+        this.setTooltip(tooltip)
+      },
+    }
+  }
+
+  Blockly.Blocks['an1_move_steps'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('move').appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE')
+      withNumberShadow(this.appendValueInput('STEPS'), 10)
+      this.appendDummyInput().appendField('steps')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.motion)
+      this.setTooltip('Moves the node forward along the direction it faces (its rotation: 0 = right, counter-clockwise positive). Negative steps move backwards.')
+    },
+  }
+  Blockly.Blocks['an1_turn_degrees'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('turn').appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE').appendField('↺')
+      withNumberShadow(this.appendValueInput('DEGREES'), 15)
+      this.appendDummyInput().appendField('degrees')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.motion)
+      this.setTooltip('Rotates counter-clockwise by this many degrees (use a negative number to turn clockwise).')
+    },
+  }
+  nodeStatement('an1_point_towards_mouse', 'point', 'towards mouse', COLOUR.motion, 'Turns the node so its right-hand side (+x, rotation 0) faces the mouse pointer.')
+  Blockly.Blocks['an1_point_towards'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput()
+        .appendField('point')
+        .appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE')
+        .appendField('towards')
+        .appendField(new Blockly.FieldDropdown(() => nodeOptions), 'TARGET')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.motion)
+      this.setTooltip('Turns the first node so its right-hand side (+x, rotation 0) faces the second node.')
+    },
+  }
+  Blockly.Blocks['an1_glide_to'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('glide').appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE').appendField('to')
+      withNumberShadow(this.appendValueInput('X')).appendField('x:')
+      withNumberShadow(this.appendValueInput('Y')).appendField('y:')
+      withNumberShadow(this.appendValueInput('SECONDS'), 1).appendField('in')
+      this.appendDummyInput().appendField('secs')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.motion)
+      this.setTooltip('Slides smoothly to this position over the given time. The script pauses here until the glide finishes, like "wait".')
+    },
+  }
+  nodeStatement('an1_keep_inside_scene', 'keep', 'inside scene', COLOUR.motion, "Nudges the node back so its whole bounding box stays inside the artboard's edges.")
+  nodeStatement(
+    'an1_bounce_on_edge',
+    'if',
+    'on edge, bounce',
+    COLOUR.motion,
+    'If the node is crossing an artboard edge while heading outward, flips its direction off that edge and pushes it back inside. Pair with "move steps" in a forever loop.',
+  )
+
+  // ---- Looks: text, size and opacity ---------------------------------------
+  Blockly.Blocks['an1_set_text'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput()
+        .appendField('set text of')
+        .appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE')
+        .appendField('to')
+        .appendField(new Blockly.FieldTextInput('Hello!'), 'TEXT')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.looks)
+      this.setTooltip('Replaces what a Text node shows. Does nothing on a non-text node. For a live number (score, timer), use "set text … to number".')
+    },
+  }
+  Blockly.Blocks['an1_set_text_number'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('set text of').appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE').appendField('to number')
+      withNumberShadow(this.appendValueInput('VALUE'))
+      this.appendDummyInput().appendField('with').appendField(new Blockly.FieldNumber(0, 0, 6, 1), 'DECIMALS').appendField('decimals')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.looks)
+      this.setTooltip('Shows a number on a Text node, rounded to this many decimal places: a live score, counter or timer readout.')
+    },
+  }
+  Blockly.Blocks['an1_change_size'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('change size of').appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE').appendField('by')
+      withNumberShadow(this.appendValueInput('PERCENT'), 10)
+      this.appendDummyInput().appendField('%')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.looks)
+      this.setTooltip('Grows (or, with a negative number, shrinks) both scale axes by this many percentage points.')
+    },
+  }
+  Blockly.Blocks['an1_set_opacity'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('set opacity of').appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE').appendField('to')
+      withNumberShadow(this.appendValueInput('PERCENT'), 100)
+      this.appendDummyInput().appendField('%')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.looks)
+      this.setTooltip('Sets the fill colour’s alpha: 100% is solid, 0% invisible. Applies to shapes and text with a fill colour.')
+    },
+  }
+
+  // ---- Sensing: distances and the per-state timer -------------------------
+  Blockly.Blocks['an1_distance_to_mouse'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('distance from').appendField(new Blockly.FieldDropdown(() => nodeOptions), 'NODE').appendField('to mouse')
+      this.setInputsInline(true)
+      this.setOutput(true, null)
+      this.setColour(COLOUR.sensing)
+      this.setTooltip('Straight-line distance from the node’s anchor point to the mouse pointer, in artboard units.')
+    },
+  }
+  Blockly.Blocks['an1_distance_to'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput()
+        .appendField('distance from')
+        .appendField(new Blockly.FieldDropdown(() => nodeOptions), 'A')
+        .appendField('to')
+        .appendField(new Blockly.FieldDropdown(() => nodeOptions), 'B')
+      this.setInputsInline(true)
+      this.setOutput(true, null)
+      this.setColour(COLOUR.sensing)
+      this.setTooltip('Straight-line distance between two nodes’ anchor points, in artboard units.')
+    },
+  }
+
+  // ---- Operators, Variables and State-machine inputs ----------------------
+  // Plain JSON-shaped blocks, but defined imperatively anyway so their value
+  // inputs can carry a non-zero default shadow (`withNumberShadow`'s second
+  // argument; the JSON `numberShadowExtension` route only ever seeds 0).
+  const binaryReporter = (type: string, label: string, tooltip: string) => {
+    Blockly.Blocks[type] = {
+      init(this: Blockly.Block) {
+        withNumberShadow(this.appendValueInput('A')).appendField(label)
+        withNumberShadow(this.appendValueInput('B')).appendField('and')
+        this.setInputsInline(true)
+        this.setOutput(true, null)
+        this.setColour(COLOUR.operators)
+        this.setTooltip(tooltip)
+      },
+    }
+  }
+  binaryReporter('an1_min', 'min of', 'The smaller of the two numbers.')
+  binaryReporter('an1_max', 'max of', 'The larger of the two numbers.')
+
+  Blockly.Blocks['an1_set_variable'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('set').appendField(new Blockly.FieldTextInput('score'), 'NAME').appendField('to')
+      withNumberShadow(this.appendValueInput('VALUE'))
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.variables)
+      this.setTooltip('Stores a number under this name. Every script in this state shares it; it resets to 0 whenever the state is entered again.')
+    },
+  }
+  Blockly.Blocks['an1_change_variable'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('change').appendField(new Blockly.FieldTextInput('score'), 'NAME').appendField('by')
+      withNumberShadow(this.appendValueInput('DELTA'), 1)
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.variables)
+      this.setTooltip('Adds to a variable (a variable never set counts as 0). Use a negative number to subtract.')
+    },
+  }
+  Blockly.Blocks['an1_variable'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField(new Blockly.FieldTextInput('score'), 'NAME')
+      this.setOutput(true, null)
+      this.setColour(COLOUR.variables)
+      this.setTooltip('Reads a variable set by "set … to" / "change … by" (0 if never set).')
+    },
+  }
+
+  Blockly.Blocks['an1_set_number_input'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('set number input').appendField(new Blockly.FieldTextInput('speed'), 'NAME').appendField('to')
+      withNumberShadow(this.appendValueInput('VALUE'))
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.machine)
+      this.setTooltip("Writes one of this state machine's number inputs, so transitions and blends can react to it. Takes effect at the end of this frame.")
+    },
+  }
+  Blockly.Blocks['an1_set_bool_input'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('set bool input').appendField(new Blockly.FieldTextInput('active'), 'NAME').appendField('to')
+      // A boolean slot: deliberately no number shadow (see this module's
+      // own doc comment). Left empty, it reads as 0, i.e. false.
+      this.appendValueInput('VALUE')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.machine)
+      this.setTooltip("Writes one of this state machine's bool inputs (any condition or nonzero number counts as true; empty is false). Takes effect at the end of this frame.")
+    },
+  }
+  Blockly.Blocks['an1_fire_trigger'] = {
+    init(this: Blockly.Block) {
+      this.appendDummyInput().appendField('fire trigger').appendField(new Blockly.FieldTextInput('jump'), 'NAME')
+      this.setInputsInline(true)
+      this.setPreviousStatement(true, null)
+      this.setNextStatement(true, null)
+      this.setColour(COLOUR.machine)
+      this.setTooltip("Fires one of this state machine's trigger inputs; any transition waiting on it fires on the next frame.")
+    },
+  }
 }
 
 export const GAME_TOOLBOX: Blockly.utils.toolbox.ToolboxDefinition = {
@@ -594,7 +848,14 @@ export const GAME_TOOLBOX: Blockly.utils.toolbox.ToolboxDefinition = {
       name: 'Motion',
       colour: COLOUR.motion,
       contents: [
+        { kind: 'block', type: 'an1_move_steps' },
+        { kind: 'block', type: 'an1_turn_degrees' },
+        { kind: 'block', type: 'an1_point_towards_mouse' },
+        { kind: 'block', type: 'an1_point_towards' },
         { kind: 'block', type: 'an1_go_to_xy' },
+        { kind: 'block', type: 'an1_glide_to' },
+        { kind: 'block', type: 'an1_keep_inside_scene' },
+        { kind: 'block', type: 'an1_bounce_on_edge' },
         { kind: 'block', type: 'an1_set_property' },
         { kind: 'block', type: 'an1_change_property' },
         { kind: 'block', type: 'an1_get_property' },
@@ -609,6 +870,10 @@ export const GAME_TOOLBOX: Blockly.utils.toolbox.ToolboxDefinition = {
         { kind: 'block', type: 'an1_hide' },
         { kind: 'block', type: 'an1_set_color' },
         { kind: 'block', type: 'an1_set_size' },
+        { kind: 'block', type: 'an1_change_size' },
+        { kind: 'block', type: 'an1_set_opacity' },
+        { kind: 'block', type: 'an1_set_text' },
+        { kind: 'block', type: 'an1_set_text_number' },
       ],
     },
     {
@@ -621,6 +886,9 @@ export const GAME_TOOLBOX: Blockly.utils.toolbox.ToolboxDefinition = {
         { kind: 'block', type: 'an1_key_pressed' },
         { kind: 'block', type: 'an1_mouse_x' },
         { kind: 'block', type: 'an1_mouse_y' },
+        { kind: 'block', type: 'an1_distance_to_mouse' },
+        { kind: 'block', type: 'an1_distance_to' },
+        { kind: 'block', type: 'an1_timer' },
         { kind: 'block', type: 'an1_get_number_input' },
         { kind: 'block', type: 'an1_get_bool_input' },
       ],
@@ -639,6 +907,32 @@ export const GAME_TOOLBOX: Blockly.utils.toolbox.ToolboxDefinition = {
         { kind: 'block', type: 'an1_math_fn' },
         { kind: 'block', type: 'an1_random_int' },
         { kind: 'block', type: 'an1_random_float' },
+        { kind: 'block', type: 'an1_min' },
+        { kind: 'block', type: 'an1_max' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'Variables',
+      colour: COLOUR.variables,
+      contents: [
+        { kind: 'block', type: 'an1_set_variable' },
+        { kind: 'block', type: 'an1_change_variable' },
+        { kind: 'block', type: 'an1_variable' },
+      ],
+    },
+    {
+      kind: 'category',
+      name: 'State Machine',
+      colour: COLOUR.machine,
+      // The read side lives in Sensing too; repeated here so the whole
+      // input vocabulary (read and write) is in one place.
+      contents: [
+        { kind: 'block', type: 'an1_set_number_input' },
+        { kind: 'block', type: 'an1_set_bool_input' },
+        { kind: 'block', type: 'an1_fire_trigger' },
+        { kind: 'block', type: 'an1_get_number_input' },
+        { kind: 'block', type: 'an1_get_bool_input' },
       ],
     },
   ],
@@ -723,6 +1017,18 @@ function exprFromBlock(block: Blockly.Block | null): Expr {
       return { kind: 'GetNumberInput', value: { name: String(block.getFieldValue('NAME')) } }
     case 'an1_get_bool_input':
       return { kind: 'GetBoolInput', value: { name: String(block.getFieldValue('NAME')) } }
+    case 'an1_distance_to_mouse':
+      return { kind: 'DistanceToMouse', value: { node: decodeNodeRef(block.getFieldValue('NODE')) } }
+    case 'an1_distance_to':
+      return { kind: 'DistanceTo', value: { a: decodeNodeRef(block.getFieldValue('A')), b: decodeNodeRef(block.getFieldValue('B')) } }
+    case 'an1_timer':
+      return { kind: 'Timer' }
+    case 'an1_min':
+      return { kind: 'Min', value: [input('A'), input('B')] }
+    case 'an1_max':
+      return { kind: 'Max', value: [input('A'), input('B')] }
+    case 'an1_variable':
+      return { kind: 'Variable', value: { name: String(block.getFieldValue('NAME')) } }
     default:
       console.warn(`gameBlocks: unrecognized reporter block type "${block.type}", treating as 0`)
       return { kind: 'Number', value: 0 }
@@ -740,7 +1046,8 @@ function statementsFromBlock(block: Blockly.Block | null): Statement[] {
 }
 
 /** One block's own IR — almost always exactly one `Statement`, but a few
- * "Looks" convenience blocks (`an1_set_color`, `an1_set_size`) are sugar
+ * "Looks" convenience blocks (`an1_set_color`, `an1_set_size`,
+ * `an1_change_size`, `an1_set_opacity`) are sugar
  * over *several* `SetProperty` statements against existing `GraphProperty`
  * axes (no dedicated `Statement`/`Command` needed for either): one Blockly
  * block, multiple IR statements. `loadProgramIntoWorkspace` doesn't reverse
@@ -809,6 +1116,45 @@ function statementsFromSingleBlock(block: Blockly.Block): Statement[] {
       return [{ kind: 'CreateCloneOf', value: { node: node() } }]
     case 'an1_delete_this_clone':
       return [{ kind: 'DeleteThisClone' }]
+    case 'an1_move_steps':
+      return [{ kind: 'MoveSteps', value: { node: node(), steps: value('STEPS') } }]
+    case 'an1_turn_degrees':
+      return [{ kind: 'TurnDegrees', value: { node: node(), degrees: value('DEGREES') } }]
+    case 'an1_point_towards_mouse':
+      return [{ kind: 'PointTowardsMouse', value: { node: node() } }]
+    case 'an1_point_towards':
+      return [{ kind: 'PointTowards', value: { node: node(), target: decodeNodeRef(block.getFieldValue('TARGET')) } }]
+    case 'an1_glide_to':
+      return [{ kind: 'GlideTo', value: { node: node(), x: value('X'), y: value('Y'), seconds: value('SECONDS') } }]
+    case 'an1_keep_inside_scene':
+      return [{ kind: 'KeepInsideScene', value: { node: node() } }]
+    case 'an1_bounce_on_edge':
+      return [{ kind: 'BounceOnEdge', value: { node: node() } }]
+    case 'an1_set_text':
+      return [{ kind: 'SetText', value: { node: node(), text: String(block.getFieldValue('TEXT')) } }]
+    case 'an1_set_text_number':
+      return [{ kind: 'SetTextNumber', value: { node: node(), value: value('VALUE'), decimals: Math.max(0, Math.round(Number(block.getFieldValue('DECIMALS')) || 0)) } }]
+    case 'an1_change_size': {
+      // Sugar, like `an1_set_size`: "size %" points onto both scale axes.
+      const percentToScale = (): Expr => ({ kind: 'Divide', value: [value('PERCENT'), { kind: 'Number', value: 100 }] })
+      return [
+        { kind: 'ChangeProperty', value: { node: node(), property: 'ScaleX', delta: percentToScale() } },
+        { kind: 'ChangeProperty', value: { node: node(), property: 'ScaleY', delta: percentToScale() } },
+      ]
+    }
+    case 'an1_set_opacity':
+      // Sugar over the existing fill-alpha channel (0-1), authored in %.
+      return [setProperty('FillColorA', { kind: 'Divide', value: [value('PERCENT'), { kind: 'Number', value: 100 }] })]
+    case 'an1_set_variable':
+      return [{ kind: 'SetVariable', value: { name: String(block.getFieldValue('NAME')), value: value('VALUE') } }]
+    case 'an1_change_variable':
+      return [{ kind: 'ChangeVariable', value: { name: String(block.getFieldValue('NAME')), delta: value('DELTA') } }]
+    case 'an1_set_number_input':
+      return [{ kind: 'SetNumberInput', value: { name: String(block.getFieldValue('NAME')), value: value('VALUE') } }]
+    case 'an1_set_bool_input':
+      return [{ kind: 'SetBoolInput', value: { name: String(block.getFieldValue('NAME')), value: value('VALUE') } }]
+    case 'an1_fire_trigger':
+      return [{ kind: 'FireTrigger', value: { name: String(block.getFieldValue('NAME')) } }]
     default:
       console.warn(`gameBlocks: unrecognized statement block type "${block.type}", treating as a no-op wait`)
       return [{ kind: 'Wait', value: { seconds: { kind: 'Number', value: 0 } } }]
@@ -959,10 +1305,47 @@ function blockFromExpr(workspace: Blockly.WorkspaceSvg, expr: Expr): Blockly.Blo
       block.setFieldValue(expr.value.name, 'NAME')
       return block
     }
+    case 'DistanceToMouse': {
+      const block = newBlock(workspace, 'an1_distance_to_mouse')
+      block.setFieldValue(encodeNodeRef(expr.value.node), 'NODE')
+      return block
+    }
+    case 'DistanceTo': {
+      const block = newBlock(workspace, 'an1_distance_to')
+      block.setFieldValue(encodeNodeRef(expr.value.a), 'A')
+      block.setFieldValue(encodeNodeRef(expr.value.b), 'B')
+      return block
+    }
+    case 'Timer':
+      return newBlock(workspace, 'an1_timer')
+    case 'Min':
+      return binary('an1_min', expr.value)
+    case 'Max':
+      return binary('an1_max', expr.value)
+    case 'Variable': {
+      const block = newBlock(workspace, 'an1_variable')
+      block.setFieldValue(expr.value.name, 'NAME')
+      return block
+    }
   }
 }
 
 function blockFromStatement(workspace: Blockly.WorkspaceSvg, statement: Statement): Blockly.BlockSvg {
+  /** A new block of `type` with its `NODE` dropdown already set — the
+   * common first step for every node-addressed statement below. */
+  const nodeBlock = (type: string, node: NodeRef) => {
+    const block = newBlock(workspace, type)
+    block.setFieldValue(encodeNodeRef(node), 'NODE')
+    return block
+  }
+  /** A new block of `type` with its `NAME` text field set and one value
+   * input filled — the shape every variable/input-write block shares. */
+  const namedBlock = (type: string, name: string, inputName: string, value: Expr) => {
+    const block = newBlock(workspace, type)
+    block.setFieldValue(name, 'NAME')
+    connectValue(block, inputName, blockFromExpr(workspace, value))
+    return block
+  }
   switch (statement.kind) {
     case 'GoToXY': {
       const block = newBlock(workspace, 'an1_go_to_xy')
@@ -1029,6 +1412,58 @@ function blockFromStatement(workspace: Blockly.WorkspaceSvg, statement: Statemen
     }
     case 'DeleteThisClone':
       return newBlock(workspace, 'an1_delete_this_clone')
+    case 'SetTextNumber': {
+      const block = nodeBlock('an1_set_text_number', statement.value.node)
+      connectValue(block, 'VALUE', blockFromExpr(workspace, statement.value.value))
+      block.setFieldValue(String(statement.value.decimals), 'DECIMALS')
+      return block
+    }
+    case 'MoveSteps': {
+      const block = nodeBlock('an1_move_steps', statement.value.node)
+      connectValue(block, 'STEPS', blockFromExpr(workspace, statement.value.steps))
+      return block
+    }
+    case 'TurnDegrees': {
+      const block = nodeBlock('an1_turn_degrees', statement.value.node)
+      connectValue(block, 'DEGREES', blockFromExpr(workspace, statement.value.degrees))
+      return block
+    }
+    case 'PointTowardsMouse':
+      return nodeBlock('an1_point_towards_mouse', statement.value.node)
+    case 'PointTowards': {
+      const block = nodeBlock('an1_point_towards', statement.value.node)
+      block.setFieldValue(encodeNodeRef(statement.value.target), 'TARGET')
+      return block
+    }
+    case 'GlideTo': {
+      const block = nodeBlock('an1_glide_to', statement.value.node)
+      connectValue(block, 'X', blockFromExpr(workspace, statement.value.x))
+      connectValue(block, 'Y', blockFromExpr(workspace, statement.value.y))
+      connectValue(block, 'SECONDS', blockFromExpr(workspace, statement.value.seconds))
+      return block
+    }
+    case 'KeepInsideScene':
+      return nodeBlock('an1_keep_inside_scene', statement.value.node)
+    case 'BounceOnEdge':
+      return nodeBlock('an1_bounce_on_edge', statement.value.node)
+    case 'SetText': {
+      const block = nodeBlock('an1_set_text', statement.value.node)
+      block.setFieldValue(statement.value.text, 'TEXT')
+      return block
+    }
+    case 'SetVariable':
+      return namedBlock('an1_set_variable', statement.value.name, 'VALUE', statement.value.value)
+    case 'ChangeVariable':
+      return namedBlock('an1_change_variable', statement.value.name, 'DELTA', statement.value.delta)
+    case 'SetNumberInput':
+      return namedBlock('an1_set_number_input', statement.value.name, 'VALUE', statement.value.value)
+    case 'SetBoolInput':
+      return namedBlock('an1_set_bool_input', statement.value.name, 'VALUE', statement.value.value)
+    case 'FireTrigger': {
+      const block = newBlock(workspace, 'an1_fire_trigger')
+      block.setFieldValue(statement.value.name, 'NAME')
+      return block
+    }
   }
 }
 

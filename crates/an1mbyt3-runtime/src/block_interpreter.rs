@@ -39,6 +39,34 @@
 //! same "random" sequence. Good enough for gameplay (dice rolls, picking a
 //! spawn point), not a cryptographic or statistically-rigorous RNG.
 //!
+//! **Per-program state** ([`ProgramState`]): the RNG, the program's
+//! number variables (`Statement::SetVariable`/`Expr::Variable`) and the
+//! queue of pending state-machine input writes (`Statement::SetNumberInput`/
+//! `SetBoolInput`/`FireTrigger`) all live in one struct, threaded through
+//! `eval`/`execute` as a single `&mut ProgramState` instead of three
+//! separate parameters. All three share the same lifetime (rebuilt fresh
+//! with `BlockRuntime` on every state entry) and the same "every script in
+//! this program sees the same one" scope, so bundling them keeps every
+//! signature in this file stable as more such state gets added.
+//!
+//! **Input writes are deferred**: `BlockContext::inputs` is a shared
+//! borrow of the machine's own `Inputs` (every layer reads the same set
+//! while stepping), so a Blocks program can't write it directly mid-step.
+//! Writes queue up as [`InputWrite`]s instead; `StateMachine::apply` drains
+//! them via [`BlockRuntime::take_input_writes`] once every layer's program
+//! has run, the same "consumed once per frame, by the caller that drives
+//! everything" placement `KeyboardState::end_frame` already uses. Within
+//! the same frame, `GetNumberInput`/`GetBoolInput` read through the queue
+//! first, so a script always sees its own latest write. A fired trigger is
+//! seen by the *next* `StateMachine::advance` (which runs before `apply`
+//! each frame), then cleared like any other trigger.
+//!
+//! **Multi-frame motion** (`Statement::GlideTo`) is a `Frame::Glide` on
+//! the explicit stack, exactly like a loop body: while it's on top,
+//! `run_script` interpolates the node and yields for the frame instead of
+//! running further statements, then pops it once the time is up, so a
+//! glide composes with `Repeat`/`Forever`/`If` for free.
+//!
 //! A per-frame instruction budget (`MAX_INSTRUCTIONS_PER_STEP`) caps how
 //! much of one script's stack a single `step()` call will unwind — an
 //! author's `forever { }` with an empty, `Wait`-less body would otherwise
@@ -48,6 +76,8 @@
 //! same "an author's own mistake degrades to a well-defined but not
 //! obviously meaningful result, never a panic" convention `graph.rs`'s own
 //! cycle-handling doc comment already establishes for this workspace.
+
+use std::collections::HashMap;
 
 use an1mbyt3_core::{Artboard, BlockProgramDef, EventKind, Expr, ListExpr, MathFn, Node, NodeId, NodeKind, NodeRef, Statement};
 use glam::Vec2;
@@ -95,6 +125,14 @@ enum Frame {
     /// time `item_index` moves to the next node. Pops once `item_index`
     /// reaches `items.len()`.
     ForEach { items: Vec<NodeId>, item_index: usize, body: Vec<Statement>, stmt_index: usize },
+    /// An in-progress `Statement::GlideTo`: linearly interpolates `node`'s
+    /// translation from `from` to `to` between `start` and
+    /// `start + duration` (both on `BlockContext::elapsed_seconds`'s clock),
+    /// yielding the script for one frame each time it's on top of the
+    /// stack, and pops once the time is up (landing exactly on `to`).
+    /// `duration` is always `> 0` here; `execute` handles a zero/negative
+    /// glide as an instant jump instead of pushing one of these.
+    Glide { node: NodeId, from: Vec2, to: Vec2, start: f32, duration: f32 },
 }
 
 /// Scans `stack` from innermost (top) outward for the closest enclosing
@@ -172,7 +210,8 @@ impl ScriptRuntime {
 #[derive(Debug, Clone, Default)]
 pub struct BlockRuntime {
     scripts: Vec<Vec<ScriptRuntime>>,
-    rng_state: u32,
+    /// RNG, variables and pending input writes; see [`ProgramState`].
+    state: ProgramState,
     /// The next `ctx.elapsed_seconds` at which `step` is allowed to
     /// actually run scripts, when `BlockProgramDef::ticks_per_second` is
     /// set — see `step`'s own throttle check. `0.0` (the derived default)
@@ -200,7 +239,76 @@ impl BlockRuntime {
         // exact starting value only matters in that it's non-zero (an
         // all-zero state would need at least one entropy-mix before the
         // hash's own avalanche kicks in meaningfully).
-        Self { scripts, rng_state: 0x9E3779B1, next_tick_at: 0.0 }
+        Self { scripts, state: ProgramState { rng: 0x9E3779B1, ..ProgramState::default() }, next_tick_at: 0.0 }
+    }
+
+    /// Drains every state-machine input write this program queued since
+    /// the last call. See this module's doc comment ("Input writes are
+    /// deferred") for why they're queued rather than applied in place.
+    /// `StateMachine::apply` calls this once per layer per frame, right
+    /// after `step`, and applies the result to its own `Inputs` in order.
+    pub fn take_input_writes(&mut self) -> Vec<InputWrite> {
+        std::mem::take(&mut self.state.input_writes)
+    }
+}
+
+/// One queued write to the owning state machine's `Inputs`, produced by
+/// `Statement::SetNumberInput`/`SetBoolInput`/`FireTrigger` and drained by
+/// [`BlockRuntime::take_input_writes`]. See this module's doc comment for
+/// why these are deferred rather than written straight into `Inputs`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum InputWrite {
+    Number(String, f32),
+    Bool(String, bool),
+    Trigger(String),
+}
+
+impl InputWrite {
+    /// Applies this write to `inputs`: the one place a queued write turns
+    /// into a real `Inputs` mutation.
+    pub fn apply_to(self, inputs: &mut Inputs) {
+        match self {
+            InputWrite::Number(name, value) => inputs.set_number(name, value),
+            InputWrite::Bool(name, value) => inputs.set_bool(name, value),
+            InputWrite::Trigger(name) => inputs.fire_trigger(name),
+        }
+    }
+}
+
+/// Everything one Blocks program's scripts share and mutate while running,
+/// besides the artboard itself. See this module's doc comment
+/// ("Per-program state") for why it's one struct. Lives in
+/// [`BlockRuntime`], so it's reset on every state entry.
+#[derive(Debug, Clone, Default)]
+struct ProgramState {
+    /// The advancing hash state behind every random draw; see
+    /// `next_random_unit`.
+    rng: u32,
+    /// Number variables by name (`Statement::SetVariable` et al.); an
+    /// absent name reads as `0.0`.
+    variables: HashMap<String, f32>,
+    /// Input writes queued since the last drain, oldest first; see
+    /// [`InputWrite`].
+    input_writes: Vec<InputWrite>,
+}
+
+impl ProgramState {
+    /// The latest *queued* (not yet applied) number write to `name`, if
+    /// any: what lets `GetNumberInput` read a script's own write back in
+    /// the same frame it made it.
+    fn pending_number(&self, name: &str) -> Option<f32> {
+        self.input_writes.iter().rev().find_map(|w| match w {
+            InputWrite::Number(n, v) if n == name => Some(*v),
+            _ => None,
+        })
+    }
+
+    /// Bool counterpart to `pending_number`.
+    fn pending_bool(&self, name: &str) -> Option<bool> {
+        self.input_writes.iter().rev().find_map(|w| match w {
+            InputWrite::Bool(n, v) if n == name => Some(*v),
+            _ => None,
+        })
     }
 }
 
@@ -242,7 +350,7 @@ fn resolve_list(list: &ListExpr, artboard: &Artboard) -> Vec<NodeId> {
 /// (an empty `RandomFromList`, or a `CurrentItem` used outside any
 /// `ForEachNode` — both degrade harmlessly, same convention this whole
 /// module follows elsewhere).
-fn resolve_node_ref(node_ref: &NodeRef, artboard: &Artboard, current_item: Option<NodeId>, bound_node: Option<NodeId>, ctx: &BlockContext, rng_state: &mut u32) -> Option<NodeId> {
+fn resolve_node_ref(node_ref: &NodeRef, artboard: &Artboard, current_item: Option<NodeId>, bound_node: Option<NodeId>, ctx: &BlockContext, state: &mut ProgramState) -> Option<NodeId> {
     match node_ref {
         NodeRef::Literal(id) => Some(*id),
         NodeRef::CurrentItem => current_item,
@@ -251,7 +359,7 @@ fn resolve_node_ref(node_ref: &NodeRef, artboard: &Artboard, current_item: Optio
             if items.is_empty() {
                 return None;
             }
-            let t = next_random_unit(rng_state, random_entropy(ctx));
+            let t = next_random_unit(&mut state.rng, random_entropy(ctx));
             let index = ((t * items.len() as f32) as usize).min(items.len() - 1);
             items.get(index).copied()
         }
@@ -260,16 +368,18 @@ fn resolve_node_ref(node_ref: &NodeRef, artboard: &Artboard, current_item: Optio
 }
 
 /// Evaluates one expression against live `ctx`/`artboard` state.
-/// `current_item`/`rng_state` are threaded through purely so `NodeRef`
-/// resolution (`GetProperty`'s `node`, `Touching`'s `a`/`b`) and
-/// `RandomInt`/`RandomFloat` have what they need at arbitrary recursion
-/// depth — see this module's own doc comment for both.
-fn eval(expr: &Expr, ctx: &BlockContext, artboard: &Artboard, current_item: Option<NodeId>, bound_node: Option<NodeId>, rng_state: &mut u32) -> f32 {
-    let recurse = |e: &Expr, rng_state: &mut u32| eval(e, ctx, artboard, current_item, bound_node, rng_state);
+/// `current_item`/`bound_node`/`state` are threaded through purely so
+/// `NodeRef` resolution (`GetProperty`'s `node`, `Touching`'s `a`/`b`),
+/// `RandomInt`/`RandomFloat` and `Variable` have what they need at
+/// arbitrary recursion depth (see this module's own doc comment for each).
+/// `state` is `&mut` only because random draws advance the RNG; nothing
+/// else an expression does writes to it.
+fn eval(expr: &Expr, ctx: &BlockContext, artboard: &Artboard, current_item: Option<NodeId>, bound_node: Option<NodeId>, state: &mut ProgramState) -> f32 {
+    let recurse = |e: &Expr, state: &mut ProgramState| eval(e, ctx, artboard, current_item, bound_node, state);
     match expr {
         Expr::Number(v) => *v,
         Expr::Pi => std::f32::consts::PI,
-        Expr::GetProperty { node, property } => resolve_node_ref(node, artboard, current_item, bound_node, ctx, rng_state)
+        Expr::GetProperty { node, property } => resolve_node_ref(node, artboard, current_item, bound_node, ctx, state)
             .and_then(|id| artboard.node(id))
             .map(|n| read_property(n, *property))
             .unwrap_or(0.0),
@@ -277,15 +387,15 @@ fn eval(expr: &Expr, ctx: &BlockContext, artboard: &Artboard, current_item: Opti
         Expr::MouseY => ctx.mouse_artboard.y,
         Expr::KeyPressed { key } => normalize_bool(ctx.keys.is_down(key)),
         Expr::Touching { a, b } => {
-            let resolved_a = resolve_node_ref(a, artboard, current_item, bound_node, ctx, rng_state);
-            let resolved_b = resolve_node_ref(b, artboard, current_item, bound_node, ctx, rng_state);
+            let resolved_a = resolve_node_ref(a, artboard, current_item, bound_node, ctx, state);
+            let resolved_b = resolve_node_ref(b, artboard, current_item, bound_node, ctx, state);
             match (resolved_a, resolved_b) {
                 (Some(a), Some(b)) => normalize_bool(touching(artboard, a, b)),
                 _ => 0.0,
             }
         }
         Expr::TouchingClass { node, class } => {
-            let resolved = resolve_node_ref(node, artboard, current_item, bound_node, ctx, rng_state);
+            let resolved = resolve_node_ref(node, artboard, current_item, bound_node, ctx, state);
             let touches_any = resolved.is_some_and(|id| {
                 artboard
                     .pickable_nodes()
@@ -293,30 +403,30 @@ fn eval(expr: &Expr, ctx: &BlockContext, artboard: &Artboard, current_item: Opti
             });
             normalize_bool(touches_any)
         }
-        Expr::Add(a, b) => recurse(a, rng_state) + recurse(b, rng_state),
-        Expr::Subtract(a, b) => recurse(a, rng_state) - recurse(b, rng_state),
-        Expr::Multiply(a, b) => recurse(a, rng_state) * recurse(b, rng_state),
+        Expr::Add(a, b) => recurse(a, state) + recurse(b, state),
+        Expr::Subtract(a, b) => recurse(a, state) - recurse(b, state),
+        Expr::Multiply(a, b) => recurse(a, state) * recurse(b, state),
         Expr::Divide(a, b) => {
-            let divisor = recurse(b, rng_state);
-            if divisor == 0.0 { 0.0 } else { recurse(a, rng_state) / divisor }
+            let divisor = recurse(b, state);
+            if divisor == 0.0 { 0.0 } else { recurse(a, state) / divisor }
         }
         Expr::Mod(a, b) => {
-            let divisor = recurse(b, rng_state);
+            let divisor = recurse(b, state);
             if divisor == 0.0 {
                 0.0
             } else {
-                let dividend = recurse(a, rng_state);
+                let dividend = recurse(a, state);
                 dividend - divisor * (dividend / divisor).floor()
             }
         }
-        Expr::GreaterThan(a, b) => normalize_bool(recurse(a, rng_state) > recurse(b, rng_state)),
-        Expr::LessThan(a, b) => normalize_bool(recurse(a, rng_state) < recurse(b, rng_state)),
-        Expr::Equals(a, b) => normalize_bool(recurse(a, rng_state) == recurse(b, rng_state)),
-        Expr::And(a, b) => normalize_bool(is_truthy(recurse(a, rng_state)) && is_truthy(recurse(b, rng_state))),
-        Expr::Or(a, b) => normalize_bool(is_truthy(recurse(a, rng_state)) || is_truthy(recurse(b, rng_state))),
-        Expr::Not(a) => normalize_bool(!is_truthy(recurse(a, rng_state))),
+        Expr::GreaterThan(a, b) => normalize_bool(recurse(a, state) > recurse(b, state)),
+        Expr::LessThan(a, b) => normalize_bool(recurse(a, state) < recurse(b, state)),
+        Expr::Equals(a, b) => normalize_bool(recurse(a, state) == recurse(b, state)),
+        Expr::And(a, b) => normalize_bool(is_truthy(recurse(a, state)) && is_truthy(recurse(b, state))),
+        Expr::Or(a, b) => normalize_bool(is_truthy(recurse(a, state)) || is_truthy(recurse(b, state))),
+        Expr::Not(a) => normalize_bool(!is_truthy(recurse(a, state))),
         Expr::MathFn { op, value } => {
-            let v = recurse(value, rng_state);
+            let v = recurse(value, state);
             match op {
                 MathFn::Abs => v.abs(),
                 MathFn::Floor => v.floor(),
@@ -337,21 +447,41 @@ fn eval(expr: &Expr, ctx: &BlockContext, artboard: &Artboard, current_item: Opti
             }
         }
         Expr::RandomInt { min, max } => {
-            let a = recurse(min, rng_state).floor();
-            let b = recurse(max, rng_state).floor();
+            let a = recurse(min, state).floor();
+            let b = recurse(max, state).floor();
             let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
-            let t = next_random_unit(rng_state, random_entropy(ctx));
+            let t = next_random_unit(&mut state.rng, random_entropy(ctx));
             (lo + (t * (hi - lo + 1.0)).floor()).min(hi)
         }
         Expr::RandomFloat { min, max } => {
-            let a = recurse(min, rng_state);
-            let b = recurse(max, rng_state);
+            let a = recurse(min, state);
+            let b = recurse(max, state);
             let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
-            let t = next_random_unit(rng_state, random_entropy(ctx));
+            let t = next_random_unit(&mut state.rng, random_entropy(ctx));
             lo + (hi - lo) * t
         }
-        Expr::GetNumberInput { name } => ctx.inputs.number(name),
-        Expr::GetBoolInput { name } => normalize_bool(ctx.inputs.bool(name)),
+        // Queued-but-unapplied writes win over `ctx.inputs`; see
+        // `ProgramState::pending_number`.
+        Expr::GetNumberInput { name } => state.pending_number(name).unwrap_or_else(|| ctx.inputs.number(name)),
+        Expr::GetBoolInput { name } => normalize_bool(state.pending_bool(name).unwrap_or_else(|| ctx.inputs.bool(name))),
+        Expr::DistanceToMouse { node } => resolve_node_ref(node, artboard, current_item, bound_node, ctx, state)
+            .and_then(|id| world_origin(artboard, id))
+            .map(|origin| origin.distance(ctx.mouse_artboard))
+            .unwrap_or(0.0),
+        Expr::DistanceTo { a, b } => {
+            let a = resolve_node_ref(a, artboard, current_item, bound_node, ctx, state).and_then(|id| world_origin(artboard, id));
+            let b = resolve_node_ref(b, artboard, current_item, bound_node, ctx, state).and_then(|id| world_origin(artboard, id));
+            match (a, b) {
+                (Some(a), Some(b)) => a.distance(b),
+                _ => 0.0,
+            }
+        }
+        // `elapsed_seconds` is the layer's own per-state clock, reset to 0
+        // on every state entry: exactly "seconds since this state started."
+        Expr::Timer => ctx.elapsed_seconds,
+        Expr::Min(a, b) => recurse(a, state).min(recurse(b, state)),
+        Expr::Max(a, b) => recurse(a, state).max(recurse(b, state)),
+        Expr::Variable { name } => state.variables.get(name).copied().unwrap_or(0.0),
     }
 }
 
@@ -415,6 +545,125 @@ fn world_aabb(artboard: &Artboard, id: NodeId) -> Option<(Vec2, Vec2)> {
     Some((min, max))
 }
 
+/// `id`'s world-space origin: its anchor point, which is exactly what a
+/// composed world `Transform2D::translation` already is (see that field's
+/// doc comment). What "distance to"/"point towards" measure from. `None`
+/// for a node (or ancestor) that doesn't resolve.
+fn world_origin(artboard: &Artboard, id: NodeId) -> Option<Vec2> {
+    artboard.try_world_transform(id).map(|t| t.translation)
+}
+
+/// The world-space angle (radians, CCW from +x) of `id`'s *parent's* own
+/// +x axis, `0.0` for a root node. Subtracted from a desired world facing
+/// to get the local `rotation` that produces it, so "point towards" still
+/// aims correctly inside a rotated group. Read off the composed affine's
+/// x axis rather than summing `rotation`s, so a parent's scale can't skew it.
+fn parent_world_angle(artboard: &Artboard, id: NodeId) -> f32 {
+    let Some(parent) = artboard.node(id).and_then(|n| n.parent) else { return 0.0 };
+    let Some(world) = artboard.try_world_transform(parent) else { return 0.0 };
+    let x_axis = world.to_affine2().matrix2.x_axis;
+    x_axis.y.atan2(x_axis.x)
+}
+
+/// Moves `id` by a *world-space* offset `delta`, converting it into the
+/// parent's local space first (via the inverse of the parent's composed
+/// linear map) so the node lands exactly `delta` away on screen even when
+/// nested inside a scaled/rotated group. A degenerate (zero-scale) parent
+/// can't be inverted, so the offset is applied unconverted then: a harmless
+/// fallback for an already-invisible node.
+fn nudge_world(artboard: &mut Artboard, id: NodeId, delta: Vec2) {
+    let parent_linear = artboard.node(id).and_then(|n| n.parent).and_then(|p| artboard.try_world_transform(p)).map(|t| t.to_affine2().matrix2);
+    let local_delta = match parent_linear {
+        Some(m) if m.determinant().abs() > f32::EPSILON => m.inverse() * delta,
+        _ => delta,
+    };
+    if let Some(node) = artboard.node_mut(id) {
+        node.transform.translation += local_delta;
+    }
+}
+
+/// The artboard's own rectangle in world space: centered on the origin,
+/// `width` x `height` (the renderer's world space is origin-centered with
+/// +y up; see `an1mbyt3_renderer`'s `build_mvp` doc comment).
+fn scene_rect(artboard: &Artboard) -> (Vec2, Vec2) {
+    let half = Vec2::new(artboard.width / 2.0, artboard.height / 2.0);
+    (-half, half)
+}
+
+/// The world-space shift that would bring the box `(min, max)` fully inside
+/// `(lo, hi)`: zero on an axis it already fits on, and "center it" on an
+/// axis where the box is bigger than the scene (no position fits, so
+/// centering is the least-surprising compromise).
+fn shift_inside(min: Vec2, max: Vec2, lo: Vec2, hi: Vec2) -> Vec2 {
+    let axis = |min: f32, max: f32, lo: f32, hi: f32| {
+        if max - min > hi - lo {
+            (lo + hi) / 2.0 - (min + max) / 2.0
+        } else if min < lo {
+            lo - min
+        } else if max > hi {
+            hi - max
+        } else {
+            0.0
+        }
+    };
+    Vec2::new(axis(min.x, max.x, lo.x, hi.x), axis(min.y, max.y, lo.y, hi.y))
+}
+
+/// `Statement::KeepInsideScene`'s whole effect; see its doc comment.
+fn keep_inside_scene(artboard: &mut Artboard, id: NodeId) {
+    let Some((min, max)) = world_aabb(artboard, id) else { return };
+    let (lo, hi) = scene_rect(artboard);
+    let shift = shift_inside(min, max, lo, hi);
+    if shift != Vec2::ZERO {
+        nudge_world(artboard, id, shift);
+    }
+}
+
+/// `Statement::BounceOnEdge`'s whole effect: mirrors the node's world
+/// facing off whichever edge(s) its box crosses, but only if it's heading
+/// *outward* through that edge (so a node sitting on an edge doesn't flip
+/// every frame), then fences it back inside with `keep_inside_scene`.
+/// Mirroring off a vertical edge (left/right) maps angle `θ` to `π - θ`;
+/// off a horizontal edge (top/bottom), to `-θ`.
+fn bounce_on_edge(artboard: &mut Artboard, id: NodeId) {
+    let Some((min, max)) = world_aabb(artboard, id) else { return };
+    let Some(rotation) = artboard.node(id).map(|n| n.transform.rotation) else { return };
+    let (lo, hi) = scene_rect(artboard);
+    let parent_angle = parent_world_angle(artboard, id);
+    let mut world_angle = parent_angle + rotation;
+    let dir = Vec2::new(world_angle.cos(), world_angle.sin());
+    let mut flipped = false;
+    if (min.x < lo.x && dir.x < 0.0) || (max.x > hi.x && dir.x > 0.0) {
+        world_angle = std::f32::consts::PI - world_angle;
+        flipped = true;
+    }
+    if (min.y < lo.y && dir.y < 0.0) || (max.y > hi.y && dir.y > 0.0) {
+        world_angle = -world_angle;
+        flipped = true;
+    }
+    if flipped {
+        if let Some(node) = artboard.node_mut(id) {
+            node.transform.rotation = world_angle - parent_angle;
+        }
+    }
+    keep_inside_scene(artboard, id);
+}
+
+/// Rotates `id` so its +x axis faces the world point `target`: the shared
+/// body of `PointTowardsMouse`/`PointTowards`. A target exactly on the
+/// node's own origin leaves rotation untouched (no meaningful direction).
+fn point_towards(artboard: &mut Artboard, id: NodeId, target: Vec2) {
+    let Some(origin) = world_origin(artboard, id) else { return };
+    let to = target - origin;
+    if to.length_squared() <= f32::EPSILON {
+        return;
+    }
+    let local = to.y.atan2(to.x) - parent_world_angle(artboard, id);
+    if let Some(node) = artboard.node_mut(id) {
+        node.transform.rotation = local;
+    }
+}
+
 /// What running one statement did — `execute` pushes a new `Frame` for
 /// compound statements (`If`/`Repeat`/`Forever`/`ForEachNode`) rather than
 /// recursing, so the caller's explicit stack (not Rust's own call stack) is
@@ -441,46 +690,46 @@ enum Effect {
     Terminate,
 }
 
-fn execute(statement: &Statement, ctx: &BlockContext, artboard: &mut Artboard, current_item: Option<NodeId>, bound_node: Option<NodeId>, rng_state: &mut u32) -> Effect {
-    let eval_here = |e: &Expr, artboard: &Artboard, rng_state: &mut u32| eval(e, ctx, artboard, current_item, bound_node, rng_state);
-    let resolve_here = |node_ref: &NodeRef, artboard: &Artboard, rng_state: &mut u32| resolve_node_ref(node_ref, artboard, current_item, bound_node, ctx, rng_state);
+fn execute(statement: &Statement, ctx: &BlockContext, artboard: &mut Artboard, current_item: Option<NodeId>, bound_node: Option<NodeId>, state: &mut ProgramState) -> Effect {
+    let eval_here = |e: &Expr, artboard: &Artboard, state: &mut ProgramState| eval(e, ctx, artboard, current_item, bound_node, state);
+    let resolve_here = |node_ref: &NodeRef, artboard: &Artboard, state: &mut ProgramState| resolve_node_ref(node_ref, artboard, current_item, bound_node, ctx, state);
     match statement {
         Statement::GoToXY { node, x, y } => {
-            let (x, y) = (eval_here(x, artboard, rng_state), eval_here(y, artboard, rng_state));
-            if let Some(target) = resolve_here(node, artboard, rng_state).and_then(|id| artboard.node_mut(id)) {
+            let (x, y) = (eval_here(x, artboard, state), eval_here(y, artboard, state));
+            if let Some(target) = resolve_here(node, artboard, state).and_then(|id| artboard.node_mut(id)) {
                 target.transform.translation = Vec2::new(x, y);
             }
             Effect::Continue
         }
         Statement::SetProperty { node, property, value } => {
-            let value = eval_here(value, artboard, rng_state);
-            if let Some(target) = resolve_here(node, artboard, rng_state).and_then(|id| artboard.node_mut(id)) {
+            let value = eval_here(value, artboard, state);
+            if let Some(target) = resolve_here(node, artboard, state).and_then(|id| artboard.node_mut(id)) {
                 write_property(target, *property, value);
             }
             Effect::Continue
         }
         Statement::SetTextNumber { node, value, decimals } => {
-            let value = eval_here(value, artboard, rng_state);
-            if let Some(NodeKind::Text(text)) = resolve_here(node, artboard, rng_state).and_then(|id| artboard.node_mut(id)).map(|n| &mut n.kind) {
+            let value = eval_here(value, artboard, state);
+            if let Some(NodeKind::Text(text)) = resolve_here(node, artboard, state).and_then(|id| artboard.node_mut(id)).map(|n| &mut n.kind) {
                 text.content = format!("{:.*}", *decimals as usize, value);
             }
             Effect::Continue
         }
         Statement::ChangeProperty { node, property, delta } => {
-            let delta = eval_here(delta, artboard, rng_state);
-            if let Some(target) = resolve_here(node, artboard, rng_state).and_then(|id| artboard.node_mut(id)) {
+            let delta = eval_here(delta, artboard, state);
+            if let Some(target) = resolve_here(node, artboard, state).and_then(|id| artboard.node_mut(id)) {
                 let current = read_property(target, *property);
                 write_property(target, *property, current + delta);
             }
             Effect::Continue
         }
-        Statement::Wait { seconds } => Effect::Wait(ctx.elapsed_seconds + eval_here(seconds, artboard, rng_state).max(0.0)),
+        Statement::Wait { seconds } => Effect::Wait(ctx.elapsed_seconds + eval_here(seconds, artboard, state).max(0.0)),
         Statement::If { condition, then_branch, else_branch } => {
-            let branch = if is_truthy(eval_here(condition, artboard, rng_state)) { then_branch } else { else_branch };
+            let branch = if is_truthy(eval_here(condition, artboard, state)) { then_branch } else { else_branch };
             Effect::Push(Frame::Sequence { statements: branch.clone(), index: 0 })
         }
         Statement::Repeat { count, body } => {
-            let n = eval_here(count, artboard, rng_state).max(0.0) as u32;
+            let n = eval_here(count, artboard, state).max(0.0) as u32;
             if n == 0 {
                 Effect::Continue
             } else {
@@ -496,7 +745,7 @@ fn execute(statement: &Statement, ctx: &BlockContext, artboard: &mut Artboard, c
                 Effect::Push(Frame::ForEach { items, item_index: 0, body: body.clone(), stmt_index: 0 })
             }
         }
-        Statement::CreateCloneOf { node } => match resolve_here(node, artboard, rng_state).and_then(|id| artboard.spawn_clone_of(id)) {
+        Statement::CreateCloneOf { node } => match resolve_here(node, artboard, state).and_then(|id| artboard.spawn_clone_of(id)) {
             Some(new_id) => Effect::SpawnClone(new_id),
             None => Effect::Continue,
         },
@@ -505,6 +754,91 @@ fn execute(statement: &Statement, ctx: &BlockContext, artboard: &mut Artboard, c
                 artboard.despawn(id);
             }
             Effect::Terminate
+        }
+        Statement::MoveSteps { node, steps } => {
+            let steps = eval_here(steps, artboard, state);
+            if let Some(target) = resolve_here(node, artboard, state).and_then(|id| artboard.node_mut(id)) {
+                let rotation = target.transform.rotation;
+                target.transform.translation += Vec2::new(rotation.cos(), rotation.sin()) * steps;
+            }
+            Effect::Continue
+        }
+        Statement::TurnDegrees { node, degrees } => {
+            let radians = eval_here(degrees, artboard, state).to_radians();
+            if let Some(target) = resolve_here(node, artboard, state).and_then(|id| artboard.node_mut(id)) {
+                target.transform.rotation += radians;
+            }
+            Effect::Continue
+        }
+        Statement::PointTowardsMouse { node } => {
+            if let Some(id) = resolve_here(node, artboard, state) {
+                point_towards(artboard, id, ctx.mouse_artboard);
+            }
+            Effect::Continue
+        }
+        Statement::PointTowards { node, target } => {
+            let id = resolve_here(node, artboard, state);
+            let aim = resolve_here(target, artboard, state).and_then(|t| world_origin(artboard, t));
+            if let (Some(id), Some(aim)) = (id, aim) {
+                point_towards(artboard, id, aim);
+            }
+            Effect::Continue
+        }
+        Statement::GlideTo { node, x, y, seconds } => {
+            let to = Vec2::new(eval_here(x, artboard, state), eval_here(y, artboard, state));
+            let duration = eval_here(seconds, artboard, state);
+            let Some(id) = resolve_here(node, artboard, state) else { return Effect::Continue };
+            let Some(from) = artboard.node(id).map(|n| n.transform.translation) else { return Effect::Continue };
+            if duration > 0.0 {
+                Effect::Push(Frame::Glide { node: id, from, to, start: ctx.elapsed_seconds, duration })
+            } else {
+                if let Some(target) = artboard.node_mut(id) {
+                    target.transform.translation = to;
+                }
+                Effect::Continue
+            }
+        }
+        Statement::KeepInsideScene { node } => {
+            if let Some(id) = resolve_here(node, artboard, state) {
+                keep_inside_scene(artboard, id);
+            }
+            Effect::Continue
+        }
+        Statement::BounceOnEdge { node } => {
+            if let Some(id) = resolve_here(node, artboard, state) {
+                bounce_on_edge(artboard, id);
+            }
+            Effect::Continue
+        }
+        Statement::SetText { node, text } => {
+            if let Some(NodeKind::Text(text_node)) = resolve_here(node, artboard, state).and_then(|id| artboard.node_mut(id)).map(|n| &mut n.kind) {
+                text_node.content.clone_from(text);
+            }
+            Effect::Continue
+        }
+        Statement::SetVariable { name, value } => {
+            let value = eval_here(value, artboard, state);
+            state.variables.insert(name.clone(), value);
+            Effect::Continue
+        }
+        Statement::ChangeVariable { name, delta } => {
+            let delta = eval_here(delta, artboard, state);
+            *state.variables.entry(name.clone()).or_insert(0.0) += delta;
+            Effect::Continue
+        }
+        Statement::SetNumberInput { name, value } => {
+            let value = eval_here(value, artboard, state);
+            state.input_writes.push(InputWrite::Number(name.clone(), value));
+            Effect::Continue
+        }
+        Statement::SetBoolInput { name, value } => {
+            let value = is_truthy(eval_here(value, artboard, state));
+            state.input_writes.push(InputWrite::Bool(name.clone(), value));
+            Effect::Continue
+        }
+        Statement::FireTrigger { name } => {
+            state.input_writes.push(InputWrite::Trigger(name.clone()));
+            Effect::Continue
         }
     }
 }
@@ -515,7 +849,7 @@ fn execute(statement: &Statement, ctx: &BlockContext, artboard: &mut Artboard, c
 /// Any clone(s) spawned along the way are appended to `spawned` — see
 /// `Effect::SpawnClone`'s own doc comment for why `run_script` can't just
 /// start their `CloneStarted` instance itself.
-fn run_script(runtime: &mut ScriptRuntime, ctx: &BlockContext, artboard: &mut Artboard, rng_state: &mut u32, spawned: &mut Vec<NodeId>) {
+fn run_script(runtime: &mut ScriptRuntime, ctx: &BlockContext, artboard: &mut Artboard, state: &mut ProgramState, spawned: &mut Vec<NodeId>) {
     if let Some(until) = runtime.waiting_until {
         if ctx.elapsed_seconds < until {
             return;
@@ -578,6 +912,21 @@ fn run_script(runtime: &mut ScriptRuntime, ctx: &BlockContext, artboard: &mut Ar
                 *stmt_index += 1;
                 statement
             }
+            // Not a statement list at all: a glide in progress owns the
+            // script until it finishes. Place the node for this frame, then
+            // either pop (time's up, carry on with the next statement this
+            // same frame) or yield until next frame.
+            &mut Frame::Glide { node, from, to, start, duration } => {
+                let t = ((ctx.elapsed_seconds - start) / duration).clamp(0.0, 1.0);
+                if let Some(target) = artboard.node_mut(node) {
+                    target.transform.translation = from.lerp(to, t);
+                }
+                if t >= 1.0 {
+                    runtime.stack.pop();
+                    continue;
+                }
+                return;
+            }
         };
 
         // Computed fresh for every statement (not cached across the loop)
@@ -588,7 +937,7 @@ fn run_script(runtime: &mut ScriptRuntime, ctx: &BlockContext, artboard: &mut Ar
         // scan the whole stack rather than just the frame just matched on.
         let current_item = current_foreach_item(&runtime.stack);
 
-        match execute(&next_statement, ctx, artboard, current_item, runtime.bound_node, rng_state) {
+        match execute(&next_statement, ctx, artboard, current_item, runtime.bound_node, state) {
             Effect::Continue => {}
             Effect::Push(new_frame) => runtime.stack.push(new_frame),
             Effect::Wait(until) => {
@@ -618,10 +967,13 @@ pub fn step(program: &BlockProgramDef, runtime: &mut BlockRuntime, ctx: &BlockCo
         // dropped. (This does reseed the RNG — an acceptable side effect of
         // an edit-while-running resync, not something worth preserving
         // `rng_state` across specially for.)
-        let rng_state = runtime.rng_state;
+        //
+        // Variables and any not-yet-drained input writes are carried over
+        // the same way (an edit shouldn't silently zero a score mid-play-test).
+        let state = std::mem::take(&mut runtime.state);
         let next_tick_at = runtime.next_tick_at;
         *runtime = BlockRuntime::fresh_for(program);
-        runtime.rng_state = rng_state;
+        runtime.state = state;
         runtime.next_tick_at = next_tick_at;
     }
 
@@ -674,7 +1026,7 @@ pub fn step(program: &BlockProgramDef, runtime: &mut BlockRuntime, ctx: &BlockCo
         }
 
         for script_runtime in pool.iter_mut() {
-            run_script(script_runtime, ctx, artboard, &mut runtime.rng_state, &mut spawned);
+            run_script(script_runtime, ctx, artboard, &mut runtime.state, &mut spawned);
         }
         pool.retain(|script_runtime| !script_runtime.idle());
     }
@@ -737,7 +1089,7 @@ mod tests {
         let keys = KeyboardState::default();
         let inputs = Inputs::default();
         let c = ctx(&keys, &inputs, 0.0);
-        let mut rng = 0u32;
+        let mut rng = ProgramState::default();
 
         let expr = Expr::TouchingClass { node: NodeRef::Literal(player), class: "enemy".to_string() };
         assert_eq!(eval(&expr, &c, &artboard, None, None, &mut rng), 1.0, "should be touching near_enemy");
@@ -1140,7 +1492,7 @@ mod tests {
         let artboard = Artboard::new("Main", 400.0, 400.0);
         let keys = KeyboardState::default();
         let inputs = Inputs::default();
-        let mut rng = 12345u32;
+        let mut rng = ProgramState { rng: 12345, ..ProgramState::default() };
         for i in 0..200 {
             let c = ctx(&keys, &inputs, i as f32 * 0.01);
             let v = eval(&Expr::RandomInt { min: Box::new(Expr::Number(3.0)), max: Box::new(Expr::Number(7.0)) }, &c, &artboard, None, None, &mut rng);
@@ -1158,7 +1510,7 @@ mod tests {
         let keys = KeyboardState::default();
         let inputs = Inputs::default();
         let c = ctx(&keys, &inputs, 0.0);
-        let mut rng = 0u32;
+        let mut rng = ProgramState::default();
 
         let pi = eval(&Expr::Pi, &c, &artboard, None, None, &mut rng);
         assert!((pi - std::f32::consts::PI).abs() < 1e-6);
@@ -1236,5 +1588,220 @@ mod tests {
         step(&program, &mut runtime, &ctx(&keys, &inputs, 0.1), &mut artboard);
         assert!(artboard.node(clone_id).is_none(), "the clone should have deleted itself");
         assert!(artboard.node(proto).is_some(), "the prototype itself must survive");
+    }
+
+    // ---- Motion / looks / sensing / variables / input blocks ----
+
+    /// A single-`StateTriggered`-script program running `statements` —
+    /// shared setup for the tests below, which only care about what one
+    /// straight-line script does.
+    fn one_script(statements: Vec<Statement>) -> BlockProgramDef {
+        BlockProgramDef { ticks_per_second: None, scripts: vec![BlockScript { position: None, event: EventKind::StateTriggered, statements }] }
+    }
+
+    fn approx(a: f32, b: f32) -> bool {
+        (a - b).abs() < 1e-3
+    }
+
+    #[test]
+    fn move_steps_follows_rotation_and_turn_degrees_adds_radians() {
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let node = square(&mut artboard, 0.0);
+        let program = one_script(vec![
+            // Face +y (90° CCW), then move 10: should end at (0, 10).
+            Statement::TurnDegrees { node: NodeRef::Literal(node), degrees: Expr::Number(90.0) },
+            Statement::MoveSteps { node: NodeRef::Literal(node), steps: Expr::Number(10.0) },
+        ]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+
+        let t = artboard.node(node).unwrap().transform;
+        assert!(approx(t.rotation, std::f32::consts::FRAC_PI_2), "rotation {}", t.rotation);
+        assert!(approx(t.translation.x, 0.0) && approx(t.translation.y, 10.0), "translation {:?}", t.translation);
+    }
+
+    #[test]
+    fn point_towards_mouse_and_node_aim_the_plus_x_axis() {
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let node = square(&mut artboard, 0.0);
+        let target = square(&mut artboard, 0.0);
+        artboard.node_mut(target).unwrap().transform.translation = Vec2::new(0.0, -50.0);
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+
+        let program = one_script(vec![Statement::PointTowardsMouse { node: NodeRef::Literal(node) }]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        let mut c = ctx(&keys, &inputs, 0.0);
+        c.mouse_artboard = Vec2::new(-30.0, 0.0); // straight left
+        step(&program, &mut runtime, &c, &mut artboard);
+        assert!(approx(artboard.node(node).unwrap().transform.rotation.abs(), std::f32::consts::PI), "facing left");
+
+        let program = one_script(vec![Statement::PointTowards { node: NodeRef::Literal(node), target: NodeRef::Literal(target) }]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+        assert!(approx(artboard.node(node).unwrap().transform.rotation, -std::f32::consts::FRAC_PI_2), "facing straight down at the target");
+    }
+
+    #[test]
+    fn glide_to_interpolates_across_frames_and_then_continues_the_script() {
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let node = square(&mut artboard, 0.0);
+        let program = one_script(vec![
+            Statement::GlideTo { node: NodeRef::Literal(node), x: Expr::Number(100.0), y: Expr::Number(50.0), seconds: Expr::Number(2.0) },
+            // Only runs once the glide has finished.
+            Statement::SetProperty { node: NodeRef::Literal(node), property: GraphProperty::Rotation, value: Expr::Number(1.0) },
+        ]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+        assert_eq!(artboard.node(node).unwrap().transform.translation, Vec2::ZERO, "t=0: still at the start");
+
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 1.0), &mut artboard);
+        let halfway = artboard.node(node).unwrap().transform;
+        assert!(approx(halfway.translation.x, 50.0) && approx(halfway.translation.y, 25.0), "t=1 of 2: halfway, got {:?}", halfway.translation);
+        assert_eq!(halfway.rotation, 0.0, "the statement after the glide must not have run yet");
+
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 2.5), &mut artboard);
+        let done = artboard.node(node).unwrap().transform;
+        assert_eq!(done.translation, Vec2::new(100.0, 50.0), "past the end: lands exactly on the target");
+        assert_eq!(done.rotation, 1.0, "the script carries on in the same frame the glide finishes");
+    }
+
+    #[test]
+    fn keep_inside_scene_clamps_the_bounding_box_to_the_artboard() {
+        // 400x400 artboard spans -200..200 on both axes; the square is 10x10.
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let node = square(&mut artboard, 500.0);
+        artboard.node_mut(node).unwrap().transform.translation.y = -999.0;
+        let program = one_script(vec![Statement::KeepInsideScene { node: NodeRef::Literal(node) }]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+
+        let t = artboard.node(node).unwrap().transform.translation;
+        assert!(approx(t.x, 195.0) && approx(t.y, -195.0), "box edge flush with the scene edge, got {t:?}");
+    }
+
+    #[test]
+    fn bounce_on_edge_mirrors_an_outward_heading_and_pushes_back_inside() {
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let node = square(&mut artboard, 198.0); // poking past the right edge (x max = 203)
+        artboard.node_mut(node).unwrap().transform.rotation = 0.0; // heading right, i.e. outward
+        let program = one_script(vec![Statement::BounceOnEdge { node: NodeRef::Literal(node) }]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+
+        let t = artboard.node(node).unwrap().transform;
+        assert!(approx(t.rotation, std::f32::consts::PI), "now heading left, got {}", t.rotation);
+        assert!(approx(t.translation.x, 195.0), "pushed back inside, got {}", t.translation.x);
+
+        // Already heading inward: a second bounce on the same edge must
+        // not flip it back outward.
+        artboard.node_mut(node).unwrap().transform.translation.x = 198.0;
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+        assert!(approx(artboard.node(node).unwrap().transform.rotation, std::f32::consts::PI), "inward heading is left alone");
+    }
+
+    #[test]
+    fn set_text_replaces_a_text_nodes_content() {
+        use an1mbyt3_core::{FontId, TextNode};
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let label = artboard.add_node(Node::new(
+            "Label",
+            None,
+            NodeKind::Text(TextNode { content: "old".into(), font: FontId::default(), size_px: 16.0, fill_color: [1.0; 4], gradient: None }),
+        ));
+        let program = one_script(vec![Statement::SetText { node: NodeRef::Literal(label), text: "Game Over".into() }]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+
+        let NodeKind::Text(text) = &artboard.node(label).unwrap().kind else { panic!("still a text node") };
+        assert_eq!(text.content, "Game Over");
+    }
+
+    #[test]
+    fn variables_set_change_and_read_back_and_reset_on_a_fresh_runtime() {
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let node = square(&mut artboard, 0.0);
+        let program = one_script(vec![
+            Statement::SetVariable { name: "score".into(), value: Expr::Number(10.0) },
+            Statement::ChangeVariable { name: "score".into(), delta: Expr::Number(5.0) },
+            Statement::ChangeVariable { name: "never_set".into(), delta: Expr::Number(2.0) },
+            Statement::SetProperty {
+                node: NodeRef::Literal(node),
+                property: GraphProperty::TranslationX,
+                value: Expr::Add(Box::new(Expr::Variable { name: "score".into() }), Box::new(Expr::Variable { name: "never_set".into() })),
+            },
+        ]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+
+        assert_eq!(artboard.node(node).unwrap().transform.translation.x, 17.0, "15 (set 10, +5) + 2 (unset starts at 0)");
+        assert_eq!(runtime.state.variables.get("score"), Some(&15.0));
+        assert!(BlockRuntime::fresh_for(&program).state.variables.is_empty(), "a state re-entry starts with no variables");
+    }
+
+    #[test]
+    fn input_writes_are_queued_readable_in_frame_and_drained_in_order() {
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let node = square(&mut artboard, 0.0);
+        let program = one_script(vec![
+            Statement::SetNumberInput { name: "speed".into(), value: Expr::Number(3.0) },
+            Statement::SetBoolInput { name: "jumping".into(), value: Expr::Number(1.0) },
+            Statement::FireTrigger { name: "hit".into() },
+            // Read-your-own-write within the same frame.
+            Statement::SetProperty { node: NodeRef::Literal(node), property: GraphProperty::TranslationX, value: Expr::GetNumberInput { name: "speed".into() } },
+            Statement::SetProperty { node: NodeRef::Literal(node), property: GraphProperty::TranslationY, value: Expr::GetBoolInput { name: "jumping".into() } },
+        ]);
+        let mut runtime = BlockRuntime::fresh_for(&program);
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+        step(&program, &mut runtime, &ctx(&keys, &inputs, 0.0), &mut artboard);
+
+        assert_eq!(artboard.node(node).unwrap().transform.translation, Vec2::new(3.0, 1.0));
+        let writes = runtime.take_input_writes();
+        assert_eq!(writes, vec![InputWrite::Number("speed".into(), 3.0), InputWrite::Bool("jumping".into(), true), InputWrite::Trigger("hit".into())]);
+        assert!(runtime.take_input_writes().is_empty(), "draining empties the queue");
+
+        let mut applied = Inputs::default();
+        for write in writes {
+            write.apply_to(&mut applied);
+        }
+        assert_eq!(applied.number("speed"), 3.0);
+        assert!(applied.bool("jumping"));
+        assert!(applied.trigger_fired("hit"));
+    }
+
+    #[test]
+    fn distance_timer_min_and_max_reporters() {
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let a = square(&mut artboard, 0.0);
+        let b = square(&mut artboard, 3.0);
+        artboard.node_mut(b).unwrap().transform.translation.y = 4.0;
+        let keys = KeyboardState::default();
+        let inputs = Inputs::default();
+        let mut c = ctx(&keys, &inputs, 2.5);
+        c.mouse_artboard = Vec2::new(0.0, -6.0);
+        let mut state = ProgramState::default();
+        let mut ev = |e: Expr| eval(&e, &c, &artboard, None, None, &mut state);
+
+        assert!(approx(ev(Expr::DistanceTo { a: NodeRef::Literal(a), b: NodeRef::Literal(b) }), 5.0), "3-4-5 triangle");
+        assert!(approx(ev(Expr::DistanceToMouse { node: NodeRef::Literal(a) }), 6.0));
+        assert_eq!(ev(Expr::DistanceToMouse { node: NodeRef::CurrentItem }), 0.0, "unresolvable node degrades to 0");
+        assert_eq!(ev(Expr::Timer), 2.5);
+        assert_eq!(ev(Expr::Min(Box::new(Expr::Number(4.0)), Box::new(Expr::Number(-2.0)))), -2.0);
+        assert_eq!(ev(Expr::Max(Box::new(Expr::Number(4.0)), Box::new(Expr::Number(-2.0)))), 4.0);
     }
 }

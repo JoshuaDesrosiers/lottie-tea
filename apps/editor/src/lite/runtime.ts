@@ -430,7 +430,9 @@ class Player implements LitePlayer {
   private dirty = true
   private visible = true
   private size = { w: 1, h: 1, dpr: 1 }
-  private pointer: { x: number; y: number; inside: boolean; down: boolean } = { x: 0, y: 0, inside: false, down: false }
+  /** `presses` / `releases` count events since the last frame, so a click
+   * whose down and up land in the same frame is never missed. */
+  private pointer: { x: number; y: number; inside: boolean; down: boolean; presses: number; releases: number } = { x: 0, y: 0, inside: false, down: false, presses: 0, releases: 0 }
   private worlds: DOMMatrix[] = []
   private cleanups: (() => void)[] = []
   private lastPose: Pose = new Map()
@@ -481,6 +483,9 @@ class Player implements LitePlayer {
       this.pointer.y = e.clientY - r.top
       this.pointer.inside = true
       this.dirty = true
+      // Wake the shared loop: hover / press must react on the next frame
+      // even when nothing was animating.
+      schedule()
     }
     const leave = () => {
       this.pointer.inside = false
@@ -490,10 +495,12 @@ class Player implements LitePlayer {
     const down = (e: PointerEvent) => {
       move(e)
       this.pointer.down = true
+      this.pointer.presses++
     }
     const up = (e: PointerEvent) => {
       move(e)
       this.pointer.down = false
+      this.pointer.releases++
     }
     this.canvas.addEventListener('pointermove', move)
     this.canvas.addEventListener('pointerleave', leave)
@@ -747,6 +754,9 @@ class Player implements LitePlayer {
   private updatePointer(dt: number): boolean {
     let changed = false
     let hit = -1
+    const { presses, releases } = this.pointer
+    this.pointer.presses = 0
+    this.pointer.releases = 0
     if (this.pointer.inside) {
       for (let i = this.nodes.length - 1; i >= 0; i--) {
         const n = this.nodes[i]
@@ -766,8 +776,9 @@ class Player implements LitePlayer {
       const pressed = hover && this.pointer.down
       const run = (list: LiteAction[] | undefined) => list && this.runActions(list, i)
       if (hover && !n.hover) run(n.def.listeners?.enter)
-      if (pressed && !n.pressed) run(n.def.listeners?.down)
-      if (!pressed && n.pressed) {
+      const gotDown = hover && (presses > 0 || (pressed && !n.pressed))
+      if (gotDown && !n.pressed) run(n.def.listeners?.down)
+      if ((n.pressed || gotDown) && (releases > 0 || !this.pointer.down)) {
         run(n.def.listeners?.up)
         if (hover) run(n.def.listeners?.click)
       }

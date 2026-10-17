@@ -102,8 +102,8 @@ export function TitleBar({ theme, onToggleTheme }: { theme: Theme; onToggleTheme
 function TitleBarTestSlot({ theme }: { theme: Theme }) {
   const state = useSyncExternalStore(testAreaStore.subscribe, testAreaStore.get)
   const [hover, setHover] = useState(false)
-  if (!state.nav.active || !state.file) return null
-  const size = state.nav.size
+  if (!state.panelOpen || !state.settings.inTitleBar || !state.file) return null
+  const size = state.settings.navSize
   return (
     <div
       onMouseEnter={() => setHover(true)}

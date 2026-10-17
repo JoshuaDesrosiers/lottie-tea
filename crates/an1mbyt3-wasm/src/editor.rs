@@ -2247,7 +2247,22 @@ struct AnimClock {
 fn kind_draws<'a>(editor: &'a WasmEditor, artboard: &'a an1mbyt3_core::Artboard, node_id: NodeId, node: &'a Node) -> Vec<DrawCall<'a>> {
     match &node.kind {
         NodeKind::Shape(shape) => {
-            let Some((mesh, binding)) = editor.mesh_cache.get(&node_id) else { return Vec::new() };
+            // A zero-area path (a straight line) has no fill mesh but can
+            // still have a stroke: draw just that.
+            let Some((mesh, binding)) = editor.mesh_cache.get(&node_id) else {
+                let Some(stroke) = &shape.stroke else { return Vec::new() };
+                let Some((stroke_mesh, stroke_binding)) = editor.stroke_mesh_cache.get(&node_id) else { return Vec::new() };
+                return vec![DrawCall {
+                    mesh: stroke_mesh,
+                    binding: stroke_binding,
+                    transform: artboard.world_transform(node_id),
+                    fill_color: stroke.color,
+                    blend_mode: shape.blend_mode,
+                    gradient: stroke.gradient.as_ref(),
+                    texture: stroke.image.and_then(|image_id| editor.image_cache.get(&image_id)),
+                    material: None,
+                }];
+            };
             // `shape.image` textures this shape with an already-imported
             // raster asset instead of a flat/gradient fill — see that
             // field's own doc comment. Reuses the same `image_cache` an
@@ -3922,8 +3937,7 @@ impl WasmEditor {
                 if mesh.positions.is_empty() || mesh.indices.is_empty() {
                     self.mesh_cache.remove(&node_id);
                     self.shape_mesh_source.remove(&node_id);
-                    continue;
-                }
+                } else {
                 let gpu_mesh = self.renderer.upload_mesh(&mesh);
                 // Reuse the existing `DrawBinding` (its own uniform buffer)
                 // across a re-tessellation — only a brand-new node needs a
@@ -3936,7 +3950,11 @@ impl WasmEditor {
                 };
                 self.mesh_cache.insert(node_id, (gpu_mesh, binding));
                 self.shape_mesh_source.insert(node_id, shape.path.clone());
+                }
             }
+            // An empty fill (an open, zero-area path such as a straight
+            // line) must not skip the stroke below: stroke-only lines are
+            // exactly what trim-path draw-ons are made of.
 
             // A shape's stroke is a second, independently cached mesh (see
             // `stroke_mesh_cache`'s own doc comment) — only geometry

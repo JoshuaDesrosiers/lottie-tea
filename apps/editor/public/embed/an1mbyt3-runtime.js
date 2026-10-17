@@ -151,7 +151,9 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 		x: 0,
 		y: 0,
 		inside: !1,
-		down: !1
+		down: !1,
+		presses: 0,
+		releases: 0
 	};
 	worlds = [];
 	cleanups = [];
@@ -211,13 +213,13 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 		}
 		let o = (e) => {
 			let t = this.canvas.getBoundingClientRect();
-			this.pointer.x = e.clientX - t.left, this.pointer.y = e.clientY - t.top, this.pointer.inside = !0, this.dirty = !0;
+			this.pointer.x = e.clientX - t.left, this.pointer.y = e.clientY - t.top, this.pointer.inside = !0, this.dirty = !0, s();
 		}, c = () => {
 			this.pointer.inside = !1, this.pointer.down = !1, this.dirty = !0;
 		}, l = (e) => {
-			o(e), this.pointer.down = !0;
+			o(e), this.pointer.down = !0, this.pointer.presses++;
 		}, d = (e) => {
-			o(e), this.pointer.down = !1;
+			o(e), this.pointer.down = !1, this.pointer.releases++;
 		};
 		this.canvas.addEventListener("pointermove", o), this.canvas.addEventListener("pointerleave", c), this.canvas.addEventListener("pointerdown", l), this.canvas.addEventListener("pointerup", d), this.cleanups.push(() => {
 			this.canvas.removeEventListener("pointermove", o), this.canvas.removeEventListener("pointerleave", c), this.canvas.removeEventListener("pointerdown", l), this.canvas.removeEventListener("pointerup", d);
@@ -415,21 +417,23 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 		}
 	}
 	updatePointer(e) {
-		let t = !1, n = -1;
-		if (this.pointer.inside) for (let e = this.nodes.length - 1; e >= 0; e--) {
+		let t = !1, n = -1, { presses: r, releases: i } = this.pointer;
+		if (this.pointer.presses = 0, this.pointer.releases = 0, this.pointer.inside) for (let e = this.nodes.length - 1; e >= 0; e--) {
 			let t = this.nodes[e];
 			if (!(!t.def.button?.interactable || !t.path || !this.worlds[e] || !this.isShown(e)) && (this.ctx.setTransform(this.worlds[e]), this.ctx.isPointInPath(t.path, this.pointer.x * this.size.dpr, this.pointer.y * this.size.dpr))) {
 				n = e;
 				break;
 			}
 		}
-		return this.canvas.style.cursor = n >= 0 ? "pointer" : "", this.nodes.forEach((r, i) => {
-			let a = r.def.button;
-			if (!a) return;
-			let o = i === n, s = o && this.pointer.down, c = (e) => e && this.runActions(e, i);
-			o && !r.hover && c(r.def.listeners?.enter), s && !r.pressed && c(r.def.listeners?.down), !s && r.pressed && (c(r.def.listeners?.up), o && c(r.def.listeners?.click)), !o && r.hover && c(r.def.listeners?.exit), r.hover = o, r.pressed = s;
-			let l = s ? a.pressedScale : o ? a.hoverScale : 1, u = a.interactable ? s ? a.pressedColor : o ? a.hoverColor : a.normalColor : a.normalColor, d = a.fade > 0 ? Math.min(1, e / a.fade) : 1, f = r.lookScale + (l - r.lookScale) * d, p = r.lookTint.map((e, t) => e + (u[t] - e) * d);
-			(Math.abs(f - r.lookScale) > 1e-4 || p.some((e, t) => Math.abs(e - r.lookTint[t]) > 1e-4)) && (t = !0), r.lookScale = f, r.lookTint = p;
+		return this.canvas.style.cursor = n >= 0 ? "pointer" : "", this.nodes.forEach((a, o) => {
+			let s = a.def.button;
+			if (!s) return;
+			let c = o === n, l = c && this.pointer.down, u = (e) => e && this.runActions(e, o);
+			c && !a.hover && u(a.def.listeners?.enter);
+			let d = c && (r > 0 || l && !a.pressed);
+			d && !a.pressed && u(a.def.listeners?.down), (a.pressed || d) && (i > 0 || !this.pointer.down) && (u(a.def.listeners?.up), c && u(a.def.listeners?.click)), !c && a.hover && u(a.def.listeners?.exit), a.hover = c, a.pressed = l;
+			let f = l ? s.pressedScale : c ? s.hoverScale : 1, p = s.interactable ? l ? s.pressedColor : c ? s.hoverColor : s.normalColor : s.normalColor, m = s.fade > 0 ? Math.min(1, e / s.fade) : 1, h = a.lookScale + (f - a.lookScale) * m, g = a.lookTint.map((e, t) => e + (p[t] - e) * m);
+			(Math.abs(h - a.lookScale) > 1e-4 || g.some((e, t) => Math.abs(e - a.lookTint[t]) > 1e-4)) && (t = !0), a.lookScale = h, a.lookTint = g;
 		}), t;
 	}
 	runActions(e, t) {

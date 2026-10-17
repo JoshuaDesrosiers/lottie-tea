@@ -16,10 +16,14 @@
 //! not editor-frontend-only like `Code`.
 //!
 //! Not included yet (deliberately, not forgotten): broadcast messages,
-//! sprite cloning, user-declared variables (only the state machine's own
-//! declared `Inputs` are readable, via `GetNumberInput`/`GetBoolInput`),
-//! general-purpose numeric lists (only node lists exist so far, via
-//! [`ListExpr`] — see its own doc comment for why).
+//! string-valued expressions (every `Expr` is an `f32`; `SetText` only takes
+//! a literal), pointer-click events (the runtime has no mouse-button state
+//! — see `an1mbyt3_runtime::keyboard`), general-purpose numeric lists (only
+//! node lists exist so far, via [`ListExpr`] — see its own doc comment for
+//! why). Number-valued variables exist (`SetVariable`/`Expr::Variable`),
+//! scoped per state; the state machine's own declared `Inputs` are both
+//! readable (`GetNumberInput`/`GetBoolInput`) and writable
+//! (`SetNumberInput`/`SetBoolInput`/`FireTrigger`).
 
 use glam::Vec2;
 use serde::{Deserialize, Serialize};
@@ -172,6 +176,38 @@ pub enum Expr {
     /// already read.
     GetNumberInput { name: String },
     GetBoolInput { name: String },
+    // ---- Appended variants: postcard encodes enum variants by index, so
+    // ---- everything below must only ever be *appended* to, never
+    // ---- reordered or inserted above (saved `.teab` files depend on it).
+    /// Straight-line world-space distance from `node`'s own origin (its
+    /// anchor point — see `Transform2D::to_affine2`'s doc comment) to the
+    /// live pointer — Scratch's "distance to [mouse-pointer]". `0.0` if
+    /// `node` doesn't resolve (same "degrades harmlessly" convention as
+    /// every other `NodeRef`-taking reporter here).
+    DistanceToMouse { node: NodeRef },
+    /// World-space distance between `a`'s and `b`'s origins — Scratch's
+    /// "distance to [sprite]", with both ends authored explicitly for the
+    /// same no-implicit-sprite reason [`Expr::Touching`]'s doc comment gives.
+    DistanceTo { a: NodeRef, b: NodeRef },
+    /// Seconds since this state became active — Scratch's "timer", except
+    /// it resets on every state (re-)entry rather than on an explicit
+    /// "reset timer" block (a state entering is this engine's green flag;
+    /// see [`EventKind::StateTriggered`]). Reads the same always-advancing
+    /// per-layer clock `Statement::Wait` schedules against.
+    Timer,
+    /// The smaller of the two operands — a binary operator, so it lives
+    /// here beside `Add`/`Subtract` rather than in the unary [`MathFn`].
+    Min(Box<Expr>, Box<Expr>),
+    /// The larger of the two operands — see [`Expr::Min`].
+    Max(Box<Expr>, Box<Expr>),
+    /// Reads a script-local variable (Scratch's orange "(my variable)"
+    /// reporter) written by [`Statement::SetVariable`]/
+    /// [`Statement::ChangeVariable`]. Variables are shared by every script
+    /// in the same state's program, live only while that state is active
+    /// (reset on every state entry, exactly like the rest of
+    /// `BlockRuntime`), and are never saved. An unset name reads `0.0` —
+    /// Scratch's own "a fresh variable starts at 0" behavior.
+    Variable { name: String },
 }
 
 impl Expr {
@@ -256,6 +292,67 @@ pub enum Statement {
     /// "degrades harmlessly" convention as everywhere else `NodeRef::Myself`
     /// can resolve to nothing.
     DeleteThisClone,
+    // ---- Appended variants: postcard encodes enum variants by index, so
+    // ---- everything below must only ever be *appended* to, never
+    // ---- reordered or inserted above (saved `.teab` files depend on it).
+    /// Moves `node` `steps` units along the direction it's facing (its own
+    /// local `rotation`; `0` faces +x, counter-clockwise positive, same as
+    /// `Transform2D::rotation`) — Scratch's "move (10) steps". Negative
+    /// `steps` moves backwards. Works in the node's own parent space, the
+    /// same space `GoToXY` writes.
+    MoveSteps { node: NodeRef, steps: Expr },
+    /// Adds `degrees` (converted to radians — degrees are the friendlier
+    /// authoring unit, everything stored stays radians) to `node`'s
+    /// rotation. Counter-clockwise positive, matching this engine's own
+    /// rotation convention rather than Scratch's clockwise "turn ↻".
+    TurnDegrees { node: NodeRef, degrees: Expr },
+    /// Rotates `node` so its +x axis faces the live pointer — Scratch's
+    /// "point towards [mouse-pointer]". Computed in world space and
+    /// compensated for the parent's own world rotation, so it still aims
+    /// correctly for a node nested inside a rotated group.
+    PointTowardsMouse { node: NodeRef },
+    /// Same as [`Statement::PointTowardsMouse`], aiming at `target`'s world
+    /// origin instead of the pointer.
+    PointTowards { node: NodeRef, target: NodeRef },
+    /// Slides `node`'s translation from wherever it is now to (`x`, `y`)
+    /// linearly over `seconds` — Scratch's "glide (1) secs to x: y:".
+    /// Spans several frames by itself (like [`Statement::Wait`]: the script
+    /// is suspended until the glide finishes); `x`/`y`/`seconds` are
+    /// evaluated once, on entry. `seconds <= 0` jumps instantly.
+    GlideTo { node: NodeRef, x: Expr, y: Expr, seconds: Expr },
+    /// Shifts `node` (by translation only) just enough that its world
+    /// bounding box sits fully inside the artboard's rectangle — Scratch's
+    /// stage-fencing behavior as an explicit block. A box larger than the
+    /// artboard is centered on the overflowing axis instead.
+    KeepInsideScene { node: NodeRef },
+    /// If `node`'s world bounding box pokes past an artboard edge, mirrors
+    /// its rotation off that edge (so a following [`Statement::MoveSteps`]
+    /// heads back inward) and pushes it back inside — Scratch's "if on
+    /// edge, bounce". Only flips when the node is actually heading
+    /// outward, so it never jitters back and forth on an edge.
+    BounceOnEdge { node: NodeRef },
+    /// Replaces a `Text` node's displayed content with a literal string —
+    /// the string counterpart to [`Statement::SetTextNumber`]. No-op on a
+    /// non-`Text` node.
+    SetText { node: NodeRef, text: String },
+    /// Writes a variable — see [`Expr::Variable`] for scope/lifetime.
+    SetVariable { name: String, value: Expr },
+    /// Adds `delta` to a variable (an unset one counts as `0.0`).
+    ChangeVariable { name: String, delta: Expr },
+    /// Sets one of this state machine's *number* inputs — the write side of
+    /// [`Expr::GetNumberInput`], so a Blocks program can drive its own
+    /// machine's transitions/blends without code. Deferred: queued on the
+    /// interpreter and applied to the machine's `Inputs` right after this
+    /// frame's programs run (see `an1mbyt3_runtime::block_interpreter`'s
+    /// `InputWrite`), so transitions see it on the next `advance`.
+    SetNumberInput { name: String, value: Expr },
+    /// Bool-input counterpart to [`Statement::SetNumberInput`] (nonzero is
+    /// `true`, same truthiness rule as everywhere else in this module).
+    SetBoolInput { name: String, value: Expr },
+    /// Fires one of this state machine's trigger inputs (a one-frame pulse
+    /// any transition can check) — same deferral as
+    /// [`Statement::SetNumberInput`].
+    FireTrigger { name: String },
 }
 
 /// What starts a [`BlockScript`] running.

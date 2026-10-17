@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { insideOrPopover } from './Select'
 import type { AnimationExportOptions } from '../exportGif'
 import { UI_MENU_ITEMS, UI_MENU_LABEL, type ShapePreset, type UiMenuItem } from '../ipc/wasmEditor'
 import type { Light2DType, Node3DItem } from '../ipc/document'
@@ -32,6 +34,40 @@ type AddMenuEntry =
 const MENU_PANEL = 'rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel'
 const MENU_ROW = 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-ink hover:bg-overlay/8'
 
+/**
+ * A submenu, rendered top-level (portal) beside its row so no panel clips
+ * it: opens to the left (the menus hang off the toolbar's right side), or
+ * to the right when there's no room; shifted up to stay on screen, and
+ * scrolls when it's taller than the window. Placed from the row it's
+ * mounted in (its parent element's box).
+ */
+function Flyout({ children }: { children: ReactNode }) {
+  const marker = useRef<HTMLSpanElement>(null)
+  const box = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number } | null>(null)
+  useLayoutEffect(() => {
+    const row = marker.current?.parentElement?.getBoundingClientRect()
+    const el = box.current
+    if (!row || !el) return
+    const m = 8
+    const w = el.offsetWidth
+    const h = Math.min(el.scrollHeight, window.innerHeight - m * 2)
+    const left = row.left - w - 4 >= m ? row.left - w - 4 : Math.min(row.right + 4, window.innerWidth - w - m)
+    const top = Math.max(m, Math.min(row.top - 4, window.innerHeight - h - m))
+    setPos({ left, top, maxHeight: window.innerHeight - m * 2 })
+  }, [])
+  return (
+    <span ref={marker} style={{ display: 'none' }}>
+      {createPortal(
+        <div ref={box} data-popover="" className="overflow-y-auto rounded-lg" style={{ position: 'fixed', zIndex: 10000, left: pos?.left ?? 0, top: pos?.top ?? 0, maxHeight: pos?.maxHeight, visibility: pos ? 'visible' : 'hidden' }}>
+          {children}
+        </div>,
+        document.body,
+      )}
+    </span>
+  )
+}
+
 function AddMenuList({ entries, onDone }: { entries: AddMenuEntry[]; onDone: () => void }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
   return (
@@ -64,9 +100,9 @@ function AddMenuList({ entries, onDone }: { entries: AddMenuEntry[]; onDone: () 
               <span className="text-ink-dim">&lsaquo;</span>
             </button>
             {open && (
-              <div className="absolute right-full top-0 z-30 mr-1">
+              <Flyout>
                 <AddMenuList entries={entry.children} onDone={onDone} />
-              </div>
+              </Flyout>
             )}
           </div>
         )
@@ -187,7 +223,7 @@ function ShapesMenu({
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+      if (rootRef.current && !insideOrPopover(rootRef.current, event.target)) setOpen(false)
     }
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
@@ -380,7 +416,7 @@ function FileMenu({ actions, onSave }: { actions: FileMenuActions; onSave: () =>
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+      if (rootRef.current && !insideOrPopover(rootRef.current, event.target)) setOpen(false)
     }
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
@@ -435,7 +471,7 @@ function ExportMenu({ onExportAnimation, onExportLite, onExportGame, onExportDes
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+      if (rootRef.current && !insideOrPopover(rootRef.current, event.target)) setOpen(false)
     }
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)

@@ -1,3 +1,4 @@
+import { Select } from './components/Select'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { screenToWorld, worldToScreen } from './camera'
 import { DEMO_SVG } from './demoScene'
@@ -285,7 +286,7 @@ import { iconFamily } from './game/googleFonts'
 import { setProjectFiles } from './game/projectFiles'
 import { CodeWorkspace, type CodeLocation } from './components/CodeWorkspace'
 import { gameNet } from './game/net'
-import { mouseToWorld, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from './game/scriptHost'
+import { forwardMouseKeys, mouseToWorld, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from './game/scriptHost'
 import { BoneGizmos } from './components/BoneGizmos'
 import { adaptiveResolution, renderDpr } from './game/adaptiveResolution'
 import { PerfMeter } from './game/perf'
@@ -766,6 +767,7 @@ function App() {
       gesturesRef.current.down(event)
       heldKeysRef.current.add('mouse')
       syncMouseButtons(heldKeysRef.current, event)
+      if (editorRef.current) forwardMouseKeys(heldKeysRef.current, (k, p) => setKeyDown(editorRef.current!, k, p))
       if (pointerLockArmedRef.current && document.pointerLockElement !== canvas) {
         void canvas.requestPointerLock()
       }
@@ -775,6 +777,7 @@ function App() {
       syncMouseButtons(heldKeysRef.current, event)
       // "mouse" = any button: only let go once they're all up.
       if (!event.buttons) heldKeysRef.current.delete('mouse')
+      if (editorRef.current) forwardMouseKeys(heldKeysRef.current, (k, p) => setKeyDown(editorRef.current!, k, p))
     }
     canvas.addEventListener('pointerdown', onDown)
     window.addEventListener('pointerup', onUp)
@@ -4573,7 +4576,7 @@ ${list}${more}`)
           <CameraKindIcon />
         </button>
         <span className="mx-1 h-4 w-px bg-overlay/15" />
-        <select
+        <Select
           value={previewScreen ? `${previewScreen.width}x${previewScreen.height}` : ''}
           onChange={(e) => {
             const preset = SCREEN_PRESETS.find((p) => `${p.width}x${p.height}` === e.target.value) ?? null
@@ -4591,10 +4594,10 @@ ${list}${more}`)
               {p.label} · {p.width}×{p.height}
             </option>
           ))}
-        </select>
+        </Select>
       </FloatingPanel>
       )}
-      {mode === 'Playground' && testArea.showInPlayground && panelVisible.testArea && testArea.file && (
+      {mode === 'Playground' && testArea.settings.showInPlayground && panelVisible.testArea && testArea.file && (
         // "Use as Playground": the Test Area mock replaces the play view.
         <div className="pointer-events-auto absolute inset-0 z-20">
           <TestAreaPanel variant="stage" editor={editorRef.current} doc={doc} artboardId={activeArtboard?.id ?? null} />
@@ -4628,7 +4631,7 @@ ${list}${more}`)
             </label>
           )}
           <span className="h-4 w-px bg-overlay/15" />
-          <select
+          <Select
             value={drawPath.make}
             onChange={(e) => {
               const make = e.target.value as 'trim' | 'motion'
@@ -4644,7 +4647,7 @@ ${list}${more}`)
             <option value="motion" className="bg-solid-panel">
               Motion path for {selectedNode && drawPath.make !== 'motion' ? selectedNode.name : drawPathTarget.current ? 'the selected node' : 'selected node'}
             </option>
-          </select>
+          </Select>
           {drawPath.make === 'trim' && (
             <label className="flex items-center gap-1" title="Stroke width">
               W

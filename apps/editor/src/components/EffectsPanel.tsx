@@ -1,3 +1,4 @@
+import { Popover, insideOrPopover } from './Select'
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { PostEffect, PostEffectLayer } from '../ipc/document'
 import { POST_EFFECT_DEFAULTS, hexPalette } from '../ipc/document'
@@ -23,7 +24,7 @@ function AddEffectMenu({ onAdd }: { onAdd: (kind: Exclude<PostEffect['kind'], 'N
   useEffect(() => {
     if (!open) return
     const handlePointerDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      if (rootRef.current && !insideOrPopover(rootRef.current, e.target as Node)) setOpen(false)
     }
     window.addEventListener('pointerdown', handlePointerDown)
     return () => window.removeEventListener('pointerdown', handlePointerDown)
@@ -40,7 +41,7 @@ function AddEffectMenu({ onAdd }: { onAdd: (kind: Exclude<PostEffect['kind'], 'N
         Add Effect
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-full overflow-hidden rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
+        <Popover anchor={rootRef} className="rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
           {EFFECT_KINDS.map((kind) => (
             <button
               key={kind}
@@ -54,7 +55,7 @@ function AddEffectMenu({ onAdd }: { onAdd: (kind: Exclude<PostEffect['kind'], 'N
               {kind}
             </button>
           ))}
-        </div>
+        </Popover>
       )}
     </div>
   )

@@ -11,6 +11,7 @@
  * Both only *choose*; the caller decides what choosing does (download the
  * TTF into the document for a Text node, write CSS for HTML UI, …).
  */
+import { Popover, Select, insideOrPopover } from './Select'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   fontCatalog,
@@ -45,7 +46,7 @@ function useDismiss(open: boolean, close: () => void) {
   useEffect(() => {
     if (!open) return
     const onDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) close()
+      if (ref.current && !insideOrPopover(ref.current, e.target as Node)) close()
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
@@ -129,7 +130,7 @@ export function FontPicker({
         <span className="shrink-0 whitespace-nowrap text-[10px] text-ink-dim">Google Fonts ▾</span>
       </button>
       {open && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 flex max-h-80 flex-col gap-1 rounded-lg border border-panel-border bg-[var(--solid-panel)] p-1.5 shadow-xl">
+        <Popover anchor={ref} className="flex flex-col gap-1 rounded-lg border border-panel-border bg-[var(--solid-panel)] p-1.5 shadow-xl">
           <input
             autoFocus
             value={query}
@@ -163,7 +164,7 @@ export function FontPicker({
             ))}
             {shown.length === 0 && <div className="px-2 py-3 text-center text-[11px] text-ink-dim">No font matches “{query}”.</div>}
           </div>
-        </div>
+        </Popover>
       )}
     </div>
   )
@@ -205,13 +206,13 @@ export function IconPicker({
           className="min-w-0 flex-1 rounded-md bg-overlay/5 px-2 py-1 text-xs text-ink outline-none placeholder:text-ink-dim"
         />
         {onStyle && (
-          <select value={style} onChange={(e) => onStyle(e.target.value as IconStyle)} className="rounded-md bg-overlay/5 px-1 py-1 text-[11px] text-ink outline-none">
+          <Select value={style} onChange={(e) => onStyle(e.target.value as IconStyle)} className="rounded-md bg-overlay/5 px-1 py-1 text-[11px] text-ink outline-none">
             {ICON_STYLES.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>
             ))}
-          </select>
+          </Select>
         )}
       </div>
       <div className="grid max-h-48 grid-cols-8 gap-0.5 overflow-y-auto rounded-md bg-overlay/5 p-1">

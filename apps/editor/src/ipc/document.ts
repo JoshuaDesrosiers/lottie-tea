@@ -735,6 +735,16 @@ export type Expr =
   | { kind: 'RandomFloat'; value: { min: Expr; max: Expr } }
   | { kind: 'GetNumberInput'; value: { name: string } }
   | { kind: 'GetBoolInput'; value: { name: string } }
+  /** World distance from `node`'s origin to the pointer (Scratch's "distance to mouse-pointer"). */
+  | { kind: 'DistanceToMouse'; value: { node: NodeRef } }
+  /** World distance between two nodes' origins. */
+  | { kind: 'DistanceTo'; value: { a: NodeRef; b: NodeRef } }
+  /** Seconds since this state became active (resets on every state entry). */
+  | { kind: 'Timer' }
+  | { kind: 'Min'; value: [Expr, Expr] }
+  | { kind: 'Max'; value: [Expr, Expr] }
+  /** A per-state number variable (`SetVariable`/`ChangeVariable`); unset reads 0. */
+  | { kind: 'Variable'; value: { name: string } }
 
 /** Mirrors `crates/an1mbyt3-wasm/src/dto.rs`'s `StatementDto` — a Scratch-
  * style Blocks program's "stack" blocks (do something, connect top/bottom
@@ -742,6 +752,8 @@ export type Expr =
 export type Statement =
   | { kind: 'GoToXY'; value: { node: NodeRef; x: Expr; y: Expr } }
   | { kind: 'SetProperty'; value: { node: NodeRef; property: GraphProperty; value: Expr } }
+  /** Writes `value` (rounded to `decimals` places) into a Text node's content. */
+  | { kind: 'SetTextNumber'; value: { node: NodeRef; value: Expr; decimals: number } }
   | { kind: 'ChangeProperty'; value: { node: NodeRef; property: GraphProperty; delta: Expr } }
   | { kind: 'Wait'; value: { seconds: Expr } }
   | { kind: 'If'; value: { condition: Expr; thenBranch: Statement[]; elseBranch: Statement[] } }
@@ -750,6 +762,28 @@ export type Statement =
   | { kind: 'ForEachNode'; value: { list: ListExpr; body: Statement[] } }
   | { kind: 'CreateCloneOf'; value: { node: NodeRef } }
   | { kind: 'DeleteThisClone' }
+  /** Moves along the node's own rotation (0 = +x, counter-clockwise positive). */
+  | { kind: 'MoveSteps'; value: { node: NodeRef; steps: Expr } }
+  /** Adds degrees (counter-clockwise) to the node's rotation. */
+  | { kind: 'TurnDegrees'; value: { node: NodeRef; degrees: Expr } }
+  | { kind: 'PointTowardsMouse'; value: { node: NodeRef } }
+  | { kind: 'PointTowards'; value: { node: NodeRef; target: NodeRef } }
+  /** Multi-frame: slides to (x, y) over `seconds`, suspending the script like `Wait`. */
+  | { kind: 'GlideTo'; value: { node: NodeRef; x: Expr; y: Expr; seconds: Expr } }
+  /** Clamps the node's bounding box inside the artboard. */
+  | { kind: 'KeepInsideScene'; value: { node: NodeRef } }
+  /** Mirrors the node's heading off an artboard edge it's crossing, then clamps it inside. */
+  | { kind: 'BounceOnEdge'; value: { node: NodeRef } }
+  /** Sets a Text node's content to a literal string. */
+  | { kind: 'SetText'; value: { node: NodeRef; text: string } }
+  | { kind: 'SetVariable'; value: { name: string; value: Expr } }
+  | { kind: 'ChangeVariable'; value: { name: string; delta: Expr } }
+  /** Writes a state-machine number input (applied after this frame's programs run). */
+  | { kind: 'SetNumberInput'; value: { name: string; value: Expr } }
+  /** Writes a state-machine bool input (nonzero = true). */
+  | { kind: 'SetBoolInput'; value: { name: string; value: Expr } }
+  /** Fires a state-machine trigger input (seen by the next transition check). */
+  | { kind: 'FireTrigger'; value: { name: string } }
 
 /** Mirrors `crates/an1mbyt3-wasm/src/dto.rs`'s `EventKindDto` — what starts
  * a `BlockScript` running. `StateTriggered` fires once when the owning state

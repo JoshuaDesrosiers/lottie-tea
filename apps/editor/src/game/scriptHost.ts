@@ -97,6 +97,16 @@ export function normalizeKeyName(key: string): string {
  * event's `buttons` mask, so pressing / releasing a second button while
  * one is already held (which fires no pointerdown / pointerup) is caught
  * by the next pointer event of any kind. */
+/** The held-key names mouse buttons show up as ("mouse" = any button). */
+export const MOUSE_KEYS = ['mouse', 'mouseleft', 'mouseright', 'mousemiddle'] as const
+
+/** Mirrors the mouse keys in `keys` into the engine's own key state, so
+ * Blocks' "key [mouse] pressed?" sees mouse buttons too (scripts read
+ * `keys` directly; Blocks read the Rust `KeyboardState`). Idempotent. */
+export function forwardMouseKeys(keys: Set<string>, setDown: (key: string, pressed: boolean) => void): void {
+  for (const k of MOUSE_KEYS) setDown(k, keys.has(k))
+}
+
 export function syncMouseButtons(keys: Set<string>, event: PointerEvent): void {
   for (const [bit, name] of [[1, 'mouseleft'], [2, 'mouseright'], [4, 'mousemiddle']] as const) {
     if (event.buttons & bit) keys.add(name)

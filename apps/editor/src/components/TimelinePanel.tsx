@@ -1,3 +1,4 @@
+import { Popover, insideOrPopover } from './Select'
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { TIMELINE_HEIGHT } from '../layoutConstants'
 import { useLayoutMetrics } from '../layoutMetrics'
@@ -166,7 +167,7 @@ function PropertyPicker({ fields, anchor, onPick, onClose }: { fields: FieldInfo
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const away = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) onClose()
+      if (rootRef.current && !insideOrPopover(rootRef.current, e.target as Node)) onClose()
     }
     window.addEventListener('mousedown', away)
     return () => window.removeEventListener('mousedown', away)
@@ -209,7 +210,7 @@ function PropertyPicker({ fields, anchor, onPick, onClose }: { fields: FieldInfo
 }
 
 /**
- * A small custom-drawn dropdown (not a native `<select>`) so its open list
+ * A small custom-drawn dropdown (not a native `<Select>`) so its open list
  * always matches the app's own dark/translucent theme instead of whatever
  * the OS/browser renders a native select's popup as (which varies by
  * platform and can't be restyled) — AN1MBYT3_BUILD_PLAN.md §15's "one
@@ -233,7 +234,7 @@ function AnimationDropdown({
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+      if (rootRef.current && !insideOrPopover(rootRef.current, event.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
@@ -249,7 +250,7 @@ function AnimationDropdown({
         <ChevronDownIcon />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-40 rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
+        <Popover anchor={rootRef} width={160} className="rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
           {animations.map((a) => (
             <button
               key={encodeId(a.id)}
@@ -274,7 +275,7 @@ function AnimationDropdown({
           >
             <PlusIcon /> New Animation
           </button>
-        </div>
+        </Popover>
       )}
     </div>
   )
@@ -326,7 +327,7 @@ function AnimationDropdown({
  *   Rive/Lottie work). New keyframes and keyframe drags are clamped to this
  *   range by `WasmEditor` itself (`add_keyframe`/`preview_keyframe_time`/
  *   `commit_keyframe_time`), not just here.
- * - A custom (not native `<select>`) animation dropdown (`AnimationDropdown`
+ * - A custom (not native `<Select>`) animation dropdown (`AnimationDropdown`
  *   above) — an artboard can hold many named `Animation`s; this switches
  *   which one the Timeline authors/scrubs.
  *

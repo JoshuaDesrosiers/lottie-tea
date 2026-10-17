@@ -9,6 +9,7 @@
  *   small manager to add, rename, reorder and remove the project's layers.
  * - `LightLayersFields` — which layers a Light 2D lights.
  */
+import { Select } from './Select'
 import { useEffect, useState } from 'react'
 import type { DocumentSummary, NodeBehavior, NodeBehaviorEntry } from '../ipc/document'
 import type { WasmEditor } from '../ipc/wasmEditor'
@@ -214,14 +215,14 @@ export function SortingLayerField({
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2" title="Sorting layer: everything on a later layer draws above everything on an earlier one, whatever the hierarchy. Lights can target layers.">
         <span className="w-20 shrink-0 text-[11px] text-ink-dim">Layer</span>
-        <select value={current === null ? 'inherit' : String(current)} onChange={(e) => pick(e.target.value)} className="min-w-0 flex-1 rounded bg-overlay/5 px-1.5 py-0.5 text-[11px] text-ink">
+        <Select value={current === null ? 'inherit' : String(current)} onChange={(e) => pick(e.target.value)} className="min-w-0 flex-1 rounded bg-overlay/5 px-1.5 py-0.5 text-[11px] text-ink">
           <option value="inherit">Normal / parent&apos;s</option>
           {layers.map((l) => (
             <option key={l.id} value={l.id}>
               {l.name}
             </option>
           ))}
-        </select>
+        </Select>
         <button type="button" onClick={() => setManaging((m) => !m)} className="rounded bg-overlay/10 px-1.5 py-0.5 text-[10px] text-ink-dim hover:text-ink" title="Add, rename and reorder layers">
           Layers…
         </button>

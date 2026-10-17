@@ -1,3 +1,4 @@
+import { Popover, Select, insideOrPopover, placeMenu } from './Select'
 import { SpriteEditor } from './SpriteEditor'
 import { Slider } from './Slider'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -1672,7 +1673,7 @@ function MotionPathField({
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false)
+      if (rootRef.current && !insideOrPopover(rootRef.current, event.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
@@ -1697,7 +1698,7 @@ function MotionPathField({
           <ChevronDownIcon />
         </button>
         {open && (
-          <div className="absolute left-0 top-full z-20 mt-1 w-full rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
+          <Popover anchor={rootRef} className="rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
             {guideOptions.length === 0 && <div className="px-2 py-1 text-[10px] text-ink-dim">No other shapes to guide along</div>}
             {guideOptions.map((n) => (
               <button
@@ -1713,7 +1714,7 @@ function MotionPathField({
                 <span className="truncate">{n.name}</span>
               </button>
             ))}
-          </div>
+          </Popover>
         )}
       </div>
     </div>
@@ -1801,14 +1802,14 @@ const RADIANS_TO_DEGREES = 180 / Math.PI
 export const GRADIENT_KINDS: GradientKind[] = ['Linear', 'Radial', 'Conic', 'Bilinear']
 const BLEND_MODES: BlendMode[] = ['Normal', 'Multiply', 'Screen', 'Add']
 
-/** A non-native `<select>` replacement — a button showing the current
+/** A non-native `<Select>` replacement — a button showing the current
  * value, opening a popover list of options on click. Same outside-click/
  * Escape-to-close convention as `ColorPicker.tsx`'s `ColorSwatch`, for the
  * same reason: this app doesn't use the OS's own dropdown chrome for
- * anything (color picker included), so a native `<select>` here would be
+ * anything (color picker included), so a native `<Select>` here would be
  * the one visibly inconsistent control in an otherwise fully custom panel.
  * Sized to match every other compact Inspector control (`NumberField`'s
- * own `px-1.5 py-1`), not the roomier native-`<select>`-sized padding an
+ * own `px-1.5 py-1`), not the roomier native-`<Select>`-sized padding an
  * earlier version of this had.
  *
  * The option list renders through a `createPortal` into `document.body`,
@@ -1843,7 +1844,7 @@ export function Dropdown<T extends string>({
   renderOption?: (option: T) => ReactNode
 }) {
   const [open, setOpen] = useState(false)
-  const [menuRect, setMenuRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [menuRect, setMenuRect] = useState<ReturnType<typeof placeMenu> | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -1863,7 +1864,7 @@ export function Dropdown<T extends string>({
     // the panel it's in gets scrolled or resized while open.
     const reposition = () => {
       const rect = buttonRef.current?.getBoundingClientRect()
-      if (rect) setMenuRect({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+      if (rect) setMenuRect(placeMenu(rect, options.length * 24 + 8))
     }
     window.addEventListener('pointerdown', handlePointerDown)
     window.addEventListener('keydown', handleKeyDown)
@@ -1880,7 +1881,7 @@ export function Dropdown<T extends string>({
   const toggle = () => {
     if (!open) {
       const rect = buttonRef.current?.getBoundingClientRect()
-      if (rect) setMenuRect({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+      if (rect) setMenuRect(placeMenu(rect, options.length * 24 + 8))
     }
     setOpen((o) => !o)
   }
@@ -1903,8 +1904,8 @@ export function Dropdown<T extends string>({
         createPortal(
           <div
             ref={menuRef}
-            style={{ position: 'fixed', top: menuRect.top, left: menuRect.left, width: menuRect.width }}
-            className="z-50 overflow-hidden rounded-md border border-panel-border bg-canvas shadow-xl"
+            style={{ position: 'fixed', zIndex: 10000, top: menuRect.top, bottom: menuRect.bottom, left: menuRect.left, width: menuRect.width, maxHeight: menuRect.maxHeight }}
+            className="overflow-y-auto rounded-md border border-panel-border bg-canvas shadow-xl"
           >
             {options.map((option) => (
               <button
@@ -3053,7 +3054,7 @@ function InstanceFields({
     <div className="flex flex-col gap-1">
       <span className="text-[11px] text-ink-dim">Component</span>
       {component && component.variants.length > 0 && (
-        <select
+        <Select
           value={node.variant ?? ''}
           onChange={(e) => onSetVariant(e.target.value === '' ? null : e.target.value)}
           className="w-full rounded-md bg-overlay/5 px-2 py-1.5 text-xs text-ink outline-none"
@@ -3064,7 +3065,7 @@ function InstanceFields({
               {v.name}
             </option>
           ))}
-        </select>
+        </Select>
       )}
       <div className="flex items-center gap-2 rounded-md bg-overlay/5 px-2 py-1">
         <input

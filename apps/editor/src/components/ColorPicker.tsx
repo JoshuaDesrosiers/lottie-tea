@@ -1,3 +1,4 @@
+import { Popover, insideOrPopover } from './Select'
 import { useEffect, useRef, useState } from 'react'
 import { CopyIcon, EyedropperIcon, PasteIcon } from './icons'
 
@@ -288,7 +289,7 @@ export function ColorSwatch({ value, onChange, disabled }: { value: RgbaColor; o
   useEffect(() => {
     if (!open) return
     const handlePointerDown = (e: PointerEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+      if (containerRef.current && !insideOrPopover(containerRef.current, e.target as Node)) setOpen(false)
     }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
@@ -331,9 +332,9 @@ export function ColorSwatch({ value, onChange, disabled }: { value: RgbaColor; o
         }}
       />
       {open && !disabled && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-md border border-panel-border bg-canvas p-2 shadow-xl">
+        <Popover anchor={containerRef} width={224} className="rounded-md border border-panel-border bg-canvas p-2 shadow-xl">
           <ColorPickerBody value={value} onChange={onChange} />
-        </div>
+        </Popover>
       )}
     </div>
   )

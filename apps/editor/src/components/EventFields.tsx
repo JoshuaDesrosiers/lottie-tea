@@ -1,3 +1,4 @@
+import { Select } from './Select'
 import { useState } from 'react'
 import type { UiListenersConfig, ActionKind, ArtboardSummary, BindTarget, DocumentSummary, EventAction, NodeSummary, OpaqueId, PropertyBinding, PropertyBindingsConfig, PropertySummary, UiEventsConfig } from '../ipc/document'
 import { addProperty, deleteProperty, updateProperty, type WasmEditor } from '../ipc/wasmEditor'
@@ -125,7 +126,7 @@ function ActionArgs({ action, onChange, ctx }: { action: ActionKind; onChange: (
   const inputs = ctx.artboard?.stateMachines.flatMap((m) => m.inputs.filter((i) => i.kind !== 'Trigger').map((i) => i.name)) ?? []
   const props = ctx.properties.filter((p) => ctx.artboard && sameId(p.artboard, ctx.artboard.id))
   const pick = (value: string, options: string[], set: (v: string) => void, empty: string) => (
-    <select value={value} onChange={(e) => set(e.target.value)} className={sel}>
+    <Select value={value} onChange={(e) => set(e.target.value)} className={sel}>
       <option value="">{options.length ? empty : `(none — ${empty.toLowerCase()})`}</option>
       {options.map((o) => (
         <option key={o} value={o}>
@@ -133,7 +134,7 @@ function ActionArgs({ action, onChange, ctx }: { action: ActionKind; onChange: (
         </option>
       ))}
       {value && !options.includes(value) && <option value={value}>{value} (missing)</option>}
-    </select>
+    </Select>
   )
   const text = (value: string, set: (v: string) => void, placeholder: string) => <input value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder} className={inp} />
   if ('SetNodeField' in action) {
@@ -212,7 +213,7 @@ function ActionListFields({ title, empty, list, onChange, ctx }: { title: string
           <div key={i} className="flex flex-col gap-1 rounded-md border border-panel-border bg-overlay/[0.04] p-1.5">
             <div className="flex items-center gap-1">
               {targetsNode(step.action) && (
-                <select
+                <Select
                   value={step.target ? idKey(step.target) : ''}
                   onChange={(e) => {
                     const next = nodes.find((n) => idKey(n.id) === e.target.value)
@@ -229,9 +230,9 @@ function ActionListFields({ title, empty, list, onChange, ctx }: { title: string
                         {n.name || n.elementId || 'Unnamed'}
                       </option>
                     ))}
-                </select>
+                </Select>
               )}
-              <select value={current} onChange={(e) => setAt(i, { ...step, action: actionFor(e.target.value) })} className={sel} title={describeAction(step.action)}>
+              <Select value={current} onChange={(e) => setAt(i, { ...step, action: actionFor(e.target.value) })} className={sel} title={describeAction(step.action)}>
                 {groups.map((g) => (
                   <optgroup key={g} label={g}>
                     {choices
@@ -244,7 +245,7 @@ function ActionListFields({ title, empty, list, onChange, ctx }: { title: string
                   </optgroup>
                 ))}
                 {!choices.some((c) => c.value === current) && <option value={current}>{describeAction(step.action)} (not on this target)</option>}
-              </select>
+              </Select>
             </div>
             <div className="flex items-center gap-1">
               <ActionArgs action={step.action} onChange={(action) => setAt(i, { ...step, action })} ctx={ctx} />
@@ -325,16 +326,16 @@ export function PropertyBindingsFields({ config, onChange, ctx }: { config: Prop
       {config.bindings.map((b, i) => (
         <div key={i} className="flex flex-col gap-1 rounded-md border border-panel-border bg-overlay/[0.04] p-1.5">
           <div className="flex items-center gap-1">
-            <select value={b.property} onChange={(e) => setAt(i, { property: e.target.value })} className={sel} title="The property">
+            <Select value={b.property} onChange={(e) => setAt(i, { property: e.target.value })} className={sel} title="The property">
               <option value="">Property…</option>
               {props.map((p) => (
                 <option key={p.name} value={p.name}>
                   {p.name} ({p.kind})
                 </option>
               ))}
-            </select>
+            </Select>
             <span className="text-ink-dim">→</span>
-            <select value={targetKey(b.target)} onChange={(e) => setAt(i, { target: targetOf(e.target.value) })} className={sel} title="What it drives">
+            <Select value={targetKey(b.target)} onChange={(e) => setAt(i, { target: targetOf(e.target.value) })} className={sel} title="What it drives">
               <optgroup label="Node">
                 {BIND_TARGETS.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -351,7 +352,7 @@ export function PropertyBindingsFields({ config, onChange, ctx }: { config: Prop
                   ))}
                 </optgroup>
               )}
-            </select>
+            </Select>
             <button onClick={() => onChange({ bindings: config.bindings.filter((_, k) => k !== i) })} className="rounded px-1 text-red-400 hover:bg-overlay/10" title="Remove">
               ✕
             </button>
@@ -405,11 +406,11 @@ export function ScenePropertiesFields({ editor, artboard, properties, onDocument
       {mine.map((p) => (
         <div key={idKey(p.id)} className="flex items-center gap-1">
           <input defaultValue={p.name} onBlur={(e) => e.target.value !== p.name && save(p, { name: e.target.value })} className={inp} title="Name" />
-          <select value={p.kind} onChange={(e) => save(p, { kind: e.target.value as PropertySummary['kind'] })} className="rounded bg-overlay/10 px-1 py-1 text-[11px] text-ink outline-none">
+          <Select value={p.kind} onChange={(e) => save(p, { kind: e.target.value as PropertySummary['kind'] })} className="rounded bg-overlay/10 px-1 py-1 text-[11px] text-ink outline-none">
             {(['Number', 'Bool', 'Text', 'Color'] as const).map((k) => (
               <option key={k}>{k}</option>
             ))}
-          </select>
+          </Select>
           {p.kind === 'Bool' ? (
             <input type="checkbox" checked={p.default === 'true'} onChange={(e) => save(p, { default: e.target.checked ? 'true' : 'false' })} title="Starts as" />
           ) : (

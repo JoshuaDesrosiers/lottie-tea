@@ -1,3 +1,4 @@
+import { Select } from './Select'
 import { useRef, useState } from 'react'
 import type { ArtboardSummary, Blend1DDef, ConditionDef, LoopMode, PlaybackDirection, ProgramDef, StateMachineDefSummary, StateMachineSummary } from '../ipc/document'
 
@@ -604,7 +605,7 @@ function InlineStateFields({
         <p className="rounded-md bg-overlay/5 px-2 py-1 text-[10px] text-ink-dim">Driven by its program — double-click to edit.</p>
       ) : (
         <>
-          <select
+          <Select
             className={CONTROL}
             onPointerDown={(e) => e.stopPropagation()}
             value={`${state.animation.idx}:${state.animation.version}`}
@@ -621,12 +622,12 @@ function InlineStateFields({
                 {a.name}
               </option>
             ))}
-          </select>
-          <select className={CONTROL} onPointerDown={(e) => e.stopPropagation()} value={state.loopMode} onChange={(e) => onUpdate(state.animation, e.target.value as LoopMode)}>
+          </Select>
+          <Select className={CONTROL} onPointerDown={(e) => e.stopPropagation()} value={state.loopMode} onChange={(e) => onUpdate(state.animation, e.target.value as LoopMode)}>
             <option value="Once">Once</option>
             <option value="Loop">Loop</option>
             <option value="PingPong">PingPong</option>
-          </select>
+          </Select>
         </>
       )}
     </>
@@ -682,13 +683,13 @@ function TransitionRow({
           Delete
         </button>
       </div>
-      <select className={CONTROL} value={kind} onChange={(e) => rebuild({ kind: e.target.value as ConditionDef['kind'] })}>
+      <Select className={CONTROL} value={kind} onChange={(e) => rebuild({ kind: e.target.value as ConditionDef['kind'] })}>
         <option value="Trigger">Trigger</option>
         <option value="BoolIs">Boolean is</option>
         <option value="NumberGreaterThan">Number &gt;</option>
         <option value="NumberLessThan">Number &lt;</option>
         <option value="EnumIs">Enum is</option>
-      </select>
+      </Select>
       <input className={CONTROL} placeholder="input name" value={input} onChange={(e) => rebuild({ input: e.target.value })} />
       {kind === 'BoolIs' && (
         <label className="flex items-center justify-between gap-2 rounded-md bg-overlay/8 px-2 py-1 text-xs text-ink">
@@ -708,10 +709,10 @@ function TransitionRow({
       {kind === 'EnumIs' && (
         <input className={CONTROL} placeholder="enum value" value={value} onChange={(e) => rebuild({ value: e.target.value })} />
       )}
-      <select className={CONTROL} value={transition.direction} onChange={(e) => rebuild({ direction: e.target.value as PlaybackDirection })}>
+      <Select className={CONTROL} value={transition.direction} onChange={(e) => rebuild({ direction: e.target.value as PlaybackDirection })}>
         <option value="Forward">Forward</option>
         <option value="Reverse">Reverse</option>
-      </select>
+      </Select>
       <label className="flex items-center justify-between gap-2 rounded-md bg-overlay/8 px-2 py-1 text-xs text-ink">
         <span>Crossfade (s)</span>
         <input
@@ -775,7 +776,7 @@ function BlendFields({
           <input className={CONTROL} placeholder="input name" value={blend.input} onChange={(e) => onChange({ ...blend, input: e.target.value })} />
           <label className="flex flex-col gap-0.5 text-[11px] text-ink-dim">
             Low animation
-            <select
+            <Select
               className={CONTROL}
               value={`${blend.low.idx}:${blend.low.version}`}
               onChange={(e) => {
@@ -791,7 +792,7 @@ function BlendFields({
                   {a.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex items-center justify-between gap-2 rounded-md bg-overlay/8 px-2 py-1 text-xs text-ink">
             <span>Low value</span>
@@ -804,7 +805,7 @@ function BlendFields({
           </label>
           <label className="flex flex-col gap-0.5 text-[11px] text-ink-dim">
             High animation
-            <select
+            <Select
               className={CONTROL}
               value={`${blend.high.idx}:${blend.high.version}`}
               onChange={(e) => {
@@ -820,7 +821,7 @@ function BlendFields({
                   {a.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="flex items-center justify-between gap-2 rounded-md bg-overlay/8 px-2 py-1 text-xs text-ink">
             <span>High value</span>

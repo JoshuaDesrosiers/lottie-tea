@@ -1,3 +1,4 @@
+import { Popover, Select, insideOrPopover } from './Select'
 import { audio, type SoundHandle } from '../game/audio'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { WasmEditor } from '../ipc/wasmEditor'
@@ -554,7 +555,7 @@ export function AudioSourceFields({
     <div className="flex flex-col gap-1.5">
       <Row label="Clip" title="The sound this source plays (import sounds with + → Import → Audio).">
         <div className="flex min-w-0 flex-1 items-center gap-1">
-          <select
+          <Select
             value={config.clip ? keyOf(config.clip) : ''}
             onChange={(e) => update({ clip: sounds.find((s) => keyOf(s.id) === e.target.value)?.id ?? null })}
             className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none"
@@ -565,7 +566,7 @@ export function AudioSourceFields({
                 {s.name}
               </option>
             ))}
-          </select>
+          </Select>
           <button
             onClick={toggle}
             disabled={!config.clip}
@@ -1077,7 +1078,7 @@ function HtmlSourceField({
         <span className="text-[11px] text-ink-dim">{label}</span>
         {path !== null ? (
           <>
-            <select
+            <Select
               value={path}
               onChange={(e) => onChange(fileRef(e.target.value))}
               className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 font-mono text-[11px] text-ink outline-none"
@@ -1088,7 +1089,7 @@ function HtmlSourceField({
                 </option>
               ))}
               {!options.some((f) => f.path === path) && <option value={path}>{path} (missing)</option>}
-            </select>
+            </Select>
             <button onClick={() => onOpenFile(path)} className="rounded bg-accent/20 px-2 py-1 text-[11px] text-ink hover:bg-accent/30" title="Edit in the Code tab">
               Edit
             </button>
@@ -1267,13 +1268,13 @@ export function Tree2DFields({ config, onChange }: { config: Tree2DConfig; onCha
   return (
     <div className="flex flex-col gap-1.5">
       <Row label="Species" title="Each grows by its own rules — and picking one sets its natural colours.">
-        <select value={config.species} onChange={(e) => setSpecies(e.target.value as TreeSpecies)} className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
+        <Select value={config.species} onChange={(e) => setSpecies(e.target.value as TreeSpecies)} className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
           {TREE_SPECIES.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
-        </select>
+        </Select>
       </Row>
       <Row label="Seed" title="Same seed + settings = the same tree. Roll for a new one.">
         <NumberField label="#" value={config.seed} step={1} onCommit={(v) => update({ seed: Math.max(0, Math.round(v)) })} />
@@ -1324,13 +1325,13 @@ const CLOTH_PATTERNS: [ClothPatternKind, string][] = [['Solid', 'Solid'], ['Hori
 export function Cloth2DFields({ config, onChange, images, editor }: UiAssets & { config: Cloth2DConfig; onChange: (value: Cloth2DConfig) => void }) {
   const update = (patch: Partial<Cloth2DConfig>) => onChange({ ...config, ...patch })
   const select = <T extends string>(value: T, options: [T, string][], set: (v: T) => void) => (
-    <select value={value} onChange={(e) => set(e.target.value as T)} className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
+    <Select value={value} onChange={(e) => set(e.target.value as T)} className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
       {options.map(([v, label]) => (
         <option key={v} value={v}>
           {label}
         </option>
       ))}
-    </select>
+    </Select>
   )
   return (
     <div className="flex flex-col gap-1.5">
@@ -1552,7 +1553,7 @@ export function AddComponentMenu({
   useEffect(() => {
     if (!open) return
     const close = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+      if (rootRef.current && !insideOrPopover(rootRef.current, e.target as Node)) setOpen(false)
     }
     window.addEventListener('pointerdown', close)
     return () => window.removeEventListener('pointerdown', close)
@@ -1569,7 +1570,7 @@ export function AddComponentMenu({
         Add Component
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 z-30 mb-1 max-h-96 w-full overflow-y-auto rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
+        <Popover anchor={rootRef} className="rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
           {SECTIONS.map((section) => (
             <div key={section.title} className="mb-1">
               <span className="block px-2 py-0.5 text-[10px] uppercase tracking-wide text-ink-dim/70">{section.title}</span>
@@ -1625,7 +1626,7 @@ export function AddComponentMenu({
           >
             + New Script…
           </button>
-        </div>
+        </Popover>
       )}
     </div>
   )

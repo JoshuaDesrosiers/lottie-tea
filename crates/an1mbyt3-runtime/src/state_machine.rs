@@ -35,7 +35,7 @@ use std::collections::{HashMap, HashSet};
 use an1mbyt3_core::{Animation, AnimationId, Artboard, ConditionDef, KeyframeValue, LoopMode, NodeId, PlaybackDirection, ProgramDef, PropertyKind, StateDef, StateMachineDef};
 use glam::Vec2;
 
-use crate::block_interpreter::{self, BlockContext, BlockRuntime};
+use crate::block_interpreter::{self, BlockContext, BlockRuntime, InputWrite};
 use crate::graph::{self, GraphContext};
 use crate::keyboard::KeyboardState;
 use crate::playback::Playback;
@@ -495,11 +495,18 @@ impl Layer {
     /// own persistent, resumable `block_runtime`, not just a stateless
     /// evaluation. Called from `StateMachine::apply`, same place/gate
     /// `run_program` is.
-    fn run_blocks(&mut self, artboard: &mut Artboard, mouse_artboard: Vec2, inputs: &Inputs, keys: &KeyboardState) {
+    ///
+    /// Returns the input writes (`Statement::SetNumberInput`/
+    /// `SetBoolInput`/`FireTrigger`) this step queued, for the caller to
+    /// apply to the machine's shared `Inputs` once every layer has run —
+    /// `inputs` is only borrowed shared here, see
+    /// `block_interpreter`'s "Input writes are deferred" doc section.
+    fn run_blocks(&mut self, artboard: &mut Artboard, mouse_artboard: Vec2, inputs: &Inputs, keys: &KeyboardState) -> Vec<InputWrite> {
         let state = &self.states[self.current];
-        let Some(ProgramDef::Blocks(block_program)) = &state.program else { return };
+        let Some(ProgramDef::Blocks(block_program)) = &state.program else { return Vec::new() };
         let ctx = BlockContext { elapsed_seconds: self.blocks_elapsed, mouse_artboard, keys, inputs };
         block_interpreter::step(block_program, &mut self.block_runtime, &ctx, artboard);
+        self.block_runtime.take_input_writes()
     }
 }
 
@@ -750,9 +757,17 @@ impl StateMachine {
             // layer.layer` (unlike `run_program`) since it advances each
             // layer's own resumable interpreter state; see `run_blocks`'s
             // own doc comment.
-            self.base.run_blocks(artboard, self.mouse_artboard, &self.inputs, &self.keys);
+            let mut input_writes = self.base.run_blocks(artboard, self.mouse_artboard, &self.inputs, &self.keys);
             for layer in &mut self.layers {
-                layer.layer.run_blocks(artboard, self.mouse_artboard, &self.inputs, &self.keys);
+                input_writes.extend(layer.layer.run_blocks(artboard, self.mouse_artboard, &self.inputs, &self.keys));
+            }
+            // Applied only now, after every layer stepped against the same
+            // frame-start `Inputs` (no layer sees another layer's writes
+            // mid-frame — layer order stays irrelevant). The next `advance`
+            // checks transitions against them; a fired trigger lives until
+            // that `advance` clears it, same as one fired from outside.
+            for write in input_writes {
+                write.apply_to(&mut self.inputs);
             }
             // Once every layer has had a chance to see this frame's edges —
             // same "consumed once per frame, by the same caller that drives
@@ -1690,5 +1705,67 @@ mod tests {
             sm.apply(&mut artboard);
         }
         assert_eq!(artboard.node(node).unwrap().transform.translation.x, 2.0, "past 1 second of real time, the Wait must have resolved and the loop advanced again");
+    }
+
+    #[test]
+    fn a_blocks_program_can_set_inputs_and_fire_a_trigger_that_drives_its_own_transition() {
+        // `Statement::SetNumberInput`/`FireTrigger` are queued during
+        // `apply` (the Blocks step) and applied to `sm.inputs` right after,
+        // so the *next* `advance` sees the trigger and takes the transition.
+        let mut artboard = Artboard::new("Main", 400.0, 400.0);
+        let node = add_square(&mut artboard);
+        let a_animation = artboard.add_animation(flat_animation("A", node, 0.0));
+        let b_animation = artboard.add_animation(flat_animation("B", node, 0.0));
+        let state = |name: &str, animation, transitions, program| StateDef {
+            name: name.into(),
+            animation,
+            loop_mode: LoopMode::Once,
+            transitions,
+            position: glam::Vec2::ZERO,
+            blend: None,
+            program,
+        };
+        let def = StateMachineDef {
+            name: "Main".into(),
+            inputs: Vec::new(),
+            states: vec![
+                state(
+                    "A",
+                    a_animation,
+                    vec![TransitionDef {
+                        to: "B".into(),
+                        condition: ConditionDef::Trigger { input: "go".into() },
+                        direction: PlaybackDirection::Forward,
+                        duration_seconds: 0.0,
+                        interruptible: true,
+                    }],
+                    Some(ProgramDef::Blocks(BlockProgramDef {
+                        ticks_per_second: None,
+                        scripts: vec![BlockScript {
+                            position: None,
+                            event: EventKind::StateTriggered,
+                            statements: vec![
+                                Statement::SetNumberInput { name: "speed".into(), value: Expr::Number(4.0) },
+                                Statement::FireTrigger { name: "go".into() },
+                            ],
+                        }],
+                    })),
+                ),
+                state("B", b_animation, vec![], None),
+            ],
+            initial_state: "A".into(),
+            layers: Vec::new(),
+            deleted: false,
+        };
+        let mut sm = StateMachine::from_definition(&def, &artboard);
+        sm.set_programs_enabled(true);
+
+        sm.advance(0.016, &artboard);
+        sm.apply(&mut artboard);
+        assert_eq!(sm.inputs.number("speed"), 4.0, "the queued number write is applied at the end of apply");
+        assert_eq!(sm.current_state_name(), "A", "the trigger can only be seen by the next advance");
+
+        sm.advance(0.016, &artboard);
+        assert_eq!(sm.current_state_name(), "B", "the Blocks-fired trigger drove the transition");
     }
 }

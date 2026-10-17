@@ -1,10 +1,11 @@
+import { Popover, Select, insideOrPopover } from './Select'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtboardSummary, InputKind, OpaqueId, StateMachineDefSummary } from '../ipc/document'
 import { ChevronDownIcon, EditIcon, PlusIcon, TrashIcon } from './icons'
 
 /** Shared control styling for every text/select input in this panel — a
  * dark-on-dark surface plus `min-w-0` (flex items default to a
- * content-based min-width, which for a `<select>` is roughly its longest
+ * content-based min-width, which for a `<Select>` is roughly its longest
  * `<option>`'s rendered width; without `min-w-0` a wide option like
  * "NumberGreaterThan" blows out any row it shares with another flex sibling,
  * which is what caused the horizontal-scroll/cut-off-text overflow this
@@ -21,7 +22,7 @@ function encodeId(id: OpaqueId): string {
 }
 
 /**
- * A small custom-drawn dropdown (not a native `<select>`) — mirrors
+ * A small custom-drawn dropdown (not a native `<Select>`) — mirrors
  * `TimelinePanel.tsx`'s `AnimationDropdown`, same reasoning: a native
  * select's popup renders as whatever the OS/browser draws it as, which
  * can't be restyled to match this app's dark theme (AN1MBYT3_BUILD_PLAN.md
@@ -50,7 +51,7 @@ function StateMachineDropdown({
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      if (rootRef.current && !insideOrPopover(rootRef.current, event.target as Node)) {
         setOpen(false)
         setCreating(false)
       }
@@ -80,7 +81,7 @@ function StateMachineDropdown({
         <ChevronDownIcon />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-full rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
+        <Popover anchor={rootRef} className="rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
           {creating ? (
             <div className="flex gap-1 p-0.5">
               <input
@@ -126,7 +127,7 @@ function StateMachineDropdown({
               </button>
             </>
           )}
-        </div>
+        </Popover>
       )}
     </div>
   )
@@ -291,12 +292,12 @@ export function StateMachinePanel({
             ))}
           </div>
           <input className={CONTROL} placeholder="New input name" value={newInputName} onChange={(e) => setNewInputName(e.target.value)} />
-          <select className={CONTROL} value={newInputKind} onChange={(e) => setNewInputKind(e.target.value as InputKind)}>
+          <Select className={CONTROL} value={newInputKind} onChange={(e) => setNewInputKind(e.target.value as InputKind)}>
             <option value="Bool">Bool</option>
             <option value="Number">Number</option>
             <option value="Enum">Enum</option>
             <option value="Trigger">Trigger</option>
-          </select>
+          </Select>
           <button onClick={handleAddInput} className={BUTTON}>
             Declare Input
           </button>

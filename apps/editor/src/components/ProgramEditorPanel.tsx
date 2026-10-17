@@ -1,3 +1,4 @@
+import { Select } from './Select'
 import { useState } from 'react'
 import type { NodeSummary, ProgramDef } from '../ipc/document'
 import { generateCode, parseCode } from '../programCodegen'
@@ -162,7 +163,7 @@ function ProgramSource({ program, nodes, onChange }: { program: ProgramDef; node
     <div className="flex h-full flex-col gap-1">
       <div className="flex items-center gap-1.5 text-[11px]">
         <span className="text-ink-dim">Runs</span>
-        <select
+        <Select
           value={path ?? ''}
           onChange={(e) => {
             const next = e.target.value
@@ -179,7 +180,7 @@ function ProgramSource({ program, nodes, onChange }: { program: ProgramDef; node
               {p}
             </option>
           ))}
-        </select>
+        </Select>
         {path && (
           <button onClick={() => requestOpenFile(path)} className="rounded bg-accent/20 px-2 py-0.5 text-ink hover:bg-accent/30">
             Edit in Code tab

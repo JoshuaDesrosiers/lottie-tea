@@ -13,7 +13,7 @@ function idsEqual(a: OpaqueId | null, b: OpaqueId | null): boolean {
  * A Unity `Sprite`/`Texture2D` reference field — a square swatch that shows
  * the currently assigned asset's own thumbnail (or a plain placeholder when
  * `value` is `null`), and opens a non-native grid popover of every image
- * asset in the document when clicked, rather than a native `<select>`
+ * asset in the document when clicked, rather than a native `<Select>`
  * (matching this app's own established "custom `Dropdown`, never a native
  * one" convention — see `InspectorPanel.tsx`'s own `Dropdown`). Picking a
  * tile assigns it and closes the popover; a "None" tile clears it.

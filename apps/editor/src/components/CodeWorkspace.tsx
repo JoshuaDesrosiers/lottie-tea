@@ -238,6 +238,20 @@ export function CodeWorkspace({
     }
   }
 
+  /** Removes a state's program (the state goes back to just playing its
+   * animation). Undo brings it back. */
+  const removeScript = (entry: StateEntry) => {
+    if (!editor) return
+    const where = `${entry.artboard.name} › ${entry.stateMachine.name}${entry.layer ? ` › ${entry.layer}` : ''} › ${entry.state}`
+    if (!window.confirm(`Delete the code in ${where}? The state keeps playing its animation. (Undo brings it back.)`)) return
+    const key = stateTabKey(entry.artboard.id, entry.stateMachine.id, entry.layer, entry.state)
+    const draft = scriptDrafts.current.get(key)
+    if (draft) window.clearTimeout(draft.timer)
+    scriptDrafts.current.delete(key)
+    setTabs((ts) => ts.filter((t) => t.key !== key))
+    onDocumentChange(setStateProgram(editor, entry.artboard.id, entry.stateMachine.id, entry.state, null, entry.layer))
+  }
+
   const remove = (f: TextFileSummary) => {
     if (!editor) return
     if (!window.confirm(`Delete ${f.path}? (Undo brings it back.)`)) return
@@ -386,14 +400,19 @@ export function CodeWorkspace({
             const key = stateTabKey(s.artboard.id, s.stateMachine.id, s.layer, s.state)
             const kind = s.program?.kind === 'Code' ? (fileRefPath(s.program.value) ? 'file' : 'js') : s.program?.kind === 'Graph' ? 'nodes' : 'blocks'
             return (
-              <button key={key} onClick={() => openState(s)} className={`flex w-full items-center gap-1 rounded px-1 py-0.5 text-left ${activeTab?.key === key ? 'bg-accent/20 text-ink' : 'text-ink-dim hover:bg-overlay/10 hover:text-ink'}`} title={`${s.artboard.name} › ${s.stateMachine.name}${s.layer ? ` › ${s.layer}` : ''} › ${s.state}`}>
-                <FileIcon ext={kind === 'js' ? 'js' : kind} />
-                <span className="truncate">
-                  <span className="opacity-60">{s.artboard.name} › </span>
-                  {s.layer ? `${s.layer} › ` : ''}
-                  {s.state}
-                </span>
-              </button>
+              <div key={key} className={`group flex w-full items-center gap-1 rounded px-1 py-0.5 ${activeTab?.key === key ? 'bg-accent/20 text-ink' : 'text-ink-dim hover:bg-overlay/10 hover:text-ink'}`}>
+                <button onClick={() => openState(s)} className="flex min-w-0 flex-1 items-center gap-1 text-left" title={`${s.artboard.name} › ${s.stateMachine.name}${s.layer ? ` › ${s.layer}` : ''} › ${s.state}`}>
+                  <FileIcon ext={kind === 'js' ? 'js' : kind} />
+                  <span className="truncate">
+                    <span className="opacity-60">{s.artboard.name} › </span>
+                    {s.layer ? `${s.layer} › ` : ''}
+                    {s.state}
+                  </span>
+                </button>
+                <button onClick={() => removeScript(s)} title="Delete this state's code" className="hidden shrink-0 rounded px-1 text-[10px] text-red-400 group-hover:block hover:bg-overlay/15">
+                  ✕
+                </button>
+              </div>
             )
           })}
         </div>

@@ -1,3 +1,4 @@
+import { Popover, insideOrPopover } from './Select'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtboardSummary, OpaqueId } from '../ipc/document'
 import { CheckIcon, ChevronDownIcon, EditIcon, PlusIcon, TrashIcon } from './icons'
@@ -11,7 +12,7 @@ function idsEqual(a: OpaqueId, b: OpaqueId): boolean {
  * "Scene" (a separate level/screen/area with its own node tree, animations
  * and state machines), and this is where an author creates, renames,
  * deletes and switches between them. A custom popover rather than a native
- * `<select>`/`window.prompt` for the same "this app never uses OS dropdown
+ * `<Select>`/`window.prompt` for the same "this app never uses OS dropdown
  * chrome" reason `InspectorPanel`'s `Dropdown` gives; naming a new scene or
  * renaming one happens in an inline text field inside the popover itself.
  *
@@ -43,7 +44,7 @@ export function SceneSwitcher({
   useEffect(() => {
     if (!open) return
     const handlePointerDown = (event: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+      if (rootRef.current && !insideOrPopover(rootRef.current, event.target as Node)) {
         setOpen(false)
         setEditing(null)
       }
@@ -108,7 +109,7 @@ export function SceneSwitcher({
         <ChevronDownIcon />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-40 mt-1 w-60 rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
+        <Popover anchor={rootRef} width={240} className="rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
           <div className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-dim">Scenes</div>
           {scenes.map((scene) => {
             const isActive = activeScene !== undefined && idsEqual(scene.id, activeScene.id)
@@ -170,7 +171,7 @@ export function SceneSwitcher({
               New Scene
             </button>
           )}
-        </div>
+        </Popover>
       )}
     </div>
   )

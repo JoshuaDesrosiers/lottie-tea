@@ -1657,6 +1657,12 @@ pub enum ExprDto {
     RandomFloat { min: Box<ExprDto>, max: Box<ExprDto> },
     GetNumberInput { name: String },
     GetBoolInput { name: String },
+    DistanceToMouse { node: NodeRefDto },
+    DistanceTo { a: NodeRefDto, b: NodeRefDto },
+    Timer,
+    Min(Box<ExprDto>, Box<ExprDto>),
+    Max(Box<ExprDto>, Box<ExprDto>),
+    Variable { name: String },
 }
 
 impl From<&Expr> for ExprDto {
@@ -1686,6 +1692,12 @@ impl From<&Expr> for ExprDto {
             Expr::RandomFloat { min, max } => ExprDto::RandomFloat { min: Box::new(min.as_ref().into()), max: Box::new(max.as_ref().into()) },
             Expr::GetNumberInput { name } => ExprDto::GetNumberInput { name: name.clone() },
             Expr::GetBoolInput { name } => ExprDto::GetBoolInput { name: name.clone() },
+            Expr::DistanceToMouse { node } => ExprDto::DistanceToMouse { node: node.into() },
+            Expr::DistanceTo { a, b } => ExprDto::DistanceTo { a: a.into(), b: b.into() },
+            Expr::Timer => ExprDto::Timer,
+            Expr::Min(a, b) => ExprDto::Min(Box::new(a.as_ref().into()), Box::new(b.as_ref().into())),
+            Expr::Max(a, b) => ExprDto::Max(Box::new(a.as_ref().into()), Box::new(b.as_ref().into())),
+            Expr::Variable { name } => ExprDto::Variable { name: name.clone() },
         }
     }
 }
@@ -1717,6 +1729,12 @@ impl From<ExprDto> for Expr {
             ExprDto::RandomFloat { min, max } => Expr::RandomFloat { min: Box::new((*min).into()), max: Box::new((*max).into()) },
             ExprDto::GetNumberInput { name } => Expr::GetNumberInput { name },
             ExprDto::GetBoolInput { name } => Expr::GetBoolInput { name },
+            ExprDto::DistanceToMouse { node } => Expr::DistanceToMouse { node: node.into() },
+            ExprDto::DistanceTo { a, b } => Expr::DistanceTo { a: a.into(), b: b.into() },
+            ExprDto::Timer => Expr::Timer,
+            ExprDto::Min(a, b) => Expr::Min(Box::new((*a).into()), Box::new((*b).into())),
+            ExprDto::Max(a, b) => Expr::Max(Box::new((*a).into()), Box::new((*b).into())),
+            ExprDto::Variable { name } => Expr::Variable { name },
         }
     }
 }
@@ -1749,6 +1767,22 @@ pub enum StatementDto {
     ForEachNode { list: ListExprDto, body: Vec<StatementDto> },
     CreateCloneOf { node: NodeRefDto },
     DeleteThisClone,
+    // Every field name below is a single lowercase word on purpose: this
+    // enum has no `rename_all`, so a multi-word field would need its own
+    // `#[serde(rename)]` to match `document.ts`'s camelCase (see `If`).
+    MoveSteps { node: NodeRefDto, steps: ExprDto },
+    TurnDegrees { node: NodeRefDto, degrees: ExprDto },
+    PointTowardsMouse { node: NodeRefDto },
+    PointTowards { node: NodeRefDto, target: NodeRefDto },
+    GlideTo { node: NodeRefDto, x: ExprDto, y: ExprDto, seconds: ExprDto },
+    KeepInsideScene { node: NodeRefDto },
+    BounceOnEdge { node: NodeRefDto },
+    SetText { node: NodeRefDto, text: String },
+    SetVariable { name: String, value: ExprDto },
+    ChangeVariable { name: String, delta: ExprDto },
+    SetNumberInput { name: String, value: ExprDto },
+    SetBoolInput { name: String, value: ExprDto },
+    FireTrigger { name: String },
 }
 
 impl From<&Statement> for StatementDto {
@@ -1769,6 +1803,19 @@ impl From<&Statement> for StatementDto {
             Statement::ForEachNode { list, body } => StatementDto::ForEachNode { list: list.into(), body: body.iter().map(Into::into).collect() },
             Statement::CreateCloneOf { node } => StatementDto::CreateCloneOf { node: node.into() },
             Statement::DeleteThisClone => StatementDto::DeleteThisClone,
+            Statement::MoveSteps { node, steps } => StatementDto::MoveSteps { node: node.into(), steps: steps.into() },
+            Statement::TurnDegrees { node, degrees } => StatementDto::TurnDegrees { node: node.into(), degrees: degrees.into() },
+            Statement::PointTowardsMouse { node } => StatementDto::PointTowardsMouse { node: node.into() },
+            Statement::PointTowards { node, target } => StatementDto::PointTowards { node: node.into(), target: target.into() },
+            Statement::GlideTo { node, x, y, seconds } => StatementDto::GlideTo { node: node.into(), x: x.into(), y: y.into(), seconds: seconds.into() },
+            Statement::KeepInsideScene { node } => StatementDto::KeepInsideScene { node: node.into() },
+            Statement::BounceOnEdge { node } => StatementDto::BounceOnEdge { node: node.into() },
+            Statement::SetText { node, text } => StatementDto::SetText { node: node.into(), text: text.clone() },
+            Statement::SetVariable { name, value } => StatementDto::SetVariable { name: name.clone(), value: value.into() },
+            Statement::ChangeVariable { name, delta } => StatementDto::ChangeVariable { name: name.clone(), delta: delta.into() },
+            Statement::SetNumberInput { name, value } => StatementDto::SetNumberInput { name: name.clone(), value: value.into() },
+            Statement::SetBoolInput { name, value } => StatementDto::SetBoolInput { name: name.clone(), value: value.into() },
+            Statement::FireTrigger { name } => StatementDto::FireTrigger { name: name.clone() },
         }
     }
 }
@@ -1791,6 +1838,19 @@ impl From<StatementDto> for Statement {
             StatementDto::ForEachNode { list, body } => Statement::ForEachNode { list: list.into(), body: body.into_iter().map(Into::into).collect() },
             StatementDto::CreateCloneOf { node } => Statement::CreateCloneOf { node: node.into() },
             StatementDto::DeleteThisClone => Statement::DeleteThisClone,
+            StatementDto::MoveSteps { node, steps } => Statement::MoveSteps { node: node.into(), steps: steps.into() },
+            StatementDto::TurnDegrees { node, degrees } => Statement::TurnDegrees { node: node.into(), degrees: degrees.into() },
+            StatementDto::PointTowardsMouse { node } => Statement::PointTowardsMouse { node: node.into() },
+            StatementDto::PointTowards { node, target } => Statement::PointTowards { node: node.into(), target: target.into() },
+            StatementDto::GlideTo { node, x, y, seconds } => Statement::GlideTo { node: node.into(), x: x.into(), y: y.into(), seconds: seconds.into() },
+            StatementDto::KeepInsideScene { node } => Statement::KeepInsideScene { node: node.into() },
+            StatementDto::BounceOnEdge { node } => Statement::BounceOnEdge { node: node.into() },
+            StatementDto::SetText { node, text } => Statement::SetText { node: node.into(), text },
+            StatementDto::SetVariable { name, value } => Statement::SetVariable { name, value: value.into() },
+            StatementDto::ChangeVariable { name, delta } => Statement::ChangeVariable { name, delta: delta.into() },
+            StatementDto::SetNumberInput { name, value } => Statement::SetNumberInput { name, value: value.into() },
+            StatementDto::SetBoolInput { name, value } => Statement::SetBoolInput { name, value: value.into() },
+            StatementDto::FireTrigger { name } => Statement::FireTrigger { name },
         }
     }
 }

@@ -12,6 +12,7 @@
  * Every edit replaces the component (one undo step); the simulation reads
  * the document each frame, so changes show live in Design.
  */
+import { Select } from './Select'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { LifeCurve, ParticleBehavior3D, ParticleBehaviorKind3D, ParticleBehaviors2DConfig, ParticleFluid2DConfig, ParticleSystem3DConfig } from '../ipc/document'
 import { ColorSwatch } from './ColorPicker'
@@ -221,13 +222,13 @@ function BehaviorCard({ value, onChange, onRemove, twoD = false }: { value: Part
     <div className={`flex flex-col gap-1.5 rounded-md bg-overlay/5 p-1.5 ${value.enabled ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-1.5">
         <input type="checkbox" checked={value.enabled} onChange={(e) => update({ enabled: e.target.checked })} title="On / off" />
-        <select value={value.kind} onChange={(e) => update({ kind: e.target.value as ParticleBehaviorKind3D })} className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
+        <Select value={value.kind} onChange={(e) => update({ kind: e.target.value as ParticleBehaviorKind3D })} className="min-w-0 flex-1 rounded bg-overlay/10 px-1.5 py-1 text-[11px] text-ink outline-none">
           {BEHAVIOR_KINDS.map((k) => (
             <option key={k.kind} value={k.kind}>
               {k.label}
             </option>
           ))}
-        </select>
+        </Select>
         <button type="button" onClick={onRemove} title="Remove behaviour" className="rounded p-1 text-ink-dim hover:bg-overlay/10 hover:text-ink">
           <TrashIcon />
         </button>
