@@ -28,7 +28,8 @@ export function placeMenu(anchor: DOMRect, want: number, minWidth = 0): { top?: 
   const above = anchor.top - margin
   const width = Math.min(Math.max(anchor.width, minWidth), vw - margin * 2)
   const left = Math.max(margin, Math.min(anchor.left, vw - width - margin))
-  if (below >= Math.min(want, 220) || below >= above) return { top: anchor.bottom + 4, left, width, maxHeight: Math.max(80, below - 4) }
+  // Below when it all fits there; otherwise whichever side has more room.
+  if (below >= want || below >= above) return { top: anchor.bottom + 4, left, width, maxHeight: Math.max(80, below - 4) }
   return { bottom: vh - anchor.top + 4, left, width, maxHeight: Math.max(80, above - 4) }
 }
 

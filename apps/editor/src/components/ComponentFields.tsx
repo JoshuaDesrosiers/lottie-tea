@@ -1532,6 +1532,163 @@ const SECTIONS: { title: string; kinds: ComponentKind[] }[] = [
  * (Rendering / Physics 2D / Scripts). Components a node already has one of
  * (and can only have one of) are shown disabled.
  */
+/** Stroke icons (24-unit box) for the Add Component picker. */
+const ICON_PATHS: Record<string, string> = {
+  camera: 'M4 7h3l2-2h6l2 2h3v12H4zM12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z',
+  bulb: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z',
+  shadow: 'M12 4a8 8 0 1 0 0 16zM12 4a8 8 0 0 1 0 16',
+  trail: 'M3 18c4 0 5-12 9-12s5 6 9 6',
+  particles: 'M6 6h.01M12 4h.01M18 7h.01M8 12h.01M15 11h.01M5 18h.01M12 19h.01M19 16h.01',
+  drop: 'M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z',
+  antidrop: 'M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11zM4 20L20 4',
+  sparkle: 'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z',
+  gloss: 'M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11zM9 13a3 3 0 0 1 2-3',
+  flow: 'M4 18c3-8 6 0 9-6s4-6 7-6M6 18h.01M13 12h.01M20 6h.01',
+  smooth: 'M4 20L20 4M4 14l10-10M10 20L20 10',
+  effects: 'M4 4h16v16H4zM4 15l4-4 4 4 3-3 5 5M15 8h.01',
+  dropshadow: 'M8 4h11v11H8zM5 8v12h12',
+  outline: 'M7 7h10v10H7zM4 4h16v16H4z',
+  repeat: 'M4 9h8v8H4zM8 6h8v8M12 3h8v8',
+  mirror: 'M12 3v18M8 7l-4 5 4 5M16 7l4 5-4 5',
+  dashed: 'M3 12h3M9 12h4M16 12h5',
+  pixel: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  wiggle: 'M3 12c2-4 4-4 6 0s4 4 6 0 4-4 6 0',
+  layers: 'M12 4l9 5-9 5-9-5zM3 14l9 5 9-5',
+  shake: 'M7 7h10v10H7zM3 9v6M21 9v6',
+  flicker: 'M13 2L5 14h6l-1 8 8-12h-6z',
+  tree: 'M12 22v-5M12 2l6 8H6zM12 7l7 10H5z',
+  body: 'M12 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM12 13v8M9 18l3 3 3-3',
+  box: 'M4 4h4M12 4h4M20 4v4M20 12v4M20 20h-4M12 20H8M4 20v-4M4 12V8',
+  circle: 'M12 3a9 9 0 0 1 9 9M21 15a9 9 0 0 1-6 6M9 21a9 9 0 0 1-6-6M3 9a9 9 0 0 1 6-6',
+  capsule: 'M8 4h8a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z',
+  polygon: 'M12 3l8 6-3 11H7L4 9z',
+  hinge: 'M7 12a3 3 0 1 0 0-.01M17 12a3 3 0 1 0 0-.01M10 12h4',
+  waves: 'M3 9c3-3 6 3 9 0s6 3 9 0M3 15c3-3 6 3 9 0s6 3 9 0',
+  cloth: 'M4 5l4-2 4 2 4-2 4 2v14l-4-2-4 2-4-2-4 2z',
+  cube: 'M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5',
+  person: 'M12 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM12 9v6M7 11l5-2 5 2M9 21l3-6 3 6',
+  palette: 'M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1-1.7-.6-1 0-2.3 1.2-2.3H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10zM7.5 11h.01M10 7h.01M15 7h.01',
+  bone: 'M7 7l10 10M5 5a2 2 0 1 1 2 2M17 19a2 2 0 1 0 2-2M5 9a2 2 0 1 0 2-2M19 15a2 2 0 1 1-2 2',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  foot: 'M9 3c2 0 3 3 3 7s-1 6-3 6-3-2-3-6 1-7 3-7zM8 19h4',
+  speaker: 'M4 9h4l5-4v14l-5-4H4zM17 9a4 4 0 0 1 0 6M19.5 6.5a8 8 0 0 1 0 11',
+  film: 'M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4',
+  run: 'M13 4a2 2 0 1 0 0-.01M9 21l2-6 3 3v3M7 12l3-3 4 2 3-1M11 15l-1-6',
+  anchor: 'M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM12 8v13M5 13a7 7 0 0 0 14 0M8 11h8',
+  stack: 'M4 4h16v4H4zM4 10h16v4H4zM4 16h16v4H4z',
+  button: 'M3 7h18v10H3zM9 12h6',
+  toggle: 'M7 7h10a5 5 0 0 1 0 10H7A5 5 0 0 1 7 7zM16 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  slider: 'M3 12h18M9 9v6M15 9v6',
+  scroll: 'M8 3h8v18H8zM12 7v4',
+  html: 'M8 7l-5 5 5 5M16 7l5 5-5 5',
+  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  item: 'M4 4h16v16H4zM8 8h8v8H8z',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+  click: 'M9 3v3M3 9h3M5 5l2 2M12 12l8 3-3 2-2 3z',
+  hand: 'M8 13V5a1.5 1.5 0 0 1 3 0v6M11 10V4a1.5 1.5 0 0 1 3 0v6M14 10V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-12 4l-2-3a1.5 1.5 0 0 1 2.4-1.8L8 15',
+  bind: 'M4 7h6v10H4zM14 7h6v10h-6zM10 12h4',
+  pin: 'M4 4h16v16H4zM4 15l4-4 4 4 3-3 5 5M17 3v5',
+  code: 'M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16',
+  plus: 'M12 5v14M5 12h14',
+  generic: 'M12 3l8 4.5v9L12 21l-8-4.5v-9z',
+}
+
+/** Which icon each component shows. */
+const COMPONENT_ICON: Partial<Record<ComponentKind, keyof typeof ICON_PATHS>> = {
+  Camera: 'camera',
+  Light2D: 'bulb',
+  ShadowCaster2D: 'shadow',
+  TrailRenderer: 'trail',
+  ParticleSystem: 'particles',
+  ParticleFluid2D: 'drop',
+  ParticleBehaviors2D: 'particles',
+  Goo2D: 'drop',
+  AntiGoo2D: 'antidrop',
+  GooMaterial2D: 'sparkle',
+  GooGloss2D: 'gloss',
+  ParticleLook2D: 'sparkle',
+  ParticlePath2D: 'flow',
+  Antialias2D: 'smooth',
+  ImageEffects: 'effects',
+  DropShadow2D: 'dropshadow',
+  Outline2D: 'outline',
+  Repeater2D: 'repeat',
+  Mirror2D: 'mirror',
+  StrokeStyle2D: 'dashed',
+  PixelSnap2D: 'pixel',
+  Wiggle2D: 'wiggle',
+  Parallax2D: 'layers',
+  CameraShake2D: 'shake',
+  LightFlicker2D: 'flicker',
+  LightLayers2D: 'layers',
+  Tree2D: 'tree',
+  Rigidbody2D: 'body',
+  BoxCollider2D: 'box',
+  CircleCollider2D: 'circle',
+  CapsuleCollider2D: 'capsule',
+  PolygonCollider2D: 'polygon',
+  HingeJoint2D: 'hinge',
+  Liquid2D: 'waves',
+  Cloth2D: 'cloth',
+  Rigidbody3D: 'cube',
+  Collider3D: 'cube',
+  Ragdoll3D: 'person',
+  ParticleSystem3D: 'particles',
+  MaterialSlots: 'palette',
+  IkConstraint2D: 'bone',
+  SpriteSkin2D: 'bone',
+  FootIK: 'foot',
+  BoneAttachment: 'link',
+  AudioSource: 'speaker',
+  Flipbook: 'film',
+  VrmPoses: 'person',
+  HumanoidAnimator: 'run',
+  UiAnchor: 'anchor',
+  UiStack: 'stack',
+  UiButton: 'button',
+  UiToggle: 'toggle',
+  UiSlider: 'slider',
+  UiScrollbar: 'scroll',
+  UiScrollView: 'scroll',
+  UiHtml: 'html',
+  UiLayout: 'grid',
+  UiLayoutItem: 'item',
+  UiShowWhen: 'eye',
+  UiEvents: 'click',
+  UiListeners: 'hand',
+  PropertyBindings: 'bind',
+  Reference2D: 'pin',
+}
+
+function PickerIcon({ name, size = 18 }: { name: keyof typeof ICON_PATHS; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={name === 'particles' ? 2.6 : 1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+      <path d={ICON_PATHS[name] ?? ICON_PATHS.generic} />
+    </svg>
+  )
+}
+
+/** One choice in the picker. */
+interface PickerItem {
+  key: string
+  label: string
+  /** The label's main part (before any "(…)" note) — the grid tile text. */
+  short: string
+  section: string
+  icon: keyof typeof ICON_PATHS
+  disabled: boolean
+  run: () => void
+}
+
+const VIEW_KEY = 'an1.addComponent.view'
+
+/**
+ * Unity's "Add Component" button, as a searchable picker: a search box
+ * (filters every component by name and section; Enter adds the first
+ * match), and either a **grid** of icon tiles grouped by section or a
+ * compact **list** — the choice is remembered. Components a node already
+ * has one of (single-instance kinds) are shown disabled.
+ */
 export function AddComponentMenu({
   present,
   hasMaterial,
@@ -1552,6 +1709,14 @@ export function AddComponentMenu({
   onNewScript: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [view, setView] = useState<'grid' | 'list'>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid'
+    } catch {
+      return 'grid'
+    }
+  })
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
@@ -1561,7 +1726,68 @@ export function AddComponentMenu({
     window.addEventListener('pointerdown', close)
     return () => window.removeEventListener('pointerdown', close)
   }, [open])
-  const item = 'block w-full rounded-md px-2 py-1 text-left text-xs text-ink hover:bg-accent/15 hover:text-accent disabled:pointer-events-none disabled:opacity-35'
+  const setViewMode = (v: 'grid' | 'list') => {
+    setView(v)
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      // Not remembered; still applies.
+    }
+  }
+  const done = (fn: () => void) => () => {
+    fn()
+    setOpen(false)
+    setQuery('')
+  }
+
+  const items: PickerItem[] = [
+    ...SECTIONS.flatMap((section) =>
+      section.kinds.map((kind) => {
+        const label = COMPONENT_LABEL[kind]
+        return { key: kind, label, short: label.replace(/\s*\(.*\)\s*$/, ''), section: section.title, icon: COMPONENT_ICON[kind] ?? 'generic', disabled: SINGLE_COMPONENTS.includes(kind) && present.includes(kind), run: done(() => onAdd(kind)) }
+      }),
+    ),
+    { key: 'material', label: 'Material (Shader Graph)', short: 'Material', section: 'Shading', icon: 'palette', disabled: hasMaterial, run: done(onAddMaterial) },
+    ...scripts.map((sc) => ({ key: `script:${sc.key}`, label: sc.name, short: sc.name, section: 'Scripts', icon: 'code' as const, disabled: false, run: done(() => onAddScript(sc.key)) })),
+    { key: 'new-script', label: 'New Script…', short: 'New Script', section: 'Scripts', icon: 'plus', disabled: false, run: done(onNewScript) },
+  ]
+  const q = query.trim().toLowerCase()
+  const shown = q ? items.filter((it) => `${it.label} ${it.section} ${it.key}`.toLowerCase().includes(q)) : items
+  const sections = [...new Set(shown.map((it) => it.section))]
+
+  const tile = (it: PickerItem) => (
+    <button
+      key={it.key}
+      type="button"
+      disabled={it.disabled}
+      onClick={it.run}
+      title={it.disabled ? `${it.label} — already on this object` : it.label}
+      className="flex h-[68px] flex-col items-center justify-center gap-1 rounded-lg border border-transparent bg-overlay/[0.04] px-1 text-center text-ink hover:border-accent/50 hover:bg-accent/10 hover:text-accent disabled:pointer-events-none disabled:opacity-35"
+    >
+      <PickerIcon name={it.icon} size={20} />
+      <span className="line-clamp-2 text-[10.5px] leading-tight">{it.short}</span>
+    </button>
+  )
+  const row = (it: PickerItem) => (
+    <button
+      key={it.key}
+      type="button"
+      disabled={it.disabled}
+      onClick={it.run}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-ink hover:bg-accent/15 hover:text-accent disabled:pointer-events-none disabled:opacity-35"
+    >
+      <span className="text-ink-dim">
+        <PickerIcon name={it.icon} size={15} />
+      </span>
+      <span className="truncate">{it.label}</span>
+    </button>
+  )
+  const viewButton = (v: 'grid' | 'list', icon: keyof typeof ICON_PATHS, title: string) => (
+    <button type="button" onClick={() => setViewMode(v)} title={title} className={`rounded-md p-1 ${view === v ? 'bg-overlay/15 text-ink' : 'text-ink-dim hover:text-ink'}`}>
+      <PickerIcon name={icon} size={14} />
+    </button>
+  )
+
   return (
     <div ref={rootRef} className="relative">
       <button
@@ -1573,62 +1799,32 @@ export function AddComponentMenu({
         Add Component
       </button>
       {open && (
-        <Popover anchor={rootRef} className="rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
-          {SECTIONS.map((section) => (
-            <div key={section.title} className="mb-1">
-              <span className="block px-2 py-0.5 text-[10px] uppercase tracking-wide text-ink-dim/70">{section.title}</span>
-              {section.kinds.map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  disabled={SINGLE_COMPONENTS.includes(kind) && present.includes(kind)}
-                  onClick={() => {
-                    onAdd(kind)
-                    setOpen(false)
-                  }}
-                  className={item}
-                >
-                  {COMPONENT_LABEL[kind]}
-                </button>
-              ))}
-            </div>
-          ))}
-          <span className="block px-2 py-0.5 text-[10px] uppercase tracking-wide text-ink-dim/70">Shading</span>
-          <button
-            type="button"
-            disabled={hasMaterial}
-            onClick={() => {
-              onAddMaterial()
-              setOpen(false)
-            }}
-            className={item}
-          >
-            Material (Shader Graph)
-          </button>
-          <span className="block px-2 py-0.5 text-[10px] uppercase tracking-wide text-ink-dim/70">Scripts</span>
-          {scripts.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => {
-                onAddScript(s.key)
-                setOpen(false)
+        <Popover anchor={rootRef} minWidth={300} className="flex flex-col rounded-lg border border-panel-border bg-panel shadow-2xl backdrop-blur-panel">
+          <div className="sticky top-0 z-10 flex items-center gap-1 border-b border-panel-border bg-panel/95 p-1.5 backdrop-blur-panel">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter') shown.find((it) => !it.disabled)?.run()
+                if (e.key === 'Escape') setOpen(false)
               }}
-              className={item}
-            >
-              {s.name}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => {
-              onNewScript()
-              setOpen(false)
-            }}
-            className={item}
-          >
-            + New Script…
-          </button>
+              placeholder="Search components…"
+              className="min-w-0 flex-1 rounded-md bg-overlay/10 px-2 py-1 text-xs text-ink outline-none placeholder:text-ink-dim focus:bg-overlay/15"
+            />
+            {viewButton('grid', 'grid', 'Grid')}
+            {viewButton('list', 'stack', 'List')}
+          </div>
+          <div className="p-1.5">
+            {shown.length === 0 && <p className="px-1 py-3 text-center text-xs text-ink-dim">No component matches “{query}”.</p>}
+            {sections.map((section) => (
+              <div key={section} className="mb-2">
+                <span className="block px-1 pb-1 text-[10px] uppercase tracking-wide text-ink-dim/70">{section}</span>
+                {view === 'grid' ? <div className="grid grid-cols-3 gap-1">{shown.filter((it) => it.section === section).map(tile)}</div> : shown.filter((it) => it.section === section).map(row)}
+              </div>
+            ))}
+          </div>
         </Popover>
       )}
     </div>
