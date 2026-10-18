@@ -170,3 +170,21 @@ body {
     inset: -12px;
   }
 }
+
+/* No pen "handwriting into text fields" (Windows Ink in Edge / WebView2):
+   with a stylus, writing over an input turned strokes into typed text, so
+   drawing or dragging near a field typed into it. That behaviour only
+   applies where `touch-action` allows `handwriting` (`auto` does); any
+   value without it turns it off — `manipulation` keeps normal pan / pinch
+   / tap. Inputs still take the pen as a normal tap to focus, and the
+   on-screen keyboard still works. */
+html,
+body,
+input,
+textarea,
+select,
+[contenteditable],
+.monaco-editor,
+.monaco-editor textarea {
+  touch-action: manipulation;
+}
