@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type Mo
 import { screenToWorld, worldToScreen } from './camera'
 import { DEMO_SVG } from './demoScene'
 import { CanvasArea } from './components/CanvasArea'
+import { installPenInput } from './input/penInput'
 import { createTouchGestures } from './input/touchGestures'
 import { SnapGuides } from './components/SnapGuides'
 import { DockablePanel } from './components/DockablePanel'
@@ -3817,6 +3818,10 @@ function App() {
   // cover this viewport with their own surfaces. Mouse and pen input never
   // reach any of this (`pointerType === 'touch'` only). Mount-only: reads
   // everything live through refs.
+  // Pen in the editor UI: drag-to-scroll panels, no handwriting into fields
+  // (`input/penInput.ts`).
+  useEffect(() => installPenInput(), [])
+
   useEffect(() => {
     const viewport = canvasViewportRef.current
     if (!viewport) return
@@ -4677,7 +4682,7 @@ ${list}${more}`)
           (below), simply covering this with its own opaque `bg-canvas` —
           same "swap by painting over, not by unmounting" fix as the
           paper.js unmount-order bug just above it. */}
-      <div ref={canvasViewportRef} className="absolute touch-none overflow-hidden" style={viewportInsets}>
+      <div ref={canvasViewportRef} data-pen-native="" className="absolute touch-none overflow-hidden" style={viewportInsets}>
       <div
         className="absolute inset-0"
         onDragOver={(e) => {

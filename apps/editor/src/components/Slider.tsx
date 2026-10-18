@@ -30,6 +30,7 @@ export function Slider({ min, max, step, value, onChange }: { min: number; max: 
 
   return (
     <div
+      data-pen-native=""
       ref={trackRef}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
