@@ -6,7 +6,10 @@
  * shapes, gradients, strokes with trim paths and dashes, text, a transform
  * hierarchy, keyframed animations, the state machine (all layers,
  * crossfades), UI Button hover / press looks, On Click and Pointer
- * Listeners actions, scene Properties and Property Bindings.
+ * Listeners actions, scene Properties and Property Bindings — plus images,
+ * blend modes, Drop Shadow, baked motion paths, a subset of Image Effects
+ * (background, shadow, outside stroke, blur, glow, grain, gradient map,
+ * texture, clip, feather — see `./fx.ts`) and the scene's global texture.
  *
  * Unlike the full engine it has no WebGPU, no wasm and no scripts, so it
  * starts instantly and any number of players can share a page — icons,
@@ -20,6 +23,8 @@
  * heart.setInput('liked', true)
  * ```
  */
+
+import { applyFx, applyTexture, fxAnimated, pool, type LiteFx, type LiteTexture } from './fx'
 
 // ---------------------------------------------------------------------
 // File format (see crates/an1mbyt3-format/src/lite.rs)
@@ -45,7 +50,7 @@ interface LiteNode {
   id: string
   name: string
   parent: number | null
-  kind: 'shape' | 'group' | 'text'
+  kind: 'shape' | 'group' | 'text' | 'image'
   visible: boolean
   x: number
   y: number
@@ -65,6 +70,17 @@ interface LiteNode {
   button?: { interactable: boolean; transition: string; normalColor: Color; hoverColor: Color; pressedColor: Color; hoverScale: number; pressedScale: number; fade: number; tintChildren: boolean }
   listeners?: Partial<Record<'click' | 'enter' | 'exit' | 'down' | 'up', LiteAction[]>>
   bindings?: { property: string; target: string; format: string; scale: number; offset: number }[]
+  /** An image node: a data URL, drawn centred at its size. */
+  image?: { src: string; width: number; height: number }
+  /** Canvas2D composite op for the node (`multiply`, `screen`, `lighter`). */
+  blend?: string
+  /** Drop Shadow 2D (world units, y up). */
+  shadow?: { color: Color; offset: [number, number]; blur: number }
+  /** Image Effects (the Lite subset) — the node + its children draw into
+   * their own layer, these run on it, then it's composited back. */
+  fx?: LiteFx
+  /** The node subtree's local bounds `[x0, y0, x1, y1]` (fx backgrounds). */
+  box?: [number, number, number, number]
 }
 interface LiteKey {
   t: number
@@ -101,6 +117,8 @@ export interface LiteFile {
   stateMachine: { name: string; inputs: { name: string; kind: 'bool' | 'number' | 'enum' | 'trigger' }[]; layers: { name: string | null; initial: string; states: LiteState[] }[] } | null
   properties: { name: string; kind: 'number' | 'bool' | 'text' | 'color'; default: unknown }[]
   fonts: { name: string; data: string }[]
+  /** The scene's global texture (laid over the whole frame), or null. */
+  texture?: LiteTexture | null
   skipped: string[]
 }
 
@@ -404,6 +422,8 @@ interface NodeState {
   lookTint: Color
   visibleOverride: boolean | null
   text: string | null
+  /** An image node's picture (loads async; drawn once complete). */
+  img: HTMLImageElement | null
 }
 
 interface LayerRun {
@@ -436,6 +456,17 @@ class Player implements LitePlayer {
   private worlds: DOMMatrix[] = []
   private cleanups: (() => void)[] = []
   private lastPose: Pose = new Map()
+  /** Seconds since start — animated grain / textures. */
+  private clock = 0
+  /** Time since animated effects last redrew (they step at 24 fps). */
+  private fxStep = 0
+  /** Grain / a texture animates: draw every frame, not only on change. */
+  private animatedFx = false
+  /** Redraw soon (an image or texture finished loading). */
+  private wake = () => {
+    this.dirty = true
+    schedule()
+  }
 
   private container: HTMLElement
   readonly file: LiteFile
@@ -454,8 +485,15 @@ class Player implements LitePlayer {
     this.paused = !!options.paused
     this.nodes = file.nodes.map((def) => {
       const template = def.path ? parsePath(def.path) : null
-      return { def, template, cmds: template, path: template ? toPath2D(template) : null, flat: null, pathKey: def.path ?? '', hover: false, pressed: false, lookScale: 1, lookTint: [1, 1, 1, 1], visibleOverride: null, text: null }
+      let img: HTMLImageElement | null = null
+      if (def.kind === 'image' && def.image?.src) {
+        img = new Image()
+        img.onload = () => this.wake()
+        img.src = def.image.src
+      }
+      return { def, template, cmds: template, path: template ? toPath2D(template) : null, flat: null, pathKey: def.path ?? '', hover: false, pressed: false, lookScale: 1, lookTint: [1, 1, 1, 1], visibleOverride: null, text: null, img }
     })
+    this.animatedFx = file.nodes.some((n) => n.fx && fxAnimated(n.fx.effects)) || (!!file.texture && fxAnimated([file.texture]))
     for (const p of file.properties) this.props.set(p.name, coerce(p.kind, p.default))
     for (const [k, v] of Object.entries(options.data ?? {})) this.setProp(k, v, false)
     for (const i of file.stateMachine?.inputs ?? []) if (i.kind !== 'trigger') this.inputs.set(i.name, i.kind === 'bool' ? false : i.kind === 'number' ? 0 : '')
@@ -691,7 +729,15 @@ class Player implements LitePlayer {
 
   frame(dt: number) {
     if (!this.visible) return
+    this.clock += dt
+    // Animated grain / textures step at 24 fps — film-like, and a fraction
+    // of the cost of redrawing effect layers every display frame.
+    this.fxStep += dt
     let moving = false
+    if (this.animatedFx && this.fxStep >= 1 / 24) {
+      this.fxStep = 0
+      moving = true
+    }
     if (!this.paused) {
       // Transitions (one hop per layer per frame), then time.
       for (const run of this.layers) {
@@ -867,6 +913,8 @@ class Player implements LitePlayer {
 
   private draw() {
     const ctx = this.ctx
+    /** Where drawing goes: the canvas, or the innermost open fx layer. */
+    let g: CanvasRenderingContext2D = ctx
     const { w, h, dpr } = this.size
     const file = this.file
     const pose = this.pose()
@@ -931,13 +979,61 @@ class Player implements LitePlayer {
     })
     this.worlds = worlds
 
+    // Animated Image Effects values (`<node>:fx/<i>/<field>`, `fx/feather` …)
+    // override a per-frame copy of the node's effects.
+    const fxNow: (LiteFx | undefined)[] = file.nodes.map((n) => n.fx)
+    for (const [k, v] of pose) {
+      const at = k.indexOf(':fx/')
+      if (at < 0) continue
+      const i = Number(k.slice(0, at))
+      const base = file.nodes[i]?.fx
+      if (!base) continue
+      let cur = fxNow[i]!
+      if (cur === base) cur = fxNow[i] = { ...base, effects: base.effects.map((e) => ({ ...e })) }
+      const parts = k.slice(at + 4).split('/')
+      const obj = (parts.length === 1 ? cur : cur.effects[Number(parts[0])]) as unknown as Record<string, unknown> | undefined
+      const field = parts[parts.length - 1]
+      if (!obj || !(field in obj)) continue
+      // Track values come padded to 4 numbers: shape them like the field
+      // they replace (a number, a 2D offset, an RGBA colour).
+      const was = obj[field]
+      obj[field] = Array.isArray(was) ? v.slice(0, was.length) : v[0]
+    }
+    /** Where the current target sits on the canvas (an fx layer only
+     * covers its node's bounds, so drawing into it is shifted). */
+    let off = { x: 0, y: 0 }
+    const at = (m: DOMMatrix) => (off.x || off.y ? new DOMMatrix().translate(-off.x, -off.y).multiply(m) : m)
+    // Screen px per node unit (shadow / effect sizes are in node units).
+    const devScale = (i: number) => Math.hypot(worlds[i].a, worlds[i].b) || 1
+    /** Sets node `i`'s blend + Drop Shadow on `g`; returns the reset. A node
+     * with Image Effects blends when its layer composites, not here. */
+    const look = (i: number) => {
+      const n = file.nodes[i]
+      if (n.blend && !n.fx) g.globalCompositeOperation = n.blend as GlobalCompositeOperation
+      if (n.shadow) {
+        const k = devScale(i)
+        g.shadowColor = css(n.shadow.color)
+        g.shadowBlur = n.shadow.blur * k
+        g.shadowOffsetX = n.shadow.offset[0] * k
+        g.shadowOffsetY = -n.shadow.offset[1] * k
+      }
+      return () => {
+        g.globalCompositeOperation = 'source-over'
+        if (n.shadow) {
+          g.shadowColor = 'transparent'
+          g.shadowBlur = 0
+          g.shadowOffsetX = 0
+          g.shadowOffsetY = 0
+        }
+      }
+    }
     // Clipping groups: children of a `clip` node draw inside its path.
     const clipDepth: number[] = []
     const drawNode = (i: number) => {
       const n = file.nodes[i]
       const st = this.nodes[i]
       if (!this.isShown(i)) return
-      ctx.setTransform(worlds[i])
+      g.setTransform(at(worlds[i]))
       const tint = tints[i]
       if (n.kind === 'shape' && st.template) {
         const morph = pose.get(`${i}:path`)
@@ -952,18 +1048,19 @@ class Player implements LitePlayer {
           }
         }
         const path = st.path!
+        const restoreLook = look(i)
         const fill = pose.get(`${i}:fill`) ?? n.fill
-        if (n.gradient) ctx.fillStyle = gradientStyle(ctx, n.gradient, tint)
-        else if (fill && fill[3] > 0) ctx.fillStyle = css(mulColor(fill as Color, tint))
-        if (n.gradient || (fill && fill[3] > 0)) ctx.fill(path)
+        if (n.gradient) g.fillStyle = gradientStyle(g, n.gradient, tint)
+        else if (fill && fill[3] > 0) g.fillStyle = css(mulColor(fill as Color, tint))
+        if (n.gradient || (fill && fill[3] > 0)) g.fill(path)
         if (n.stroke) {
           const width = pose.get(`${i}:strokeWidth`)?.[0] ?? n.stroke.width
           const color = (pose.get(`${i}:strokeColor`) as Color | undefined) ?? n.stroke.color
           if (width > 0 && (color[3] > 0 || n.stroke.gradient)) {
-            ctx.lineWidth = width
-            ctx.lineCap = n.stroke.cap
-            ctx.lineJoin = n.stroke.join
-            ctx.strokeStyle = n.stroke.gradient ? gradientStyle(ctx, n.stroke.gradient, tint) : css(mulColor(color, tint))
+            g.lineWidth = width
+            g.lineCap = n.stroke.cap
+            g.lineJoin = n.stroke.join
+            g.strokeStyle = n.stroke.gradient ? gradientStyle(g, n.stroke.gradient, tint) : css(mulColor(color, tint))
             let strokePath = path
             if (n.trim) {
               const start = pose.get(`${i}:trimStart`)?.[0] ?? n.trim.start
@@ -976,27 +1073,37 @@ class Player implements LitePlayer {
               }
             }
             if (n.dash && n.dash.dash > 0) {
-              ctx.setLineDash([n.dash.dash, n.dash.gap])
-              ctx.lineDashOffset = -(pose.get(`${i}:dashOffset`)?.[0] ?? n.dash.offset)
+              g.setLineDash([n.dash.dash, n.dash.gap])
+              g.lineDashOffset = -(pose.get(`${i}:dashOffset`)?.[0] ?? n.dash.offset)
             }
-            ctx.stroke(strokePath)
-            ctx.setLineDash([])
+            g.stroke(strokePath)
+            g.setLineDash([])
           }
         }
+        restoreLook()
         if (n.clip) {
-          ctx.save()
-          ctx.clip(path)
+          g.save()
+          g.clip(path)
           clipDepth.push(i)
         }
+      } else if (n.kind === 'image' && n.image && st.img?.complete && st.img.naturalWidth > 0) {
+        const restoreLook = look(i)
+        g.scale(1, -1)
+        g.globalAlpha = tint[3]
+        g.drawImage(st.img, -n.image.width / 2, -n.image.height / 2, n.image.width, n.image.height)
+        g.globalAlpha = 1
+        restoreLook()
       } else if (n.kind === 'text' && n.text) {
+        const restoreLook = look(i)
         const size = pose.get(`${i}:textSize`)?.[0] ?? n.text.size
         const color = (pose.get(`${i}:fill`) as Color | undefined) ?? n.text.color
-        ctx.scale(1, -1)
-        ctx.font = `${size}px "${n.text.font}", system-ui, sans-serif`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillStyle = css(mulColor(color, tint))
-        ctx.fillText(st.text ?? n.text.content, 0, 0)
+        g.scale(1, -1)
+        g.font = `${size}px "${n.text.font}", system-ui, sans-serif`
+        g.textAlign = 'center'
+        g.textBaseline = 'middle'
+        g.fillStyle = css(mulColor(color, tint))
+        g.fillText(st.text ?? n.text.content, 0, 0)
+        restoreLook()
       } else if (n.clip) {
         clipDepth.push(-1)
       }
@@ -1008,23 +1115,79 @@ class Player implements LitePlayer {
       for (let j = i + 1; j < file.nodes.length && this.isDescendant(j, i); j++) end = j
       subtreeEnd[i] = end
     }
-    const open: { owner: number; end: number }[] = []
+    // Open clips and fx layers, innermost last. Both span a node's whole
+    // subtree, so they nest; leaving a subtree closes them in order.
+    type Rect = { x: number; y: number }
+    type Open = { kind: 'clip'; end: number } | { kind: 'fx'; owner: number; end: number; layer: HTMLCanvasElement; prev: CanvasRenderingContext2D; prevOff: Rect; rect: Rect }
+    /** Canvas pixels an fx node can touch: its box grown by what the
+     * effects spread (shadow, stroke, blur, glow), clamped to the canvas. */
+    const fxRect = (i: number) => {
+      const n = file.nodes[i]
+      const W = this.canvas.width
+      const H = this.canvas.height
+      const fx = fxNow[i]
+      if (!n.box || !fx) return { x: 0, y: 0, w: W, h: H }
+      let grow = Math.max(0, fx.padding)
+      for (const e of fx.effects) {
+        if (e.type === 'shadow') grow = Math.max(grow, Math.hypot(e.offset[0], e.offset[1]) + e.blur * 1.5 + e.spread)
+        else if (e.type === 'stroke') grow = Math.max(grow, e.width * 1.5)
+        else if (e.type === 'blur') grow = Math.max(grow, e.radius * 1.5)
+        else if (e.type === 'glow') grow = Math.max(grow, e.radius * 1.5)
+      }
+      const [x0, y0, x1, y1] = n.box
+      const m = worlds[i]
+      let lx = Infinity
+      let ly = Infinity
+      let hx = -Infinity
+      let hy = -Infinity
+      for (const [px, py] of [[x0 - grow, y0 - grow], [x1 + grow, y0 - grow], [x1 + grow, y1 + grow], [x0 - grow, y1 + grow]]) {
+        const q = m.transformPoint(new DOMPoint(px, py))
+        lx = Math.min(lx, q.x)
+        ly = Math.min(ly, q.y)
+        hx = Math.max(hx, q.x)
+        hy = Math.max(hy, q.y)
+      }
+      const x = Math.max(0, Math.floor(lx) - 2)
+      const y = Math.max(0, Math.floor(ly) - 2)
+      return { x, y, w: Math.max(1, Math.min(W, Math.ceil(hx) + 2) - x), h: Math.max(1, Math.min(H, Math.ceil(hy) + 2) - y) }
+    }
+    const open: Open[] = []
+    const close = (o: Open) => {
+      if (o.kind === 'clip') {
+        g.restore()
+        return
+      }
+      // The layer is done: run its effects, composite with the node's blend.
+      const n = file.nodes[o.owner]
+      applyFx(o.layer, fxNow[o.owner]!, at(worlds[o.owner]), n.box, devScale(o.owner), this.clock, this.wake)
+      g = o.prev
+      off = o.prevOff
+      g.save()
+      g.setTransform(1, 0, 0, 1, 0, 0)
+      g.globalCompositeOperation = (n.blend ?? 'source-over') as GlobalCompositeOperation
+      g.drawImage(o.layer, o.rect.x - off.x, o.rect.y - off.y)
+      g.restore()
+      pool.give(o.layer)
+    }
     for (let i = 0; i < file.nodes.length; i++) {
-      while (open.length && i > open[open.length - 1].end) {
-        open.pop()
-        ctx.restore()
+      while (open.length && i > open[open.length - 1].end) close(open.pop()!)
+      if (file.nodes[i].fx && this.isShown(i)) {
+        const r = fxRect(i)
+        const layer = pool.take(r.w, r.h)
+        open.push({ kind: 'fx', owner: i, end: subtreeEnd[i], layer, prev: g, prevOff: off, rect: { x: r.x, y: r.y } })
+        g = layer.getContext('2d')!
+        off = { x: r.x, y: r.y }
       }
       const before = clipDepth.length
       drawNode(i)
       if (clipDepth.length > before) {
         if (clipDepth[clipDepth.length - 1] === -1) clipDepth.pop()
-        else open.push({ owner: i, end: subtreeEnd[i] })
+        else open.push({ kind: 'clip', end: subtreeEnd[i] })
       }
     }
-    while (open.length) {
-      open.pop()
-      ctx.restore()
-    }
+    while (open.length) close(open.pop()!)
+    // The global texture, last, over everything drawn.
+    if (file.texture) applyTexture(this.canvas, file.texture, root, this.clock, this.wake)
   }
 
   private isDescendant(node: number, ancestor: number): boolean {

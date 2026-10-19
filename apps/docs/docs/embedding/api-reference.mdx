@@ -26,7 +26,7 @@ function createPlayer(container: HTMLElement, options: PlayerOptions): Promise<A
 
 Starts a game inside `container` and resolves with the player once the first scene is loaded and running.
 
-- Destroys any player already running on the page (one per page).
+- Several players can run on one page; each is independent. Players scrolled out of view pause (`pauseWhenOffscreen: false` keeps them running).
 - Downloads `options.wasm` and `options.game` in parallel.
 - Sets `container.style.position = 'relative'` if it was `static`, and `overflow: hidden`. Sets `background` if given.
 - Adds a centred stage `div` holding a `<canvas>` (`tabIndex = 0`, `touch-action: none`) and the HTML UI overlay.

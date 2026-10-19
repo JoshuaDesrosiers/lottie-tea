@@ -108,7 +108,7 @@ export function findSyntaxErrorLine(source: string, message: string, params: str
   return undefined
 }
 
-class GameConsole {
+export class GameConsole {
   private entries: ConsoleEntry[] = []
   private listeners = new Set<Listener>()
   private nextId = 1
@@ -206,8 +206,18 @@ export function describeOrigin(o: ConsoleOrigin): string {
 }
 
 /** The one game console (also `window.__an1Console`, for DevTools). */
-export const gameConsole = new GameConsole()
+export let gameConsole = new GameConsole()
 if (typeof window !== 'undefined') (window as unknown as { __an1Console: GameConsole }).__an1Console = gameConsole
+
+/** Makes `next` the active console (live binding); returns the one it
+ * replaced. Each embedded player logs to its own console, so its `log`
+ * events carry only its own game's lines (`runtimeContext.ts`).
+ * `window.__an1Console` stays the editor's / first one. */
+export function swapGameConsole(next: GameConsole): GameConsole {
+  const previous = gameConsole
+  gameConsole = next
+  return previous
+}
 
 /** What scripts get as `console` (and `print`): writes to the game Console,
  * tagged with where the script is running. */

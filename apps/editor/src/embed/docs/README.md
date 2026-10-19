@@ -32,6 +32,20 @@ import { An1Player } from './an1mbyt3/an1mbyt3-react.js'
 Not React? `createPlayer(element, { game: '/an1mbyt3/game.teab' })` from
 `an1mbyt3-embed.js` gives you the same controls. See GUIDE.md.
 
+Several games on one page? Each `<An1Player>` / `createPlayer` /
+`<an1-player>` runs independently, and they share one engine download.
+
+## Standalone vs shared runtime
+
+This is the **standalone** export: the folder carries the engine
+(`an1mbyt3_wasm_bg.wasm`, 20+ MB) and the embed JS, so it runs with nothing
+loaded from anyone else's server. The editor also has **Website embed
+(shared runtime)**, which exports only the game and loads the engine from
+a versioned Toasty runtime folder (hosted at
+`https://toastycreate.web.app/runtime/<version>/`, or your own copy from
+**Export → Download shared runtime…**) — much smaller to ship, and cached
+across every page and game that uses it.
+
 ## What {{TITLE}} offers
 
 {{SURFACE}}

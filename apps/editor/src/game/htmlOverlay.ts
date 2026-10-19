@@ -19,9 +19,11 @@
  * - `<input data-input="name">` → sets that input (checkbox: bool,
  *   range / number: number, anything else: enum value).
  *
- * One module-level instance (`htmlOverlay`), like the audio engine: the
- * editor drives it in Design (non-interactive, a preview), the script host
- * in Playground and exported games.
+ * The *active* instance is the module-level `htmlOverlay` (a live
+ * binding): the editor's, driven in Design (non-interactive, a preview)
+ * and Playground; every embedded player has its own, swapped in around
+ * its frame by `runtimeContext.ts` (`eventScope` re-enters that player's
+ * context for DOM events, which fire outside any frame).
  */
 import { formatProp } from './props'
 import { resolveFileRef } from './projectFiles'
@@ -72,13 +74,20 @@ interface Live {
 
 const keyOf = (id: OpaqueId) => `${id.idx}:${id.version}`
 
-class HtmlOverlay {
+export class HtmlOverlay {
   private container: HTMLDivElement | null = null
   private live = new Map<string, Live>()
   private handlers: OverlayHandlers | null = null
   private interactive = false
 
   private canvas: HTMLCanvasElement | null = null
+
+  /** Runs a DOM event handler (a `data-trigger` click, a `data-prop`
+   * input) inside the owning player's runtime context — set by an
+   * embedded player, since those events fire between frames, when the
+   * page-wide modules point at whichever context is active. `null`: run
+   * as-is (the editor). */
+  eventScope: (<T>(fn: () => T) => T) | null = null
 
   /** Puts the overlay layer inside `parent` (the canvas's positioned
    * wrapper, covering exactly the canvas). */
@@ -201,6 +210,11 @@ class HtmlOverlay {
   }
 
   private handleClick(event: Event) {
+    if (this.eventScope) this.eventScope(() => this.handleClickInScope(event))
+    else this.handleClickInScope(event)
+  }
+
+  private handleClickInScope(event: Event) {
     if (!this.interactive || !this.handlers) return
     const target = (event.target as Element | null)?.closest?.('[data-trigger]')
     const name = target?.getAttribute('data-trigger')
@@ -208,6 +222,11 @@ class HtmlOverlay {
   }
 
   private handleInput(event: Event) {
+    if (this.eventScope) this.eventScope(() => this.handleInputInScope(event))
+    else this.handleInputInScope(event)
+  }
+
+  private handleInputInScope(event: Event) {
     if (!this.interactive || !this.handlers) return
     const el = event.target as HTMLInputElement | HTMLSelectElement | null
     const prop = el?.getAttribute?.('data-prop')
@@ -223,4 +242,12 @@ class HtmlOverlay {
   }
 }
 
-export const htmlOverlay = new HtmlOverlay()
+/** The *active* overlay (live binding) — see the module doc. */
+export let htmlOverlay = new HtmlOverlay()
+
+/** Makes `next` the active overlay; returns the one it replaced. */
+export function swapHtmlOverlay(next: HtmlOverlay): HtmlOverlay {
+  const previous = htmlOverlay
+  htmlOverlay = next
+  return previous
+}

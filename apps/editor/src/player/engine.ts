@@ -22,9 +22,31 @@
  *   event also fires as a DOM `CustomEvent` (`an1:state`, …) on the
  *   container.
  *
- * One player per page at a time: the engine's HTML UI overlay, scene
- * properties and script state are page-wide. Creating a second player
- * destroys the first.
+ * **Any number of players per page.** Each player is fully independent:
+ * its own `WasmEditor` (document, GPU surface, physics…), its own canvas,
+ * listeners and frame loop, and its own *runtime context*
+ * (`game/runtimeContext.ts`: scene Properties, HTML UI layer, console,
+ * audio, `ctx.on` functions, page data…) swapped in around each of its
+ * frames and API calls. `destroy()` tears down only that player. What is
+ * shared: the wasm module itself — downloaded and instantiated **once**
+ * per page (`loadEngine`), then every player creates its own instance on
+ * it — plus compiled scripts and linked fonts.
+ *
+ * Costs and limits of many players:
+ * - **GPU** — every player owns a GPU device + canvas context (WebGPU, or
+ *   WebGL2 where WebGPU is missing). Browsers cap live WebGL contexts per
+ *   page (Chrome ~16; the oldest is lost past that), so a page of dozens
+ *   of *full-engine* players will lose some — use Toasty Lite for "many
+ *   small animations" pages. A soft warning is logged past
+ *   `SOFT_PLAYER_LIMIT` live players.
+ * - **Offscreen players pause** (`pauseWhenOffscreen`, default on): an
+ *   `IntersectionObserver` stops rendering / simulating a player scrolled
+ *   out of view, so a long page of embeds only pays for what's visible.
+ * - **Keyboard** — `keyboard: 'focus'` (the embed default) only ever
+ *   reaches the focused canvas. With `keyboard: 'window'`, page-wide keys
+ *   go to *one* player at a time: the one the user last clicked / focused
+ *   (else the first started); the others ignore them, and a player losing
+ *   the keyboard releases any keys it was holding.
  */
 import {
   createWasmEditor,
@@ -39,19 +61,19 @@ import {
   setStateMachineEnumInput,
   setStateMachineNumberInput,
   setStateProgram,
-  setWasmBytes,
+  initWasm,
+  wasmInitStarted,
 } from '../ipc/wasmEditor'
-import { setPropertyDefs, sceneProps } from '../game/props'
+import { setPropertyDefs } from '../game/props'
 import { setProjectFiles } from '../game/projectFiles'
 import type { ArtboardSummary, DocumentSummary, OpaqueId } from '../ipc/document'
 import { forwardMouseKeys, normalizeKeyName, PointerGestures, ScriptHost, syncMouseButtons } from '../game/scriptHost'
-import { adaptiveResolution, renderDpr } from '../game/adaptiveResolution'
+import { renderDpr } from '../game/adaptiveResolution'
 import { PerfMeter } from '../game/perf'
 import { responsiveView } from '../game/screen'
-import { htmlOverlay } from '../game/htmlOverlay'
-import { embedBridge } from '../game/embedBridge'
 import { callFunction } from '../game/events'
-import { gameConsole } from '../game/console'
+import { createRuntimeContext, disposeRuntimeContext, runInRuntimeContext } from '../game/runtimeContext'
+import type { WasmEditor } from '../wasm-pkg/an1mbyt3_wasm'
 
 /** Bytes, or a URL to fetch them from. */
 export type Source = string | URL | ArrayBuffer | Uint8Array
@@ -59,9 +81,21 @@ export type Source = string | URL | ArrayBuffer | Uint8Array
 export interface PlayerOptions {
   /** The game: a `.teab` file (URL or bytes). */
   game: Source
-  /** The engine (`an1mbyt3_wasm_bg.wasm`). Default: next to `game` when
-   * that's a URL. */
+  /** The engine (`an1mbyt3_wasm_bg.wasm`). Default: from `runtimeUrl`
+   * when given; else next to `game` (when that's a URL), falling back to
+   * next to this script. Only the first player on a page downloads it —
+   * the engine is instantiated once and shared by every player. */
   wasm?: Source
+  /** A **shared runtime** folder (`…/runtime/<version>/`, hosted at
+   * toastycreate.web.app or a self-hosted copy of the downloaded runtime
+   * zip): the engine `.wasm` is loaded from there. Same as calling
+   * `setRuntimeUrl` once for every player. Ignored when `wasm` is given. */
+  runtimeUrl?: string | URL
+  /** Stop rendering and simulating while the player is scrolled out of
+   * view (an `IntersectionObserver`). Default `true` — keeps a page with
+   * many embeds cheap. Set `false` for games that must keep running
+   * offscreen (a timer, a multiplayer session). */
+  pauseWhenOffscreen?: boolean
   /** Scene to open on (by name). Default: the first scene. */
   scene?: string
   /** How the game's frame fits the box: `contain` (letterboxed, default)
@@ -147,7 +181,123 @@ export interface An1Player {
   destroy(): void
 }
 
-let current: { destroy(): void } | null = null
+// ---- page-wide: the shared engine ----
+
+/** The engine's file name, inside a runtime folder / next to a game. */
+const WASM_FILE = 'an1mbyt3_wasm_bg.wasm'
+
+/** Live players past which a (one-time) warning about GPU context limits
+ * is logged — see the module doc. Nothing is refused. */
+const SOFT_PLAYER_LIMIT = 8
+let livePlayers = 0
+let warnedAboutLimit = false
+
+/** `setRuntimeUrl`'s value: the default `runtimeUrl` for every player. */
+let defaultRuntimeUrl: string | null = null
+
+/**
+ * Where every player on this page loads the engine `.wasm` from by
+ * default: a shared runtime folder (`…/runtime/<version>/`). `null`
+ * restores the default (next to the game / next to this script). Has no
+ * effect once the engine is loaded — it's loaded once per page.
+ */
+export function setRuntimeUrl(url: string | URL | null): void {
+  defaultRuntimeUrl = url === null ? null : folderUrl(url).href
+}
+
+/** `url` as a folder URL (trailing slash), resolved against the page. */
+function folderUrl(url: string | URL): URL {
+  const text = String(url)
+  return new URL(text.endsWith('/') ? text : `${text}/`, location.href)
+}
+
+/** The engine next to this script — right when the embed JS is served
+ * from a runtime folder / an export's `src/an1mbyt3/` with the wasm
+ * beside it. (A variable, not a string literal, so bundlers don't try to
+ * inline the 20+ MB file as an asset.) */
+function wasmBesideScript(): URL | null {
+  try {
+    return new URL(WASM_FILE, import.meta.url)
+  } catch {
+    return null
+  }
+}
+
+/** Every `.wasm` file starts with `00 61 73 6d (NUL a s m)` — tells a real engine from an
+ * HTML fallback page a static host serves for a missing file. */
+const isWasm = (bytes: Uint8Array) => bytes.length > 8 && bytes[0] === 0 && bytes[1] === 0x61 && bytes[2] === 0x73 && bytes[3] === 0x6d
+
+/** The page's one engine load, shared by every player started while (or
+ * after) it runs. Cleared on failure, so a later player can retry. */
+let engineLoad: Promise<void> | null = null
+
+/**
+ * Downloads and instantiates the engine **once per page**: the first
+ * caller fetches the first of `candidates` that is a real `.wasm`; every
+ * other player (even one started at the same moment) awaits that same
+ * load and then creates its own `WasmEditor` on the shared module.
+ */
+function loadEngine(candidates: Source[]): Promise<void> {
+  if (wasmInitStarted()) return initWasm()
+  if (!engineLoad) {
+    const load = (async () => {
+      let lastError: unknown = new Error('an1mbyt3: no engine location — pass `wasm` or `runtimeUrl`')
+      for (const candidate of candidates) {
+        try {
+          const bytes = await bytesOf(candidate)
+          if (!isWasm(bytes)) throw new Error(`an1mbyt3: ${String(candidate)} isn't the engine .wasm`)
+          await initWasm(bytes)
+          return
+        } catch (err) {
+          lastError = err
+        }
+      }
+      throw lastError
+    })()
+    engineLoad = load
+    load.catch(() => {
+      if (engineLoad === load) engineLoad = null
+    })
+  }
+  return engineLoad
+}
+
+// ---- page-wide: who gets `keyboard: 'window'` keys ----
+
+/** A player taking page-wide keys (`keyboard: 'window'`). */
+interface KeyboardClaimant {
+  /** Lets go of every key it holds (it lost the keyboard / is going). */
+  release(): void
+}
+
+/** Players in `window` keyboard mode; the **last** one owns the keys. A
+ * player moves to the end when the user clicks / focuses it. */
+const windowKeyboardPlayers: KeyboardClaimant[] = []
+
+/** Joins without stealing: the first player keeps the keys until the user
+ * picks another one. */
+function joinWindowKeyboard(player: KeyboardClaimant): void {
+  windowKeyboardPlayers.unshift(player)
+}
+
+function leaveWindowKeyboard(player: KeyboardClaimant): void {
+  const index = windowKeyboardPlayers.indexOf(player)
+  if (index >= 0) windowKeyboardPlayers.splice(index, 1)
+}
+
+/** The user interacted with `player`: it gets the page's keys (the old
+ * owner releases what it was holding, so nothing sticks "down"). */
+function claimWindowKeyboard(player: KeyboardClaimant): void {
+  const owner = windowKeyboardPlayers[windowKeyboardPlayers.length - 1]
+  if (owner === player) return
+  const index = windowKeyboardPlayers.indexOf(player)
+  if (index < 0) return
+  windowKeyboardPlayers.splice(index, 1)
+  windowKeyboardPlayers.push(player)
+  owner?.release()
+}
+
+const ownsWindowKeyboard = (player: KeyboardClaimant) => windowKeyboardPlayers[windowKeyboardPlayers.length - 1] === player
 
 async function bytesOf(source: Source): Promise<Uint8Array<ArrayBuffer>> {
   if (source instanceof Uint8Array) return new Uint8Array(source)
@@ -161,12 +311,29 @@ const sameId = (a: OpaqueId, b: OpaqueId) => a.idx === b.idx && a.version === b.
 const sameValue = (a: unknown, b: unknown) => a === b || (typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b))
 
 export async function createPlayer(container: HTMLElement, options: PlayerOptions): Promise<An1Player> {
-  current?.destroy()
   const cleanups: (() => void)[] = []
   const listen = <K extends string>(target: EventTarget, type: K, fn: EventListenerOrEventListenerObject, opts?: AddEventListenerOptions | boolean) => {
     target.addEventListener(type, fn, opts)
     cleanups.push(() => target.removeEventListener(type, fn, opts))
   }
+  /** Runs everything set up so far in reverse (a failed start, `destroy`). */
+  const runCleanups = () => {
+    for (const cleanup of cleanups.splice(0).reverse()) {
+      try {
+        cleanup()
+      } catch (err) {
+        console.error('an1mbyt3: cleanup threw', err)
+      }
+    }
+  }
+
+  // ---- this player's runtime context ----
+  // Its own scene Properties, HTML UI layer, console, audio, `ctx.on`
+  // functions, page data… — swapped in around everything this player
+  // runs (`game/runtimeContext.ts`), so players never see each other's.
+  const rt = createRuntimeContext()
+  const run = <T,>(fn: () => T): T => runInRuntimeContext(rt, fn)
+  cleanups.push(() => disposeRuntimeContext(rt))
 
   // ---- the box ----
   // container > stage (canvas-sized, holds the HTML UI layer) > canvas
@@ -182,8 +349,9 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   stage.appendChild(canvas)
   container.appendChild(stage)
   cleanups.push(() => stage.remove())
-  htmlOverlay.attach(stage, canvas)
-  cleanups.push(() => htmlOverlay.detach())
+  rt.htmlOverlay.attach(stage, canvas)
+  // HTML UI clicks / inputs fire between frames: re-enter this player.
+  rt.htmlOverlay.eventScope = run
 
   // ---- listeners ----
   const listeners = new Map<string, Set<(e: unknown) => void>>()
@@ -200,13 +368,41 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   }
 
   // ---- engine + game ----
+  // The engine is loaded once per page (`loadEngine`); this player then
+  // makes its own `WasmEditor` (own document + GPU surface) on it.
   const gameUrl = typeof options.game === 'string' || options.game instanceof URL ? new URL(String(options.game), location.href) : null
-  const wasmSource = options.wasm ?? (gameUrl ? new URL('an1mbyt3_wasm_bg.wasm', gameUrl) : null)
-  if (!wasmSource) throw new Error('an1mbyt3: pass `wasm` (the engine) when `game` is bytes')
-  const [wasmBytes, gameBytes] = await Promise.all([bytesOf(wasmSource), bytesOf(options.game)])
-  setWasmBytes(wasmBytes)
-  const editor = await createWasmEditor(canvas)
-  let doc: DocumentSummary = await loadTeab(editor, gameBytes)
+  const engineCandidates: Source[] = []
+  const runtimeUrl = options.runtimeUrl ?? defaultRuntimeUrl
+  if (options.wasm) engineCandidates.push(options.wasm)
+  else if (runtimeUrl) engineCandidates.push(new URL(WASM_FILE, folderUrl(runtimeUrl)))
+  else {
+    if (gameUrl) engineCandidates.push(new URL(WASM_FILE, gameUrl))
+    const beside = wasmBesideScript()
+    if (beside && !engineCandidates.some((c) => String(c) === beside.href)) engineCandidates.push(beside)
+  }
+  let editor: WasmEditor
+  let doc: DocumentSummary
+  try {
+    const [gameBytes] = await Promise.all([bytesOf(options.game), loadEngine(engineCandidates)])
+    try {
+      editor = await createWasmEditor(canvas)
+    } catch (err) {
+      throw new Error(
+        `an1mbyt3: couldn't start the engine on this canvas (${livePlayers} other player${livePlayers === 1 ? '' : 's'} running — browsers cap GPU contexts per page): ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+    cleanups.push(() => {
+      try {
+        editor.free()
+      } catch {
+        // Already freed.
+      }
+    })
+    doc = await loadTeab(editor, gameBytes)
+  } catch (err) {
+    runCleanups()
+    throw err
+  }
   if (options.program !== undefined) {
     const program = { kind: 'Code' as const, value: options.program }
     for (const artboard of doc.artboards) {
@@ -216,50 +412,79 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
       }
     }
   }
-  setProjectFiles(doc.textFiles)
-  setPropertyDefs(doc.properties)
-  embedBridge.reset()
+  run(() => {
+    setProjectFiles(doc.textFiles)
+    setPropertyDefs(doc.properties)
+  })
+  livePlayers++
+  if (livePlayers > SOFT_PLAYER_LIMIT && !warnedAboutLimit) {
+    warnedAboutLimit = true
+    console.warn(
+      `an1mbyt3: ${livePlayers} full-engine players on this page — each owns a GPU context, and browsers drop the oldest past ~16 WebGL contexts. Offscreen players pause, but for many small animations prefer Toasty Lite.`,
+    )
+  }
 
   // ---- sizing ----
   let cssSize = { width: 1, height: 1 }
   let frameSize = { width: 1, height: 1 }
   let sceneId: OpaqueId | null = null
   const currentScene = (): ArtboardSummary | null => doc.artboards.find((a) => sceneId && sameId(a.id, sceneId)) ?? doc.artboards[0] ?? null
-  const applySize = () => {
-    const dpr = renderDpr()
-    const availW = Math.max(1, container.clientWidth)
-    const availH = Math.max(1, container.clientHeight)
-    const scene = currentScene()
-    const camera = scene?.nodes.find((n) => scene.activeCamera && sameId(n.id, scene.activeCamera))?.camera ?? null
-    const zoom = Math.max(0.01, camera?.zoom ?? 1)
-    let frameW = (scene?.width ?? availW) / zoom
-    let frameH = (scene?.height ?? availH) / zoom
-    if (scene?.screen.mode === 'Responsive') {
-      const view = responsiveView({ width: frameW, height: frameH }, { width: availW, height: availH }, scene.screen)
-      frameW = view.width
-      frameH = view.height
-    }
-    frameSize = { width: frameW, height: frameH }
-    const fit = (options.fit === 'cover' ? Math.max : Math.min)(availW / frameW, availH / frameH)
-    cssSize = { width: frameW * fit, height: frameH * fit }
-    const pixelPerfect = !!camera?.pixelPerfect.enabled
-    const renderScale = pixelPerfect ? Math.max(1, Math.floor(fit * dpr)) : fit * dpr
-    const deviceW = Math.max(1, Math.round(frameW * renderScale))
-    const deviceH = Math.max(1, Math.round(frameH * renderScale))
-    canvas.width = deviceW
-    canvas.height = deviceH
-    canvas.style.width = `${cssSize.width}px`
-    canvas.style.height = `${cssSize.height}px`
-    canvas.style.imageRendering = pixelPerfect ? 'pixelated' : 'auto'
-    editor.resize(deviceW, deviceH)
-  }
-  const resizeObserver = new ResizeObserver(() => applySize())
+  // In this player's context: `renderDpr` reads *its* adaptive scale.
+  const applySize = () =>
+    run(() => {
+      const dpr = renderDpr()
+      const availW = Math.max(1, container.clientWidth)
+      const availH = Math.max(1, container.clientHeight)
+      const scene = currentScene()
+      const camera = scene?.nodes.find((n) => scene.activeCamera && sameId(n.id, scene.activeCamera))?.camera ?? null
+      const zoom = Math.max(0.01, camera?.zoom ?? 1)
+      let frameW = (scene?.width ?? availW) / zoom
+      let frameH = (scene?.height ?? availH) / zoom
+      if (scene?.screen.mode === 'Responsive') {
+        const view = responsiveView({ width: frameW, height: frameH }, { width: availW, height: availH }, scene.screen)
+        frameW = view.width
+        frameH = view.height
+      }
+      frameSize = { width: frameW, height: frameH }
+      const fit = (options.fit === 'cover' ? Math.max : Math.min)(availW / frameW, availH / frameH)
+      cssSize = { width: frameW * fit, height: frameH * fit }
+      const pixelPerfect = !!camera?.pixelPerfect.enabled
+      const renderScale = pixelPerfect ? Math.max(1, Math.floor(fit * dpr)) : fit * dpr
+      const deviceW = Math.max(1, Math.round(frameW * renderScale))
+      const deviceH = Math.max(1, Math.round(frameH * renderScale))
+      canvas.width = deviceW
+      canvas.height = deviceH
+      canvas.style.width = `${cssSize.width}px`
+      canvas.style.height = `${cssSize.height}px`
+      canvas.style.imageRendering = pixelPerfect ? 'pixelated' : 'auto'
+      editor.resize(deviceW, deviceH)
+    })
+  const resizeObserver = new ResizeObserver(() => {
+    if (!destroyed) applySize()
+  })
   resizeObserver.observe(container)
   cleanups.push(() => resizeObserver.disconnect())
-  adaptiveResolution.onChange = applySize
+  // This player's own adaptive-resolution controller (in `rt`).
+  rt.adaptiveResolution.onChange = applySize
   cleanups.push(() => {
-    if (adaptiveResolution.onChange === applySize) adaptiveResolution.onChange = null
+    rt.adaptiveResolution.onChange = null
   })
+
+  // ---- offscreen pause ----
+  // A player scrolled out of view skips its frames entirely (no render,
+  // no simulation), so many embeds on one page only cost what's visible.
+  let onScreen = true
+  if (options.pauseWhenOffscreen !== false && typeof IntersectionObserver !== 'undefined') {
+    const visibility = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) onScreen = entry.isIntersecting
+      },
+      // Wake slightly before it scrolls in, so it's already drawn.
+      { rootMargin: '200px' },
+    )
+    visibility.observe(container)
+    cleanups.push(() => visibility.disconnect())
+  }
 
   // ---- data ----
   const hostData = new Map<string, unknown>()
@@ -271,6 +496,7 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
    * overwritten when the page sends some *other* key; after a scene switch
    * (`all`) every page value is applied again. */
   const pendingKeys = new Set<string>()
+  const sceneProps = rt.sceneProps
   const pushData = (all = false) => {
     if (!sceneId) return
     sceneProps.ensureScene(sceneId)
@@ -286,27 +512,32 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   }
   for (const [name, value] of Object.entries(options.data ?? {})) {
     hostData.set(name, value)
-    embedBridge.setData(name, value)
+    rt.embedBridge.setData(name, value)
   }
 
   // ---- scenes ----
   let sceneName: string | null = null
   let pendingScene: string | null = null
-  const enterScene = (id: OpaqueId) => {
-    doc = setActiveArtboard(editor, id)
-    doc = setMode(editor, id, 'Playground')
-    sceneId = id
-    const previous = sceneName
-    sceneName = doc.artboards.find((a) => sameId(a.id, id))?.name ?? null
-    applySize()
-    sceneProps.ensureScene(id)
-    seenProps.clear()
-    for (const name of sceneProps.names()) seenProps.set(name, sceneProps.get(name))
-    pushData(true)
-    if (sceneName !== null) dispatch('scene', { scene: sceneName, previous })
-  }
+  const enterScene = (id: OpaqueId) =>
+    run(() => {
+      doc = setActiveArtboard(editor, id)
+      doc = setMode(editor, id, 'Playground')
+      sceneId = id
+      const previous = sceneName
+      sceneName = doc.artboards.find((a) => sameId(a.id, id))?.name ?? null
+      applySize()
+      sceneProps.ensureScene(id)
+      seenProps.clear()
+      for (const name of sceneProps.names()) seenProps.set(name, sceneProps.get(name))
+      pushData(true)
+      if (sceneName !== null) dispatch('scene', { scene: sceneName, previous })
+    })
   const start = doc.artboards.find((a) => a.name === options.scene) ?? doc.artboards[0]
-  if (!start) throw new Error('an1mbyt3: this game has no scenes')
+  if (!start) {
+    runCleanups()
+    livePlayers--
+    throw new Error('an1mbyt3: this game has no scenes')
+  }
 
   // ---- input ----
   const keys = new Set<string>()
@@ -314,7 +545,20 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   let mouseDelta = { x: 0, y: 0 }
   let pointerLockArmed = false
   const keyboard = options.keyboard ?? 'focus'
+  /** Lets go of every keyboard key held (not the mouse buttons). */
+  const releaseKeys = () => {
+    for (const key of [...keys]) {
+      if (key.startsWith('mouse')) continue
+      setKeyDown(editor, key, false)
+      keys.delete(key)
+    }
+  }
+  // `window` mode: page-wide keys go to one player at a time (module doc).
+  const claimant: KeyboardClaimant = { release: releaseKeys }
+  /** Whether this keyboard event is ours to handle. */
+  const hasKeyboard = () => keyboard !== 'window' || ownsWindowKeyboard(claimant)
   const forwardKey = (event: KeyboardEvent, pressed: boolean) => {
+    if (!hasKeyboard()) return
     const key = normalizeKeyName(event.key)
     if (['space', 'up', 'down', 'left', 'right'].includes(key)) event.preventDefault()
     if (pressed) keys.add(key)
@@ -325,10 +569,16 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     const keyTarget: EventTarget = keyboard === 'window' ? window : canvas
     listen(keyTarget, 'keydown', (e) => forwardKey(e as KeyboardEvent, true))
     listen(keyTarget, 'keyup', (e) => forwardKey(e as KeyboardEvent, false))
-    listen(keyboard === 'window' ? window : canvas, 'blur', () => {
-      for (const key of keys) setKeyDown(editor, key, false)
-      keys.clear()
-    })
+    listen(keyTarget, 'blur', releaseKeys)
+  }
+  if (keyboard === 'window') {
+    joinWindowKeyboard(claimant)
+    cleanups.push(() => leaveWindowKeyboard(claimant))
+    // Clicking / focusing anything in this player (canvas or its HTML UI)
+    // makes it the one page-wide keys drive. Capture: seen even when the
+    // HTML UI stops the event.
+    listen(container, 'pointerdown', () => claimWindowKeyboard(claimant), { capture: true })
+    listen(container, 'focusin', () => claimWindowKeyboard(claimant))
   }
   const gestures = new PointerGestures()
   listen(window, 'pointermove', (ev) => {
@@ -347,14 +597,18 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     if (keyboard === 'focus') canvas.focus({ preventScroll: true })
     if (pointerLockArmed && document.pointerLockElement !== canvas) void canvas.requestPointerLock()
   })
+  // Window-wide (a drag may end outside the canvas), but only for a press
+  // that started on *this* player — other players' clicks aren't ours.
   listen(window, 'pointerup', (ev) => {
     const e = ev as PointerEvent
-    if (keys.has('mouse')) gestures.up(e)
+    if (!keys.has('mouse')) return
+    gestures.up(e)
     syncMouseButtons(keys, e)
     if (!e.buttons) keys.delete('mouse')
     forwardMouseKeys(keys, (k, p) => setKeyDown(editor, k, p))
   })
   listen(window, 'pointercancel', () => {
+    if (!keys.has('mouse')) return
     for (const k of ['mouse', 'mouseleft', 'mouseright', 'mousemiddle']) keys.delete(k)
     forwardMouseKeys(keys, (k, p) => setKeyDown(editor, k, p))
   })
@@ -379,14 +633,14 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   }
 
   // ---- game → page ----
-  embedBridge.listen((name, payload) => dispatch('event', { name, payload }))
-  cleanups.push(() => embedBridge.listen(null))
-  // Console lines (new ones and repeats) as `log` events.
+  rt.embedBridge.listen((name, payload) => dispatch('event', { name, payload }))
+  // Console lines (new ones and repeats) as `log` events — this player's
+  // own console only.
   const logCounts = new Map<number, number>()
-  for (const e of gameConsole.list()) logCounts.set(e.id, e.count)
+  for (const e of rt.gameConsole.list()) logCounts.set(e.id, e.count)
   cleanups.push(
-    gameConsole.subscribe(() => {
-      for (const e of gameConsole.list()) {
+    rt.gameConsole.subscribe(() => {
+      for (const e of rt.gameConsole.list()) {
         if (logCounts.get(e.id) === e.count) continue
         logCounts.set(e.id, e.count)
         const level = e.level === 'error' ? 'error' : e.level === 'warn' ? 'warn' : 'log'
@@ -396,13 +650,14 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
   )
 
   // ---- frame loop ----
-  const host = new ScriptHost()
+  const host = run(() => new ScriptHost())
   const perf = new PerfMeter()
   if (options.stats || new URLSearchParams(location.search).has('stats')) perf.toggle(container)
   // F3 / backtick toggles the profiler when the game owns the keyboard.
   if (keyboard !== 'none') {
     listen(keyboard === 'window' ? window : canvas, 'keydown', (ev) => {
       const e = ev as KeyboardEvent
+      if (!hasKeyboard()) return
       if (e.key === 'F3' || e.key === '`') {
         e.preventDefault()
         perf.toggle(container)
@@ -448,13 +703,8 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     return summary
   }
 
-  const frame = (now: number) => {
-    if (destroyed) return
-    rafId = requestAnimationFrame(frame)
-    if (paused) {
-      lastTime = null
-      return
-    }
+  /** One frame of this player, inside its runtime context. */
+  const step = (now: number) => {
     try {
       const deltaSeconds = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.1)
       lastTime = now
@@ -514,7 +764,7 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
       mouseDelta = { x: 0, y: 0 }
       wheel = { x: 0, y: 0 }
       perf.endFrame(editor, deltaSeconds * 1000, now)
-      adaptiveResolution.update(editor, deltaSeconds * 1000, now, true)
+      rt.adaptiveResolution.update(editor, deltaSeconds * 1000, now, true)
     } catch (err) {
       frameErrors++
       if (frameErrors <= 3 || frameErrors % 600 === 0) {
@@ -522,6 +772,18 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
         dispatch('error', { error: err })
       }
     }
+  }
+
+  const frame = (now: number) => {
+    if (destroyed) return
+    rafId = requestAnimationFrame(frame)
+    // Paused, or scrolled out of view: skip the frame (and restart the
+    // clock, so coming back isn't one giant time step).
+    if (paused || !onScreen) {
+      lastTime = null
+      return
+    }
+    run(() => step(now))
   }
 
   // ---- the API ----
@@ -550,7 +812,7 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     },
     set(name, value) {
       hostData.set(name, value)
-      embedBridge.setData(name, value)
+      rt.embedBridge.setData(name, value)
       pendingKeys.add(name)
       dataDirty = true
     },
@@ -576,7 +838,8 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
       pendingScene = name
     },
     call(name, arg) {
-      const { found, result } = callFunction(name, arg)
+      // This player's `ctx.on` functions, run inside its context.
+      const { found, result } = run(() => callFunction(name, arg))
       if (!found) console.warn(`an1mbyt3: no script function "${name}" (register it with ctx.on('${name}', fn))`)
       return result
     },
@@ -610,23 +873,19 @@ export async function createPlayer(container: HTMLElement, options: PlayerOption
     destroy() {
       if (destroyed) return
       destroyed = true
+      livePlayers--
       cancelAnimationFrame(rafId)
       for (const key of keys) setKeyDown(editor, key, false)
-      for (const cleanup of cleanups.reverse()) cleanup()
+      keys.clear()
+      // Only this player's things: its listeners, observers, canvas, HTML
+      // UI layer, sounds, connection, and finally its `WasmEditor`.
+      runCleanups()
       listeners.clear()
-      try {
-        editor.free()
-      } catch {
-        // Already freed.
-      }
-      if (current === handle) current = null
     },
   }
-  const handle = { destroy: () => player.destroy() }
-  current = handle
 
   enterScene(start.id)
-  reportChanges()
+  run(() => reportChanges())
   dispatch('ready', { scenes: player.scenes, scene: sceneName ?? start.name })
   rafId = requestAnimationFrame(frame)
   return player

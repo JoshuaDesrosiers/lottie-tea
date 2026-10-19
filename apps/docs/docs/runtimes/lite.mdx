@@ -6,7 +6,9 @@ description: Toasty Lite is a 25 KB Canvas 2D runtime for interactive UI animati
 
 # Toasty Lite
 
-Toasty Lite is the small web runtime for interactive UI animation. It plays a JSON file exported from the Toasty editor and draws it with the browser's Canvas 2D: vector shapes, strokes with trim paths, path morphs, keyframes and a state machine that reacts to hover, clicks and your page's data.
+Toasty Lite is the small web runtime for interactive UI animation. It plays a JSON file exported from the Toasty editor and draws it with the browser's Canvas 2D: vector shapes, images, blend modes, strokes with trim paths, path morphs, motion paths, drop shadows, keyframes and a state machine that reacts to hover, clicks and your page's data. It also draws a set of Image Effects (background, shadow, outside stroke, blur, glow, grain, gradient map, texture, clip and feather) and the scene's global texture, all of which can be animated.
+
+In the editor, switch on **LITE** in the toolbar to only see what Lite exports. With it off, anything Lite leaves out is marked with an asterisk (*).
 
 It is built for the parts of a website that should feel alive without becoming a project of their own: a like button, a menu icon, a theme switch, a submit button that shows its result, a download that reports progress.
 
@@ -20,7 +22,7 @@ It is built for the parts of a website that should feel alive without becoming a
 
 ## Lite or the engine?
 
-Toasty ships two web runtimes. Use **Toasty Lite** for interface animation: icons, buttons, toggles, loaders and illustrations, where many small pieces share a page and each must load instantly. Use the **engine embed** for games and rich scenes that need scripts, physics, particles, images, audio or 3D. The engine is about 25 MB and runs one player per page.
+Toasty ships two web runtimes. Use **Toasty Lite** for interface animation: icons, buttons, toggles, loaders and illustrations, where many small pieces share a page and each must load instantly. Use the **engine embed** for games and rich scenes that need scripts, physics, particles, audio or 3D. The engine is about 25 MB.
 
 If your animation is made of vector shapes and is driven by a state machine, it belongs in Lite. To start from one of the ten components below, open **+ → Templates** in the editor and pick a **Lite:** template; it is added as its own scene, ready to restyle and export. See [Authoring for Lite](./authoring.mdx#start-from-a-template). The full comparison is in [Lite or engine?](./lite-vs-engine.mdx).
 

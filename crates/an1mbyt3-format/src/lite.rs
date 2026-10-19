@@ -107,6 +107,9 @@ pub fn export_lite(document: &Document, artboard: Option<ArtboardId>) -> Option<
                 out.insert("kind".into(), json!("shape"));
                 out.insert("path".into(), json!(path_data(&shape.path)));
                 out.insert("fill".into(), json!(shape.fill_color));
+                if let Some(b) = blend(shape.blend_mode) {
+                    out.insert("blend".into(), json!(b));
+                }
                 if let Some(g) = &shape.gradient {
                     out.insert("gradient".into(), gradient(g));
                 }
@@ -121,6 +124,22 @@ pub fn export_lite(document: &Document, artboard: Option<ArtboardId>) -> Option<
                         s["gradient"] = gradient(g);
                     }
                     out.insert("stroke".into(), s);
+                }
+            }
+            NodeKind::Image(image) => {
+                // Embedded as a data URL so a Lite file stays one file.
+                match document.image(image.image) {
+                    Some(asset) if !asset.source.is_empty() => {
+                        out.insert("kind".into(), json!("image"));
+                        out.insert("image".into(), json!({ "src": data_url(&asset.source), "width": image.width, "height": image.height }));
+                        if let Some(b) = blend(image.blend_mode) {
+                            out.insert("blend".into(), json!(b));
+                        }
+                    }
+                    _ => {
+                        out.insert("kind".into(), json!("group"));
+                        skipped.push(format!("{} (image with no picture)", node.name));
+                    }
                 }
             }
             NodeKind::Text(text) => {
@@ -198,6 +217,23 @@ pub fn export_lite(document: &Document, artboard: Option<ArtboardId>) -> Option<
                     out.insert("bindings".into(), json!(list));
                 }
                 NodeBehavior::Camera(_) => {}
+                // A design-only reference: never part of the output.
+                NodeBehavior::Reference2D(_) => {}
+                NodeBehavior::DropShadow2D(d) => {
+                    out.insert("shadow".into(), json!({ "color": d.color, "offset": d.offset, "blur": d.softness }));
+                }
+                NodeBehavior::ImageEffects(fx) => {
+                    let (lite, left_out) = lite_image_effects(document, fx);
+                    for name in left_out {
+                        skipped.push(format!("{}: Image Effects › {name} (full engine only)", node.name));
+                    }
+                    if let Some(lite) = lite {
+                        out.insert("fx".into(), lite);
+                        if let Some((lo, hi)) = local_box(board, *id) {
+                            out.insert("box".into(), json!([lo.x, lo.y, hi.x, hi.y]));
+                        }
+                    }
+                }
                 other => skipped.push(format!("{}: {}", node.name, behavior_name(other))),
             }
         }
@@ -214,6 +250,14 @@ pub fn export_lite(document: &Document, artboard: Option<ArtboardId>) -> Option<
         let mut tracks = Vec::new();
         for (node, track) in &anim.tracks {
             let Some(&n) = index.get(node) else { continue };
+            // Image Effects values Lite draws animate as `fx/…` pose keys.
+            if let PropertyTrack::Field { path, track } = track {
+                if let Some(prop) = path.strip_prefix("behavior/ImageEffects/").and_then(|rest| lite_fx_field(board, *node, rest)) {
+                    let keys: Vec<Value> = track.keyframes.iter().map(|k| key(k.time, &k.value, &k.easing)).collect();
+                    tracks.push(json!({ "node": n, "prop": prop, "keys": keys }));
+                    continue;
+                }
+            }
             let (prop, keys): (&str, Vec<Value>) = match track {
                 PropertyTrack::Translation(t) => ("translation", t.keyframes.iter().map(|k| key(k.time, &[k.value.x, k.value.y], &k.easing)).collect()),
                 PropertyTrack::Rotation(t) => ("rotation", t.keyframes.iter().map(|k| key(k.time, &[k.value], &k.easing)).collect()),
@@ -237,9 +281,16 @@ pub fn export_lite(document: &Document, artboard: Option<ArtboardId>) -> Option<
                     };
                     (prop, track.keyframes.iter().map(|k| key(k.time, &k.value, &k.easing)).collect())
                 }
-                PropertyTrack::MotionPath { .. } => {
-                    skipped.push(format!("animation \"{}\": motion path", anim.name));
-                    continue;
+                PropertyTrack::MotionPath { guide, track } => {
+                    // Baked: the guide path sampled into translation keys
+                    // (30 per second, linear) — Lite has no path follower.
+                    match bake_motion_path(board, *node, *guide, track) {
+                        Some(keys) => ("translation", keys),
+                        None => {
+                            skipped.push(format!("animation \"{}\": motion path (its guide isn't a shape)", anim.name));
+                            continue;
+                        }
+                    }
                 }
             };
             tracks.push(json!({ "node": n, "prop": prop, "keys": keys }));
@@ -305,8 +356,215 @@ pub fn export_lite(document: &Document, artboard: Option<ArtboardId>) -> Option<
         "stateMachine": state_machine,
         "properties": properties,
         "fonts": fonts,
+        "texture": global_texture(document, board),
         "skipped": skipped,
     }))
+}
+
+/// The Lite name of a non-Normal blend mode (Canvas2D composite op).
+fn blend(mode: an1mbyt3_core::BlendMode) -> Option<&'static str> {
+    match mode {
+        an1mbyt3_core::BlendMode::Normal => None,
+        an1mbyt3_core::BlendMode::Multiply => Some("multiply"),
+        an1mbyt3_core::BlendMode::Screen => Some("screen"),
+        an1mbyt3_core::BlendMode::Add => Some("lighter"),
+    }
+}
+
+/// An image asset's bytes as a `data:` URL (type sniffed from the bytes).
+fn data_url(bytes: &[u8]) -> String {
+    let mime = if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
+        "image/png"
+    } else if bytes.starts_with(&[0xFF, 0xD8]) {
+        "image/jpeg"
+    } else if bytes.starts_with(b"GIF8") {
+        "image/gif"
+    } else if bytes.len() > 12 && &bytes[8..12] == b"WEBP" {
+        "image/webp"
+    } else {
+        "image/png"
+    };
+    format!("data:{mime};base64,{}", base64(bytes))
+}
+
+/// A node's subtree bounds in its own local space (shapes' paths, text and
+/// images, children carried through their transforms).
+fn local_box(board: &an1mbyt3_core::Artboard, id: NodeId) -> Option<(glam::Vec2, glam::Vec2)> {
+    let node = board.node(id)?;
+    let mut acc: Option<(glam::Vec2, glam::Vec2)> = match &node.kind {
+        NodeKind::Shape(s) if !s.path.commands.is_empty() => Some(s.path.bounds()),
+        NodeKind::Image(i) => Some((glam::Vec2::new(-i.width / 2.0, -i.height / 2.0), glam::Vec2::new(i.width / 2.0, i.height / 2.0))),
+        NodeKind::Text(t) => {
+            let hw = t.content.chars().count().max(1) as f32 * t.size_px * 0.3;
+            Some((glam::Vec2::new(-hw, -t.size_px * 0.6), glam::Vec2::new(hw, t.size_px * 0.6)))
+        }
+        _ => None,
+    };
+    for (child, c) in board.children_of(id) {
+        if c.deleted || !c.visible {
+            continue;
+        }
+        let Some((lo, hi)) = local_box(board, child) else { continue };
+        let m = c.transform.to_affine2();
+        for p in [lo, glam::Vec2::new(hi.x, lo.y), hi, glam::Vec2::new(lo.x, hi.y)] {
+            let q = m.transform_point2(p);
+            acc = Some(match acc {
+                Some((a, b)) => (a.min(q), b.max(q)),
+                None => (q, q),
+            });
+        }
+    }
+    acc
+}
+
+/// A Motion Path track as translation keys: the guide shape's path
+/// sampled at 30 fps over the track, carried into `target`'s parent space
+/// (the guide's own transform is taken as it is now).
+fn bake_motion_path(board: &an1mbyt3_core::Artboard, target: NodeId, guide: NodeId, track: &an1mbyt3_core::Track<f32>) -> Option<Vec<Value>> {
+    let NodeKind::Shape(shape) = &board.node(guide)?.kind else { return None };
+    let guide_world = board.try_world_transform(guide)?.to_affine2();
+    let parent_world = match board.node(target)?.parent {
+        Some(p) => board.try_world_transform(p)?.to_affine2(),
+        None => glam::Affine2::IDENTITY,
+    };
+    let to_local = parent_world.inverse();
+    let duration = track.duration().max(0.0);
+    let steps = ((duration * 30.0).ceil() as usize).max(1);
+    Some(
+        (0..=steps)
+            .map(|i| {
+                let t = duration * i as f32 / steps as f32;
+                let world = guide_world.transform_point2(shape.path.point_at_progress(track.sample(t)));
+                let local = to_local.transform_point2(world);
+                key(t, &[local.x, local.y], &Easing::Linear)
+            })
+            .collect(),
+    )
+}
+
+/// The Lite subset of an Image Effects stack: the element settings
+/// (background colour, clip, feather) plus the effects Canvas2D can do —
+/// Drop Shadow, Stroke, Blur (plain), Glow, Grain, Gradient Map, Texture.
+/// Returns the JSON (None if nothing Lite draws) and the names left out.
+fn lite_image_effects(document: &Document, fx: &an1mbyt3_core::ImageEffects) -> (Option<Value>, Vec<String>) {
+    use an1mbyt3_core::image_effects::{BlurMode, StrokePosition};
+    use an1mbyt3_core::ImageEffect as E;
+    let mut out = Vec::new();
+    let mut left = Vec::new();
+    for layer in fx.effects.iter().filter(|l| l.enabled) {
+        if !lite_draws(&layer.effect) {
+            left.push(layer.effect.label().to_string());
+            continue;
+        }
+        match &layer.effect {
+            E::DropShadow(e) => out.push(json!({ "type": "shadow", "color": e.color, "offset": e.offset, "blur": e.blur, "spread": e.spread })),
+            E::Stroke(e) if e.position == StrokePosition::Outside => out.push(json!({ "type": "stroke", "color": e.color, "width": e.width })),
+            E::Blur(e) if e.mode == BlurMode::Plain => out.push(json!({ "type": "blur", "radius": e.radius })),
+            E::Glow(e) => out.push(json!({ "type": "glow", "intensity": e.intensity, "radius": e.radius, "tint": e.tint })),
+            E::Grain(e) => out.push(json!({ "type": "grain", "amount": e.amount, "size": e.size, "animated": e.animated, "mono": e.mono })),
+            E::GradientMap(e) => out.push(json!({ "type": "gradientMap", "amount": e.amount, "smooth": e.smooth, "offset": e.offset, "stops": e.stops.iter().map(|s| json!({ "position": s.position, "color": s.color })).collect::<Vec<_>>() })),
+            E::Texture(t) => out.push(texture_json(document, t)),
+            _ => {}
+        }
+    }
+    let element = fx.has_background() || fx.clip_to_shape || fx.feather > 0.0;
+    if out.is_empty() && !element {
+        return (None, left);
+    }
+    if fx.background_image.is_some() {
+        left.push("background image".into());
+    }
+    (
+        Some(json!({
+            "effects": out,
+            "background": fx.background,
+            "radius": fx.background_radius,
+            "padding": fx.background_padding,
+            "clip": fx.clip_to_shape,
+            "feather": fx.feather,
+        })),
+        left,
+    )
+}
+
+/// Whether Lite draws this Image Effect (its `lite_image_effects` subset).
+fn lite_draws(effect: &an1mbyt3_core::ImageEffect) -> bool {
+    use an1mbyt3_core::image_effects::{BlurMode, StrokePosition};
+    use an1mbyt3_core::ImageEffect as E;
+    match effect {
+        E::DropShadow(_) | E::Glow(_) | E::Grain(_) | E::GradientMap(_) | E::Texture(_) => true,
+        E::Stroke(e) => e.position == StrokePosition::Outside,
+        E::Blur(e) => e.mode == BlurMode::Plain,
+        _ => false,
+    }
+}
+
+/// An Image Effects field path (after `behavior/ImageEffects/`) as a Lite
+/// pose key: `fx/feather`, `fx/background` …, or `fx/<i>/<field>` where
+/// `i` counts only the effects Lite exports (enabled + drawn), so it
+/// indexes the exported `fx.effects`. None when Lite doesn't draw it.
+fn lite_fx_field(board: &an1mbyt3_core::Artboard, node: NodeId, rest: &str) -> Option<String> {
+    let element = match rest {
+        "feather" => Some("feather"),
+        "background" => Some("background"),
+        "backgroundRadius" => Some("radius"),
+        "backgroundPadding" => Some("padding"),
+        _ => None,
+    };
+    if let Some(name) = element {
+        return Some(format!("fx/{name}"));
+    }
+    // effects/<i>/effect/<Kind>/<field>
+    let mut parts = rest.split('/');
+    let (Some("effects"), Some(i), Some("effect"), Some(_kind), Some(field), None) = (parts.next(), parts.next(), parts.next(), parts.next(), parts.next(), parts.next()) else {
+        return None;
+    };
+    let i: usize = i.parse().ok()?;
+    let fx = board.node(node)?.behaviors.iter().find_map(|b| match &b.behavior {
+        NodeBehavior::ImageEffects(fx) => Some(fx),
+        _ => None,
+    })?;
+    let layer = fx.effects.get(i)?;
+    if !layer.enabled || !lite_draws(&layer.effect) {
+        return None;
+    }
+    let lite_index = fx.effects[..i].iter().filter(|l| l.enabled && lite_draws(&l.effect)).count();
+    Some(format!("fx/{lite_index}/{field}"))
+}
+
+/// A Texture's Lite JSON (an image source is embedded).
+fn texture_json(document: &Document, t: &an1mbyt3_core::Texture) -> Value {
+    let image = match (t.source, t.image) {
+        (an1mbyt3_core::TextureSource::Image, Some(id)) => document.image(id).filter(|a| !a.source.is_empty()).map(|a| data_url(&a.source)),
+        _ => None,
+    };
+    json!({
+        "type": "texture",
+        "source": format!("{:?}", t.source),
+        "image": image,
+        "blend": format!("{:?}", t.blend),
+        "opacity": t.opacity,
+        "scale": t.scale,
+        "rotation": t.rotation,
+        "offset": t.offset,
+        "contrast": t.contrast,
+        "tint": t.tint,
+        "speed": t.speed,
+        "detail": t.detail,
+    })
+}
+
+/// The scene's global texture (the first enabled one), if any.
+fn global_texture(document: &Document, board: &an1mbyt3_core::Artboard) -> Value {
+    board
+        .post_effects()
+        .iter()
+        .filter(|l| l.enabled)
+        .find_map(|l| match l.effect {
+            an1mbyt3_core::PostEffect::Texture(t) => Some(texture_json(document, &t)),
+            _ => None,
+        })
+        .unwrap_or(Value::Null)
 }
 
 /// `{ t, v, e }`: time, value (1–4 numbers), easing (`null` = linear, or

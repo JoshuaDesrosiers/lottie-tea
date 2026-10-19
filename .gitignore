@@ -15,6 +15,10 @@ assets3d/_downloads/
 # Generated: wasm-pack output (rebuild with `wasm-pack build crates/an1mbyt3-wasm ...`)
 apps/editor/src/wasm-pkg/
 
+# Generated: the shared runtime folder + zip (`npm run build:player` →
+# apps/editor/scripts/build-runtime.mjs) — carries a 20+ MB copy of the wasm
+apps/editor/public/runtime/
+
 # Raw third-party asset packs (source art; the demos embed their own copies
 # under crates/an1mbyt3-wasm/assets/)
 /Ninja Adventure - Asset Pack/

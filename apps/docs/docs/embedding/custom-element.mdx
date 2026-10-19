@@ -26,7 +26,7 @@ With Toast Catch as `game.teab`, that tag shows this:
 <ToastyDemo game="/games/toast-catch.teab" height={360} data={{ speed: 1 }} caption="toast-catch.teab with data speed 1. Click to play." />
 
 :::tip Animated icons and buttons
-This element runs the full engine, one per page. For UI animation, the [Toasty Lite](../runtimes/html.mdx) element `<toasty-lite>` is about 25 KB and you can use as many as you like.
+This element runs the full engine; a page can hold several, each with its own game. For UI animation, the [Toasty Lite](../runtimes/html.mdx) element `<toasty-lite>` is about 25 KB and you can use as many as you like.
 :::
 
 ## Registering
@@ -144,7 +144,7 @@ You can also subscribe through `el.player.on(...)` after `an1:ready`, which give
 
 - **Added to the page:** loads the game.
 - **Removed from the page:** destroys the player and frees the engine. Moving the element (removing and re-inserting it) loads it again.
-- **One player per page:** a second `<an1-player>` that loads destroys the first one's game. Show one at a time, for example by setting `game` only on the visible one.
+- **Several players per page:** each `<an1-player>` runs its own game. The engine downloads once and is shared. Players out of view pause until scrolled back (add `run-offscreen` to keep one running). With `keyboard="window"`, keys go to the player you last clicked.
 
 ## In frameworks
 

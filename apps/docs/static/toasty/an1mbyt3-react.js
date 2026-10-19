@@ -16,6 +16,8 @@ function s(s) {
 		return f.current = i.data ? { ...i.data } : void 0, p.current = void 0, e(t, {
 			game: i.game,
 			wasm: i.wasm,
+			runtimeUrl: i.runtimeUrl,
+			pauseWhenOffscreen: i.pauseWhenOffscreen,
 			scene: i.scene,
 			data: i.data,
 			paused: i.paused,
@@ -38,6 +40,8 @@ function s(s) {
 	}, [
 		s.game,
 		s.wasm,
+		s.runtimeUrl ? String(s.runtimeUrl) : void 0,
+		s.pauseWhenOffscreen,
 		s.fit,
 		s.keyboard,
 		s.background

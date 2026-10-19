@@ -119,8 +119,12 @@ You don't install an npm package. **Export → Game → Website embed (React / J
 
 ## Things to know up front
 
-:::caution One player per page
-Only one engine player runs on a page at a time. Creating a second one destroys the first (the engine's HTML overlay, scene Properties and script state are page-wide). Put the game on the page with the engine, and build the animated UI around it with [Toasty Lite](../runtimes/lite.mdx), which has no such limit. The live examples in these docs follow the same rule: starting one puts the previous one back to its poster.
+:::note Several players per page
+A page can run several engine players at once, each with its own game, Properties and script state. The engine downloads once and is shared. Every player takes a GPU context (browsers allow about 16 per page), and players scrolled out of view pause until they come back. For lots of small animated pieces, use [Toasty Lite](../runtimes/lite.mdx): it's a plain canvas and costs almost nothing.
+:::
+
+:::tip Share one runtime between sites
+**Export → Website embed (shared runtime)** writes a game folder that loads the engine from a shared runtime instead of carrying its own copy. Point it at our hosted runtime (`https://toastycreate.web.app/runtime/0.1.0/`) or download it once from **Export → Download shared runtime…** and host it yourself. The regular Website embed export is still there and is fully self-contained.
 :::
 
 :::note Give the box a height

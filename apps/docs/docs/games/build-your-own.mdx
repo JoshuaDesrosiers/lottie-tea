@@ -131,7 +131,7 @@ From here, add your own objects and replace the `if (false …)` line with a rea
 - [ ] Press **F3** while playing to check the frame time.
 - [ ] Export with **Export → Game → Website embed (React / JS)** and follow [Exporting for the web](../embedding/export-for-web.mdx).
 - [ ] On the page, read the game's events and Properties as in the [Toast Catch embed example](./toast-catch.mdx#embed-it-on-a-page).
-- [ ] Use [Toasty Lite](../runtimes/lite.mdx) for the animated buttons and icons around the game. The engine runs one player per page; Lite has no such limit.
+- [ ] Use [Toasty Lite](../runtimes/lite.mdx) for the animated buttons and icons around the game. Each engine player has its own GPU context (browsers allow about 16 per page); Lite players are plain canvases and cost almost nothing.
 
 ## Where to read next
 

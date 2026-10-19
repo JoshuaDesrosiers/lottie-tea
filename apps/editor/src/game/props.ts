@@ -16,11 +16,11 @@
  */
 import type { OpaqueId, PropertySummary } from '../ipc/document'
 
-let defs: PropertySummary[] = []
-
-/** The authored properties (call whenever the document summary changes). */
+/** The authored properties (call whenever the document summary changes).
+ * Stored on the *active* store (`sceneProps`), so each embedded player
+ * keeps its own game's definitions (see `runtimeContext.ts`). */
 export function setPropertyDefs(list: readonly PropertySummary[] | undefined): void {
-  defs = [...(list ?? [])]
+  sceneProps.defs = [...(list ?? [])]
 }
 
 /** A value as `kind` (`Number` / `Bool` / `Text` / `Color`). */
@@ -53,7 +53,9 @@ function parseDefault(p: PropertySummary): unknown {
   }
 }
 
-class SceneProps {
+export class SceneProps {
+  /** The authored properties of every scene (`setPropertyDefs`). */
+  defs: PropertySummary[] = []
   private sceneKey = ''
   private values = new Map<string, unknown>()
   private kinds = new Map<string, PropertySummary['kind']>()
@@ -65,7 +67,7 @@ class SceneProps {
     const key = `${scene.idx}.${scene.version}`
     if (key === this.sceneKey) {
       // New properties added while playing: pick them up.
-      for (const p of defs) {
+      for (const p of this.defs) {
         if (p.artboard.idx === scene.idx && p.artboard.version === scene.version && !this.kinds.has(p.name)) {
           this.define(p)
           this.version++
@@ -76,7 +78,7 @@ class SceneProps {
     this.sceneKey = key
     this.values.clear()
     this.kinds.clear()
-    for (const p of defs) if (p.artboard.idx === scene.idx && p.artboard.version === scene.version) this.define(p)
+    for (const p of this.defs) if (p.artboard.idx === scene.idx && p.artboard.version === scene.version) this.define(p)
     this.version++
   }
 
@@ -152,8 +154,21 @@ class SceneProps {
   }
 }
 
-/** The one runtime property store. */
-export const sceneProps = new SceneProps()
+/**
+ * The *active* runtime property store. The editor has one; every embedded
+ * player (`player/engine.ts`) has its own, swapped in around that
+ * player's frame / API calls by `runtimeContext.ts`. An ES module live
+ * binding: importers always see the current one.
+ */
+export let sceneProps = new SceneProps()
+
+/** Makes `next` the active store; returns the one it replaced. Only
+ * `runtimeContext.ts` should call this. */
+export function swapSceneProps(next: SceneProps): SceneProps {
+  const previous = sceneProps
+  sceneProps = next
+  return previous
+}
 
 /** Text for a value: `format` with `{}` replaced (numbers trimmed). */
 export function formatProp(value: unknown, format = ''): string {

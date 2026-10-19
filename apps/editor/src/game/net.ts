@@ -73,7 +73,7 @@ export interface ScriptNet {
 
 const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-class NetClient implements ScriptNet {
+export class NetClient implements ScriptNet {
   status: NetStatus = 'offline'
   error: string | null = null
   me: number | null = null
@@ -255,5 +255,14 @@ class NetClient implements ScriptNet {
   }
 }
 
-/** The one network connection (the game's `ctx.net`). */
-export const gameNet = new NetClient()
+/** The *active* network connection (the game's `ctx.net`; live binding):
+ * the editor's, or — around an embedded player's frame — that player's
+ * own, so two games on one page don't share a room (`runtimeContext.ts`). */
+export let gameNet = new NetClient()
+
+/** Makes `next` the active connection; returns the one it replaced. */
+export function swapGameNet(next: NetClient): NetClient {
+  const previous = gameNet
+  gameNet = next
+  return previous
+}

@@ -151,6 +151,9 @@ script handles is delivered to your page as an event with that name.
 - **Next.js: "window is not defined".** The player only runs in the browser:
   load it with `dynamic(() => import('./GameBox'), { ssr: false })` and put
   `'use client'` at the top of that file.
-- **A second game replaced the first.** One player per page at a time.
+- **Several games on one page.** Fine — each player is independent and they
+  share one engine download. Players scrolled out of view pause. Keep it to
+  a handful of full-engine players per page (each holds a GPU context);
+  use Toasty Lite for many small animations.
 - **Updating the game.** Export again and replace *all* the files — the
   engine, the game and the JavaScript belong together.

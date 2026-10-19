@@ -7,9 +7,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && npm run build:player && vite build",
-    "build:player": "vite build --config vite.player.config.ts && vite build --config vite.embed.config.ts",
+    "build:player": "vite build --config vite.player.config.ts && vite build --config vite.embed.config.ts && node scripts/build-runtime.mjs",
+    "build:runtime": "node scripts/build-runtime.mjs",
     "build:embed": "vite build --config vite.embed.config.ts",
-    "deploy:web": "vite build && npm run build:docs && firebase deploy --only hosting --project toastycreate",
+    "deploy:web": "npm run build:runtime && vite build && npm run build:docs && firebase deploy --only hosting --project toastycreate",
     "build:runner": "cargo build -p an1mbyt3-runner --release",
     "preview": "vite preview",
     "tauri": "tauri",

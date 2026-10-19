@@ -86,6 +86,8 @@ export class AudioEngine {
   private buffers = new Map<string, Promise<AudioBuffer | null>>()
   private voices = new Set<Voice>()
   private unlocked = false
+  /** The page-wide "first gesture" listener (removed by `dispose`). */
+  private unlock: (() => void) | null = null
 
   constructor() {
     if (typeof window === 'undefined') return
@@ -95,8 +97,24 @@ export class AudioEngine {
       const ctx = this.context()
       if (ctx && ctx.state === 'suspended') void ctx.resume()
     }
+    this.unlock = unlock
     window.addEventListener('pointerdown', unlock, { capture: true })
     window.addEventListener('keydown', unlock, { capture: true })
+  }
+
+  /** Stops every sound, closes the audio context and unhooks the gesture
+   * listener — an embedded player's own engine, when the player is
+   * destroyed (the editor's lives as long as the page). */
+  dispose(): void {
+    this.stopAll()
+    if (this.unlock && typeof window !== 'undefined') {
+      window.removeEventListener('pointerdown', this.unlock, { capture: true })
+      window.removeEventListener('keydown', this.unlock, { capture: true })
+    }
+    this.unlock = null
+    void this.ctx?.close().catch(() => undefined)
+    this.ctx = null
+    this.master = null
   }
 
   /** The audio context (created lazily; `null` where Web Audio is missing). */
@@ -281,5 +299,18 @@ export class AudioEngine {
   }
 }
 
-/** The one engine the editor and the exported player share. */
-export const audio = new AudioEngine()
+/**
+ * The *active* audio engine (live binding): the editor's, or — around an
+ * embedded player's frame — that player's own, so one game's "stop all
+ * sounds" / new session doesn't silence another game on the same page
+ * (`runtimeContext.ts`). Each engine opens its `AudioContext` lazily, on
+ * its first sound, so silent embeds cost nothing.
+ */
+export let audio = new AudioEngine()
+
+/** Makes `next` the active engine; returns the one it replaced. */
+export function swapAudio(next: AudioEngine): AudioEngine {
+  const previous = audio
+  audio = next
+  return previous
+}

@@ -156,7 +156,7 @@ After it starts, a frame that throws is skipped and reported through `on('error'
 
 Call `player.destroy()` when the game's box goes away (route change, modal closed). It stops the frame loop, removes the canvas and the HTML overlay, releases held keys and frees the engine's memory. Calling it twice is harmless.
 
-Only one player runs per page: calling `createPlayer` again destroys the previous player automatically. To swap games, just create the new one.
+Each `createPlayer` call makes an independent player, so a page can show several games. To swap the game in one box, `destroy()` the old player first.
 
 ## Vue 3
 

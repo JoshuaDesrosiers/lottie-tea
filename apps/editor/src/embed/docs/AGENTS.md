@@ -12,7 +12,14 @@ authoritative API reference; the type declarations in
   in a container element and is steered by the host page.
 - Shipped as prebuilt ES modules (no npm package, no build step of its own)
   plus two static binary assets.
-- One player per page. Creating a second player destroys the first.
+- Any number of players per page: every `createPlayer` / `<an1-player>` /
+  `<An1Player>` is independent (own canvas, game, data, events). The engine
+  `.wasm` is downloaded once and shared. Players scrolled out of view pause
+  (`pauseWhenOffscreen: false` to keep one running). Each full-engine
+  player holds a GPU context (browsers cap these, ~16 WebGL contexts in
+  Chrome) — don't put dozens on one page.
+- `keyboard: 'window'` with several players: page-wide keys drive only the
+  player the user last clicked / focused.
 
 ## Files and where they belong
 
@@ -38,7 +45,9 @@ import { createPlayer } from './an1mbyt3/an1mbyt3-embed.js'
 
 const player = await createPlayer(container: HTMLElement, {
   game: string | URL | ArrayBuffer | Uint8Array,   // required
-  wasm?: same,                                       // default: next to `game` (required if `game` is bytes)
+  wasm?: same,                                       // default: from runtimeUrl, else next to `game`, else next to the JS
+  runtimeUrl?: string | URL,                         // a shared runtime folder (…/runtime/<version>/) to load the .wasm from
+  pauseWhenOffscreen?: boolean,                      // default true
   scene?: string,                                    // start scene name; default first scene
   fit?: 'contain' | 'cover',                         // default 'contain' (letterbox)
   keyboard?: 'focus' | 'window' | 'none',            // default 'focus' (canvas must be focused; click focuses it)
@@ -116,7 +125,7 @@ import { An1Player, useAn1Player, type An1PlayerHandle } from './an1mbyt3/an1mby
 <an1-player game="/an1mbyt3/game.teab" scene="Main" data='{"coins":3}' style="display:block;height:400px"></an1-player>
 ```
 
-Attributes `game`, `wasm`, `scene`, `data` (JSON), `paused`, `fit`, `keyboard`.
+Attributes `game`, `wasm`, `runtime`, `scene`, `data` (JSON), `paused`, `fit`, `keyboard`, `run-offscreen`.
 `scene` / `data` / `paused` update live; `game` / `wasm` / `fit` / `keyboard`
 reload. `element.player` is the JS API after `an1:ready`.
 

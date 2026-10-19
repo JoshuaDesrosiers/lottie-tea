@@ -54,7 +54,18 @@ export interface ActionEnv {
 
 // ---- script functions (`ctx.on`) ----
 
-const functions = new Map<string, (arg?: unknown) => unknown>()
+type ScriptFunction = (arg?: unknown) => unknown
+
+let functions = new Map<string, ScriptFunction>()
+
+/** Makes `next` the active `ctx.on` registry; returns the one it replaced.
+ * Each embedded player has its own (`runtimeContext.ts`), so two games on
+ * one page can both register `reset` without clobbering each other. */
+export function swapFunctions(next: Map<string, ScriptFunction>): Map<string, ScriptFunction> {
+  const previous = functions
+  functions = next
+  return previous
+}
 
 /** `ctx.on(name, fn)`: makes `fn` callable from On Click "Call function". */
 export function registerFunction(name: string, fn: (arg?: unknown) => unknown): void {

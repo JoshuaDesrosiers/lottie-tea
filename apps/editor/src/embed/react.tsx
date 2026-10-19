@@ -20,6 +20,9 @@
  *   ref={playerRef}                                     // player.fire('pop') etc.
  * />
  * ```
+ *
+ * Any number of `<An1Player>`s can be on one page — each runs its own game
+ * independently; the engine is downloaded once and shared.
  */
 import { useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from 'react'
 import { createPlayer, type An1Player as An1PlayerHandle, type PlayerEvents, type PlayerOptions, type Source } from '../player/engine'
@@ -31,8 +34,13 @@ export type { PlayerEvents, PlayerOptions, Source, StateChange } from '../player
 export interface An1PlayerProps {
   /** The game (`.teab` URL or bytes). Changing it reloads. */
   game: Source
-  /** The engine (`.wasm`); default: next to `game`. */
+  /** The engine (`.wasm`); default: from `runtimeUrl`, else next to `game`. */
   wasm?: Source
+  /** A shared runtime folder (`https://toastycreate.web.app/runtime/<version>/`
+   * or a self-hosted copy): the engine `.wasm` is loaded from there. */
+  runtimeUrl?: PlayerOptions['runtimeUrl']
+  /** Pause while scrolled out of view (default `true`). */
+  pauseWhenOffscreen?: boolean
   /** The scene to show — changing it switches scene. */
   scene?: string
   /** Data for the game: `ctx.data`, and same-named scene Properties.
@@ -84,7 +92,18 @@ export function An1Player(props: An1PlayerProps) {
     const p = latest.current
     sentData.current = p.data ? { ...p.data } : undefined
     sentInputs.current = undefined
-    createPlayer(box, { game: p.game, wasm: p.wasm, scene: p.scene, data: p.data, paused: p.paused, fit: p.fit, keyboard: p.keyboard, background: p.background })
+    createPlayer(box, {
+      game: p.game,
+      wasm: p.wasm,
+      runtimeUrl: p.runtimeUrl,
+      pauseWhenOffscreen: p.pauseWhenOffscreen,
+      scene: p.scene,
+      data: p.data,
+      paused: p.paused,
+      fit: p.fit,
+      keyboard: p.keyboard,
+      background: p.background,
+    })
       .then((instance) => {
         if (cancelled) {
           instance.destroy()
@@ -111,7 +130,7 @@ export function An1Player(props: An1PlayerProps) {
       made?.destroy()
       setPlayer(null)
     }
-  }, [props.game, props.wasm, props.fit, props.keyboard, props.background])
+  }, [props.game, props.wasm, props.runtimeUrl ? String(props.runtimeUrl) : undefined, props.pauseWhenOffscreen, props.fit, props.keyboard, props.background])
 
   // Live updates — only what changed.
   useEffect(() => {

@@ -13,6 +13,8 @@ serde.workspace = true
 serde_json.workspace = true
 postcard.workspace = true
 flate2.workspace = true
+# Lite export: effect boxes / motion-path baking (world-space math).
+glam.workspace = true
 
 # Test-only: constructing a `Track<Vec2>` fixture for the translation-track
 # round-trip test below needs `glam::Vec2` directly.

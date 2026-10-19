@@ -296,6 +296,8 @@ import { adaptiveResolution, renderDpr } from './game/adaptiveResolution'
 import { PerfMeter } from './game/perf'
 import { buildGameHtml } from './game/exportGame'
 import { exportEmbed } from './game/exportEmbed'
+import { exportEmbedShared } from './game/exportEmbedShared'
+import { downloadSharedRuntime } from './game/downloadRuntime'
 
 const MIN_CAMERA_ZOOM = 0.1
 const MAX_CAMERA_ZOOM = 8
@@ -4008,6 +4010,43 @@ function App() {
     }
   }
 
+  /** Export → Website embed (shared runtime): just the game, an HTML page
+   * and a React component that load the engine from the versioned shared
+   * runtime (`game/exportEmbedShared.ts`), in a new `<name>-web` folder
+   * inside the one picked. Mirrors `handleExportEmbed`. */
+  const handleExportEmbedShared = async () => {
+    const editor = editorRef.current
+    if (!editor || !activeArtboard) return
+    const title = activeArtboard.name || 'Game'
+    const stem = title.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'game'
+    const parent = await pickProjectFolder()
+    if (!parent) return
+    if (mode === 'Playground') {
+      setMode('Design')
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    try {
+      const folder = `${parent.replace(/[\\/]+$/, '')}/${stem}-web`
+      await exportEmbedShared(editor, folder, title, activeArtboard.name, getDocumentSummary(editor))
+      void showAlert(`Website embed (shared runtime) saved to ${folder} — see its README.md`)
+    } catch (err) {
+      console.error('Export shared-runtime embed failed', err)
+      void showAlert(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  /** Export → Download shared runtime…: the runtime zip, for self-hosting
+   * (`game/downloadRuntime.ts`). */
+  const handleDownloadRuntime = async () => {
+    try {
+      const result = await downloadSharedRuntime()
+      if (result.kind === 'saved') void showAlert(`Shared runtime saved to ${result.path}`)
+    } catch (err) {
+      console.error('Download shared runtime failed', err)
+      void showAlert(`Couldn't get the shared runtime: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
   /** Export menu → Toasty Lite: the current scene as the Lite runtime's
    * JSON (`an1mbyt3_format::lite`), for icons and UI animation on websites.
    * Anything Lite can't draw (scripts, physics, particles…) is listed. */
@@ -5076,6 +5115,8 @@ ${list}${more}`)
         onExportGame={() => void handleExportGame()}
         onExportDesktopGame={() => void handleExportGame('desktop')}
         onExportEmbed={() => void handleExportEmbed()}
+        onExportEmbedShared={() => void handleExportEmbedShared()}
+        onDownloadRuntime={() => void handleDownloadRuntime()}
         onAddShape={handleAddShape}
         onAddParticleSystem={handleAddParticleSystem}
         onImportSvg={handleImportSvg}

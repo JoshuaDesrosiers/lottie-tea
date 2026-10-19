@@ -116,8 +116,17 @@ export class AdaptiveResolution {
   }
 }
 
-/** One controller for the editor's Playground (and one per exported player). */
-export const adaptiveResolution = new AdaptiveResolution()
+/** The *active* controller (live binding): the editor Playground's, or —
+ * around an embedded player's frame / resize — that player's own, so each
+ * game on a page scales its own canvas (`runtimeContext.ts`). */
+export let adaptiveResolution = new AdaptiveResolution()
+
+/** Makes `next` the active controller; returns the one it replaced. */
+export function swapAdaptiveResolution(next: AdaptiveResolution): AdaptiveResolution {
+  const previous = adaptiveResolution
+  adaptiveResolution = next
+  return previous
+}
 
 /**
  * Device pixels per CSS pixel the canvas renders at: the display's

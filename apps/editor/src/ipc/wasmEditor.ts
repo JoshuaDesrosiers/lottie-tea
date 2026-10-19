@@ -81,6 +81,30 @@ function ensureWasmInit(): Promise<void> {
   return wasmInit
 }
 
+/** Whether the engine's wasm module has been (or is being) instantiated —
+ * it is instantiated once per page and shared by every `WasmEditor`. The
+ * embed player checks this to skip downloading `.wasm` bytes it would
+ * never use. */
+export function wasmInitStarted(): boolean {
+  return wasmInit !== null
+}
+
+/**
+ * Instantiates the engine's wasm module once for the whole page (`bytes`:
+ * the `.wasm` file; ignored when it's already instantiated). Every later
+ * `createWasmEditor` — one per embedded player — makes its own
+ * `WasmEditor` (own document, own GPU surface) on this one module. A
+ * failed instantiation is forgotten, so a later call can retry.
+ */
+export function initWasm(bytes?: BufferSource): Promise<void> {
+  if (!wasmInit && bytes) wasmBytes = bytes
+  const pending = ensureWasmInit()
+  pending.catch(() => {
+    if (wasmInit === pending) wasmInit = null
+  })
+  return pending
+}
+
 /** Creates the one `WasmEditor` instance the whole app shares — call once,
  * after the canvas element exists (`App.tsx` does this in a mount effect). */
 export async function createWasmEditor(canvas: HTMLCanvasElement): Promise<WasmEditor> {

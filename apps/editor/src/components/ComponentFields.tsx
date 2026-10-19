@@ -1,3 +1,5 @@
+import { LITE_COMPONENTS, NOT_IN_LITE, useLiteMode } from '../lite/support'
+import { LiteAsterisk } from './LiteAsterisk'
 import { Popover, Select, insideOrPopover } from './Select'
 import { audio, type SoundHandle } from '../game/audio'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -1677,6 +1679,8 @@ interface PickerItem {
   section: string
   icon: keyof typeof ICON_PATHS
   disabled: boolean
+  /** Exported by Toasty Lite (see `lite/support.ts`). */
+  lite: boolean
   run: () => void
 }
 
@@ -1710,6 +1714,7 @@ export function AddComponentMenu({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const liteMode = useLiteMode()
   const [view, setView] = useState<'grid' | 'list'>(() => {
     try {
       return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid'
@@ -1744,15 +1749,17 @@ export function AddComponentMenu({
     ...SECTIONS.flatMap((section) =>
       section.kinds.map((kind) => {
         const label = COMPONENT_LABEL[kind]
-        return { key: kind, label, short: label.replace(/\s*\(.*\)\s*$/, ''), section: section.title, icon: COMPONENT_ICON[kind] ?? 'generic', disabled: SINGLE_COMPONENTS.includes(kind) && present.includes(kind), run: done(() => onAdd(kind)) }
+        return { key: kind, label, short: label.replace(/\s*\(.*\)\s*$/, ''), section: section.title, icon: COMPONENT_ICON[kind] ?? 'generic', disabled: SINGLE_COMPONENTS.includes(kind) && present.includes(kind), lite: LITE_COMPONENTS.has(kind), run: done(() => onAdd(kind)) }
       }),
     ),
-    { key: 'material', label: 'Material (Shader Graph)', short: 'Material', section: 'Shading', icon: 'palette', disabled: hasMaterial, run: done(onAddMaterial) },
-    ...scripts.map((sc) => ({ key: `script:${sc.key}`, label: sc.name, short: sc.name, section: 'Scripts', icon: 'code' as const, disabled: false, run: done(() => onAddScript(sc.key)) })),
-    { key: 'new-script', label: 'New Script…', short: 'New Script', section: 'Scripts', icon: 'plus', disabled: false, run: done(onNewScript) },
+    { key: 'material', label: 'Material (Shader Graph)', short: 'Material', section: 'Shading', icon: 'palette', disabled: hasMaterial, lite: false, run: done(onAddMaterial) },
+    ...scripts.map((sc) => ({ key: `script:${sc.key}`, label: sc.name, short: sc.name, section: 'Scripts', icon: 'code' as const, disabled: false, lite: false, run: done(() => onAddScript(sc.key)) })),
+    { key: 'new-script', label: 'New Script…', short: 'New Script', section: 'Scripts', icon: 'plus', disabled: false, lite: false, run: done(onNewScript) },
   ]
   const q = query.trim().toLowerCase()
-  const shown = q ? items.filter((it) => `${it.label} ${it.section} ${it.key}`.toLowerCase().includes(q)) : items
+  // Lite mode: only what the Toasty Lite export draws.
+  const offered = liteMode ? items.filter((it) => it.lite) : items
+  const shown = q ? offered.filter((it) => `${it.label} ${it.section} ${it.key}`.toLowerCase().includes(q)) : offered
   const sections = [...new Set(shown.map((it) => it.section))]
 
   const tile = (it: PickerItem) => (
@@ -1761,11 +1768,14 @@ export function AddComponentMenu({
       type="button"
       disabled={it.disabled}
       onClick={it.run}
-      title={it.disabled ? `${it.label} — already on this object` : it.label}
+      title={it.disabled ? `${it.label} — already on this object` : it.lite ? it.label : `${it.label} — ${NOT_IN_LITE}`}
       className="flex h-[68px] flex-col items-center justify-center gap-1 rounded-lg border border-transparent bg-overlay/[0.04] px-1 text-center text-ink hover:border-accent/50 hover:bg-accent/10 hover:text-accent disabled:pointer-events-none disabled:opacity-35"
     >
       <PickerIcon name={it.icon} size={20} />
-      <span className="line-clamp-2 text-[10.5px] leading-tight">{it.short}</span>
+      <span className="line-clamp-2 text-[10.5px] leading-tight">
+        {it.short}
+        {!it.lite && <LiteAsterisk />}
+      </span>
     </button>
   )
   const row = (it: PickerItem) => (
@@ -1774,12 +1784,16 @@ export function AddComponentMenu({
       type="button"
       disabled={it.disabled}
       onClick={it.run}
+      title={it.lite ? undefined : NOT_IN_LITE}
       className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs text-ink hover:bg-accent/15 hover:text-accent disabled:pointer-events-none disabled:opacity-35"
     >
       <span className="text-ink-dim">
         <PickerIcon name={it.icon} size={15} />
       </span>
-      <span className="truncate">{it.label}</span>
+      <span className="truncate">
+        {it.label}
+        {!it.lite && <LiteAsterisk />}
+      </span>
     </button>
   )
   const viewButton = (v: 'grid' | 'list', icon: keyof typeof ICON_PATHS, title: string) => (
@@ -1817,6 +1831,7 @@ export function AddComponentMenu({
             {viewButton('list', 'stack', 'List')}
           </div>
           <div className="p-1.5">
+            {liteMode && <p className="px-1 pb-1.5 text-[10px] text-ink-dim">Lite mode — showing only components the Toasty Lite export keeps.</p>}
             {shown.length === 0 && <p className="px-1 py-3 text-center text-xs text-ink-dim">No component matches “{query}”.</p>}
             {sections.map((section) => (
               <div key={section} className="mb-2">

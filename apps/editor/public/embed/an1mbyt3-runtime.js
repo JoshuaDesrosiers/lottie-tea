@@ -1,38 +1,284 @@
+//#region src/lite/fx.ts
+var e = (e) => `rgba(${Math.round(e[0] * 255)},${Math.round(e[1] * 255)},${Math.round(e[2] * 255)},${e[3]})`, t = new class {
+	free = [];
+	take(e, t) {
+		let n = this.free.findIndex((n) => n.width === e && n.height === t), r = n >= 0 ? this.free.splice(n, 1)[0] : this.free.pop() ?? document.createElement("canvas");
+		(r.width !== e || r.height !== t) && (r.width = e, r.height = t);
+		let i = r.getContext("2d");
+		return i.setTransform(1, 0, 0, 1, 0, 0), i.globalCompositeOperation = "source-over", i.globalAlpha = 1, i.filter = "none", i.clearRect(0, 0, e, t), r;
+	}
+	give(e) {
+		this.free.push(e);
+	}
+}();
+function n(e) {
+	return e.getContext("2d", { willReadFrequently: !1 });
+}
+function r(e) {
+	let r = t.take(e.width, e.height);
+	return n(r).drawImage(e, 0, 0), r;
+}
+function i(t, i) {
+	let a = r(t), o = n(a);
+	return o.globalCompositeOperation = "source-in", o.fillStyle = e(i), o.fillRect(0, 0, a.width, a.height), o.globalCompositeOperation = "source-over", a;
+}
+function a(e, t, n) {
+	let r = e * 374761393 + t * 668265263 + n * 2147483647 | 0;
+	return r = Math.imul(r ^ r >>> 13, 1274126177), ((r ^ r >>> 16) >>> 0) / 4294967295;
+}
+function o(e, t, n, r = 0) {
+	let i = Math.floor(e), o = Math.floor(t), s = e - i, c = t - o, l = (e) => e * e * (3 - 2 * e), u = (e) => (e % n + n) % n, d = a(u(i), u(o), r), f = a(u(i + 1), u(o), r), p = a(u(i), u(o + 1), r), m = a(u(i + 1), u(o + 1), r), h = l(s), g = l(c);
+	return d + (f - d) * h + (p - d) * g + (d - f - p + m) * h * g;
+}
+function s(e, t, n, r, i = 0) {
+	let a = 0, s = .5, c = n;
+	for (let n = 0; n < r; n++) a += o(e * c, t * c, c, i + n * 17) * s, s *= .5, c *= 2;
+	return a;
+}
+function c(e, t, n, r) {
+	let i = 3 + Math.round(r * 3), c = Math.PI * 2;
+	switch (e) {
+		case "Canvas": {
+			let e = t * 16, r = n * 16, a = Math.floor(e), c = Math.floor(r), l = e - a - .5, u = r - c - .5, d = a + c & 1, f = .42 + (o(c * 2.3, 1, 16) - .5) * .12, p = .42 + (o(3, a * 2.9, 16) - .5) * .12, m = Math.sqrt(Math.max(0, 1 - (u / f) ** 2)), h = Math.sqrt(Math.max(0, 1 - (l / p) ** 2)), g = d ? m : h, _ = (d ? h : m) * .55;
+			return .24 + Math.max(g, _) * (.82 + .3 * o(e * .35, r * .35, 6, 5)) * .5 + (s(t, n, 22, i, 9) - .5) * .12;
+		}
+		case "Paper": return .4 + s(t, n, 3, i) * .18 + s(t, n * 7, 2, 3, 3) * .1 + o(t * 40, n * 40, 40, 7) * .08 * (.5 + r);
+		case "Linen": {
+			let e = .5 + .5 * Math.sin(t * 14 * c + o(t * 4, n * 28, 4, 1) * 2), r = .5 + .5 * Math.sin(n * 14 * c + o(t * 28, n * 4, 28, 2) * 2);
+			return .35 + e * r * .25 + (e + r) * .08 + (s(t, n, 5, 3, 4) - .5) * .15;
+		}
+		case "Noise": return s(t, n, 4, i);
+		case "Waves": {
+			let e = s(t, n, 2, 3, 6) * 3;
+			return .5 + Math.sin((n + Math.sin(t * c) * .08) * 4 * c + e) * .32;
+		}
+		case "Fluid": {
+			let e = s(t, n, 2, 4, 11), r = s(t, n, 2, 4, 23);
+			return .25 + s(t + e * .3, n + r * .3, 2, i, 31) * .7;
+		}
+		case "Marble": {
+			let e = s(t, n, 2, i, 12) * 6;
+			return .32 + Math.abs(Math.sin((t + n * .4) * 2 * c + e)) ** .35 * .42;
+		}
+		case "Concrete": {
+			let e = s(t, n, 4, i, 2), r = +(o(t * 32, n * 32, 32, 8) > .8), c = +(a(Math.floor(t * 96), Math.floor(n * 96), 13) > .985);
+			return .36 + e * .28 - r * .18 + c * .15;
+		}
+		case "Dust": {
+			let e = +(a(Math.floor(t * 48), Math.floor(n * 48), 3) > .97), r = Math.floor(t * 9), i = a(r, 3, 5), s = +(i > .8 && Math.abs(t * 9 - r - i) < .02 && o(r, n * 3, 3, 4) > .3);
+			return .5 - e * .35 + s * .3;
+		}
+		case "Brushed": return .3 + s(t, n * 16, 1, i, 21) * .45;
+		default: return .5;
+	}
+}
+var l = /* @__PURE__ */ new Map();
+function u(e, t) {
+	if (e.source === "Image") {
+		if (!e.image) return null;
+		let n = `img:${e.image.slice(0, 64)}:${e.image.length}`, r = d.get(n);
+		if (r) return r.complete ? r : null;
+		let i = new Image();
+		return i.onload = t, i.src = e.image, d.set(n, i), null;
+	}
+	let n = `${e.source}:${e.detail.toFixed(2)}:${e.contrast.toFixed(2)}:${e.tint.join(",")}`, r = l.get(n);
+	if (!r) {
+		r = document.createElement("canvas"), r.width = r.height = 256;
+		let t = r.getContext("2d"), i = t.createImageData(256, 256), a = 1 + e.contrast * 1.5;
+		for (let t = 0; t < 256; t++) for (let n = 0; n < 256; n++) {
+			let r = Math.min(1, Math.max(0, (c(e.source, n / 256, t / 256, e.detail) - .5) * a + .5)), o = (t * 256 + n) * 4;
+			i.data[o] = r * e.tint[0] * 255, i.data[o + 1] = r * e.tint[1] * 255, i.data[o + 2] = r * e.tint[2] * 255, i.data[o + 3] = 255;
+		}
+		t.putImageData(i, 0, 0), l.set(n, r);
+	}
+	return r;
+}
+var d = /* @__PURE__ */ new Map();
+function f(e) {
+	return {
+		Normal: "source-over",
+		Multiply: "multiply",
+		Screen: "screen",
+		Overlay: "overlay",
+		SoftLight: "soft-light",
+		HardLight: "hard-light",
+		ColorDodge: "color-dodge",
+		ColorBurn: "color-burn",
+		Darken: "darken",
+		Lighten: "lighten",
+		Difference: "difference",
+		LinearLight: "hard-light"
+	}[e] ?? "soft-light";
+}
+function p(e, i, a, o, s) {
+	let c = u(i, s);
+	if (!c) return;
+	let l = n(e), d = r(e), p = l.createPattern(c, "repeat");
+	if (p) {
+		let t = i.source === "Image" ? Math.max(c.naturalWidth || 256, 1) : 256, n = [
+			"Fluid",
+			"Waves",
+			"Noise"
+		].includes(i.source) ? o * i.speed * .15 : 0, r = new DOMMatrix(a.toString()).rotate(i.rotation).scale(i.scale / t, -i.scale / t).translate((i.offset[0] + n) * t, (i.offset[1] + n * .6) * t);
+		p.setTransform(r), l.save(), l.setTransform(1, 0, 0, 1, 0, 0), l.globalCompositeOperation = f(i.blend), l.globalAlpha = Math.min(1, Math.max(0, i.opacity * i.tint[3])), l.fillStyle = p, l.fillRect(0, 0, e.width, e.height), l.globalAlpha = 1, l.globalCompositeOperation = "destination-in", l.drawImage(d, 0, 0), l.restore();
+	}
+	t.give(d);
+}
+var m = null, h = null;
+function g(e) {
+	let t = () => {
+		let t = document.createElement("canvas");
+		t.width = t.height = 128;
+		let n = t.getContext("2d"), r = n.createImageData(128, 128);
+		for (let t = 0; t < 16384; t++) {
+			let n = Math.random() * 255;
+			r.data[t * 4] = n, r.data[t * 4 + 1] = e ? n : Math.random() * 255, r.data[t * 4 + 2] = e ? n : Math.random() * 255, r.data[t * 4 + 3] = 255;
+		}
+		return n.putImageData(r, 0, 0), t;
+	};
+	return e ? m ??= t() : h ??= t();
+}
+function _(a, o, s, c, l, u, d) {
+	let f = n(a), m = o.clip || o.feather > 0 ? r(a) : null;
+	if (o.background[3] > 0 && c) {
+		let [t, n, r, i] = c, a = o.padding;
+		f.save(), f.setTransform(s), f.globalCompositeOperation = "destination-over", f.fillStyle = e(o.background), f.beginPath();
+		let l = r - t + a * 2, u = i - n + a * 2;
+		f.roundRect(t - a, n - a, l, u, Math.min(o.radius, Math.min(l, u) / 2)), f.fill(), f.restore();
+	}
+	for (let e of o.effects) if (e.type === "shadow") {
+		let n = i(a, e.color);
+		f.save(), f.setTransform(1, 0, 0, 1, 0, 0), f.globalCompositeOperation = "destination-over", f.filter = `blur(${Math.max(0, e.blur * l * .5)}px)`, f.drawImage(n, e.offset[0] * l, -e.offset[1] * l), f.restore(), t.give(n);
+	} else if (e.type === "stroke" && e.width > 0) {
+		let n = i(a, e.color), r = e.width * l;
+		f.save(), f.setTransform(1, 0, 0, 1, 0, 0), f.globalCompositeOperation = "destination-over";
+		for (let e = 1; e <= 2; e++) for (let t = 0; t < 16; t++) {
+			let i = t / 16 * Math.PI * 2 + e * .3;
+			f.drawImage(n, Math.cos(i) * r * (e / 2), Math.sin(i) * r * (e / 2));
+		}
+		f.restore(), t.give(n);
+	} else if (e.type === "blur" && e.radius > 0) {
+		let n = r(a);
+		f.save(), f.setTransform(1, 0, 0, 1, 0, 0), f.clearRect(0, 0, a.width, a.height), f.filter = `blur(${e.radius * l * .5}px)`, f.drawImage(n, 0, 0), f.restore(), t.give(n);
+	} else if (e.type === "glow") {
+		let n = e.tint.slice(0, 3).every((e) => e >= .999) ? r(a) : i(a, e.tint);
+		f.save(), f.setTransform(1, 0, 0, 1, 0, 0), f.globalCompositeOperation = "lighter", f.filter = `blur(${e.radius * l * .5}px) brightness(${Math.max(0, e.intensity)})`, f.drawImage(n, 0, 0), f.restore(), t.give(n);
+	} else if (e.type === "grain" && e.amount > 0) {
+		let n = g(e.mono), i = f.createPattern(n, "repeat");
+		if (i) {
+			let n = Math.max(1, e.size * l), o = e.animated ? Math.floor(u * 24) : 0;
+			i.setTransform(new DOMMatrix().translate(o * 37 % 128, o * 53 % 128).scale(n, n));
+			let s = r(a);
+			f.save(), f.setTransform(1, 0, 0, 1, 0, 0), f.globalCompositeOperation = "overlay", f.globalAlpha = Math.min(1, e.amount * 1.6), f.fillStyle = i, f.fillRect(0, 0, a.width, a.height), f.globalAlpha = 1, f.globalCompositeOperation = "destination-in", f.drawImage(s, 0, 0), f.restore(), t.give(s);
+		}
+	} else e.type === "gradientMap" && e.stops.length > 0 ? w(a, e) : e.type === "texture" && p(a, e, s, u, d);
+	if (m && o.clip && (f.save(), f.setTransform(1, 0, 0, 1, 0, 0), f.globalCompositeOperation = "destination-in", f.drawImage(m, 0, 0), f.restore()), m && o.feather > 0) {
+		let e = S(m, o.feather * l);
+		f.save(), f.setTransform(1, 0, 0, 1, 0, 0), f.globalCompositeOperation = "destination-in", f.drawImage(e, 0, 0), f.restore(), t.give(e);
+	}
+	m && t.give(m);
+}
+var v = typeof CanvasRenderingContext2D < "u" && "filter" in CanvasRenderingContext2D.prototype, y = null, b = /* @__PURE__ */ new Set();
+function x(e, t) {
+	if (!b.has(e)) {
+		y || (y = document.createElementNS("http://www.w3.org/2000/svg", "svg"), y.setAttribute("width", "0"), y.setAttribute("height", "0"), y.setAttribute("aria-hidden", "true"), y.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none", document.body.appendChild(y));
+		let n = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+		n.setAttribute("id", e), n.setAttribute("color-interpolation-filters", "sRGB"), n.innerHTML = t, y.appendChild(n), b.add(e);
+	}
+	return `url(#${e})`;
+}
+function S(e, r) {
+	if (!v) return T(e, r);
+	let i = t.take(e.width, e.height), a = n(i);
+	return a.filter = `blur(${r}px) ${x("an1-lite-feather", "<feComponentTransfer><feFuncA type=\"linear\" slope=\"2\" intercept=\"-1\"/></feComponentTransfer>")}`, a.drawImage(e, 0, 0), a.filter = "none", i;
+}
+function C(e) {
+	let t = [...e.stops].sort((e, t) => e.position - t.position), n = /* @__PURE__ */ new Float32Array(1024);
+	for (let r = 0; r < 256; r++) {
+		let i = Math.min(1, Math.max(0, r / 255 + e.offset)), a = t[0].color;
+		i >= t[t.length - 1].position && (a = t[t.length - 1].color);
+		for (let n = 0; n < t.length - 1; n++) {
+			let r = t[n], o = t[n + 1];
+			if (i >= r.position && i < o.position) {
+				let t = (i - r.position) / Math.max(o.position - r.position, 1e-4), n = t < .5 ? 0 : 1;
+				t = n + (t * t * (3 - 2 * t) - n) * Math.min(1, Math.max(0, e.smooth)), a = r.color.map((e, n) => e + (o.color[n] - e) * t);
+			}
+		}
+		n.set(a, r * 4);
+	}
+	return n;
+}
+function w(e, i) {
+	if (!v) return E(e, i);
+	let a = C(i), o = (e) => Array.from({ length: 48 }, (t, n) => a[Math.round(n / 47 * 255) * 4 + e].toFixed(3)).join(" "), s = o(0), c = o(1), l = o(2), u = 0;
+	for (let e of s + c + l) u = Math.imul(u, 31) + e.charCodeAt(0) | 0;
+	let d = "0.2126 0.7152 0.0722 0 0", f = x(`an1-lite-gm-${(u >>> 0).toString(36)}`, `<feColorMatrix type="matrix" values="${d} ${d} ${d} 0 0 0 1 0"/><feComponentTransfer><feFuncR type="table" tableValues="${s}"/><feFuncG type="table" tableValues="${c}"/><feFuncB type="table" tableValues="${l}"/></feComponentTransfer>`), p = r(e), m = n(e);
+	m.save(), m.setTransform(1, 0, 0, 1, 0, 0), m.globalCompositeOperation = "source-atop", m.globalAlpha = Math.min(1, Math.max(0, i.amount)), m.filter = f, m.drawImage(p, 0, 0), m.restore(), t.give(p);
+}
+function T(e, r) {
+	let i = t.take(e.width, e.height), a = n(i);
+	a.drawImage(e, 0, 0), a.globalCompositeOperation = "source-in", a.fillStyle = "#fff", a.fillRect(0, 0, i.width, i.height), a.globalCompositeOperation = "source-over";
+	let o = t.take(e.width, e.height), s = n(o);
+	s.filter = `blur(${r}px)`, s.drawImage(i, 0, 0), s.filter = "none", t.give(i);
+	let c = s.getImageData(0, 0, o.width, o.height), l = c.data;
+	for (let e = 3; e < l.length; e += 4) {
+		let t = Math.min(1, Math.max(0, (l[e] / 255 - .5) * 2));
+		l[e] = t * t * (3 - 2 * t) * 255;
+	}
+	return s.putImageData(c, 0, 0), o;
+}
+function E(e, t) {
+	let r = n(e), i = C(t), a = r.getImageData(0, 0, e.width, e.height), o = a.data, s = Math.min(1, Math.max(0, t.amount));
+	for (let e = 0; e < o.length; e += 4) {
+		if (o[e + 3] === 0) continue;
+		let t = Math.round(.2126 * o[e] + .7152 * o[e + 1] + .0722 * o[e + 2]) * 4;
+		o[e] += (i[t] * 255 - o[e]) * s, o[e + 1] += (i[t + 1] * 255 - o[e + 1]) * s, o[e + 2] += (i[t + 2] * 255 - o[e + 2]) * s;
+	}
+	r.putImageData(a, 0, 0);
+}
+function D(e) {
+	return e.some((e) => e.type === "grain" && e.animated || e.type === "texture" && e.speed > 0 && [
+		"Fluid",
+		"Waves",
+		"Noise"
+	].includes(e.source));
+}
+//#endregion
 //#region src/lite/runtime.ts
-var e = /* @__PURE__ */ new Map();
-function t(t) {
-	let n = new URL(String(t), location.href).href, r = e.get(n);
-	return r || (r = fetch(n).then((e) => {
-		if (!e.ok) throw Error(`Toasty Lite: ${n} → ${e.status}`);
+var O = /* @__PURE__ */ new Map();
+function k(e) {
+	let t = new URL(String(e), location.href).href, n = O.get(t);
+	return n || (n = fetch(t).then((e) => {
+		if (!e.ok) throw Error(`Toasty Lite: ${t} → ${e.status}`);
 		return e.json();
-	}), e.set(n, r)), r;
+	}), O.set(t, n)), n;
 }
-async function n(e, n) {
-	let r = typeof n.src == "string" || n.src instanceof URL ? await t(n.src) : n.src;
-	if (r.format !== "toasty-lite") throw Error("Toasty Lite: not a Toasty Lite file");
-	return await l(r), new y(e, r, n);
+async function A(e, t) {
+	let n = typeof t.src == "string" || t.src instanceof URL ? await k(t.src) : t.src;
+	if (n.format !== "toasty-lite") throw Error("Toasty Lite: not a Toasty Lite file");
+	return await L(n), new q(e, n, t);
 }
-var r = /* @__PURE__ */ new Set(), i = 0, a = 0;
-function o(e) {
-	let t = a ? Math.min(.1, (e - a) / 1e3) : 1 / 60;
-	a = e;
-	for (let e of r) e.frame(t);
-	i = r.size ? requestAnimationFrame(o) : 0, i || (a = 0);
+var j = /* @__PURE__ */ new Set(), M = 0, N = 0;
+function P(e) {
+	let t = N ? Math.min(.1, (e - N) / 1e3) : 1 / 60;
+	N = e;
+	for (let e of j) e.frame(t);
+	M = j.size ? requestAnimationFrame(P) : 0, M || (N = 0);
 }
-function s() {
-	!i && r.size && (i = requestAnimationFrame(o));
+function F() {
+	!M && j.size && (M = requestAnimationFrame(P));
 }
-var c = /* @__PURE__ */ new Set();
-async function l(e) {
-	for (let t of e.fonts) if (!(c.has(t.name) || typeof FontFace > "u")) {
-		c.add(t.name);
+var I = /* @__PURE__ */ new Set();
+async function L(e) {
+	for (let t of e.fonts) if (!(I.has(t.name) || typeof FontFace > "u")) {
+		I.add(t.name);
 		try {
 			let e = Uint8Array.from(atob(t.data), (e) => e.charCodeAt(0)), n = new FontFace(t.name, e);
 			await n.load(), document.fonts.add(n);
 		} catch {}
 	}
 }
-function u(e) {
+function R(e) {
 	let t = [], n = /([MLCZ])([^MLCZ]*)/g, r;
 	for (; r = n.exec(e);) {
 		let e = r[2].trim() ? r[2].trim().split(/[\s,]+/).map(Number) : [];
@@ -43,7 +289,7 @@ function u(e) {
 	}
 	return t;
 }
-function d(e, t) {
+function z(e, t) {
 	let n = 0;
 	return e.map((e) => {
 		let r = t.slice(n, n + e.p.length);
@@ -53,12 +299,12 @@ function d(e, t) {
 		};
 	});
 }
-function f(e) {
+function B(e) {
 	let t = new Path2D();
 	for (let { c: n, p: r } of e) n === "M" ? t.moveTo(r[0], r[1]) : n === "L" ? t.lineTo(r[0], r[1]) : n === "C" ? t.bezierCurveTo(r[0], r[1], r[2], r[3], r[4], r[5]) : t.closePath();
 	return t;
 }
-function p(e) {
+function V(e) {
 	let t = [], n = [], r = 0, i = 0, a = 0, o = 0, s = (e) => {
 		if (n.length >= 4) {
 			let r = [0];
@@ -86,7 +332,7 @@ function p(e) {
 		total: t.reduce((e, t) => e + t.lens[t.lens.length - 1], 0)
 	};
 }
-function m(e, t, n, r) {
+function H(e, t, n, r) {
 	let i = 0;
 	for (let a of e.subpaths) {
 		let e = a.lens[a.lens.length - 1], o = Math.max(t - i, 0), s = Math.min(n - i, e);
@@ -105,13 +351,13 @@ function m(e, t, n, r) {
 		i += e;
 	}
 }
-function h(e, t, n, r) {
+function U(e, t, n, r) {
 	let i = new Path2D(), a = e.total;
 	if (a <= 0) return i;
 	let o = Math.min(t, n), s = Math.max(t, n);
-	return s - o >= 1 - 1e-6 ? (m(e, 0, a, i), i) : (o = ((o + r) % 1 + 1) % 1, s = o + (Math.max(t, n) - Math.min(t, n)), s <= 1 ? m(e, o * a, s * a, i) : (m(e, o * a, a, i), m(e, 0, (s - 1) * a, i)), i);
+	return s - o >= 1 - 1e-6 ? (H(e, 0, a, i), i) : (o = ((o + r) % 1 + 1) % 1, s = o + (Math.max(t, n) - Math.min(t, n)), s <= 1 ? H(e, o * a, s * a, i) : (H(e, o * a, a, i), H(e, 0, (s - 1) * a, i)), i);
 }
-function g(e, t) {
+function W(e, t) {
 	let [n, r, i, a] = e, o = t;
 	for (let e = 0; e < 6; e++) {
 		let e = 1 - o, r = 3 * e * e * o * n + 3 * e * o * o * i + o * o * o - t, a = 3 * e * e * n + 6 * e * o * (i - n) + 3 * o * o * (1 - i);
@@ -121,16 +367,16 @@ function g(e, t) {
 	let s = 1 - o;
 	return 3 * s * s * o * r + 3 * s * o * o * a + o * o * o;
 }
-function _(e, t) {
+function G(e, t) {
 	if (t <= e[0].t) return e[0].v;
 	let n = e[e.length - 1];
 	if (t >= n.t) return n.v;
 	let r = 1;
 	for (; e[r].t < t;) r++;
 	let i = e[r - 1], a = e[r], o = (t - i.t) / Math.max(1e-6, a.t - i.t);
-	return i.e && (o = g(i.e, o)), i.v.length === a.v.length ? i.v.map((e, t) => e + (a.v[t] - e) * o) : o < 1 ? i.v : a.v;
+	return i.e && (o = W(i.e, o)), i.v.length === a.v.length ? i.v.map((e, t) => e + (a.v[t] - e) * o) : o < 1 ? i.v : a.v;
 }
-var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n) : n < .5 ? e : t, y = class {
+var K = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n) : n < .5 ? e : t, q = class {
 	canvas;
 	ctx;
 	nodes;
@@ -159,20 +405,26 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 	worlds = [];
 	cleanups = [];
 	lastPose = /* @__PURE__ */ new Map();
+	clock = 0;
+	fxStep = 0;
+	animatedFx = !1;
+	wake = () => {
+		this.dirty = !0, F();
+	};
 	container;
 	file;
 	options;
 	constructor(e, t, n) {
 		this.container = e, this.file = t, this.options = n, this.canvas = document.createElement("canvas"), this.canvas.style.cssText = "display:block;width:100%;height:100%;touch-action:manipulation", e.appendChild(this.canvas);
-		let i = this.canvas.getContext("2d");
-		if (!i) throw Error("Toasty Lite: no 2D canvas");
-		this.ctx = i, this.paused = !!n.paused, this.nodes = t.nodes.map((e) => {
-			let t = e.path ? u(e.path) : null;
-			return {
+		let r = this.canvas.getContext("2d");
+		if (!r) throw Error("Toasty Lite: no 2D canvas");
+		this.ctx = r, this.paused = !!n.paused, this.nodes = t.nodes.map((e) => {
+			let t = e.path ? R(e.path) : null, n = null;
+			return e.kind === "image" && e.image?.src && (n = new Image(), n.onload = () => this.wake(), n.src = e.image.src), {
 				def: e,
 				template: t,
 				cmds: t,
-				path: t ? f(t) : null,
+				path: t ? B(t) : null,
 				flat: null,
 				pathKey: e.path ?? "",
 				hover: !1,
@@ -185,10 +437,11 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 					1
 				],
 				visibleOverride: null,
-				text: null
+				text: null,
+				img: n
 			};
-		});
-		for (let e of t.properties) this.props.set(e.name, w(e.kind, e.default));
+		}), this.animatedFx = t.nodes.some((e) => e.fx && D(e.fx.effects)) || !!t.texture && D([t.texture]);
+		for (let e of t.properties) this.props.set(e.name, Q(e.kind, e.default));
 		for (let [e, t] of Object.entries(n.data ?? {})) this.setProp(e, t, !1);
 		for (let e of t.stateMachine?.inputs ?? []) e.kind !== "trigger" && this.inputs.set(e.name, e.kind === "bool" ? !1 : e.kind === "number" ? 0 : "");
 		for (let [e, t] of Object.entries(n.inputs ?? {})) this.setInput(e, t);
@@ -205,30 +458,30 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 			};
 			this.layers.push(t), this.enter(t, e.states.find((t) => t.name === e.initial) ?? e.states[0] ?? null, 0, !1);
 		}
-		let a = new ResizeObserver(() => this.resize());
-		if (a.observe(e), this.cleanups.push(() => a.disconnect()), typeof IntersectionObserver < "u") {
+		let i = new ResizeObserver(() => this.resize());
+		if (i.observe(e), this.cleanups.push(() => i.disconnect()), typeof IntersectionObserver < "u") {
 			let t = new IntersectionObserver((e) => {
 				this.visible = e.some((e) => e.isIntersecting), this.visible && (this.dirty = !0);
 			});
 			t.observe(e), this.cleanups.push(() => t.disconnect());
 		}
-		let o = (e) => {
+		let a = (e) => {
 			let t = this.canvas.getBoundingClientRect();
-			this.pointer.x = e.clientX - t.left, this.pointer.y = e.clientY - t.top, this.pointer.inside = !0, this.dirty = !0, s();
-		}, c = () => {
-			this.pointer.leaving = !0, this.dirty = !0, s();
-		}, l = (e) => {
-			o(e), this.pointer.leaving = !1, this.pointer.down = !0, this.pointer.presses++;
-		}, d = (e) => {
-			o(e), this.pointer.down = !1, this.pointer.releases++;
+			this.pointer.x = e.clientX - t.left, this.pointer.y = e.clientY - t.top, this.pointer.inside = !0, this.dirty = !0, F();
+		}, o = () => {
+			this.pointer.leaving = !0, this.dirty = !0, F();
+		}, s = (e) => {
+			a(e), this.pointer.leaving = !1, this.pointer.down = !0, this.pointer.presses++;
+		}, c = (e) => {
+			a(e), this.pointer.down = !1, this.pointer.releases++;
 		};
-		this.canvas.addEventListener("pointermove", o), this.canvas.addEventListener("pointerleave", c), this.canvas.addEventListener("pointerdown", l), this.canvas.addEventListener("pointerup", d);
-		let p = () => {
-			this.pointer.down = !1, this.pointer.presses = 0, this.pointer.releases = 0, c();
+		this.canvas.addEventListener("pointermove", a), this.canvas.addEventListener("pointerleave", o), this.canvas.addEventListener("pointerdown", s), this.canvas.addEventListener("pointerup", c);
+		let l = () => {
+			this.pointer.down = !1, this.pointer.presses = 0, this.pointer.releases = 0, o();
 		};
-		this.canvas.addEventListener("pointercancel", p), this.cleanups.push(() => {
-			this.canvas.removeEventListener("pointercancel", p), this.canvas.removeEventListener("pointermove", o), this.canvas.removeEventListener("pointerleave", c), this.canvas.removeEventListener("pointerdown", l), this.canvas.removeEventListener("pointerup", d);
-		}), this.resize(), r.add(this), s();
+		this.canvas.addEventListener("pointercancel", l), this.cleanups.push(() => {
+			this.canvas.removeEventListener("pointercancel", l), this.canvas.removeEventListener("pointermove", a), this.canvas.removeEventListener("pointerleave", o), this.canvas.removeEventListener("pointerdown", s), this.canvas.removeEventListener("pointerup", c);
+		}), this.resize(), j.add(this), F();
 	}
 	set(e, t) {
 		this.setProp(e, t, !0);
@@ -250,7 +503,7 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 					value: r
 				}));
 			}
-			this.dirty = !0, s();
+			this.dirty = !0, F();
 		}
 	}
 	fire(e) {
@@ -267,13 +520,13 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 		return n || this.listeners.set(e, n = /* @__PURE__ */ new Set()), n.add(t), () => n.delete(t);
 	}
 	play() {
-		this.paused = !1, this.dirty = !0, s();
+		this.paused = !1, this.dirty = !0, F();
 	}
 	pause() {
 		this.paused = !0;
 	}
 	destroy() {
-		r.delete(this);
+		j.delete(this);
 		for (let e of this.cleanups) e();
 		this.canvas.remove();
 	}
@@ -289,11 +542,11 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 		}));
 	}
 	setProp(e, t, n) {
-		let r = this.file.properties.find((t) => t.name === e), i = r ? w(r.kind, t) : t;
-		T(this.props.get(e), i) || (this.props.set(e, i), this.dirty = !0, n && this.emit("prop", {
+		let r = this.file.properties.find((t) => t.name === e), i = r ? Q(r.kind, t) : t;
+		ee(this.props.get(e), i) || (this.props.set(e, i), this.dirty = !0, n && this.emit("prop", {
 			name: e,
 			value: i
-		}), s());
+		}), F());
 	}
 	resize() {
 		let e = Math.min(3, window.devicePixelRatio || 1), t = Math.max(1, this.container.clientWidth), n = Math.max(1, this.container.clientHeight);
@@ -371,12 +624,13 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 	sample(e, t, n) {
 		if (!e || e.animation == null) return;
 		let r = this.file.animations[e.animation];
-		if (r) for (let e of r.tracks) e.keys.length && n.set(`${e.node}:${e.prop}`, _(e.keys, t));
+		if (r) for (let e of r.tracks) e.keys.length && n.set(`${e.node}:${e.prop}`, G(e.keys, t));
 	}
 	frame(e) {
 		if (!this.visible) return;
+		this.clock += e, this.fxStep += e;
 		let t = !1;
-		if (!this.paused) {
+		if (this.animatedFx && this.fxStep >= 1 / 24 && (this.fxStep = 0, t = !0), !this.paused) {
 			for (let e of this.layers) {
 				let t = e.current?.transitions.find((e) => this.holds(e.condition));
 				if (t) {
@@ -388,7 +642,7 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 			for (let n of this.layers) t = this.advance(n, e) || t;
 		}
 		let n = this.updatePointer(e);
-		!t && !n && !this.dirty || (this.dirty = !1, this.draw(), s());
+		!t && !n && !this.dirty || (this.dirty = !1, this.draw(), F());
 	}
 	pose() {
 		let e = /* @__PURE__ */ new Map();
@@ -400,7 +654,7 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 				let i = Math.min(1, t.fade / t.fadeDuration), a = /* @__PURE__ */ new Set([...r.keys(), ...n.keys()]);
 				for (let t of a) {
 					let a = r.get(t) ?? e.get(t) ?? this.lastPose.get(t), o = n.get(t) ?? e.get(t) ?? this.base(t);
-					a && o ? e.set(t, v(a, o, i)) : o && e.set(t, o);
+					a && o ? e.set(t, K(a, o, i)) : o && e.set(t, o);
 				}
 			} else for (let [t, r] of n) e.set(t, r);
 		}
@@ -439,12 +693,12 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 			d && !a.pressed && u(a.def.listeners?.down), (a.pressed || d) && (i > 0 || !this.pointer.down) && (u(a.def.listeners?.up), c && u(a.def.listeners?.click)), !c && a.hover && u(a.def.listeners?.exit), a.hover = c, a.pressed = l && !this.pointer.leaving;
 			let f = l ? s.pressedScale : c ? s.hoverScale : 1, p = s.interactable ? l ? s.pressedColor : c ? s.hoverColor : s.normalColor : s.normalColor, m = s.fade > 0 ? Math.min(1, e / s.fade) : 1, h = a.lookScale + (f - a.lookScale) * m, g = a.lookTint.map((e, t) => e + (p[t] - e) * m);
 			(Math.abs(h - a.lookScale) > 1e-4 || g.some((e, t) => Math.abs(e - a.lookTint[t]) > 1e-4)) && (t = !0), a.lookScale = h, a.lookTint = g;
-		}), this.pointer.leaving && (this.pointer.leaving = !1, this.pointer.inside = !1, this.pointer.down = !1, this.dirty = !0, s()), t;
+		}), this.pointer.leaving && (this.pointer.leaving = !1, this.pointer.inside = !1, this.pointer.down = !1, this.dirty = !0, F()), t;
 	}
 	runActions(e, t) {
 		for (let n of e) switch (n.type) {
 			case "setInput":
-				this.setInput(n.input, C(n.value));
+				this.setInput(n.input, Z(n.value));
 				break;
 			case "fireTrigger":
 				this.fire(n.input);
@@ -454,13 +708,13 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 				break;
 			case "setProperty": {
 				let e = this.props.get(n.property), t = /^[+-]\d/.test(n.value) && typeof e == "number";
-				this.set(n.property, t ? e + Number(n.value) : C(n.value));
+				this.set(n.property, t ? e + Number(n.value) : Z(n.value));
 				break;
 			}
 			case "event":
 				this.emit("event", {
 					name: n.name,
-					payload: n.arg === "" ? void 0 : C(n.arg)
+					payload: n.arg === "" ? void 0 : Z(n.arg)
 				});
 				break;
 			case "setVisible":
@@ -483,30 +737,30 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 	}
 	cur = /* @__PURE__ */ new Map();
 	draw() {
-		let e = this.ctx, { w: t, h: n, dpr: r } = this.size, i = this.file, a = this.pose();
-		this.cur = a;
-		let o = new Set(a.keys()), s = (e) => !o.has(e);
-		i.nodes.forEach((e, t) => {
+		let e = this.ctx, n = e, { w: r, h: i, dpr: a } = this.size, o = this.file, s = this.pose();
+		this.cur = s;
+		let c = new Set(s.keys()), l = (e) => !c.has(e);
+		o.nodes.forEach((e, t) => {
 			for (let n of e.bindings ?? []) {
 				let r = this.props.get(n.property);
 				if (r !== void 0) {
-					if (n.target === "text") this.nodes[t].text = n.format ? n.format.replace("{}", E(r)) : E(r);
-					else if (n.target === "visible") s(`${t}:visible`) && a.set(`${t}:visible`, [+!!r]);
-					else if ((n.target === "fill" || n.target === "strokeColor") && Array.isArray(r)) s(`${t}:${n.target}`) && a.set(`${t}:${n.target}`, r);
+					if (n.target === "text") this.nodes[t].text = n.format ? n.format.replace("{}", $(r)) : $(r);
+					else if (n.target === "visible") l(`${t}:visible`) && s.set(`${t}:visible`, [+!!r]);
+					else if ((n.target === "fill" || n.target === "strokeColor") && Array.isArray(r)) l(`${t}:${n.target}`) && s.set(`${t}:${n.target}`, r);
 					else {
-						let i = Number(r) * n.scale + n.offset, o = a.get(`${t}:translation`) ?? [e.x, e.y], c = a.get(`${t}:scale`) ?? [e.scaleX, e.scaleY];
-						n.target === "x" ? a.set(`${t}:translation`, [i, o[1]]) : n.target === "y" ? a.set(`${t}:translation`, [o[0], i]) : n.target === "rotation" ? a.set(`${t}:rotation`, [i * Math.PI / 180]) : n.target === "scale" ? a.set(`${t}:scale`, [i, i]) : n.target === "scaleX" ? a.set(`${t}:scale`, [i, c[1]]) : n.target === "scaleY" ? a.set(`${t}:scale`, [c[0], i]) : s(`${t}:${n.target}`) && a.set(`${t}:${n.target}`, [i]);
+						let i = Number(r) * n.scale + n.offset, a = s.get(`${t}:translation`) ?? [e.x, e.y], o = s.get(`${t}:scale`) ?? [e.scaleX, e.scaleY];
+						n.target === "x" ? s.set(`${t}:translation`, [i, a[1]]) : n.target === "y" ? s.set(`${t}:translation`, [a[0], i]) : n.target === "rotation" ? s.set(`${t}:rotation`, [i * Math.PI / 180]) : n.target === "scale" ? s.set(`${t}:scale`, [i, i]) : n.target === "scaleX" ? s.set(`${t}:scale`, [i, o[1]]) : n.target === "scaleY" ? s.set(`${t}:scale`, [o[0], i]) : l(`${t}:${n.target}`) && s.set(`${t}:${n.target}`, [i]);
 					}
 				}
 			}
 		}), e.setTransform(1, 0, 0, 1, 0, 0), e.clearRect(0, 0, this.canvas.width, this.canvas.height);
-		let c = this.options.fit === "cover" ? Math.max : Math.min, l = i.view.zoom || 1, u = c(t / (i.width / l), n / (i.height / l)) * l * r, m = new DOMMatrix().translate(t * r / 2, n * r / 2).scale(u, -u).translate(-i.view.x, -i.view.y);
-		this.options.background && i.background && (e.fillStyle = b(i.background), e.fillRect(0, 0, this.canvas.width, this.canvas.height));
-		let g = [], _ = [];
-		i.nodes.forEach((e, t) => {
-			let n = a.get(`${t}:translation`) ?? [e.x, e.y], r = a.get(`${t}:rotation`)?.[0] ?? e.rotation, o = a.get(`${t}:scale`) ?? [e.scaleX, e.scaleY], s = a.get(`${t}:anchor`) ?? [e.anchorX, e.anchorY], c = this.nodes[t].lookScale, l = new DOMMatrix().translate(n[0], n[1]).rotate(r * 180 / Math.PI).scale(o[0] * c, o[1] * c).translate(-s[0], -s[1]);
-			g[t] = (e.parent == null ? m : g[e.parent]).multiply(l);
-			let u = e.parent != null && i.nodes[e.parent].button?.tintChildren ? _[e.parent] : [
+		let u = this.options.fit === "cover" ? Math.max : Math.min, d = o.view.zoom || 1, f = u(r / (o.width / d), i / (o.height / d)) * d * a, m = new DOMMatrix().translate(r * a / 2, i * a / 2).scale(f, -f).translate(-o.view.x, -o.view.y);
+		this.options.background && o.background && (e.fillStyle = J(o.background), e.fillRect(0, 0, this.canvas.width, this.canvas.height));
+		let h = [], g = [];
+		o.nodes.forEach((e, t) => {
+			let n = s.get(`${t}:translation`) ?? [e.x, e.y], r = s.get(`${t}:rotation`)?.[0] ?? e.rotation, i = s.get(`${t}:scale`) ?? [e.scaleX, e.scaleY], a = s.get(`${t}:anchor`) ?? [e.anchorX, e.anchorY], c = this.nodes[t].lookScale, l = new DOMMatrix().translate(n[0], n[1]).rotate(r * 180 / Math.PI).scale(i[0] * c, i[1] * c).translate(-a[0], -a[1]);
+			h[t] = (e.parent == null ? m : h[e.parent]).multiply(l);
+			let u = e.parent != null && o.nodes[e.parent].button?.tintChildren ? g[e.parent] : [
 				1,
 				1,
 				1,
@@ -517,67 +771,149 @@ var v = (e, t, n) => e.length === t.length ? e.map((e, r) => e + (t[r] - e) * n)
 				1,
 				1
 			];
-			_[t] = d.map((e, t) => e * u[t]);
-		}), this.worlds = g;
-		let v = [], y = (t) => {
-			let n = i.nodes[t], r = this.nodes[t];
-			if (!this.isShown(t)) return;
-			e.setTransform(g[t]);
-			let o = _[t];
-			if (n.kind === "shape" && r.template) {
-				let i = a.get(`${t}:path`);
-				if (i) {
-					let e = i.join(",");
-					if (e !== r.pathKey) {
-						let t = d(r.template, i);
-						r.path = f(t), r.flat = null, r.pathKey = e, r.cmds = t;
-					}
-				}
-				let s = r.path, c = a.get(`${t}:fill`) ?? n.fill;
-				if (n.gradient ? e.fillStyle = S(e, n.gradient, o) : c && c[3] > 0 && (e.fillStyle = b(x(c, o))), (n.gradient || c && c[3] > 0) && e.fill(s), n.stroke) {
-					let i = a.get(`${t}:strokeWidth`)?.[0] ?? n.stroke.width, c = a.get(`${t}:strokeColor`) ?? n.stroke.color;
-					if (i > 0 && (c[3] > 0 || n.stroke.gradient)) {
-						e.lineWidth = i, e.lineCap = n.stroke.cap, e.lineJoin = n.stroke.join, e.strokeStyle = n.stroke.gradient ? S(e, n.stroke.gradient, o) : b(x(c, o));
-						let l = s;
-						if (n.trim) {
-							let e = a.get(`${t}:trimStart`)?.[0] ?? n.trim.start, i = a.get(`${t}:trimEnd`)?.[0] ?? n.trim.end, o = a.get(`${t}:trimOffset`)?.[0] ?? n.trim.offset;
-							Math.abs(i - e) < 1e-4 ? l = new Path2D() : e <= 0 && i >= 1 && o === 0 || (r.flat ||= p(r.cmds ?? r.template), l = h(r.flat, e, i, o));
-						}
-						n.dash && n.dash.dash > 0 && (e.setLineDash([n.dash.dash, n.dash.gap]), e.lineDashOffset = -(a.get(`${t}:dashOffset`)?.[0] ?? n.dash.offset)), e.stroke(l), e.setLineDash([]);
-					}
-				}
-				n.clip && (e.save(), e.clip(s), v.push(t));
-			} else if (n.kind === "text" && n.text) {
-				let i = a.get(`${t}:textSize`)?.[0] ?? n.text.size, s = a.get(`${t}:fill`) ?? n.text.color;
-				e.scale(1, -1), e.font = `${i}px "${n.text.font}", system-ui, sans-serif`, e.textAlign = "center", e.textBaseline = "middle", e.fillStyle = b(x(s, o)), e.fillText(r.text ?? n.text.content, 0, 0);
-			} else n.clip && v.push(-1);
-		}, C = i.nodes.map(() => 0);
-		for (let e = i.nodes.length - 1; e >= 0; e--) {
-			let t = e;
-			for (let n = e + 1; n < i.nodes.length && this.isDescendant(n, e); n++) t = n;
-			C[e] = t;
+			g[t] = d.map((e, t) => e * u[t]);
+		}), this.worlds = h;
+		let v = o.nodes.map((e) => e.fx);
+		for (let [e, t] of s) {
+			let n = e.indexOf(":fx/");
+			if (n < 0) continue;
+			let r = Number(e.slice(0, n)), i = o.nodes[r]?.fx;
+			if (!i) continue;
+			let a = v[r];
+			a === i && (a = v[r] = {
+				...i,
+				effects: i.effects.map((e) => ({ ...e }))
+			});
+			let s = e.slice(n + 4).split("/"), c = t.length === 1 ? t[0] : [...t];
+			s.length === 1 ? a[s[0]] = c : a.effects[Number(s[0])] && (a.effects[Number(s[0])][s[1]] = c);
 		}
-		let w = [];
-		for (let t = 0; t < i.nodes.length; t++) {
-			for (; w.length && t > w[w.length - 1].end;) w.pop(), e.restore();
-			let n = v.length;
-			y(t), v.length > n && (v[v.length - 1] === -1 ? v.pop() : w.push({
-				owner: t,
-				end: C[t]
+		let y = {
+			x: 0,
+			y: 0
+		}, b = (e) => y.x || y.y ? new DOMMatrix().translate(-y.x, -y.y).multiply(e) : e, x = (e) => Math.hypot(h[e].a, h[e].b) || 1, S = (e) => {
+			let t = o.nodes[e];
+			if (t.blend && !t.fx && (n.globalCompositeOperation = t.blend), t.shadow) {
+				let r = x(e);
+				n.shadowColor = J(t.shadow.color), n.shadowBlur = t.shadow.blur * r, n.shadowOffsetX = t.shadow.offset[0] * r, n.shadowOffsetY = -t.shadow.offset[1] * r;
+			}
+			return () => {
+				n.globalCompositeOperation = "source-over", t.shadow && (n.shadowColor = "transparent", n.shadowBlur = 0, n.shadowOffsetX = 0, n.shadowOffsetY = 0);
+			};
+		}, C = [], w = (e) => {
+			let t = o.nodes[e], r = this.nodes[e];
+			if (!this.isShown(e)) return;
+			n.setTransform(b(h[e]));
+			let i = g[e];
+			if (t.kind === "shape" && r.template) {
+				let a = s.get(`${e}:path`);
+				if (a) {
+					let e = a.join(",");
+					if (e !== r.pathKey) {
+						let t = z(r.template, a);
+						r.path = B(t), r.flat = null, r.pathKey = e, r.cmds = t;
+					}
+				}
+				let o = r.path, c = S(e), l = s.get(`${e}:fill`) ?? t.fill;
+				if (t.gradient ? n.fillStyle = X(n, t.gradient, i) : l && l[3] > 0 && (n.fillStyle = J(Y(l, i))), (t.gradient || l && l[3] > 0) && n.fill(o), t.stroke) {
+					let a = s.get(`${e}:strokeWidth`)?.[0] ?? t.stroke.width, c = s.get(`${e}:strokeColor`) ?? t.stroke.color;
+					if (a > 0 && (c[3] > 0 || t.stroke.gradient)) {
+						n.lineWidth = a, n.lineCap = t.stroke.cap, n.lineJoin = t.stroke.join, n.strokeStyle = t.stroke.gradient ? X(n, t.stroke.gradient, i) : J(Y(c, i));
+						let l = o;
+						if (t.trim) {
+							let n = s.get(`${e}:trimStart`)?.[0] ?? t.trim.start, i = s.get(`${e}:trimEnd`)?.[0] ?? t.trim.end, a = s.get(`${e}:trimOffset`)?.[0] ?? t.trim.offset;
+							Math.abs(i - n) < 1e-4 ? l = new Path2D() : n <= 0 && i >= 1 && a === 0 || (r.flat ||= V(r.cmds ?? r.template), l = U(r.flat, n, i, a));
+						}
+						t.dash && t.dash.dash > 0 && (n.setLineDash([t.dash.dash, t.dash.gap]), n.lineDashOffset = -(s.get(`${e}:dashOffset`)?.[0] ?? t.dash.offset)), n.stroke(l), n.setLineDash([]);
+					}
+				}
+				c(), t.clip && (n.save(), n.clip(o), C.push(e));
+			} else if (t.kind === "image" && t.image && r.img?.complete && r.img.naturalWidth > 0) {
+				let a = S(e);
+				n.scale(1, -1), n.globalAlpha = i[3], n.drawImage(r.img, -t.image.width / 2, -t.image.height / 2, t.image.width, t.image.height), n.globalAlpha = 1, a();
+			} else if (t.kind === "text" && t.text) {
+				let a = S(e), o = s.get(`${e}:textSize`)?.[0] ?? t.text.size, c = s.get(`${e}:fill`) ?? t.text.color;
+				n.scale(1, -1), n.font = `${o}px "${t.text.font}", system-ui, sans-serif`, n.textAlign = "center", n.textBaseline = "middle", n.fillStyle = J(Y(c, i)), n.fillText(r.text ?? t.text.content, 0, 0), a();
+			} else t.clip && C.push(-1);
+		}, T = o.nodes.map(() => 0);
+		for (let e = o.nodes.length - 1; e >= 0; e--) {
+			let t = e;
+			for (let n = e + 1; n < o.nodes.length && this.isDescendant(n, e); n++) t = n;
+			T[e] = t;
+		}
+		let E = (e) => {
+			let t = o.nodes[e], n = this.canvas.width, r = this.canvas.height, i = v[e];
+			if (!t.box || !i) return {
+				x: 0,
+				y: 0,
+				w: n,
+				h: r
+			};
+			let a = Math.max(0, i.padding);
+			for (let e of i.effects) e.type === "shadow" ? a = Math.max(a, Math.hypot(e.offset[0], e.offset[1]) + e.blur * 1.5 + e.spread) : e.type === "stroke" ? a = Math.max(a, e.width * 1.5) : (e.type === "blur" || e.type === "glow") && (a = Math.max(a, e.radius * 1.5));
+			let [s, c, l, u] = t.box, d = h[e], f = Infinity, p = Infinity, m = -Infinity, g = -Infinity;
+			for (let [e, t] of [
+				[s - a, c - a],
+				[l + a, c - a],
+				[l + a, u + a],
+				[s - a, u + a]
+			]) {
+				let n = d.transformPoint(new DOMPoint(e, t));
+				f = Math.min(f, n.x), p = Math.min(p, n.y), m = Math.max(m, n.x), g = Math.max(g, n.y);
+			}
+			let _ = Math.max(0, Math.floor(f) - 2), y = Math.max(0, Math.floor(p) - 2);
+			return {
+				x: _,
+				y,
+				w: Math.max(1, Math.min(n, Math.ceil(m) + 2) - _),
+				h: Math.max(1, Math.min(r, Math.ceil(g) + 2) - y)
+			};
+		}, D = [], O = (e) => {
+			if (e.kind === "clip") {
+				n.restore();
+				return;
+			}
+			let r = o.nodes[e.owner];
+			_(e.layer, v[e.owner], b(h[e.owner]), r.box, x(e.owner), this.clock, this.wake), n = e.prev, y = e.prevOff, n.save(), n.setTransform(1, 0, 0, 1, 0, 0), n.globalCompositeOperation = r.blend ?? "source-over", n.drawImage(e.layer, e.rect.x - y.x, e.rect.y - y.y), n.restore(), t.give(e.layer);
+		};
+		for (let e = 0; e < o.nodes.length; e++) {
+			for (; D.length && e > D[D.length - 1].end;) O(D.pop());
+			if (o.nodes[e].fx && this.isShown(e)) {
+				let r = E(e), i = t.take(r.w, r.h);
+				D.push({
+					kind: "fx",
+					owner: e,
+					end: T[e],
+					layer: i,
+					prev: n,
+					prevOff: y,
+					rect: {
+						x: r.x,
+						y: r.y
+					}
+				}), n = i.getContext("2d"), y = {
+					x: r.x,
+					y: r.y
+				};
+			}
+			let r = C.length;
+			w(e), C.length > r && (C[C.length - 1] === -1 ? C.pop() : D.push({
+				kind: "clip",
+				end: T[e]
 			}));
 		}
-		for (; w.length;) w.pop(), e.restore();
+		for (; D.length;) O(D.pop());
+		o.texture && p(this.canvas, o.texture, m, this.clock, this.wake);
 	}
 	isDescendant(e, t) {
 		for (let n = this.file.nodes[e].parent; n != null; n = this.file.nodes[n].parent) if (n === t) return !0;
 		return !1;
 	}
 };
-function b(e) {
+function J(e) {
 	let t = (e) => Math.round(Math.min(1, Math.max(0, e)) * 255);
 	return `rgba(${t(e[0])},${t(e[1])},${t(e[2])},${Math.min(1, Math.max(0, e[3] ?? 1))})`;
 }
-function x(e, t) {
+function Y(e, t) {
 	return [
 		e[0] * t[0],
 		e[1] * t[1],
@@ -585,19 +921,19 @@ function x(e, t) {
 		(e[3] ?? 1) * t[3]
 	];
 }
-function S(e, t, n) {
+function X(e, t, n) {
 	let r = t.kind === "linear" ? e.createLinearGradient(t.start[0], t.start[1], t.end[0], t.end[1]) : e.createRadialGradient(t.start[0], t.start[1], 0, t.start[0], t.start[1], Math.hypot(t.end[0] - t.start[0], t.end[1] - t.start[1]) || 1);
-	for (let e of t.stops) r.addColorStop(Math.min(1, Math.max(0, e.offset)), b(x(e.color, n)));
+	for (let e of t.stops) r.addColorStop(Math.min(1, Math.max(0, e.offset)), J(Y(e.color, n)));
 	return r;
 }
-function C(e) {
+function Z(e) {
 	try {
 		return JSON.parse(e);
 	} catch {
 		return e;
 	}
 }
-function w(e, t) {
+function Q(e, t) {
 	switch (e) {
 		case "number": {
 			let e = Number(t);
@@ -629,11 +965,11 @@ function w(e, t) {
 			];
 	}
 }
-function T(e, t) {
+function ee(e, t) {
 	return Array.isArray(e) && Array.isArray(t) ? e.length === t.length && e.every((e, n) => e === t[n]) : Object.is(e, t);
 }
-function E(e) {
+function $(e) {
 	return String(typeof e == "number" ? Number.isInteger(e) ? e : Math.round(e * 100) / 100 : e);
 }
 //#endregion
-export { t as n, n as t };
+export { k as n, A as t };

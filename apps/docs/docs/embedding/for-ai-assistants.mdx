@@ -19,7 +19,7 @@ This page is the general part of that file, so you can paste it into a prompt or
 - A self-contained interactive scene or game (WebGPU, with a WebGL2 fallback) that runs in a container element and is steered by the host page.
 - The full engine, for games. For UI animation without scripts (icons, buttons, toggles), Toasty has a separate small runtime, Toasty Lite (`<toasty-lite>`, `createLite`), which allows any number per page. Don't use the engine embed for those.
 - Shipped as prebuilt ES modules (no npm package, no build step of its own) plus two static binary files.
-- **One player per page.** Creating a second player destroys the first.
+- **Several players per page are fine.** Each is independent; the engine downloads once. Each one uses a GPU context (browsers cap these near 16), and off-screen players pause by default.
 
 ## Files and where they belong
 

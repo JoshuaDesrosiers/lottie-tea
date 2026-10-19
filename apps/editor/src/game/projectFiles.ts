@@ -17,6 +17,14 @@ export const FILE_REF_PREFIX = '@file:'
 
 let files = new Map<string, string>()
 
+/** Makes `next` the active path → text map; returns the one it replaced.
+ * Each embedded player keeps its own game's files (`runtimeContext.ts`). */
+export function swapProjectFiles(next: Map<string, string>): Map<string, string> {
+  const previous = files
+  files = next
+  return previous
+}
+
 /** Replaces the known files (call whenever the document summary changes). */
 export function setProjectFiles(list: readonly TextFileSummary[] | undefined): void {
   const next = new Map<string, string>()

@@ -1,3 +1,5 @@
+import { LITE_COMPONENTS } from '../lite/support'
+import { LiteAsterisk } from './LiteAsterisk'
 import { Popover, Select, insideOrPopover, placeMenu } from './Select'
 import { showAlert } from './Dialogs'
 import { ImageEffectsFields } from './ImageEffectsFields'
@@ -1318,7 +1320,11 @@ function BehaviorsFields({
                 className="h-3.5 w-3.5"
                 title="Enabled"
               />
-              <span className="flex-1 text-[11px] font-medium text-ink">{behaviorLabel(entry.behavior)}</span>
+              <span className="flex-1 text-[11px] font-medium text-ink">
+                {behaviorLabel(entry.behavior)}
+                {/* Already on the node but Toasty Lite leaves it out: flagged in both modes. */}
+                {!LITE_COMPONENTS.has(entry.behavior.kind) && <LiteAsterisk />}
+              </span>
               {entry.behavior.kind === 'Script' && (
                 <button
                   onClick={() => setEditingFieldsFor(editingFieldsFor === index ? null : index)}

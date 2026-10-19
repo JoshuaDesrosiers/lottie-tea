@@ -17,6 +17,8 @@
  * Every value is a plain field of the component, so Record / "+ Property"
  * keyframes it like anything else in the Inspector.
  */
+import { LITE_EFFECT_NOTE, LITE_IMAGE_EFFECTS, useLiteMode } from '../lite/support'
+import { LiteAsterisk } from './LiteAsterisk'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DocumentSummary, ImageAssetSummary, ImageEffect, ImageEffectsConfig, NodeSummary, OpaqueId } from '../ipc/document'
 import { addCutoutLayer, codeEffectError, codeEffectParams, getImageSource, imageEffectDefault, importImageAsset, type WasmEditor } from '../ipc/wasmEditor'
@@ -167,8 +169,8 @@ function Icon({ d }: { d: string }) {
   )
 }
 
-const row = (label: string, child: ReactNode, key?: string) => (
-  <div key={key ?? label} className="flex items-center gap-2">
+const row = (label: ReactNode, child: ReactNode, key?: string) => (
+  <div key={key ?? String(label)} className="flex items-center gap-2">
     <span className="w-20 shrink-0 text-[11px] text-ink-dim">{label}</span>
     <div className="flex min-w-0 flex-1 items-center gap-1">{child}</div>
   </div>
@@ -587,6 +589,7 @@ function StopsField({ stops, onChange }: { stops: { position: number; color: Rgb
 /** The element's own settings: background behind it, clip to its shape. */
 function ElementFields({ config, set, editor, images }: { config: ImageEffectsConfig; set: (p: Partial<ImageEffectsConfig>) => void; editor: WasmEditor; images: ImageAssetSummary[] }) {
   const bg = (config.background ?? [0, 0, 0, 0]) as Rgba
+  const liteMode = useLiteMode()
   const hasBg = bg[3] > 0 || !!config.backgroundImage
   const num = (label: string, key: 'backgroundRadius' | 'backgroundPadding' | 'backgroundImageOpacity' | 'feather', min: number, max: number, step: number, unit?: string) =>
     row(
@@ -606,8 +609,11 @@ function ElementFields({ config, set, editor, images }: { config: ImageEffectsCo
         Element
       </div>
       {row('Background', <ColorSwatch value={bg} onChange={(c) => set({ background: c })} />, 'bg')}
-      {row(
-        'Bg image',
+      {(!liteMode || config.backgroundImage) && row(
+        <>
+          Bg image
+          <LiteAsterisk />
+        </>,
         <div className="min-w-0 flex-1">
           <ImageAssetPicker editor={editor} images={images} value={config.backgroundImage ?? null} onChange={(id) => set({ backgroundImage: id })} />
         </div>,
@@ -630,6 +636,10 @@ function ElementFields({ config, set, editor, images }: { config: ImageEffectsCo
 /** The Add menu (grouped like an image editor's). */
 function AddEffect({ onAdd }: { onAdd: (kind: string) => void }) {
   const [open, setOpen] = useState(false)
+  const liteMode = useLiteMode()
+  // Lite mode: only effects the Toasty Lite export draws (separators that
+  // end up doubled / leading / trailing are dropped).
+  const menu = (liteMode ? MENU.filter((k) => k === null || LITE_IMAGE_EFFECTS.has(k)) : MENU).filter((k, i, all) => k !== null || (i > 0 && i < all.length - 1 && all[i - 1] !== null))
   const anchor = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
@@ -644,7 +654,7 @@ function AddEffect({ onAdd }: { onAdd: (kind: string) => void }) {
       </button>
       {open && (
         <Popover anchor={anchor} minWidth={200} className="rounded-lg border border-panel-border bg-solid-panel p-1 shadow-2xl">
-          {MENU.map((k, i) =>
+          {menu.map((k, i) =>
             k === null ? (
               <div key={`sep${i}`} className="my-1 h-px bg-overlay/10" />
             ) : (
@@ -658,6 +668,8 @@ function AddEffect({ onAdd }: { onAdd: (kind: string) => void }) {
               >
                 <Icon d={FX[k].icon} />
                 {FX[k].label}
+                {!LITE_IMAGE_EFFECTS.has(k) && <LiteAsterisk />}
+                {liteMode && LITE_EFFECT_NOTE[k] && <span className="ml-auto text-[9.5px] opacity-60">{LITE_EFFECT_NOTE[k].replace('Lite draws ', '')}</span>}
               </button>
             ),
           )}
@@ -693,7 +705,11 @@ export function ImageEffectsFields({ config, onChange, editor, images, ai }: { c
             <div className="flex items-center gap-1.5">
               <button onClick={() => setCollapsed((c) => ({ ...c, [i]: open }))} className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs font-medium text-ink" title={open ? 'Collapse' : 'Expand'}>
                 <Icon d={schema.icon} />
-                <span className="truncate">{schema.label}</span>
+                <span className="truncate">
+                  {schema.label}
+                  {!LITE_IMAGE_EFFECTS.has(kind) && <LiteAsterisk />}
+                  {LITE_IMAGE_EFFECTS.has(kind) && LITE_EFFECT_NOTE[kind] && <LiteAsterisk note={LITE_EFFECT_NOTE[kind]} />}
+                </span>
               </button>
               <button onClick={() => setAt(i, { enabled: !layer.enabled })} title={layer.enabled ? 'Hide' : 'Show'} className="rounded px-1 text-ink-dim hover:bg-overlay/10 hover:text-ink">
                 <Icon d={layer.enabled ? 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z' : 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3 3.6M6.6 6.6A17 17 0 0 0 2 12s4 7 10 7a9.6 9.6 0 0 0 5.4-1.6'} />

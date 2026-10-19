@@ -1,3 +1,5 @@
+import { LITE_POST_EFFECTS, useLiteMode } from '../lite/support'
+import { LiteAsterisk } from './LiteAsterisk'
 import { Popover, insideOrPopover } from './Select'
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { ImageAssetSummary, PostEffect, PostEffectLayer } from '../ipc/document'
@@ -22,6 +24,9 @@ export const EFFECT_KINDS = Object.keys(POST_EFFECT_DEFAULTS).filter((kind) => k
 function AddEffectMenu({ onAdd }: { onAdd: (kind: Exclude<PostEffect['kind'], 'None'>) => void }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const liteMode = useLiteMode()
+  // Lite mode: only the global texture (all the Toasty Lite export draws).
+  const kinds = liteMode ? EFFECT_KINDS.filter((k) => LITE_POST_EFFECTS.has(k)) : EFFECT_KINDS
 
   useEffect(() => {
     if (!open) return
@@ -44,7 +49,7 @@ function AddEffectMenu({ onAdd }: { onAdd: (kind: Exclude<PostEffect['kind'], 'N
       </button>
       {open && (
         <Popover anchor={rootRef} className="rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel">
-          {EFFECT_KINDS.map((kind) => (
+          {kinds.map((kind) => (
             <button
               key={kind}
               type="button"
@@ -55,6 +60,7 @@ function AddEffectMenu({ onAdd }: { onAdd: (kind: Exclude<PostEffect['kind'], 'N
               className="block w-full rounded-md px-2 py-1.5 text-left text-xs text-ink hover:bg-accent/15 hover:text-accent"
             >
               {kind}
+              {!LITE_POST_EFFECTS.has(kind) && <LiteAsterisk />}
             </button>
           ))}
         </Popover>

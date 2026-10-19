@@ -1,3 +1,5 @@
+import { setLiteMode, useLiteMode } from '../lite/support'
+import { LiteAsterisk } from './LiteAsterisk'
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { insideOrPopover } from './Select'
@@ -8,6 +10,9 @@ import { useLayoutMetrics } from '../layoutMetrics'
 import { FloatingPanel } from './FloatingPanel'
 import { BoneIcon, CameraKindIcon, EffectsIcon, EllipsePresetIcon, GameExportIcon,
   DesktopExportIcon, GifExportIcon, ImageIcon, LightKindIcon, OpenIcon, PlusIcon, RedoIcon, SaveIcon, ShapeKindIcon, SparkleIcon, StarPresetIcon, TextKindIcon, TileGridIcon, TrailKindIcon, TrianglePresetIcon, UndoIcon } from './icons'
+
+/** UI items Toasty Lite draws (a button, a panel shape, a text label). */
+const LITE_UI_ITEMS: ReadonlySet<UiMenuItem> = new Set<UiMenuItem>(['Button', 'Panel', 'Label'])
 
 /** The built-in demos (Add → Demos) are for experimenting in the desktop
  * app and local dev; the hosted web editor offers Templates only. */
@@ -27,8 +32,8 @@ const SHAPE_PRESETS: { kind: ShapePreset; label: string; icon: () => ReactElemen
  * hangs off the right side of the toolbar). Context-menu style: hovering a
  * submenu row opens it, clicking a leaf runs it and closes the whole menu. */
 type AddMenuEntry =
-  | { kind: 'item'; label: string; icon?: ReactElement; onSelect: () => void; hint?: string }
-  | { kind: 'submenu'; label: string; icon?: ReactElement; children: AddMenuEntry[] }
+  | { kind: 'item'; label: string; icon?: ReactElement; onSelect: () => void; hint?: string; /** `false`: Toasty Lite leaves it out. */ lite?: boolean }
+  | { kind: 'submenu'; label: string; icon?: ReactElement; children: AddMenuEntry[]; lite?: boolean }
   | { kind: 'separator' }
 
 const MENU_PANEL = 'rounded-lg border border-panel-border bg-panel p-1 shadow-2xl backdrop-blur-panel'
@@ -68,8 +73,20 @@ function Flyout({ children }: { children: ReactNode }) {
   )
 }
 
-function AddMenuList({ entries, onDone }: { entries: AddMenuEntry[]; onDone: () => void }) {
+/** Lite mode: drops entries Toasty Lite leaves out (and submenus left
+ * empty, and doubled / dangling separators). */
+function liteEntries(entries: AddMenuEntry[]): AddMenuEntry[] {
+  const kept = entries
+    .filter((e) => e.kind === 'separator' || e.lite !== false)
+    .map((e) => (e.kind === 'submenu' ? { ...e, children: liteEntries(e.children) } : e))
+    .filter((e) => e.kind !== 'submenu' || e.children.some((c) => c.kind !== 'separator'))
+  return kept.filter((e, i) => e.kind !== 'separator' || (i > 0 && i < kept.length - 1 && kept[i - 1].kind !== 'separator'))
+}
+
+function AddMenuList({ entries: all, onDone }: { entries: AddMenuEntry[]; onDone: () => void }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null)
+  const liteMode = useLiteMode()
+  const entries = liteMode ? liteEntries(all) : all
   return (
     <div className={`w-44 ${MENU_PANEL}`}>
       {entries.map((entry, i) => {
@@ -88,6 +105,7 @@ function AddMenuList({ entries, onDone }: { entries: AddMenuEntry[]; onDone: () 
             >
               <span className="flex w-4 justify-center text-ink-dim">{entry.icon}</span>
               {entry.label}
+              {entry.lite === false && <LiteAsterisk />}
             </button>
           )
         }
@@ -96,7 +114,10 @@ function AddMenuList({ entries, onDone }: { entries: AddMenuEntry[]; onDone: () 
           <div key={i} className="relative" onMouseEnter={() => setOpenIndex(i)}>
             <button onClick={() => setOpenIndex(i)} className={`${MENU_ROW} ${open ? 'bg-overlay/8' : ''}`}>
               <span className="flex w-4 justify-center text-ink-dim">{entry.icon}</span>
-              <span className="flex-1">{entry.label}</span>
+              <span className="flex-1">
+                {entry.label}
+                {entry.lite === false && <LiteAsterisk />}
+              </span>
               <span className="text-ink-dim">&lsaquo;</span>
             </button>
             {open && (
@@ -243,14 +264,15 @@ function ShapesMenu({
         { kind: 'item', label: 'Text', icon: <TextKindIcon />, onSelect: () => onAddText() },
         { kind: 'item', label: 'Icon (Material Symbols)', icon: <SparkleIcon />, onSelect: () => onAddText(true) },
         { kind: 'item', label: 'Sprite (Image)…', icon: <ImageIcon />, onSelect: onImportImage },
-        { kind: 'item', label: 'Tilemap…', icon: <TileGridIcon />, onSelect: onAddTilemap },
-        { kind: 'item', label: 'Bone', icon: <BoneIcon />, onSelect: onAddBone },
+        { kind: 'item', label: 'Tilemap…', icon: <TileGridIcon />, onSelect: onAddTilemap, lite: false },
+        { kind: 'item', label: 'Bone', icon: <BoneIcon />, onSelect: onAddBone, lite: false },
       ],
     },
     {
       kind: 'submenu',
       label: 'Effects',
       icon: <EffectsIcon />,
+      lite: false,
       children: [
         { kind: 'item', label: 'Particle System', icon: <EffectsIcon />, onSelect: onAddParticleSystem },
         { kind: 'item', label: 'Trail Renderer', icon: <TrailKindIcon />, onSelect: onAddTrail, hint: 'Attaches to the selected node' },
@@ -260,6 +282,7 @@ function ShapesMenu({
       kind: 'submenu',
       label: 'Light 2D',
       icon: <LightKindIcon />,
+      lite: false,
       children: (['Global', 'Spot', 'Freeform', 'Sprite'] as const).map(
         (lightType): AddMenuEntry => ({ kind: 'item', label: `${lightType} Light 2D`, icon: <LightKindIcon />, onSelect: () => onAddLight2D(lightType) }),
       ),
@@ -270,7 +293,7 @@ function ShapesMenu({
       label: 'UI',
       icon: <SparkleIcon />,
       children: [
-        ...UI_MENU_ITEMS.map((item): AddMenuEntry => ({ kind: 'item', label: UI_MENU_LABEL[item] ?? item, icon: <SparkleIcon />, onSelect: () => onAddUi(item) })),
+        ...UI_MENU_ITEMS.map((item): AddMenuEntry => ({ kind: 'item', label: UI_MENU_LABEL[item] ?? item, icon: <SparkleIcon />, onSelect: () => onAddUi(item), lite: LITE_UI_ITEMS.has(item) })),
         { kind: 'item', label: 'Icon', icon: <SparkleIcon />, onSelect: () => onAddText(true) },
       ],
     },
@@ -278,6 +301,7 @@ function ShapesMenu({
       kind: 'submenu',
       label: '3D',
       icon: <CameraKindIcon />,
+      lite: false,
       children: (
         [
           ['Cube', 'Cube'],
@@ -302,8 +326,8 @@ function ShapesMenu({
         { kind: 'item', label: 'SVG…', icon: <OpenIcon />, onSelect: onImportSvg },
         { kind: 'item', label: 'Image…', icon: <ImageIcon />, onSelect: onImportImage },
         ...(onImportReference ? [{ kind: 'item' as const, label: 'Reference image… (design only)', icon: <ImageIcon />, onSelect: onImportReference }] : []),
-        { kind: 'item', label: '3D Model (glTF / GLB / VRM)…', icon: <CameraKindIcon />, onSelect: onImportModel },
-        { kind: 'item', label: 'Audio…', icon: <SparkleIcon />, onSelect: onImportAudio },
+        { kind: 'item', label: '3D Model (glTF / GLB / VRM)…', icon: <CameraKindIcon />, onSelect: onImportModel, lite: false },
+        { kind: 'item', label: 'Audio…', icon: <SparkleIcon />, onSelect: onImportAudio, lite: false },
       ],
     },
     ...(SHOW_DEMOS
@@ -472,7 +496,25 @@ function FileMenu({ actions, onSave }: { actions: FileMenuActions; onSave: () =>
  * transparent), a transparent WebM or an MP4 video; or the whole game as
  * a web page or a desktop app.
  */
-function ExportMenu({ onExportAnimation, onExportLite, onExportGame, onExportDesktopGame, onExportEmbed }: { onExportAnimation: (options: AnimationExportOptions) => void; onExportLite: () => void; onExportGame: () => void; onExportDesktopGame: () => void; onExportEmbed: () => void }) {
+function ExportMenu({
+  onExportAnimation,
+  onExportLite,
+  onExportGame,
+  onExportDesktopGame,
+  onExportEmbed,
+  onExportEmbedShared,
+  onDownloadRuntime,
+}: {
+  onExportAnimation: (options: AnimationExportOptions) => void
+  onExportLite: () => void
+  onExportGame: () => void
+  onExportDesktopGame: () => void
+  onExportEmbed: () => void
+  /** Website embed that loads the engine from the shared runtime. */
+  onExportEmbedShared?: () => void
+  /** Saves / downloads the shared runtime zip (for self-hosting). */
+  onDownloadRuntime?: () => void
+}) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -492,6 +534,14 @@ function ExportMenu({ onExportAnimation, onExportLite, onExportGame, onExportDes
     { kind: 'item', label: 'Game → Web page (.html)', icon: <GameExportIcon />, onSelect: onExportGame, hint: 'One self-contained page — runs in any browser' },
     { kind: 'item', label: 'Game → Desktop app (.exe)', icon: <DesktopExportIcon />, onSelect: onExportDesktopGame, hint: 'One file, double-click to play, F11 for fullscreen' },
     { kind: 'item', label: 'Game → Website embed (React / JS)', icon: <GameExportIcon />, onSelect: onExportEmbed, hint: 'A folder for your web project: <An1Player> / createPlayer, live data, inputs, scenes and events' },
+    // The same embed API, minus the 20+ MB engine: pages load it from the
+    // versioned shared runtime (hosted, or self-hosted from the zip below).
+    ...(onExportEmbedShared
+      ? [{ kind: 'item' as const, label: 'Game → Website embed (shared runtime)', icon: <GameExportIcon />, onSelect: onExportEmbedShared, hint: 'Just the game + an HTML page and React component that load the engine from the shared Toasty runtime — tiny, cached across sites' }]
+      : []),
+    ...(onDownloadRuntime
+      ? [{ kind: 'item' as const, label: 'Download shared runtime…', icon: <GameExportIcon />, onSelect: onDownloadRuntime, hint: 'The versioned engine + embed JS as a .zip, to self-host the runtime shared-runtime embeds load' }]
+      : []),
   ]
   return (
     <div ref={rootRef} className="relative">
@@ -576,6 +626,25 @@ const MODES: Mode[] = ['Design', 'Playground', 'Paint', 'Code']
  * `import_svg` pipeline a user's own file goes through, not a hand-built
  * document, and `App.tsx`'s `handleLoadDemo` for what it wires up to.
  */
+/**
+ * The **Lite** switch: on, menus only offer what the Toasty Lite export
+ * draws (see `lite/support.ts`); off, those things just carry an asterisk.
+ */
+function LiteModeToggle() {
+  const on = useLiteMode()
+  return (
+    <button
+      type="button"
+      onClick={() => setLiteMode(!on)}
+      aria-pressed={on}
+      title={on ? 'Lite mode is on: only showing what the Toasty Lite export supports. Click for everything.' : 'Lite mode: only show what the Toasty Lite export supports (things it leaves out are marked *)'}
+      className={`ml-0.5 flex h-6 items-center rounded-md px-1.5 text-[10.5px] font-semibold tracking-wide ${on ? 'bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/50' : 'text-ink-dim hover:bg-overlay/5 hover:text-ink'}`}
+    >
+      LITE
+    </button>
+  )
+}
+
 export function TopToolbar({
   mode,
   onModeChange,
@@ -588,6 +657,8 @@ export function TopToolbar({
   onExportGame,
   onExportDesktopGame,
   onExportEmbed,
+  onExportEmbedShared,
+  onDownloadRuntime,
   onAddShape,
   onAddParticleSystem,
   onImportSvg,
@@ -650,6 +721,10 @@ export function TopToolbar({
   onExportGame: () => void
   onExportDesktopGame: () => void
   onExportEmbed: () => void
+  /** Export → Website embed (shared runtime). */
+  onExportEmbedShared?: () => void
+  /** Export → Download shared runtime…. */
+  onDownloadRuntime?: () => void
   onAddShape: (kind: ShapePreset) => void
   onAddParticleSystem: () => void
   onImportSvg: () => void
@@ -717,6 +792,7 @@ export function TopToolbar({
    * since every piece of scene state already lives in `App.tsx`. */
   sceneSwitcher?: ReactNode
 }) {
+  const liteMode = useLiteMode()
   const m = useLayoutMetrics()
   return (
     <div
@@ -734,7 +810,7 @@ export function TopToolbar({
       style={{ left: m.leftDockOffset, right: m.edgeMargin, top: m.toolbarTop }}
     >
       <FloatingPanel className="flex items-center gap-0.5 px-1 py-1">
-        {MODES.map((m) => (
+        {MODES.filter((m) => !(liteMode && m === 'Code')).map((m) => (
           <button
             key={m}
             onClick={() => onModeChange(m)}
@@ -743,6 +819,7 @@ export function TopToolbar({
             }`}
           >
             {m}
+            {m === 'Code' && <LiteAsterisk note="Code (scripts)" />}
           </button>
         ))}
 
@@ -835,7 +912,8 @@ export function TopToolbar({
               <SaveIcon />
               {fileMenu.dirty && <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-accent" />}
             </button>
-            <ExportMenu onExportAnimation={onExportAnimation} onExportLite={onExportLite} onExportGame={onExportGame} onExportDesktopGame={onExportDesktopGame} onExportEmbed={onExportEmbed} />
+            <ExportMenu onExportAnimation={onExportAnimation} onExportLite={onExportLite} onExportGame={onExportGame} onExportDesktopGame={onExportDesktopGame} onExportEmbed={onExportEmbed} onExportEmbedShared={onExportEmbedShared} onDownloadRuntime={onDownloadRuntime} />
+            <LiteModeToggle />
             <div className="mx-1 h-4 w-px bg-overlay/10" />
             <button
               onClick={onUndo}

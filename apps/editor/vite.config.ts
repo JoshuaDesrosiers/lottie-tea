@@ -1,5 +1,7 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { rm } from 'node:fs/promises'
+import { resolve } from 'node:path'
 
 // A rebuilt `src/wasm-pkg` (wasm-pack output) must force a *full* page
 // reload, never an HMR hot-swap: `App.tsx` creates its one `WasmEditor`
@@ -20,6 +22,26 @@ function wasmFullReload(): Plugin {
   }
 }
 
+// The shared runtime (`public/runtime/`: a versioned copy of the engine +
+// its zip, ~34 MB) is for the website, where other sites load / download
+// it. The desktop app doesn't need it inside its own bundle — its "Download
+// shared runtime…" falls back to the hosted zip — so a Tauri build
+// (`TAURI_ENV_PLATFORM` is set for Tauri's beforeBuildCommand) drops it.
+function dropRuntimeForDesktop(): Plugin {
+  let outDir = 'dist'
+  return {
+    name: 'drop-runtime-for-desktop',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir)
+    },
+    async closeBundle() {
+      if (!process.env.TAURI_ENV_PLATFORM) return
+      await rm(resolve(outDir, 'runtime'), { recursive: true, force: true })
+    },
+  }
+}
+
 // Standard Tauri+Vite dev-server configuration: a fixed, non-conflicting port
 // Tauri's shell expects, HMR left visible in the terminal (clearScreen: false)
 // so Rust build errors from the Tauri side aren't wiped from view, and the
@@ -29,7 +51,7 @@ function wasmFullReload(): Plugin {
 const host = process.env.TAURI_DEV_HOST
 
 export default defineConfig({
-  plugins: [react(), wasmFullReload()],
+  plugins: [react(), wasmFullReload(), dropRuntimeForDesktop()],
   clearScreen: false,
   // The vendored scratch-paint tree (src/vendor/scratch-paint — forked in
   // directly, not npm-installed, so it's built by Vite like the rest of

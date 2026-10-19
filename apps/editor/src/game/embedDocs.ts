@@ -129,6 +129,13 @@ function fill(template: string, m: Manifest): string {
     .join(JSON.stringify(m, null, 2))
 }
 
+/** `template` with `{{TITLE}}` / `{{SURFACE}}` / `{{MANIFEST}}` filled for
+ * this game — for other exports' docs (the shared-runtime export's README,
+ * `game/exportEmbedShared.ts`). */
+export function fillEmbedTemplate(template: string, doc: DocumentSummary, title: string, startScene: string): string {
+  return fill(template, gameManifest(doc, title, startScene))
+}
+
 /** Every doc for one export. */
 export function embedDocs(doc: DocumentSummary, title: string, startScene: string) {
   const m = gameManifest(doc, title, startScene)

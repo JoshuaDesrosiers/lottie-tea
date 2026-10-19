@@ -1,0 +1,71 @@
+<!doctype html>
+<!--
+  {{TITLE}} — website embed using the Toasty shared runtime ({{RUNTIME_VERSION}}).
+  Written by "Export → Website embed (shared runtime)". Serve this folder
+  over http (e.g. `npx serve .`) — browsers block module imports from file://.
+
+  The engine is NOT in this folder: it loads from RUNTIME below (the hosted
+  copy by default). To self-host, unzip toasty-runtime-{{RUNTIME_VERSION}}.zip
+  (editor: Export → Download shared runtime…) next to this page and set
+  RUNTIME = './toasty-runtime-{{RUNTIME_VERSION}}/'.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE_TEXT}}</title>
+<style>
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: #111318; color: #e8e6ef; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px; display: grid; gap: 16px; }
+  #game { height: 480px; border-radius: 12px; overflow: hidden; background: #000; }
+  #log { height: 140px; overflow: auto; white-space: pre-wrap; background: #1a1d24; border-radius: 8px; padding: 8px 12px; font: 12px/1.6 ui-monospace, monospace; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button, input, select { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid #333846; background: #1f232c; color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <div id="game"></div>
+  <div class="row">
+    <select id="scene"></select>
+    <input id="key" placeholder="data / property name">
+    <input id="value" placeholder="value">
+    <button id="set">set</button>
+    <input id="trigger" placeholder="trigger name">
+    <button id="fire">fire</button>
+  </div>
+  <div id="log"></div>
+</main>
+<script type="module">
+  // Where the engine comes from — change this one line to self-host.
+  const RUNTIME = '{{RUNTIME_URL}}'
+
+  const { createPlayer } = await import(RUNTIME + 'an1mbyt3-embed.js')
+  const log = (text) => { const el = document.getElementById('log'); el.textContent += text + '\n'; el.scrollTop = el.scrollHeight }
+  const player = await createPlayer(document.getElementById('game'), {
+    game: './game.teab',
+    runtimeUrl: RUNTIME,
+    scene: {{START_SCENE_JSON}},
+  })
+  const scenes = document.getElementById('scene')
+  for (const name of player.scenes) scenes.add(new Option(name, name, false, name === player.scene))
+  scenes.onchange = () => player.loadScene(scenes.value)
+  document.getElementById('set').onclick = () => {
+    const raw = document.getElementById('value').value
+    let value = raw
+    try { value = JSON.parse(raw) } catch {}
+    player.set(document.getElementById('key').value, value)
+  }
+  document.getElementById('fire').onclick = () => player.fire(document.getElementById('trigger').value)
+  player.on('state', (e) => log('state  ' + (e.layer ? e.layer + ': ' : '') + e.previous + ' → ' + e.state))
+  player.on('scene', (e) => { log('scene  ' + e.scene); scenes.value = e.scene })
+  player.on('prop', (e) => log('prop   ' + e.name + ' = ' + JSON.stringify(e.value)))
+  player.on('event', (e) => log('event  ' + e.name + ' ' + JSON.stringify(e.payload ?? null)))
+  log('ready — scenes: ' + player.scenes.join(', '))
+
+  // More games on the same page? Each createPlayer / <an1-player> is
+  // independent, and they all share the one engine download:
+  //   const second = await createPlayer(otherElement, { game: './other.teab', runtimeUrl: RUNTIME })
+</script>
+</body>
+</html>

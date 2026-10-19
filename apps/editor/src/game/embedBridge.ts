@@ -17,7 +17,7 @@ import { gameConsole, type ConsoleOrigin } from './console'
 
 type EmitListener = (name: string, payload: unknown) => void
 
-class EmbedBridge {
+export class EmbedBridge {
   /** Page-provided data (`ctx.data`). Replaced, never mutated in place,
    * so a script holding last frame's object sees a stable snapshot. */
   data: Readonly<Record<string, unknown>> = Object.freeze({})
@@ -64,4 +64,14 @@ function safeJson(value: unknown): string {
   }
 }
 
-export const embedBridge = new EmbedBridge()
+/** The *active* bridge (live binding): the editor's, or — around an
+ * embedded player's frame / API calls — that player's own (each player
+ * has one; see `runtimeContext.ts`). */
+export let embedBridge = new EmbedBridge()
+
+/** Makes `next` the active bridge; returns the one it replaced. */
+export function swapEmbedBridge(next: EmbedBridge): EmbedBridge {
+  const previous = embedBridge
+  embedBridge = next
+  return previous
+}

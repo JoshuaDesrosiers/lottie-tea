@@ -10,8 +10,12 @@ export type Source = string | URL | ArrayBuffer | Uint8Array
 export interface PlayerOptions {
   /** The game: a .teab file (URL or bytes). */
   game: Source
-  /** The engine (an1mbyt3_wasm_bg.wasm). Default: next to \`game\`. */
+  /** The engine (an1mbyt3_wasm_bg.wasm). Default: from \`runtimeUrl\`, else next to \`game\`, else next to this script. Downloaded once per page and shared by every player. */
   wasm?: Source
+  /** A shared runtime folder (https://toastycreate.web.app/runtime/<version>/ or your self-hosted copy): the engine .wasm is loaded from there. */
+  runtimeUrl?: string | URL
+  /** Pause while scrolled out of view (default true). */
+  pauseWhenOffscreen?: boolean
   /** Scene to open on (by name). Default: the first scene. */
   scene?: string
   /** 'contain' (letterboxed, default) or 'cover' (fill, crop overflow). */
@@ -43,6 +47,8 @@ export interface PlayerEvents {
   /** ctx.emit(name, payload) in a script, or an On Click "Call script function" no script handles. */
   event: { name: string; payload: unknown }
   error: { error: unknown }
+  /** A line in the game's console (console.log / print, script errors). */
+  log: { level: 'log' | 'warn' | 'error'; message: string; line?: number; count: number }
 }
 
 export type PlayerEventType = keyof PlayerEvents
@@ -77,10 +83,16 @@ export interface An1Player {
 `
 
 export const EMBED_DTS = `${PLAYER_TYPES}
-/** Starts a game inside \`container\` (one player per page; a new one replaces the old). */
+/** Starts a game inside \`container\`. Any number of players can run on one page, each independent. */
 export function createPlayer(container: HTMLElement, options: PlayerOptions): Promise<An1Player>
 
-/** Registers <an1-player game="…" scene="…" data='{"…"}' paused fit keyboard wasm>. Events: an1:ready / an1:state / an1:scene / an1:prop / an1:event / an1:error. */
+/** Default \`runtimeUrl\` for every player on the page (call before the first player starts). */
+export function setRuntimeUrl(url: string | URL | null): void
+
+/** The shared runtime version this file belongs to. */
+export const RUNTIME_VERSION: string
+
+/** Registers <an1-player game="…" scene="…" data='{"…"}' paused fit keyboard wasm runtime run-offscreen>. Events: an1:ready / an1:state / an1:scene / an1:prop / an1:event / an1:error. */
 export function defineAn1PlayerElement(tag?: string): void
 `
 
@@ -94,6 +106,10 @@ export interface An1PlayerProps {
   /** The game (.teab URL or bytes). Changing it reloads. */
   game: Source
   wasm?: Source
+  /** A shared runtime folder: the engine .wasm is loaded from there. */
+  runtimeUrl?: string | URL
+  /** Pause while scrolled out of view (default true). */
+  pauseWhenOffscreen?: boolean
   /** Changing it switches scene. */
   scene?: string
   /** ctx.data + same-named scene Properties. Only changed keys are sent. */
